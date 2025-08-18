@@ -1,13 +1,17 @@
 /*------------------------------------------------------------------------------
 * mdccssr.c : QZSS L6E signal MADOCA-PPP Compact SSR message decode functions
 *
-* Copyright (C) 2024 TOSHIBA ELECTRONIC TECHNOLOGIES CORPORATION. All Rights Reserved.
+* Copyright (C) 2024-2025 TOSHIBA ELECTRONIC TECHNOLOGIES CORPORATION. All Rights Reserved.
 *
 * references :
-*     [1]  CAO IS-QZSS-MDC-002, November, 2023
+*     [1]  CAO IS-QZSS-MDC-004, May, 2025
 *
 * version : $Revision:$ $Date:$
 * history : 2024/02/01 1.0  new, for MALIB from TETC original tools.
+*           2025/08/31 1.1  add vendor type setting
+*                           change the sign of the phase bias correction to 
+*                           correspond to IS-QZSS-MDC (ref.[1]).modify Compact SSR decoding function regarding 
+*                           undefined GNSS ID handling of Compact SSR.
 *-----------------------------------------------------------------------------*/
 #include "rtklib.h"
 
@@ -30,7 +34,7 @@
 #define MCSSR_ST_PB                 5   /* Compact SSR GNSS Satellite Phase Bias */
 #define MCSSR_ST_URA                7   /* Compact SSR GNSS URA */
 
-#define MCSSR_MAX_SYS               5   /* GNSS ID (Table 4.2.2-7) w/o SBS */
+#define MCSSR_MAX_SYS              16   /* GNSS ID (Table 4.2.2-7) w/o SBS */
 #define MCSSR_SYS_GPS               0
 #define MCSSR_SYS_GLO               1
 #define MCSSR_SYS_GAL               2
@@ -48,6 +52,8 @@
 #define MCSSR_SATMASK_BDS_L  0xFF
 #define MCSSR_SATMASK_QZS_U  0xFFC00000u
 #define MCSSR_SATMASK_QZS_L  0x00
+#define MCSSR_SATMASK_RSV_U  0xFFFFFFFFu
+#define MCSSR_SATMASK_RSV_L  0xFF
 
 #define MCSSR_MAX_SIGMASK          16   /* Signal Mask (Table 4.2.2-9) */
 
@@ -63,26 +69,28 @@ static const double ssrudint[16]={
 };
 
 /* Compact SSR Signal mask (Table 4.2.2-9) w/o SBS ---------------------------*/
-const uint8_t cssr_sig_gps[16]={
+static const uint8_t cssr_sig_gps[16]={
     CODE_L1C,CODE_L1P,CODE_L1W,CODE_L1S,CODE_L1L,CODE_L1X,CODE_L2S,CODE_L2L,
     CODE_L2X,CODE_L2P,CODE_L2W,CODE_L5I,CODE_L5Q,CODE_L5X,       0,       0
 };
-const uint8_t cssr_sig_glo[16]={
+static const uint8_t cssr_sig_glo[16]={
     CODE_L1C,CODE_L1P,CODE_L2C,CODE_L2P,CODE_L4A,CODE_L4B,CODE_L4X,CODE_L6A,
     CODE_L6B,CODE_L6X,CODE_L3I,CODE_L3Q,CODE_L3X,       0,       0,       0
 };
-const uint8_t cssr_sig_gal[16]={
+static const uint8_t cssr_sig_gal[16]={
     CODE_L1B,CODE_L1C,CODE_L1X,CODE_L5I,CODE_L5Q,CODE_L5X,CODE_L7I,CODE_L7Q,
-    CODE_L7X,CODE_L8I,CODE_L8Q,CODE_L8X,       0,       0,       0,       0
+    CODE_L7X,CODE_L8I,CODE_L8Q,CODE_L8X,CODE_L6A,CODE_L6B,       0,       0
 };
-const uint8_t cssr_sig_cmp[16]={
+static const uint8_t cssr_sig_cmp[16]={
     CODE_L2I,CODE_L2Q,CODE_L2X,CODE_L6I,CODE_L6Q,CODE_L6X,CODE_L7I,CODE_L7Q,
     CODE_L7X,       0,       0,       0,       0,       0,       0,       0
 };
-const uint8_t cssr_sig_qzs[16]={
+static const uint8_t cssr_sig_qzs[16]={
     CODE_L1C,CODE_L1S,CODE_L1L,CODE_L1X,CODE_L2S,CODE_L2L,CODE_L2X,CODE_L5I,
-    CODE_L5Q,CODE_L5X,       0,       0,       0,       0,       0,       0
+    CODE_L5Q,CODE_L5X,CODE_L6I,CODE_L6Q,CODE_L6X,CODE_L1A,       0,       0
 };
+
+const uint8_t cssr_sig_rsv[16]={0};
 
 /* MADOCA-PPP Sub Type Transmission Pattern (Figure 4.2.2-1) -----------------*/
 /* note : Change MCSSR_BYTELEN when defining 6 or more. */
@@ -110,6 +118,7 @@ typedef struct {
     int frame;                      /* frame counter */
     int tow0;                       /* for Hourly Epoch Time 1s */
     int ep0;                        /* for Hourly Epoch Time 1s regresses check */
+    int valep0;                     /* subtype 1 validity time */
     int iod;                        /* IOD SSR */
 } mcssr_t;
 
@@ -133,7 +142,7 @@ static int gnssid2sys(const int gnssid)
         case MCSSR_SYS_BDS : return SYS_CMP;
         case MCSSR_SYS_QZS : return SYS_QZS;
     }
-    return -1;
+    return SYS_NONE;
 }
 /* ---------------------------------------------------------------------------*/
 static int svmask2list(const uint64_t mask, const int gnssid, int *satlist, int *gidlist)
@@ -166,7 +175,7 @@ static int sigmask2list(const uint16_t mask, const int gnssid, int *siglist)
         case MCSSR_SYS_GAL : sigs = cssr_sig_gal; break;
         case MCSSR_SYS_BDS : sigs = cssr_sig_cmp; break;
         case MCSSR_SYS_QZS : sigs = cssr_sig_qzs; break;
-        default: return 0;
+        default            : sigs = cssr_sig_rsv;
     }
 
     for(i = 0; i < MCSSR_MAX_SIGMASK; i++){
@@ -221,8 +230,9 @@ static int decode_mcssr_mask(mcssr_t *mc, int i)
 
     i = decode_mcssr_head(mc, &sync, &iod, &ep, &udint, i, MCSSR_ST_MASK);
 
-    mc->tow0 = ep / 3600 * 3600;
-    mc->ep0  = ep % 3600;
+    mc->tow0   = ep / 3600 * 3600;
+    mc->ep0    = ep % 3600;
+    mc->valep0 = mc->ep0 + (int)udint;
     adjweek(&mc->gt, ep);
     mc->iod  = iod;
     mc->ns = 0;
@@ -243,9 +253,8 @@ static int decode_mcssr_mask(mcssr_t *mc, int i)
             case MCSSR_SYS_GAL : gnssmask = ((uint64_t)MCSSR_SATMASK_GAL_U) << 8 | MCSSR_SATMASK_GAL_L; break;
             case MCSSR_SYS_BDS : gnssmask = ((uint64_t)MCSSR_SATMASK_BDS_U) << 8 | MCSSR_SATMASK_BDS_L; break;
             case MCSSR_SYS_QZS : gnssmask = ((uint64_t)MCSSR_SATMASK_QZS_U) << 8 | MCSSR_SATMASK_QZS_L; break;
-            default :
-                trace(2,"decode_mcssr_mask: invalid gnssid=%d\n",gnssid);
-                return -1;
+            default            : gnssmask = ((uint64_t)MCSSR_SATMASK_RSV_U) << 8 | MCSSR_SATMASK_RSV_L;
+                                 trace(2,"decode_mcssr_mask: reserved gnssid=%d\n",gnssid);
         }
         svmask   = (uint64_t)getbitu(mc->buff, i, 8)<<32; i+=8;
         svmask  |= getbitu(mc->buff, i, 32); i+=32;     /* Sat mask */
@@ -289,19 +298,21 @@ static int decode_mcssr_oc(mcssr_t *mc, ssr_t *ssr, int i, int apply)
 
     i = decode_mcssr_head(mc, &sync, &iod, &ep, &udint, i, MCSSR_ST_OC);
     if(mc->tow0 < 0) {
-        trace(2,"decode_mcssr_oc :%s,unprocessed mask\n",
-            time_str(mc->gt,3));
-        apply=0;
+        trace(2,"decode_mcssr_oc: unprocessed mask\n");
+        return -1;
     }
-    else {
-        if(mc->ep0 > ep) ep += 3600;
-        adjweek(&mc->gt, mc->tow0 + ep);
-        if(mc->iod != iod) {
-            trace(2,"decode_mcssr_oc :%s,iod mismatch %d != %d\n",
-                time_str(mc->gt,3),mc->iod,iod);
-            apply=0;
-        }
+    if(mc->ep0 > ep) ep += 3600;
+    if(ep >= mc->valep0) {
+        trace(2,"decode_mcssr_oc: ep %d,expired ep %d by cssr ST1 mask\n",
+            ep, mc->valep0);
+        return -1;
     }
+    if(mc->iod != iod) {
+        trace(2,"decode_mcssr_oc: ep %d,iod mismatch %d != %d\n",
+            ep,mc->iod,iod);
+        return -1;
+    }
+    adjweek(&mc->gt, mc->tow0 + ep);
     for (j = 0; j < mc->ns; j++) {
         n = (mc->gidlist[j]==MCSSR_SYS_GAL)? 10: 8;
         iode    = getbitu(mc->buff, i,  n); i+= n; /* IODE */
@@ -344,19 +355,21 @@ static int decode_mcssr_cc(mcssr_t *mc, ssr_t *ssr, int i, int apply)
 
     i = decode_mcssr_head(mc, &sync, &iod, &ep, &udint, i, MCSSR_ST_CC);
     if(mc->tow0 < 0) {
-        trace(2,"decode_mcssr_cc :%s,unprocessed mask\n",
-            time_str(mc->gt,3));
-        apply=0;
+        trace(2,"decode_mcssr_cc: unprocessed mask\n");
+        return -1;
     }
-    else {
-        if(mc->ep0 > ep) ep += 3600;
-        adjweek(&mc->gt, mc->tow0 + ep);
-        if(mc->iod != iod) {
-            trace(2,"decode_mcssr_cc :%s,iod mismatch %d != %d\n",
-                time_str(mc->gt,3),mc->iod,iod);
-            apply=0;
-        }
+    if(mc->ep0 > ep) ep += 3600;
+    if(ep >= mc->valep0) {
+        trace(2,"decode_mcssr_cc: ep %d,expired ep %d by cssr ST1 mask\n",
+            ep, mc->valep0);
+        return -1;
     }
+    if(mc->iod != iod) {
+        trace(2,"decode_mcssr_cc: ep %d,iod mismatch %d != %d\n",
+            ep,mc->iod,iod);
+        return -1;
+    }
+    adjweek(&mc->gt, mc->tow0 + ep);
     for (j = 0; j < mc->ns; j++) {
         dclk = getbits(mc->buff, i, 15); i+=15; /* Delta Clock C0 */
 
@@ -391,19 +404,21 @@ static int decode_mcssr_cb(mcssr_t *mc, ssr_t *ssr, int i, int apply)
 
     i = decode_mcssr_head(mc, &sync, &iod, &ep, &udint, i, MCSSR_ST_CB);
     if(mc->tow0 < 0) {
-        trace(2,"decode_mcssr_cb :%s,unprocessed mask\n",
-            time_str(mc->gt,3));
-        apply=0;
+        trace(2,"decode_mcssr_cb: unprocessed mask\n");
+        return -1;
     }
-    else {
-        if(mc->ep0 > ep) ep += 3600;
-        adjweek(&mc->gt, mc->tow0 + ep);
-        if(mc->iod != iod) {
-            trace(2,"decode_mcssr_cb: %s,iod mismatch %d != %d\n",
-                time_str(mc->gt,3),mc->iod,iod);
-            apply=0;
-        }
+    if(mc->ep0 > ep) ep += 3600;
+    if(ep >= mc->valep0) {
+        trace(2,"decode_mcssr_cb: ep %d,expired ep %d by cssr ST1 mask\n",
+            ep, mc->valep0);
+        return -1;
     }
+    if(mc->iod != iod) {
+        trace(2,"decode_mcssr_cb: ep %d,iod mismatch %d != %d\n",
+            ep,mc->iod,iod);
+        return -1;
+    }
+    adjweek(&mc->gt, mc->tow0 + ep);
     for (j = 0; j < mc->ns; j++) {
         for (k=0;k<MAXCODE;k++) cbias[k]=0.0;
         sat = mc->satlist[j];
@@ -446,16 +461,20 @@ static int decode_mcssr_pb(mcssr_t *mc, ssr_t *ssr, int i, int apply)
         trace(2,"decode_mcssr_pb :%s,unprocessed mask\n",
             time_str(_mcssr.gt,3));
         apply=0;
+        return -1;
     }
-    else {
-        if(mc->ep0 > ep) ep += 3600;
-        adjweek(&mc->gt, mc->tow0 + ep);
-        if(mc->iod != iod) {
-            trace(2,"decode_mcssr_pb: %s,iod mismatch %d != %d\n",
-                time_str(mc->gt,3),mc->iod,iod);
-            apply=0;
-        }
+    if(mc->ep0 > ep) ep += 3600;
+    if(ep >= mc->valep0) {
+        trace(2,"decode_mcssr_pb: ep %d,expired ep %d by cssr ST1 mask\n",
+            ep, mc->valep0);
+        return -1;
     }
+    if(mc->iod != iod) {
+        trace(2,"decode_mcssr_pb: ep %d,iod mismatch %d != %d\n",
+            ep,mc->iod,iod);
+        return -1;
+    }
+    adjweek(&mc->gt, mc->tow0 + ep);
     for (j = 0; j < mc->ns; j++) {
         for (k=0;k<MAXCODE;k++) pbias[k]=0.0;
         sat = mc->satlist[j];
@@ -503,16 +522,20 @@ static int decode_mcssr_ura(mcssr_t *mc, ssr_t *ssr, int i, int apply)
         trace(2,"decode_mcssr_ura :%s,unprocessed mask\n",
             time_str(mc->gt,3));
         apply=0;
+        return -1;
     }
-    else {
-        if(mc->ep0 > ep) ep += 3600;
-        adjweek(&mc->gt, mc->tow0 + ep);
-        if(mc->iod != iod) {
-            trace(2,"decode_mcssr_ura :%s,iod mismatch %d != %d\n",
-                time_str(mc->gt,3),mc->iod,iod);
-            apply=0;
-        }
+    if(mc->ep0 > ep) ep += 3600;
+    if(ep >= mc->valep0) {
+        trace(2,"decode_mcssr_ura: ep %d,expired ep %d by cssr ST1 mask\n",
+            ep, mc->valep0);
+        return -1;
     }
+    if(mc->iod != iod) {
+        trace(2,"decode_mcssr_ura: ep %d,iod mismatch %d != %d\n",
+            ep,mc->iod,iod);
+        return -1;
+    }
+    adjweek(&mc->gt, mc->tow0 + ep);
     for (j = 0; j < mc->ns; j++) {
         ura = getbitu(mc->buff, i, 6); i+=6;
 

@@ -58,7 +58,7 @@ extern "C" {
 #define VER_MALIB   "1.1.0"             /* MALIB version */
 
 #define PATCH_LEVEL "b35"               /* patch level */
-#define PATCH_LEVEL_MALIB ""
+#define PATCH_LEVEL_MALIB "draft_issue-9"
 
 #define COPYRIGHT_MALIB \
             "Copyright (C) 2007-2023 T.Takasu\nAll rights reserved." \
