@@ -409,5 +409,9 @@ navigation satellite system).[RTKLIB manual](https://www.rtklib.com/prog/manual_
 TBD...
 
 ## Annotation
-To ensure optimal performance, we recommend the following system configuration:
-・ Operating System : Ubuntu 20.04
+To ensure optimal performance, we recommend the following system configuration
+
+#### Operating System : Ubuntu 20.04
+The software is primarily developed and tested on native Ubuntu 20.04 environments. \
+However, it can also run on Windows environments via WSL (Windows Subsystem for Linux)
+using Ubuntu.
