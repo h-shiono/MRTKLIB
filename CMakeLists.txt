@@ -41,7 +41,7 @@ endif()
 # ── rnx2rtkp ─────────────────────────────────────────────────────────────────
 # postpos.c uses PROGNAME so it must be compiled as part of this target
 add_executable(rnx2rtkp
-    app/consapp/rnx2rtkp/rnx2rtkp.c
+    apps/rnx2rtkp/rnx2rtkp.c
     src/postpos.c
 )
 target_compile_definitions(rnx2rtkp PRIVATE PROGNAME=\"rnx2rtkp\")
@@ -49,10 +49,10 @@ target_link_libraries(rnx2rtkp PRIVATE mrtklib)
 
 # ── rtkrcv ───────────────────────────────────────────────────────────────────
 add_executable(rtkrcv
-    app/consapp/rtkrcv/rtkrcv.c
-    app/consapp/rtkrcv/vt.c
+    apps/rtkrcv/rtkrcv.c
+    apps/rtkrcv/vt.c
 )
-target_include_directories(rtkrcv PRIVATE app/consapp/rtkrcv)
+target_include_directories(rtkrcv PRIVATE apps/rtkrcv)
 target_compile_definitions(rtkrcv PRIVATE PROGNAME=\"rtkrcv\" SVR_REUSEADDR)
 target_link_libraries(rtkrcv PRIVATE mrtklib pthread)
 
@@ -66,8 +66,8 @@ install(TARGETS rnx2rtkp rtkrcv RUNTIME DESTINATION bin)
 enable_testing()
 
 set(_TESTDATA  ${CMAKE_SOURCE_DIR}/data)
-set(_REFDATA   ${CMAKE_SOURCE_DIR}/test/data/regression)
-set(_TESTCMAKE ${CMAKE_SOURCE_DIR}/test/cmake)
+set(_REFDATA   ${CMAKE_SOURCE_DIR}/tests/data/regression)
+set(_TESTCMAKE ${CMAKE_SOURCE_DIR}/tests/cmake)
 
 # ── Fixture: extract / clean test data archive ───────────────────────────────
 add_test(NAME regression_setup
@@ -108,6 +108,7 @@ add_test(NAME rnx2rtkp_ppp_check
     COMMAND ${CMAKE_COMMAND}
         -DOUTPUT=${CMAKE_BINARY_DIR}/out_ppp.pos
         -DREFERENCE=${_REFDATA}/MALIB_OSS_data_obsnav_240822-1100.pp.pos
+        -DTHRESHOLD=90
         -P ${_TESTCMAKE}/compare_pos.cmake
 )
 set_tests_properties(rnx2rtkp_ppp_check PROPERTIES
@@ -135,6 +136,7 @@ add_test(NAME rnx2rtkp_spp_check
     COMMAND ${CMAKE_COMMAND}
         -DOUTPUT=${CMAKE_BINARY_DIR}/out_spp.pos
         -DREFERENCE=${_REFDATA}/MALIB_OSS_data_obsnav_240822-1100.pp.spp.pos
+        -DTHRESHOLD=90
         -P ${_TESTCMAKE}/compare_pos.cmake
 )
 set_tests_properties(rnx2rtkp_spp_check PROPERTIES

@@ -1,0 +1,11 @@
+{
+    "name": "qzsslib",
+    "version-string": "1.2.0",
+    "dependencies": [
+        "gtest",
+        "toml11",
+        "cli11",
+        "fmt",
+        "spdlog"
+    ]
+}
