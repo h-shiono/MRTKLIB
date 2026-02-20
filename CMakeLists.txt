@@ -108,6 +108,7 @@ add_test(NAME rnx2rtkp_ppp_check
     COMMAND ${CMAKE_COMMAND}
         -DOUTPUT=${CMAKE_BINARY_DIR}/out_ppp.pos
         -DREFERENCE=${_REFDATA}/MALIB_OSS_data_obsnav_240822-1100.pp.pos
+        -DTHRESHOLD=90
         -P ${_TESTCMAKE}/compare_pos.cmake
 )
 set_tests_properties(rnx2rtkp_ppp_check PROPERTIES
@@ -135,6 +136,7 @@ add_test(NAME rnx2rtkp_spp_check
     COMMAND ${CMAKE_COMMAND}
         -DOUTPUT=${CMAKE_BINARY_DIR}/out_spp.pos
         -DREFERENCE=${_REFDATA}/MALIB_OSS_data_obsnav_240822-1100.pp.spp.pos
+        -DTHRESHOLD=90
         -P ${_TESTCMAKE}/compare_pos.cmake
 )
 set_tests_properties(rnx2rtkp_spp_check PROPERTIES
