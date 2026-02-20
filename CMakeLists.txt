@@ -59,3 +59,103 @@ target_link_libraries(rtkrcv PRIVATE mrtklib pthread)
 # ── Install ───────────────────────────────────────────────────────────────────
 # cmake --install build  →  copies binaries to bin/ (matches make install)
 install(TARGETS rnx2rtkp rtkrcv RUNTIME DESTINATION bin)
+
+# ── Regression tests ──────────────────────────────────────────────────────────
+# Run with: ctest --test-dir build --output-on-failure
+# Skip slow rtkrcv test: ctest --test-dir build -LE realtime
+enable_testing()
+
+set(_TESTDATA  ${CMAKE_SOURCE_DIR}/data)
+set(_REFDATA   ${CMAKE_SOURCE_DIR}/test/data/regression)
+set(_TESTCMAKE ${CMAKE_SOURCE_DIR}/test/cmake)
+
+# ── Fixture: extract / clean test data archive ───────────────────────────────
+add_test(NAME regression_setup
+    COMMAND ${CMAKE_COMMAND} -E tar xzf ${_TESTDATA}/MALIB_OSS_data.tar.gz
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}   # archive has ./data/ prefix → extract from project root
+)
+set_tests_properties(regression_setup PROPERTIES
+    FIXTURES_SETUP  regression_data
+    TIMEOUT         30
+)
+
+add_test(NAME regression_cleanup
+    COMMAND ${CMAKE_COMMAND}
+        -DTESTDATA_DIR=${_TESTDATA}
+        -P ${_TESTCMAKE}/cleanup_testdata.cmake
+)
+set_tests_properties(regression_cleanup PROPERTIES
+    FIXTURES_CLEANUP regression_data
+)
+
+# ── rnx2rtkp PPP regression ───────────────────────────────────────────────────
+add_test(NAME rnx2rtkp_ppp
+    COMMAND $<TARGET_FILE:rnx2rtkp>
+        -k ${CMAKE_SOURCE_DIR}/bin/rnx2rtkp.conf
+        -o ${CMAKE_BINARY_DIR}/out_ppp.pos
+        ${_TESTDATA}/MALIB_OSS_data_obsnav_240822-1100.obs
+        ${_TESTDATA}/MALIB_OSS_data_obsnav_240822-1100.nav
+        ${_TESTDATA}/2024235L.209.l6
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+set_tests_properties(rnx2rtkp_ppp PROPERTIES
+    FIXTURES_REQUIRED regression_data
+    TIMEOUT           180
+    LABELS            "regression;ppp"
+)
+
+add_test(NAME rnx2rtkp_ppp_check
+    COMMAND ${CMAKE_COMMAND}
+        -DOUTPUT=${CMAKE_BINARY_DIR}/out_ppp.pos
+        -DREFERENCE=${_REFDATA}/MALIB_OSS_data_obsnav_240822-1100.pp.pos
+        -P ${_TESTCMAKE}/compare_pos.cmake
+)
+set_tests_properties(rnx2rtkp_ppp_check PROPERTIES
+    DEPENDS           rnx2rtkp_ppp
+    FIXTURES_REQUIRED regression_data
+    LABELS            "regression;ppp"
+)
+
+# ── rnx2rtkp SPP regression ───────────────────────────────────────────────────
+add_test(NAME rnx2rtkp_spp
+    COMMAND $<TARGET_FILE:rnx2rtkp>
+        -p 0 -sys G,R,E,J
+        -o ${CMAKE_BINARY_DIR}/out_spp.pos
+        ${_TESTDATA}/MALIB_OSS_data_obsnav_240822-1100.obs
+        ${_TESTDATA}/MALIB_OSS_data_obsnav_240822-1100.nav
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+set_tests_properties(rnx2rtkp_spp PROPERTIES
+    FIXTURES_REQUIRED regression_data
+    TIMEOUT           60
+    LABELS            "regression;spp"
+)
+
+add_test(NAME rnx2rtkp_spp_check
+    COMMAND ${CMAKE_COMMAND}
+        -DOUTPUT=${CMAKE_BINARY_DIR}/out_spp.pos
+        -DREFERENCE=${_REFDATA}/MALIB_OSS_data_obsnav_240822-1100.pp.spp.pos
+        -P ${_TESTCMAKE}/compare_pos.cmake
+)
+set_tests_properties(rnx2rtkp_spp_check PROPERTIES
+    DEPENDS           rnx2rtkp_spp
+    FIXTURES_REQUIRED regression_data
+    LABELS            "regression;spp"
+)
+
+# ── rtkrcv RT-PPP regression ──────────────────────────────────────────────────
+# Slower test (~60-120s): replays SBF files at x10 speed via rtkrcv file stream.
+# Uses a line-count threshold (≥90% of reference) rather than exact comparison
+# because real-time cycle timing can vary slightly between runs.
+add_test(NAME rtkrcv_rt
+    COMMAND bash ${_TESTCMAKE}/run_rtkrcv_test.sh
+        $<TARGET_FILE:rtkrcv>
+        ${CMAKE_SOURCE_DIR}
+        ${_REFDATA}/MALIB_OSS_data_obsnav_240822-1100.rt.pos
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+set_tests_properties(rtkrcv_rt PROPERTIES
+    FIXTURES_REQUIRED regression_data
+    TIMEOUT           300
+    LABELS            "regression;realtime"
+)
