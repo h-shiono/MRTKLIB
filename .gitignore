@@ -9,3 +9,6 @@ Debug
 Debug_Build
 __history
 __astcache
+
+# CMake build directory
+build/
