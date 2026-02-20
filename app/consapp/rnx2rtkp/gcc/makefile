@@ -14,7 +14,13 @@ LIBS  =
 #LIBS  += -L$(MKLDIR) -lmkl_intel_lp64 -lmkl_core -lmkl_gnu_thread -lpthread -lgomp
 
 CFLAGS = -Wall -O3 -ansi -pedantic -Wno-unused-but-set-variable -I$(SRC) $(OPTS) -g
-LDLIBS = $(LIBS) -lm -lrt
+LDLIBS = $(LIBS) -lm
+
+# Linux requires -lrt for clock_gettime; macOS does not
+UNAME_S := $(shell uname -s)
+ifeq ($(UNAME_S),Linux)
+    LDLIBS += -lrt
+endif
 
 all        : $(PROGNAME)
 $(PROGNAME): $(PROGNAME).o postpos.o

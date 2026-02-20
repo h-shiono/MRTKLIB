@@ -5,7 +5,7 @@ BINDIR = ../../../../bin
 SRC    = ../../../../src
 LIBDIR  = ../../../../lib
 
-OPTS  = -DTRACE -DENAGLO -DENAGAL -DENAQZS -DENACMP -DENAIRN -DNFREQ=5 -DNEXOBS=5 -DPROGNAME=\"$(PROGNAME)\" -DSVR_REUSEADDR 
+OPTS  = -DTRACE -DENAGLO -DENAGAL -DENAQZS -DENACMP -DENAIRN -DNFREQ=5 -DNEXOBS=5 -DPROGNAME=\"$(PROGNAME)\" -DSVR_REUSEADDR
 LIBS  =
 
 # with Intel MKL
@@ -13,8 +13,19 @@ LIBS  =
 #OPTS  += -DMKL
 #LIBS  += -L$(MKLDIR) -lmkl_intel_lp64 -lmkl_core -lmkl_gnu_thread -lgomp
 
-CFLAGS = -Wall -O3 -ansi -pedantic -Wno-unused-but-set-variable -I$(SRC) $(OPTS) -g -I.. 
-LDLIBS  = $(LIBS) -lm -lrt -lpthread
+CFLAGS = -Wall -O3 -ansi -pedantic -Wno-unused-but-set-variable -I$(SRC) $(OPTS) -g -I..
+LDLIBS  = $(LIBS) -lm -lpthread
+
+# Platform-specific settings
+# -ansi defines __STRICT_ANSI__ which hides POSIX/BSD APIs in system headers.
+# Use _DARWIN_C_SOURCE (macOS) or _GNU_SOURCE (Linux) to expose all APIs.
+UNAME_S := $(shell uname -s)
+ifeq ($(UNAME_S),Darwin)
+    CFLAGS += -D_DARWIN_C_SOURCE
+else ifeq ($(UNAME_S),Linux)
+    CFLAGS += -D_GNU_SOURCE
+    LDLIBS += -lrt
+endif
 
 all        : $(PROGNAME)
 $(PROGNAME): $(PROGNAME).o vt.o rtksvr.o

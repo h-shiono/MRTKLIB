@@ -609,16 +609,17 @@ static void *rtksvrthread(void *arg)
 {
     rtksvr_t *svr=(rtksvr_t *)arg;
     obs_t obs;
-    obsd_t data[MAXOBS*2];
+    obsd_t *data=(obsd_t *)malloc(MAXOBS*2*sizeof(obsd_t));
     sol_t sol={{0}};
     double tt;
     uint32_t tick,ticknmea,tick1hz,tickreset;
     uint8_t *p,*q;
     char msg[128];
     int i,j,n,fobs[3]={0},cycle,cputime;
-    
+
     tracet(3,"rtksvrthread:\n");
-    
+
+    if (!data) return 0;
     svr->state=1; obs.data=data;
     svr->tick=tickget();
     ticknmea=tick1hz=svr->tick-1000;
@@ -724,6 +725,7 @@ static void *rtksvrthread(void *arg)
         svr->nsb[i]=0;
         free(svr->sbuf[i]); svr->sbuf[i]=NULL;
     }
+    free(data);
     return 0;
 }
 /* initialize rtk server -------------------------------------------------------
@@ -993,12 +995,22 @@ extern int rtksvrstart(rtksvr_t *svr, int cycle, int buffsize, int *strs,
 #ifdef WIN32
     if (!(svr->thread=CreateThread(NULL,0,rtksvrthread,svr,0,NULL))) {
 #else
-    if (pthread_create(&svr->thread,NULL,rtksvrthread,svr)) {
+    {
+        pthread_attr_t attr;
+        int rc;
+        pthread_attr_init(&attr);
+        pthread_attr_setstacksize(&attr,8*1024*1024); /* 8 MB (match Linux default) */
+        rc=pthread_create(&svr->thread,&attr,rtksvrthread,svr);
+        pthread_attr_destroy(&attr);
+        if (rc) {
 #endif
         for (i=0;i<MAXSTRRTK;i++) strclose(svr->stream+i);
         sprintf(errmsg,"thread create error\n");
         return 0;
+#ifndef WIN32
+        }
     }
+#endif
     return 1;
 }
 /* stop rtk server -------------------------------------------------------------
