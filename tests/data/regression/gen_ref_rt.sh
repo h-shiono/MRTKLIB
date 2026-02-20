@@ -4,10 +4,13 @@ set -euo pipefail
 # Generate Reference Position for real-time PPP using rtkrcv
 #
 # Usage:
-#   bash test/data/regression/gen_ref_rt.sh                # default (x10 speed)
-#   bash test/data/regression/gen_ref_rt.sh --speed 20     # custom playback speed
-#   bash test/data/regression/gen_ref_rt.sh --trace         # with trace (level 5)
-#   bash test/data/regression/gen_ref_rt.sh --trace 3       # with trace (custom level)
+#   bash tests/data/regression/gen_ref_rt.sh                # default (x10 speed)
+#   bash tests/data/regression/gen_ref_rt.sh --speed 20     # custom playback speed
+#   bash tests/data/regression/gen_ref_rt.sh --trace         # with trace (level 5)
+#   bash tests/data/regression/gen_ref_rt.sh --trace 3       # with trace (custom level)
+#
+# Requires cmake build to have been run first:
+#   cmake --preset default && cmake --build build
 
 # Defaults
 PLAYBACK_SPEED=10
@@ -45,8 +48,16 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 cd "$ROOT_DIR"
 
+# Locate cmake-built binary
+RTKRCV="${ROOT_DIR}/build/rtkrcv"
+if [[ ! -x "$RTKRCV" ]]; then
+    echo "ERROR: $RTKRCV not found. Run 'cmake --preset default && cmake --build build' first." >&2
+    exit 1
+fi
+echo "Using binary: $RTKRCV"
+
 # Output paths
-output_dir=test/data/regression
+output_dir=tests/data/regression
 output="${output_dir}/MALIB_OSS_data_obsnav_240822-1100.rt.pos"
 mkdir -p "$output_dir"
 
@@ -61,7 +72,7 @@ cleanup() {
         kill -TERM "$RTKRCV_PID" 2>/dev/null || true
         wait "$RTKRCV_PID" 2>/dev/null || true
     fi
-    rm -f ./rtkrcv ./rtkrcv.conf ./rtkrcv.nav
+    rm -f ./rtkrcv.conf ./rtkrcv.conf.bak ./rtkrcv.nav
     # Files extracted by tar
     rm -f data/2024235L.209.l6
     rm -f data/MALIB_OSS_data_obsnav_240822-1100.*
@@ -69,12 +80,6 @@ cleanup() {
     rm -f data/igs14*.atx
 }
 trap cleanup EXIT
-
-# Build binary
-echo "Building rtkrcv..."
-make -C app/consapp/rtkrcv/gcc clean
-make -C app/consapp/rtkrcv/gcc
-mv app/consapp/rtkrcv/gcc/rtkrcv .
 
 # Extract test data
 echo "Extracting data..."
@@ -91,7 +96,7 @@ rm -f rtkrcv.conf.bak
 echo "Config: playback speed x${PLAYBACK_SPEED}, output -> ${output}"
 
 # Build rtkrcv command
-RTKRCV_CMD=(./rtkrcv -s -p "$RTKRCV_PORT" -o rtkrcv.conf)
+RTKRCV_CMD=("$RTKRCV" -s -p "$RTKRCV_PORT" -o rtkrcv.conf)
 if [[ "$TRACE_LEVEL" -gt 0 ]]; then
     RTKRCV_CMD+=(-t "$TRACE_LEVEL")
 fi
