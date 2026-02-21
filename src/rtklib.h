@@ -55,6 +55,7 @@
 /* MRTKLIB modular headers — canonical definitions live here now */
 #include "mrtklib/mrtk_time.h"
 #include "mrtklib/mrtk_mat.h"
+#include "mrtklib/mrtk_coords.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -1645,17 +1646,7 @@ int reppath(const char *path, char *rpath, gtime_t time, const char *rov,
 int reppaths(const char *path, char *rpaths[], int nmax, gtime_t ts,
              gtime_t te, const char *rov, const char *base);
 
-/* coordinates transformation ------------------------------------------------*/
-void ecef2pos(const double *r, double *pos);
-void pos2ecef(const double *pos, double *r);
-void ecef2enu(const double *pos, const double *r, double *e);
-void enu2ecef(const double *pos, const double *e, double *r);
-void covenu(const double *pos, const double *P, double *Q);
-void covecef(const double *pos, const double *Q, double *P);
-void xyz2enu(const double *pos, double *E);
-void eci2ecef(gtime_t tutc, const double *erpv, double *U, double *gmst);
-void deg2dms(double deg, double *dms, int ndec);
-double dms2deg(const double *dms);
+/* coordinates transformation functions are now declared in mrtklib/mrtk_coords.h */
 
 /* input and output functions ------------------------------------------------*/
 void readpos(const char *file, const char *rcv, double *pos);
@@ -1692,10 +1683,7 @@ int execcmd(const char *cmd);
 int expath(const char *path, char *paths[], int nmax);
 void createdir(const char *path);
 
-/* positioning models --------------------------------------------------------*/
-double satazel(const double *pos, const double *e, double *azel);
-double geodist(const double *rs, const double *rr, double *e);
-void dops(int ns, const double *azel, double elmin, double *dop);
+/* positioning geometry functions are now declared in mrtklib/mrtk_coords.h */
 
 /* atmosphere models ---------------------------------------------------------*/
 double ionmodel(gtime_t t, const double *ion, const double *pos,
