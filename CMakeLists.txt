@@ -27,6 +27,9 @@ add_library(mrtklib STATIC
     src/mrtk_peph.c
     src/mrtk_bits.c
     src/mrtk_sys.c
+    src/mrtk_astro.c
+    src/mrtk_antenna.c
+    src/mrtk_station.c
 )
 target_include_directories(mrtklib PUBLIC include)
 set_target_properties(mrtklib PROPERTIES C_STANDARD 11 C_STANDARD_REQUIRED ON)

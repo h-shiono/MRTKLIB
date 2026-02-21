@@ -63,6 +63,9 @@
 #include "mrtklib/mrtk_nav.h"
 #include "mrtklib/mrtk_bits.h"
 #include "mrtklib/mrtk_sys.h"
+#include "mrtklib/mrtk_astro.h"
+#include "mrtklib/mrtk_antenna.h"
+#include "mrtklib/mrtk_station.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -1084,16 +1087,14 @@ int getcodepri(int sys, uint8_t code, const char *opt);
 /* coordinates transformation functions are now declared in mrtklib/mrtk_coords.h */
 
 /* input and output functions ------------------------------------------------*/
-void readpos(const char *file, const char *rcv, double *pos);
+/* readpos, readblq, readelmask moved to mrtklib/mrtk_station.h */
 /* sortobs, signal_replace, screent moved to mrtklib/mrtk_obs.h */
 void uniqnav(nav_t *nav);
 int readnav(const char *file, nav_t *nav);
 int savenav(const char *file, const nav_t *nav);
 void freeobs(obs_t *obs);
 void freenav(nav_t *nav, int opt);
-int readblq(const char *file, const char *sta, double *odisp);
 /* readerp, geterp moved to mrtklib/mrtk_peph.h */
-int readelmask(const char *file, int16_t *elmask);
 
 /* debug trace functions -----------------------------------------------------*/
 void traceopen(const char *file);
@@ -1124,16 +1125,10 @@ int ionocorr(gtime_t time, const nav_t *nav, int sat, const double *pos,
 int tropcorr(gtime_t time, const nav_t *nav, const double *pos,
              const double *azel, int tropopt, double *trp, double *var);
 
-/* antenna models ------------------------------------------------------------*/
-int readpcv(const char *file, pcvs_t *pcvs);
-pcv_t *searchpcv(int sat, const char *type, gtime_t time, const pcvs_t *pcvs);
-void antmodel(const pcv_t *pcv, const double *del, const double *azel,
-              int opt, double *dant);
-void antmodel_s(const pcv_t *pcv, double nadir, double *dant);
+/* readpcv, searchpcv, antmodel, antmodel_s moved to mrtklib/mrtk_antenna.h */
+/* sunmoonpos, sunmoonpos_eci moved to mrtklib/mrtk_astro.h */
 
 /* earth tide models ---------------------------------------------------------*/
-void sunmoonpos(gtime_t tutc, const double *erpv, double *rsun, double *rmoon,
-                double *gmst);
 void tidedisp(gtime_t tutc, const double *rr, int opt, const erp_t *erp,
               const double *odisp, double *dr);
 
