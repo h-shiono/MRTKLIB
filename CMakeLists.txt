@@ -20,6 +20,7 @@ endif()
 add_library(mrtklib STATIC
     src/mrtk_core.c
     src/mrtk_time.c
+    src/mrtk_mat.c
 )
 target_include_directories(mrtklib PUBLIC include)
 set_target_properties(mrtklib PROPERTIES C_STANDARD 11 C_STANDARD_REQUIRED ON)

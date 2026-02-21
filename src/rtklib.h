@@ -54,6 +54,7 @@
 
 /* MRTKLIB modular headers — canonical definitions live here now */
 #include "mrtklib/mrtk_time.h"
+#include "mrtklib/mrtk_mat.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -1605,7 +1606,7 @@ typedef struct {        /* BIAS-SINEX data type */
     int refcode[MAXBSNXSYS][2]; /* reference observables */
 } biass_t;
 
-typedef void fatalfunc_t(const char *); /* fatal callback function type */
+/* fatalfunc_t is now defined in mrtklib/mrtk_mat.h */
 
 /* global variables ----------------------------------------------------------*/
 extern const double chisqr[];        /* Chi-sqr(n) table (alpha=0.001) */
@@ -1632,30 +1633,7 @@ int testelmask(const double *azel, const int16_t *elmask);
 void setcodepri(int sys, int idx, const char *pri);
 int getcodepri(int sys, uint8_t code, const char *opt);
 
-/* matrix and vector functions -----------------------------------------------*/
-double *mat(int n, int m);
-int *imat(int n, int m);
-double *zeros(int n, int m);
-double *eye(int n);
-double dot(const double *a, const double *b, int n);
-double norm(const double *a, int n);
-void cross3(const double *a, const double *b, double *c);
-int normv3(const double *a, double *b);
-void matcpy(double *A, const double *B, int n, int m);
-void matmul(const char *tr, int n, int k, int m, double alpha, const double *A,
-            const double *B, double beta, double *C);
-int matinv(double *A, int n);
-int solve(const char *tr, const double *A, const double *Y, int n, int m,
-          double *X);
-int lsq(const double *A, const double *y, int n, int m, double *x, double *Q);
-int filter(double *x, double *P, const double *H, const double *v,
-           const double *R, int n, int m);
-int smoother(const double *xf, const double *Qf, const double *xb,
-             const double *Qb, int n, double *xs, double *Qs);
-void matprint (const double *A, int n, int m, int p, int q);
-void matfprint(const double *A, int n, int m, int p, int q, FILE *fp);
-
-void add_fatal(fatalfunc_t *func);
+/* matrix and vector functions are now declared in mrtklib/mrtk_mat.h */
 
 /* string functions ----------------------------------------------------------*/
 double  str2num(const char *s, int i, int n);
