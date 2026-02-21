@@ -1,0 +1,244 @@
+/**
+ * @file qzsslib.h
+ * @brief QZSSLIB Public API — Context Management and Logging
+ *
+ * This header defines the public API for QZSSLIB, a modernized and refactored
+ * version of RTKLIB targeting JAXA QZSS/MADOCA processing. The library is
+ * designed to be:
+ * - Thread-safe through context-based state management
+ * - Re-entrant, allowing multiple simultaneous processing instances
+ * - Library-first with no global state
+ *
+ * @note All public functions require a valid qzss_context_t pointer unless
+ *       otherwise specified.
+ */
+#ifndef QZSSLIB_H
+#define QZSSLIB_H
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
+#include <time.h>
+
+/*============================================================================
+ * Version Information
+ *===========================================================================*/
+
+/** @brief Major version number */
+#define QZSS_VERSION_MAJOR 1
+/** @brief Minor version number */
+#define QZSS_VERSION_MINOR 2
+/** @brief Patch version number */
+#define QZSS_VERSION_PATCH 0
+/** @brief Version string */
+#define QZSS_VERSION_STRING "1.2.0"
+
+/*============================================================================
+ * Opaque Context
+ *===========================================================================*/
+
+/**
+ * @brief Opaque library context structure.
+ *
+ * Holds all library state including logging configuration, error state,
+ * and user-defined data. This structure is intentionally opaque to allow
+ * internal changes without breaking API compatibility.
+ *
+ * @note Users must create contexts via qzss_context_new() and free them
+ *       via qzss_context_free(). Never allocate this structure directly.
+ */
+typedef struct qzss_context_s qzss_context_t;
+
+/*============================================================================
+ * Logging
+ *===========================================================================*/
+
+/**
+ * @brief Log severity levels.
+ *
+ * Levels are ordered by severity (DEBUG < INFO < WARN < ERROR < NONE).
+ * Setting a minimum log level filters out all messages below that severity.
+ * QZSS_LOG_NONE disables all output.
+ */
+typedef enum {
+    QZSS_LOG_DEBUG = 0, /**< Detailed debug information for development */
+    QZSS_LOG_INFO,      /**< General informational messages */
+    QZSS_LOG_WARN,      /**< Warning conditions that may require attention */
+    QZSS_LOG_ERROR,     /**< Error conditions that affect processing */
+    QZSS_LOG_NONE       /**< Sentinel — disables all logging output */
+} qzss_log_level_t;
+
+/**
+ * @brief Log callback function signature.
+ *
+ * Custom log handlers must conform to this signature. The callback is invoked
+ * for each log message that passes the minimum log level filter.
+ *
+ * @param ctx   Context instance that generated the log message
+ * @param level Severity level of the message
+ * @param msg   Null-terminated formatted message string
+ *
+ * @note The msg pointer is only valid during the callback invocation.
+ *       Copy the string if you need to retain it.
+ * @note The callback is invoked synchronously from the calling thread.
+ */
+typedef void (*qzss_log_cb_t)(qzss_context_t* ctx, qzss_log_level_t level,
+                               const char* msg);
+
+/*============================================================================
+ * Lifecycle Management
+ *===========================================================================*/
+
+/**
+ * @brief Create a new library context.
+ *
+ * Allocates and initializes a new context with default settings:
+ * - Log level:    QZSS_LOG_INFO
+ * - Log callback: Default stdout/stderr logger
+ * - User data:    NULL
+ *
+ * @return Pointer to newly created context, or NULL if allocation fails.
+ *
+ * @note The caller is responsible for freeing the context via qzss_context_free().
+ *
+ * @code{.c}
+ * qzss_context_t* ctx = qzss_context_new();
+ * if (ctx == NULL) { ... }
+ * // ... use context ...
+ * qzss_context_free(ctx);
+ * @endcode
+ */
+qzss_context_t* qzss_context_new(void);
+
+/**
+ * @brief Free the library context and release all associated resources.
+ *
+ * Safely frees a context created by qzss_context_new(). After this call,
+ * the context pointer is invalid and must not be used.
+ *
+ * @param ctx Context to free. If NULL, this function does nothing.
+ */
+void qzss_context_free(qzss_context_t* ctx);
+
+/*============================================================================
+ * Logging Configuration
+ *===========================================================================*/
+
+/**
+ * @brief Set a custom log callback handler.
+ *
+ * Replaces the default logging behavior with a custom callback. This allows
+ * integration with external logging systems, GUI log windows, or file-based
+ * logging.
+ *
+ * @param ctx Context instance
+ * @param cb  Callback function to handle log messages. Pass NULL to restore
+ *            the default stdout/stderr logger.
+ */
+void qzss_context_set_log_callback(qzss_context_t* ctx, qzss_log_cb_t cb);
+
+/**
+ * @brief Set the minimum log level threshold.
+ *
+ * Messages below this severity level will be silently discarded.
+ * Setting QZSS_LOG_NONE disables all logging output.
+ *
+ * @param ctx   Context instance
+ * @param level Minimum level to log (inclusive)
+ */
+void qzss_context_set_log_level(qzss_context_t* ctx, qzss_log_level_t level);
+
+/**
+ * @brief Get the current log level threshold.
+ *
+ * @param ctx Context instance
+ * @return Current minimum log level, or QZSS_LOG_NONE if ctx is NULL.
+ */
+qzss_log_level_t qzss_context_get_log_level(const qzss_context_t* ctx);
+
+/**
+ * @brief Log a formatted message.
+ *
+ * Formats and dispatches a log message through the registered callback
+ * if the message level meets or exceeds the minimum threshold.
+ *
+ * @param ctx   Context instance
+ * @param level Severity level of this message
+ * @param fmt   printf-style format string
+ * @param ...   Format arguments
+ */
+void qzss_log(qzss_context_t* ctx, qzss_log_level_t level, const char* fmt, ...);
+
+/*============================================================================
+ * Error Handling
+ *===========================================================================*/
+
+/**
+ * @brief Get the last error message.
+ *
+ * Retrieves the most recent error message stored in the context by an
+ * internal library function. Returns an empty string if no error has occurred.
+ *
+ * @param ctx Context instance
+ * @return Pointer to the error message string, or "Invalid context" if ctx is NULL.
+ *
+ * @note The returned pointer remains valid until the next error occurs or
+ *       the context is freed.
+ */
+const char* qzss_get_last_error(const qzss_context_t* ctx);
+
+/**
+ * @brief Clear the last error message.
+ *
+ * Resets the error state, clearing any previously stored error message.
+ *
+ * @param ctx Context instance
+ */
+void qzss_clear_error(qzss_context_t* ctx);
+
+/*============================================================================
+ * User Data Management
+ *===========================================================================*/
+
+/**
+ * @brief Associate user-defined data with the context.
+ *
+ * Stores an arbitrary pointer that can be retrieved later. Useful for
+ * passing application-specific state through callbacks.
+ *
+ * @param ctx       Context instance
+ * @param user_data Pointer to user data (may be NULL)
+ *
+ * @note The library does not manage the lifetime of user_data.
+ */
+void qzss_context_set_user_data(qzss_context_t* ctx, void* user_data);
+
+/**
+ * @brief Retrieve user-defined data from the context.
+ *
+ * @param ctx Context instance
+ * @return Previously stored user data pointer, or NULL if none was set
+ *         or if ctx is NULL.
+ */
+void* qzss_context_get_user_data(const qzss_context_t* ctx);
+
+/*============================================================================
+ * Version Information
+ *===========================================================================*/
+
+/**
+ * @brief Get the library version string.
+ *
+ * @return Static string containing the version (e.g., "1.2.0")
+ */
+const char* qzss_version_string(void);
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif /* QZSSLIB_H */

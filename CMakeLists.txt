@@ -14,7 +14,19 @@ if(CMAKE_C_COMPILER_ID STREQUAL "GNU" OR CMAKE_C_COMPILER_ID MATCHES "Clang")
     add_compile_options(-Wno-unused-but-set-variable)
 endif()
 
-# ── Core static library ──────────────────────────────────────────────────────
+# ── QZSSLIB modular library (new, C11) ───────────────────────────────────────
+# New modular implementation that will gradually replace mrtklib.
+# Uses C11 (ISO/IEC 9899:2011) and the include/qzsslib/ public headers.
+add_library(qzsslib STATIC
+    src/qzss_core.c
+)
+target_include_directories(qzsslib PUBLIC include)
+set_target_properties(qzsslib PROPERTIES C_STANDARD 11 C_STANDARD_REQUIRED ON)
+# Override the global -ansi (= -std=c90) for this target: -std=c11 wins when placed after.
+target_compile_options(qzsslib PRIVATE -std=c11)
+target_link_libraries(qzsslib PUBLIC m)
+
+# ── Core static library (legacy, C89/-ansi) ───────────────────────────────────
 # Contains the union of all src/ files used by rnx2rtkp and rtkrcv.
 # The linker pulls only the object files referenced by each executable.
 add_library(mrtklib STATIC
