@@ -30,6 +30,9 @@ target_include_directories(mrtklib PUBLIC include)
 set_target_properties(mrtklib PROPERTIES C_STANDARD 11 C_STANDARD_REQUIRED ON)
 # Override the global -ansi (= -std=c90) for this target: -std=c11 wins when placed after.
 target_compile_options(mrtklib PRIVATE -std=c11)
+target_compile_definitions(mrtklib PUBLIC
+    ENAGLO ENAGAL ENAQZS ENACMP ENAIRN NFREQ=5 NEXOBS=5
+)
 target_link_libraries(mrtklib PUBLIC m)
 
 # ── Core static library (legacy RTKLIB, C89/-ansi) ────────────────────────────
@@ -48,9 +51,7 @@ add_library(rtklib STATIC
     src/rcv/ss2.c       src/rcv/ublox.c
 )
 target_include_directories(rtklib PUBLIC src)
-target_compile_definitions(rtklib PUBLIC
-    TRACE ENAGLO ENAGAL ENAQZS ENACMP ENAIRN NFREQ=5 NEXOBS=5
-)
+target_compile_definitions(rtklib PUBLIC TRACE)
 target_link_libraries(rtklib PUBLIC m mrtklib)
 if(UNIX AND NOT APPLE)
     target_link_libraries(rtklib PUBLIC rt)
