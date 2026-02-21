@@ -45,7 +45,7 @@ target_include_directories(rtklib PUBLIC src)
 target_compile_definitions(rtklib PUBLIC
     TRACE ENAGLO ENAGAL ENAQZS ENACMP ENAIRN NFREQ=5 NEXOBS=5
 )
-target_link_libraries(rtklib PUBLIC m)
+target_link_libraries(rtklib PUBLIC m mrtklib)
 if(UNIX AND NOT APPLE)
     target_link_libraries(rtklib PUBLIC rt)
 endif()

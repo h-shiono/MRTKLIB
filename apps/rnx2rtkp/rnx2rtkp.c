@@ -26,6 +26,7 @@
 *-----------------------------------------------------------------------------*/
 #include <stdarg.h>
 #include "rtklib.h"
+#include "mrtklib/mrtklib.h"
 
 #define PROGNAME    "rnx2rtkp"          /* program name */
 #define MAXFILE     16                  /* max number of input files */
@@ -117,6 +118,9 @@ int main(int argc, char **argv)
     int i,j,n,ret;
     char *infile[MAXFILE],*outfile="",*p;
     
+    /* Initialize MRTKLIB context for legacy trace bridge */
+    g_mrtk_legacy_ctx=mrtk_context_new();
+
     prcopt.mode  =PMODE_KINEMA;
     prcopt.navsys=0;
     prcopt.refpos=1;
@@ -201,10 +205,12 @@ int main(int argc, char **argv)
     }
     if (n<=0) {
         showmsg("error : no input file");
+        mrtk_context_free(g_mrtk_legacy_ctx);
         return -2;
     }
     ret=postpos(ts,te,tint,0.0,&prcopt,&solopt,&filopt,infile,n,outfile,"","");
-    
+
     if (!ret) fprintf(stderr,"%40s\r","");
+    mrtk_context_free(g_mrtk_legacy_ctx);
     return ret;
 }

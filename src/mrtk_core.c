@@ -14,6 +14,17 @@
 #include <string.h>
 
 /*============================================================================
+ * Legacy Migration Support
+ *===========================================================================*/
+
+/**
+ * @brief Global context for legacy RTKLIB trace() bridge.
+ *
+ * @see g_mrtk_legacy_ctx declaration in mrtklib.h
+ */
+mrtk_context_t* g_mrtk_legacy_ctx = NULL;
+
+/*============================================================================
  * Private Constants
  *===========================================================================*/
 
@@ -213,20 +224,20 @@ mrtk_log_level_t mrtk_context_get_log_level(const mrtk_context_t* ctx) {
 }
 
 /**
- * @brief Log a formatted message.
+ * @brief Log a formatted message using a pre-initialized va_list.
  *
- * Formats the message and dispatches it to the registered callback
- * if the message level meets the minimum threshold.
+ * This is the core formatting and dispatch function. Both mrtk_log() and
+ * the legacy trace() bridge delegate to this function.
  *
  * @param ctx   Context instance
  * @param level Message severity level
  * @param fmt   printf-style format string
- * @param ...   Format arguments
+ * @param args  Pre-initialized va_list
  */
-void mrtk_log(mrtk_context_t* ctx, mrtk_log_level_t level, const char* fmt, ...) {
-    char    buf[MAX_LOG_LEN];
-    va_list args;
-    int     written;
+void mrtk_log_v(mrtk_context_t* ctx, mrtk_log_level_t level, const char* fmt,
+                va_list args) {
+    char buf[MAX_LOG_LEN];
+    int  written;
 
     /* Validate parameters and check log level threshold */
     if (ctx == NULL || ctx->log_callback == NULL) {
@@ -241,9 +252,7 @@ void mrtk_log(mrtk_context_t* ctx, mrtk_log_level_t level, const char* fmt, ...)
     }
 
     /* Format the message */
-    va_start(args, fmt);
     written = vsnprintf(buf, sizeof(buf), fmt, args);
-    va_end(args);
 
     /* Ensure null termination on encoding error */
     if (written < 0) {
@@ -252,6 +261,24 @@ void mrtk_log(mrtk_context_t* ctx, mrtk_log_level_t level, const char* fmt, ...)
 
     /* Dispatch to the registered callback */
     ctx->log_callback(ctx, level, buf);
+}
+
+/**
+ * @brief Log a formatted message.
+ *
+ * Convenience wrapper around mrtk_log_v() that accepts variadic arguments.
+ *
+ * @param ctx   Context instance
+ * @param level Message severity level
+ * @param fmt   printf-style format string
+ * @param ...   Format arguments
+ */
+void mrtk_log(mrtk_context_t* ctx, mrtk_log_level_t level, const char* fmt, ...) {
+    va_list args;
+
+    va_start(args, fmt);
+    mrtk_log_v(ctx, level, fmt, args);
+    va_end(args);
 }
 
 /*============================================================================

@@ -19,6 +19,7 @@
 extern "C" {
 #endif
 
+#include <stdarg.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -172,6 +173,40 @@ mrtk_log_level_t mrtk_context_get_log_level(const mrtk_context_t* ctx);
  * @param ...   Format arguments
  */
 void mrtk_log(mrtk_context_t* ctx, mrtk_log_level_t level, const char* fmt, ...);
+
+/**
+ * @brief Log a formatted message using a pre-initialized va_list.
+ *
+ * This is the va_list variant of mrtk_log(), intended for use by wrapper
+ * functions (such as the legacy RTKLIB trace() bridge) that receive variadic
+ * arguments from their own callers.
+ *
+ * @param ctx   Context instance
+ * @param level Severity level of this message
+ * @param fmt   printf-style format string
+ * @param args  Pre-initialized va_list
+ */
+void mrtk_log_v(mrtk_context_t* ctx, mrtk_log_level_t level, const char* fmt,
+                va_list args);
+
+/*============================================================================
+ * Legacy Migration Support
+ *===========================================================================*/
+
+/**
+ * @brief Global context for legacy RTKLIB trace() bridge.
+ *
+ * During the migration period, this global pointer allows the existing
+ * trace() / tracet() functions in rtkcmn.c to route their output through
+ * the new context-based logging system without modifying thousands of
+ * call sites.
+ *
+ * @note Applications must set this to mrtk_context_new() at startup and
+ *       free it with mrtk_context_free() at shutdown.
+ * @note This pointer is intentionally global and will be removed once
+ *       all modules have been migrated to context-based APIs.
+ */
+extern mrtk_context_t* g_mrtk_legacy_ctx;
 
 /*============================================================================
  * Error Handling
