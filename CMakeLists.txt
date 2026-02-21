@@ -14,22 +14,22 @@ if(CMAKE_C_COMPILER_ID STREQUAL "GNU" OR CMAKE_C_COMPILER_ID MATCHES "Clang")
     add_compile_options(-Wno-unused-but-set-variable)
 endif()
 
-# ── QZSSLIB modular library (new, C11) ───────────────────────────────────────
-# New modular implementation that will gradually replace mrtklib.
-# Uses C11 (ISO/IEC 9899:2011) and the include/qzsslib/ public headers.
-add_library(qzsslib STATIC
-    src/qzss_core.c
+# ── MRTKLIB modular library (new, C11) ───────────────────────────────────────
+# New modular implementation that will gradually replace rtklib.
+# Uses C11 (ISO/IEC 9899:2011) and the include/mrtklib/ public headers.
+add_library(mrtklib STATIC
+    src/mrtk_core.c
 )
-target_include_directories(qzsslib PUBLIC include)
-set_target_properties(qzsslib PROPERTIES C_STANDARD 11 C_STANDARD_REQUIRED ON)
+target_include_directories(mrtklib PUBLIC include)
+set_target_properties(mrtklib PROPERTIES C_STANDARD 11 C_STANDARD_REQUIRED ON)
 # Override the global -ansi (= -std=c90) for this target: -std=c11 wins when placed after.
-target_compile_options(qzsslib PRIVATE -std=c11)
-target_link_libraries(qzsslib PUBLIC m)
+target_compile_options(mrtklib PRIVATE -std=c11)
+target_link_libraries(mrtklib PUBLIC m)
 
-# ── Core static library (legacy, C89/-ansi) ───────────────────────────────────
+# ── Core static library (legacy RTKLIB, C89/-ansi) ────────────────────────────
 # Contains the union of all src/ files used by rnx2rtkp and rtkrcv.
 # The linker pulls only the object files referenced by each executable.
-add_library(mrtklib STATIC
+add_library(rtklib STATIC
     src/biassnx.c       src/ephemeris.c     src/geoid.c         src/ionex.c
     src/lambda.c        src/lclcmn.c        src/mdccssr.c       src/options.c
     src/pntpos.c        src/ppp.c           src/ppp_ar.c
@@ -41,13 +41,13 @@ add_library(mrtklib STATIC
     src/rcv/nvs.c       src/rcv/rt17.c      src/rcv/septentrio.c src/rcv/skytraq.c
     src/rcv/ss2.c       src/rcv/ublox.c
 )
-target_include_directories(mrtklib PUBLIC src)
-target_compile_definitions(mrtklib PUBLIC
+target_include_directories(rtklib PUBLIC src)
+target_compile_definitions(rtklib PUBLIC
     TRACE ENAGLO ENAGAL ENAQZS ENACMP ENAIRN NFREQ=5 NEXOBS=5
 )
-target_link_libraries(mrtklib PUBLIC m)
+target_link_libraries(rtklib PUBLIC m)
 if(UNIX AND NOT APPLE)
-    target_link_libraries(mrtklib PUBLIC rt)
+    target_link_libraries(rtklib PUBLIC rt)
 endif()
 
 # ── rnx2rtkp ─────────────────────────────────────────────────────────────────
@@ -57,7 +57,7 @@ add_executable(rnx2rtkp
     src/postpos.c
 )
 target_compile_definitions(rnx2rtkp PRIVATE PROGNAME=\"rnx2rtkp\")
-target_link_libraries(rnx2rtkp PRIVATE mrtklib)
+target_link_libraries(rnx2rtkp PRIVATE rtklib)
 
 # ── rtkrcv ───────────────────────────────────────────────────────────────────
 add_executable(rtkrcv
@@ -66,7 +66,7 @@ add_executable(rtkrcv
 )
 target_include_directories(rtkrcv PRIVATE apps/rtkrcv)
 target_compile_definitions(rtkrcv PRIVATE PROGNAME=\"rtkrcv\" SVR_REUSEADDR)
-target_link_libraries(rtkrcv PRIVATE mrtklib pthread)
+target_link_libraries(rtkrcv PRIVATE rtklib pthread)
 
 # ── Install ───────────────────────────────────────────────────────────────────
 # cmake --install build  →  copies binaries to bin/ (matches make install)

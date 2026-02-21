@@ -1,12 +1,12 @@
 /**
- * @file qzss_core.c
- * @brief Core implementation of QZSSLIB context management and logging.
+ * @file mrtk_core.c
+ * @brief Core implementation of MRTKLIB context management and logging.
  *
  * This file contains the implementation of the opaque context structure
  * and all associated lifecycle, logging, and error handling functions.
  */
 
-#include "qzsslib/qzsslib.h"
+#include "mrtklib/mrtklib.h"
 
 #include <stdarg.h>
 #include <stdio.h>
@@ -33,9 +33,9 @@
  * This structure holds all per-instance state for the library.
  * It is intentionally hidden from users to maintain API stability.
  */
-struct qzss_context_s {
-    qzss_log_level_t log_level;             /**< Minimum log level threshold */
-    qzss_log_cb_t    log_callback;          /**< User-defined log handler */
+struct mrtk_context_s {
+    mrtk_log_level_t log_level;             /**< Minimum log level threshold */
+    mrtk_log_cb_t    log_callback;          /**< User-defined log handler */
     char             last_error[MAX_ERROR_LEN]; /**< Most recent error message */
     void*            user_data;             /**< Application-specific data pointer */
 };
@@ -54,7 +54,7 @@ struct qzss_context_s {
  * @param level Severity level of the message
  * @param msg   Formatted message string
  */
-static void default_log_callback(qzss_context_t* ctx, qzss_log_level_t level,
+static void default_log_callback(mrtk_context_t* ctx, mrtk_log_level_t level,
                                   const char* msg) {
     const char* level_str;
     FILE*       output;
@@ -62,25 +62,25 @@ static void default_log_callback(qzss_context_t* ctx, qzss_log_level_t level,
     (void)ctx; /* Unused in default implementation */
 
     switch (level) {
-        case QZSS_LOG_DEBUG:
+        case MRTK_LOG_DEBUG:
             level_str = "[DEBUG]";
             output    = stdout;
             break;
-        case QZSS_LOG_INFO:
+        case MRTK_LOG_INFO:
             level_str = "[INFO] ";
             output    = stdout;
             break;
-        case QZSS_LOG_WARN:
+        case MRTK_LOG_WARN:
             level_str = "[WARN] ";
             output    = stdout;
             break;
-        case QZSS_LOG_ERROR:
+        case MRTK_LOG_ERROR:
             level_str = "[ERROR]";
             output    = stderr;
             break;
-        case QZSS_LOG_NONE:
+        case MRTK_LOG_NONE:
         default:
-            /* Should not reach here; QZSS_LOG_NONE messages are filtered earlier */
+            /* Should not reach here; MRTK_LOG_NONE messages are filtered earlier */
             return;
     }
 
@@ -91,7 +91,7 @@ static void default_log_callback(qzss_context_t* ctx, qzss_log_level_t level,
  * @brief Set the internal error message.
  *
  * Stores a formatted error message in the context for later retrieval
- * via qzss_get_last_error(). Also logs the error message at ERROR level.
+ * via mrtk_get_last_error(). Also logs the error message at ERROR level.
  *
  * @param ctx Context instance
  * @param fmt printf-style format string
@@ -103,7 +103,7 @@ static void default_log_callback(qzss_context_t* ctx, qzss_log_level_t level,
 #if defined(__GNUC__) || defined(__clang__)
 __attribute__((unused, format(printf, 2, 3)))
 #endif
-static void qzss_set_error(qzss_context_t* ctx, const char* fmt, ...) {
+static void mrtk_set_error(mrtk_context_t* ctx, const char* fmt, ...) {
     va_list args;
 
     if (ctx == NULL || fmt == NULL) {
@@ -115,7 +115,7 @@ static void qzss_set_error(qzss_context_t* ctx, const char* fmt, ...) {
     va_end(args);
 
     /* Also log the error */
-    qzss_log(ctx, QZSS_LOG_ERROR, "%s", ctx->last_error);
+    mrtk_log(ctx, MRTK_LOG_ERROR, "%s", ctx->last_error);
 }
 
 /*============================================================================
@@ -127,21 +127,21 @@ static void qzss_set_error(qzss_context_t* ctx, const char* fmt, ...) {
  *
  * Allocates memory for a new context and initializes it with default values.
  * The default configuration is:
- * - log_level: QZSS_LOG_INFO
+ * - log_level: MRTK_LOG_INFO
  * - log_callback: default_log_callback (stdout/stderr output)
  * - last_error: empty string
  * - user_data: NULL
  *
  * @return Newly allocated context, or NULL if memory allocation fails.
  */
-qzss_context_t* qzss_context_new(void) {
-    qzss_context_t* ctx = (qzss_context_t*)calloc(1, sizeof(qzss_context_t));
+mrtk_context_t* mrtk_context_new(void) {
+    mrtk_context_t* ctx = (mrtk_context_t*)calloc(1, sizeof(mrtk_context_t));
     if (ctx == NULL) {
         return NULL;
     }
 
     /* Initialize with default settings */
-    ctx->log_level     = QZSS_LOG_INFO;
+    ctx->log_level     = MRTK_LOG_INFO;
     ctx->log_callback  = default_log_callback;
     ctx->last_error[0] = '\0';
     ctx->user_data     = NULL;
@@ -156,10 +156,10 @@ qzss_context_t* qzss_context_new(void) {
  *
  * @param ctx Context to free, or NULL (no-op)
  */
-void qzss_context_free(qzss_context_t* ctx) {
+void mrtk_context_free(mrtk_context_t* ctx) {
     if (ctx != NULL) {
         /* Clear sensitive data before freeing (defense in depth) */
-        memset(ctx, 0, sizeof(qzss_context_t));
+        memset(ctx, 0, sizeof(mrtk_context_t));
         free(ctx);
     }
 }
@@ -174,7 +174,7 @@ void qzss_context_free(qzss_context_t* ctx) {
  * @param ctx Context instance
  * @param cb  Callback function, or NULL to restore default logger
  */
-void qzss_context_set_log_callback(qzss_context_t* ctx, qzss_log_cb_t cb) {
+void mrtk_context_set_log_callback(mrtk_context_t* ctx, mrtk_log_cb_t cb) {
     if (ctx == NULL) {
         return;
     }
@@ -193,7 +193,7 @@ void qzss_context_set_log_callback(qzss_context_t* ctx, qzss_log_cb_t cb) {
  * @param ctx   Context instance
  * @param level New minimum log level
  */
-void qzss_context_set_log_level(qzss_context_t* ctx, qzss_log_level_t level) {
+void mrtk_context_set_log_level(mrtk_context_t* ctx, mrtk_log_level_t level) {
     if (ctx != NULL) {
         ctx->log_level = level;
     }
@@ -203,11 +203,11 @@ void qzss_context_set_log_level(qzss_context_t* ctx, qzss_log_level_t level) {
  * @brief Get the current log level.
  *
  * @param ctx Context instance
- * @return Current log level, or QZSS_LOG_NONE if ctx is NULL
+ * @return Current log level, or MRTK_LOG_NONE if ctx is NULL
  */
-qzss_log_level_t qzss_context_get_log_level(const qzss_context_t* ctx) {
+mrtk_log_level_t mrtk_context_get_log_level(const mrtk_context_t* ctx) {
     if (ctx == NULL) {
-        return QZSS_LOG_NONE;
+        return MRTK_LOG_NONE;
     }
     return ctx->log_level;
 }
@@ -223,7 +223,7 @@ qzss_log_level_t qzss_context_get_log_level(const qzss_context_t* ctx) {
  * @param fmt   printf-style format string
  * @param ...   Format arguments
  */
-void qzss_log(qzss_context_t* ctx, qzss_log_level_t level, const char* fmt, ...) {
+void mrtk_log(mrtk_context_t* ctx, mrtk_log_level_t level, const char* fmt, ...) {
     char    buf[MAX_LOG_LEN];
     va_list args;
     int     written;
@@ -234,9 +234,9 @@ void qzss_log(qzss_context_t* ctx, qzss_log_level_t level, const char* fmt, ...)
     }
 
     /* Filter messages below the minimum level.
-     * QZSS_LOG_NONE is the maximum sentinel value — setting log_level to NONE
+     * MRTK_LOG_NONE is the maximum sentinel value — setting log_level to NONE
      * disables all output, and passing level=NONE to this function is a no-op. */
-    if (level < ctx->log_level || level == QZSS_LOG_NONE) {
+    if (level < ctx->log_level || level == MRTK_LOG_NONE) {
         return;
     }
 
@@ -264,7 +264,7 @@ void qzss_log(qzss_context_t* ctx, qzss_log_level_t level, const char* fmt, ...)
  * @param ctx Context instance
  * @return Error message string, or "Invalid context" if ctx is NULL
  */
-const char* qzss_get_last_error(const qzss_context_t* ctx) {
+const char* mrtk_get_last_error(const mrtk_context_t* ctx) {
     if (ctx == NULL) {
         return "Invalid context";
     }
@@ -276,7 +276,7 @@ const char* qzss_get_last_error(const qzss_context_t* ctx) {
  *
  * @param ctx Context instance
  */
-void qzss_clear_error(qzss_context_t* ctx) {
+void mrtk_clear_error(mrtk_context_t* ctx) {
     if (ctx != NULL) {
         ctx->last_error[0] = '\0';
     }
@@ -292,7 +292,7 @@ void qzss_clear_error(qzss_context_t* ctx) {
  * @param ctx       Context instance
  * @param user_data Pointer to associate with context
  */
-void qzss_context_set_user_data(qzss_context_t* ctx, void* user_data) {
+void mrtk_context_set_user_data(mrtk_context_t* ctx, void* user_data) {
     if (ctx != NULL) {
         ctx->user_data = user_data;
     }
@@ -304,7 +304,7 @@ void qzss_context_set_user_data(qzss_context_t* ctx, void* user_data) {
  * @param ctx Context instance
  * @return Associated user data, or NULL if ctx is NULL or no data was set
  */
-void* qzss_context_get_user_data(const qzss_context_t* ctx) {
+void* mrtk_context_get_user_data(const mrtk_context_t* ctx) {
     if (ctx == NULL) {
         return NULL;
     }
@@ -320,6 +320,6 @@ void* qzss_context_get_user_data(const qzss_context_t* ctx) {
  *
  * @return Static version string (e.g., "1.2.0")
  */
-const char* qzss_version_string(void) {
-    return QZSS_VERSION_STRING;
+const char* mrtk_version_string(void) {
+    return MRTK_VERSION_STRING;
 }
