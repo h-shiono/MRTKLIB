@@ -51,6 +51,10 @@
 #include <pthread.h>
 #include <sys/select.h>
 #endif
+
+/* MRTKLIB modular headers — canonical definitions live here now */
+#include "mrtklib/mrtk_time.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -622,10 +626,7 @@ extern "C" {
 
 /* type definitions ----------------------------------------------------------*/
 
-typedef struct {        /* time struct */
-    time_t time;        /* time (s) expressed by standard time_t */
-    double sec;         /* fraction of second under 1 s */
-} gtime_t;
+/* gtime_t is now defined in mrtklib/mrtk_time.h */
 
 typedef struct {        /* observation data record */
     gtime_t time;       /* receiver sampling time (GPST) */
@@ -1656,36 +1657,10 @@ void matfprint(const double *A, int n, int m, int p, int q, FILE *fp);
 
 void add_fatal(fatalfunc_t *func);
 
-/* time and string functions -------------------------------------------------*/
+/* string functions ----------------------------------------------------------*/
 double  str2num(const char *s, int i, int n);
-int str2time(const char *s, int i, int n, gtime_t *t);
-void time2str(gtime_t t, char *str, int n);
-gtime_t epoch2time(const double *ep);
-void time2epoch(gtime_t t, double *ep);
-gtime_t gpst2time(int week, double sec);
-double time2gpst(gtime_t t, int *week);
-gtime_t gst2time(int week, double sec);
-double time2gst(gtime_t t, int *week);
-gtime_t bdt2time(int week, double sec);
-double time2bdt(gtime_t t, int *week);
-char *time_str(gtime_t t, int n);
 
-gtime_t timeadd(gtime_t t, double sec);
-double timediff(gtime_t t1, gtime_t t2);
-gtime_t gpst2utc(gtime_t t);
-gtime_t utc2gpst(gtime_t t);
-gtime_t gpst2bdt(gtime_t t);
-gtime_t bdt2gpst(gtime_t t);
-gtime_t timeget(void);
-void timeset(gtime_t t);
-void timereset(void);
-double time2doy(gtime_t t);
-double utc2gmst(gtime_t t, double ut1_utc);
-int read_leaps(const char *file);
-
-int adjgpsweek(int week);
-uint32_t tickget(void);
-void sleepms(int ms);
+/* time functions are now declared in mrtklib/mrtk_time.h */
 
 int reppath(const char *path, char *rpath, gtime_t time, const char *rov,
             const char *base);
