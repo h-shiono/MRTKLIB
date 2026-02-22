@@ -189,6 +189,7 @@ add_test(NAME recvbias_rb_check
     COMMAND ${CMAKE_COMMAND}
         -DOUTPUT=${CMAKE_BINARY_DIR}/out_rb.bia
         -DREFERENCE=${_REFDATA}/MALIB_OSS_data_obsnav_240822-1100.rb.bia
+        -DTHRESHOLD=90
         -P ${_TESTCMAKE}/compare_bia.cmake
 )
 set_tests_properties(recvbias_rb_check PROPERTIES
