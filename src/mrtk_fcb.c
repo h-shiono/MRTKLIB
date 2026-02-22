@@ -1,10 +1,14 @@
 /*------------------------------------------------------------------------------
-* mrtk_fcb.c : fractional cycle bias functions
-*
-* Copyright (C) 2024 Japan Aerospace Exploration Agency. All Rights Reserved.
-*
-* history : 2024/12/20 1.0 new
-*-----------------------------------------------------------------------------*/
+ * mrtk_fcb.c : fractional cycle bias (FCB) functions
+ *
+ * Copyright (C) 2026 H.SHIONO (MRTKLIB Project)
+ * Copyright (C) 2023-2025 Japan Aerospace Exploration Agency
+ * Copyright (C) 2023-2025 TOSHIBA ELECTRONIC TECHNOLOGIES CORPORATION
+ * Copyright (C) 2014 T.SUZUKI
+ * Copyright (C) 2007-2023 T.TAKASU
+ *
+ * SPDX-License-Identifier: BSD-2-Clause
+ *----------------------------------------------------------------------------*/
 #include "mrtklib/mrtk_fcb.h"
 #include "mrtklib/mrtk_bias_sinex.h"
 #include "mrtklib/mrtk_sys.h"

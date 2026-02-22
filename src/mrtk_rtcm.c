@@ -1,51 +1,14 @@
 /*------------------------------------------------------------------------------
-* rtcm.c : rtcm functions
-*
-*          Copyright (C) 2009-2020 by T.TAKASU, All rights reserved.
-*
-* references :
-*     [1]  RTCM Recommended Standards for Differential GNSS (Global Navigation
-*          Satellite Systems) Service version 2.3, August 20, 2001
-*     [7]  RTCM Standard 10403.1 - Amendment 5, Differential GNSS (Global
-*          Navigation Satellite Systems) Services - version 3, July 1, 2011
-*     [10] RTCM Paper 059-2011-SC104-635 (draft Galileo and QZSS ssr messages)
-*     [15] RTCM Standard 10403.2, Differential GNSS (Global Navigation Satellite
-*          Systems) Services - version 3, with amendment 1/2, November 7, 2013
-*     [16] Proposal of new RTCM SSR Messages (ssr_1_gal_qzss_sbas_dbs_v05)
-*          2014/04/17
-*     [17] RTCM Standard 10403.3, Differential GNSS (Global Navigation Satellite
-*          Systems) Services - version 3, with amendment 1, April 28, 2020
-*     [18] IGS State Space Representation (SSR) Format version 1.00, October 5,
-*          2020
-*     [19] MJ-2014-GM4, Rev.2.5,March 3, 2023
-*
-* version : $Revision:$ $Date:$
-* history : 2009/04/10 1.0  new
-*           2009/06/29 1.1  support type 1009-1012 to get synchronous-gnss-flag
-*           2009/12/04 1.2  support type 1010,1012,1020
-*           2010/07/15 1.3  support type 1057-1068 for ssr corrections
-*                           support type 1007,1008,1033 for antenna info
-*           2010/09/08 1.4  fix problem of ephemeris and ssr sequence upset
-*                           (2.4.0_p8)
-*           2012/05/11 1.5  comply with RTCM 3 final SSR format (RTCM 3
-*                           Amendment 5) (ref [7]) (2.4.1_p6)
-*           2012/05/14 1.6  separate rtcm2.c, rtcm3.c
-*                           add options to select used codes for msm
-*           2013/04/27 1.7  comply with rtcm 3.2 with amendment 1/2 (ref[15])
-*           2013/12/06 1.8  support SBAS/BeiDou SSR messages (ref[16])
-*           2018/01/29 1.9  support RTCM 3.3 (ref[17])
-*                           crc24q() -> rtk_crc24q()
-*           2018/10/10 1.10 fix bug on initializing rtcm struct
-*                           add rtcm option -GALINAV, -GALFNAV
-*           2018/11/05 1.11 add notes for api gen_rtcm3()
-*           2020/11/30 1.12 modify API gen_rtcm3()
-*                           support NavIC/IRNSS MSM and ephemeris (ref [17])
-*                           allocate double size of ephemeris buffer to support
-*                            multiple ephemeris sets in init_rtcm()
-*                           delete references [2]-[6],[8],[9],[11]-[14]
-*                           update reference [17]
-*                           use integer types in stdint.h
-*-----------------------------------------------------------------------------*/
+ * mrtk_rtcm.c : RTCM common functions
+ *
+ * Copyright (C) 2026 H.SHIONO (MRTKLIB Project)
+ * Copyright (C) 2023-2025 Japan Aerospace Exploration Agency
+ * Copyright (C) 2023-2025 TOSHIBA ELECTRONIC TECHNOLOGIES CORPORATION
+ * Copyright (C) 2014 T.SUZUKI
+ * Copyright (C) 2007-2023 T.TAKASU
+ *
+ * SPDX-License-Identifier: BSD-2-Clause
+ *----------------------------------------------------------------------------*/
 #include "mrtklib/mrtk_rtcm.h"
 #include "mrtklib/mrtk_bits.h"
 

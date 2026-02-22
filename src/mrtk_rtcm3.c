@@ -1,61 +1,14 @@
 /*------------------------------------------------------------------------------
-* rtcm3.c : RTCM ver.3 message decorder functions
-*
-* Copyright (C) 2024-2025 Japan Aerospace Exploration Agency. All Rights Reserved.
-* Copyright (C) 2009-2021 by T.TAKASU, All rights reserved.
-*
-* references :
-*     see rtcm.c
-*
-* history : 2012/05/14 1.0  separated from rtcm.c
-*           2012/12/12 1.1  support gal/qzs ephemeris, gal/qzs ssr, msm
-*                           add station id consistency test for obs data
-*           2012/12/25 1.2  change compass msm id table
-*           2013/01/31 1.3  change signal id by the latest draft (ref [13])
-*           2013/02/23 1.4  change reference for rtcm 3 message (ref [14])
-*           2013/05/19 1.5  gpst -> bdt of time-tag in beidou msm message
-*           2014/05/02 1.6  fix bug on dropping last field of ssr message
-*                           comply with rtcm 3.2 with amendment 1/2 (ref[15])
-*                           delete MT 1046 according to ref [15]
-*           2014/09/14 1.7  add receiver option -RT_INP
-*           2014/12/06 1.8  support SBAS/BeiDou SSR messages (ref [16])
-*           2015/03/22 1.9  add handling of iodcrc for beidou/sbas ssr messages
-*           2015/04/27 1.10 support phase bias messages (MT2065-2070)
-*           2015/09/07 1.11 add message count of MT 2000-2099
-*           2015/10/21 1.12 add MT1046 support for IGS MGEX
-*                           fix bug on decode of SSR 3/7 (code/phase bias)
-*           2015/12/04 1.13 add MT63 beidou ephemeris (rtcm draft)
-*                           fix bug on ssr 3 message decoding (#321)
-*           2016/01/22 1.14 fix bug on L2C code in MT1004 (#131)
-*           2016/08/20 1.15 fix bug on loss-of-lock detection in MSM 6/7 (#134)
-*           2016/09/20 1.16 fix bug on MT1045 Galileo week rollover
-*           2016/10/09 1.17 support MT1029 unicode text string
-*           2017/04/11 1.18 fix bug on unchange-test of beidou ephemeris
-*                           fix bug on week number in galileo ephemeris struct
-*           2018/10/10 1.19 merge changes for 2.4.2 p13
-*                           fix problem on eph.code for galileo ephemeris
-*                           change mt for ssr 7 phase biases
-*                           add rtcm option -GALINAV, -GALFNAV
-*           2018/11/05 1.20 fix problem on invalid time in message monitor
-*           2019/05/10 1.21 save galileo E5b data to obs index 2
-*           2020/11/30 1.22 support MT1230 GLONASS code-phase biases
-*                           support MT1131-1137,1041 (NavIC MSM and ephemeris)
-*                           support MT4076 IGS SSR
-*                           update MSM signal ID table (ref [17])
-*                           update SSR signal and tracking mode ID table
-*                           add week adjustment in MT1019,1044,1045,1046,1042
-*                           use API code2idx() to get freq-index
-*                           use API code2freq() to get carrier frequency
-*                           use integer types in stdint.h
-*           2021/01/04 1.23 support GLO extended SVH, SVA and flags in MT1020
-*           2024/02/01 1.24 branch from ver.2.4.3b35 for MALIB
-*                           support MT4050 QZSS LEX signal raw data(MSJ)(ref [19])
-*           2024/12/20 1.25 update SSR signal and tracking mode IDs
-*                           update BeiDou iode for MADOCA-PPP
-*                           add vendor type setting
-*           2025/02/06 1.26 support MT2001-2016 trop/iono correction data
-*                           fix bug decode_ssr7()
-*-----------------------------------------------------------------------------*/
+ * mrtk_rtcm3.c : RTCM version 3 message decoder functions
+ *
+ * Copyright (C) 2026 H.SHIONO (MRTKLIB Project)
+ * Copyright (C) 2023-2025 Japan Aerospace Exploration Agency
+ * Copyright (C) 2023-2025 TOSHIBA ELECTRONIC TECHNOLOGIES CORPORATION
+ * Copyright (C) 2014 T.SUZUKI
+ * Copyright (C) 2007-2023 T.TAKASU
+ *
+ * SPDX-License-Identifier: BSD-2-Clause
+ *----------------------------------------------------------------------------*/
 #include "mrtklib/mrtk_rtcm.h"
 #include "mrtklib/mrtk_bits.h"
 #include "mrtklib/mrtk_sys.h"

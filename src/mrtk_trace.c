@@ -1,21 +1,14 @@
 /*------------------------------------------------------------------------------
-* mrtk_trace.c : debug trace functions
-*
-* Copyright (C) 2024-2025 Japan Aerospace Exploration Agency. All Rights Reserved.
-* Copyright (C) 2007-2021 by T.TAKASU, All rights reserved.
-*
-* notes   :
-*     Transitional bridge: legacy trace() -> mrtk_log_v().
-*
-*     The old file-I/O-based trace implementation (fp_trace, traceswap, etc.)
-*     has been replaced by a thin wrapper that routes all output through the
-*     new context-based logging system in mrtk_core.c.
-*
-*     Call sites throughout src/ are *unchanged*; only the implementation here
-*     has been replaced.
-*
-* history : extracted from rtkcmn.c during Phase 1 mrtklib migration
-*-----------------------------------------------------------------------------*/
+ * mrtk_trace.c : debug trace and logging functions
+ *
+ * Copyright (C) 2026 H.SHIONO (MRTKLIB Project)
+ * Copyright (C) 2023-2025 Japan Aerospace Exploration Agency
+ * Copyright (C) 2023-2025 TOSHIBA ELECTRONIC TECHNOLOGIES CORPORATION
+ * Copyright (C) 2014 T.SUZUKI
+ * Copyright (C) 2007-2023 T.TAKASU
+ *
+ * SPDX-License-Identifier: BSD-2-Clause
+ *----------------------------------------------------------------------------*/
 #include "mrtklib/mrtk_trace.h"
 #include "mrtklib/mrtk_time.h"
 #include "mrtklib/mrtk_nav.h"

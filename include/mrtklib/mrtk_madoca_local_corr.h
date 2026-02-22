@@ -1,3 +1,14 @@
+/*------------------------------------------------------------------------------
+ * mrtk_madoca_local_corr.h : MADOCA local correction type definitions and functions
+ *
+ * Copyright (C) 2026 H.SHIONO (MRTKLIB Project)
+ * Copyright (C) 2023-2025 Japan Aerospace Exploration Agency
+ * Copyright (C) 2023-2025 TOSHIBA ELECTRONIC TECHNOLOGIES CORPORATION
+ * Copyright (C) 2014 T.SUZUKI
+ * Copyright (C) 2007-2023 T.TAKASU
+ *
+ * SPDX-License-Identifier: BSD-2-Clause
+ *----------------------------------------------------------------------------*/
 /**
  * @file mrtk_madoca_local_corr.h
  * @brief MRTKLIB MADOCA Local Correction Module — local correction common

@@ -1,80 +1,14 @@
 /*------------------------------------------------------------------------------
-* mrtk_ppp.c : precise point positioning
-*
-* Copyright (C) 2024-2025 Japan Aerospace Exploration Agency. All Rights Reserved.
-* Copyright (C) 2010-2020 by T.TAKASU, All rights reserved.
-*
-* options : -DIERS_MODEL  use IERS tide model
-*           -DOUTSTAT_AMB output ambiguity parameters to solution status
-*
-* references :
-*    [1] D.D.McCarthy, IERS Technical Note 21, IERS Conventions 1996, July 1996
-*    [2] D.D.McCarthy and G.Petit, IERS Technical Note 32, IERS Conventions
-*        2003, November 2003
-*    [3] D.A.Vallado, Fundamentals of Astrodynamics and Applications 2nd ed,
-*        Space Technology Library, 2004
-*    [4] J.Kouba, A Guide to using International GNSS Service (IGS) products,
-*        May 2009
-*    [5] RTCM Paper, April 12, 2010, Proposed SSR Messages for SV Orbit Clock,
-*        Code Biases, URA
-*    [6] MacMillan et al., Atmospheric gradients and the VLBI terrestrial and
-*        celestial reference frames, Geophys. Res. Let., 1997
-*    [7] G.Petit and B.Luzum (eds), IERS Technical Note No. 36, IERS
-*         Conventions (2010), 2010
-*    [8] J.Kouba, A simplified yaw-attitude model for eclipsing GPS satellites,
-*        GPS Solutions, 13:1-12, 2009
-*    [9] F.Dilssner, GPS IIF-1 satellite antenna phase center and attitude
-*        modeling, InsideGNSS, September, 2010
-*    [10] F.Dilssner, The GLONASS-M satellite yaw-attitude model, Advances in
-*        Space Research, 2010
-*    [11] IGS MGEX (http://igs.org/mgex)
-*    [12] CAO IS-QZSS-MDC-002, November, 2023
-*
-* history : 2010/07/20 1.0  new
-*                           added api:
-*                               tidedisp()
-*           2010/12/11 1.1  enable exclusion of eclipsing satellite
-*           2012/02/01 1.2  add gps-glonass h/w bias correction
-*                           move windupcorr() to rtkcmn.c
-*           2013/03/11 1.3  add otl and pole tides corrections
-*                           involve iers model with -DIERS_MODEL
-*                           change initial variances
-*                           suppress acos domain error
-*           2013/09/01 1.4  pole tide model by iers 2010
-*                           add mode of ionosphere model off
-*           2014/05/23 1.5  add output of trop gradient in solution status
-*           2014/10/13 1.6  fix bug on P0(a[3]) computation in tide_oload()
-*                           fix bug on m2 computation in tide_pole()
-*           2015/03/19 1.7  fix bug on ionosphere correction for GLO and BDS
-*           2015/05/10 1.8  add function to detect slip by MW-LC jump
-*                           fix ppp solution problem with large clock variance
-*           2015/06/08 1.9  add precise satellite yaw-models
-*                           cope with day-boundary problem of satellite clock
-*           2015/07/31 1.10 fix bug on nan-solution without glonass nav-data
-*                           pppoutsolsat() -> pppoutstat()
-*           2015/11/13 1.11 add L5-receiver-dcb estimation
-*                           merge post-residual validation by rnx2rtkp_test
-*                           support support option opt->pppopt=-GAP_RESION=nnnn
-*           2016/01/22 1.12 delete support for yaw-model bug
-*                           add support for ura of ephemeris
-*           2018/10/10 1.13 support api change of satexclude()
-*           2020/11/30 1.14 use sat2freq() to get carrier frequency
-*                           use E1-E5b for Galileo iono-free LC
-*           2021/01/04 1.15 fixed divide-by-zero exception in udbias_ppp()
-*           2024/02/01 1.16 branch from ver.2.4.3b35 for MALIB
-*                           add function to support constrains to local correction
-*                           change for suppress -Wstringop-overflow warnings.
-*           2024/08/02 1.17 add sat elevation argument for pppcorr_stec()
-*           2024/09/26 1.18 support output DOP to stat file
-*                           fix bug on sol.dtr update in update_stat()
-*           2024/12/20 1.19 support Bias-SINEX and FCB files correction
-*                           add reciver code bias correction
-*                           delete L5-receiver-dcb estimation
-*                           add BeiDou-2 ISB estimation
-*           2025/02/06 1.20 update local correction
-*                           change the sign of the code/phase bias correction 
-*                           in corr_meas()
-*-----------------------------------------------------------------------------*/
+ * mrtk_ppp.c : precise point positioning functions
+ *
+ * Copyright (C) 2026 H.SHIONO (MRTKLIB Project)
+ * Copyright (C) 2023-2025 Japan Aerospace Exploration Agency
+ * Copyright (C) 2023-2025 TOSHIBA ELECTRONIC TECHNOLOGIES CORPORATION
+ * Copyright (C) 2014 T.SUZUKI
+ * Copyright (C) 2007-2023 T.TAKASU
+ *
+ * SPDX-License-Identifier: BSD-2-Clause
+ *----------------------------------------------------------------------------*/
 #include "mrtklib/mrtk_ppp.h"
 #include "mrtklib/mrtk_ppp_ar.h"
 #include "mrtklib/mrtk_mat.h"

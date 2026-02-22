@@ -1,52 +1,14 @@
 /*------------------------------------------------------------------------------
-* rtcm3e.c : rtcm ver.3 message encoder functions
-*
-* Copyright (C) 2025 Japan Aerospace Exploration Agency. All Rights Reserved.
-* Copyright (C) 2012-2021 by T.TAKASU, All rights reserved.
-*
-* references :
-*     see rtcm.c
-*
-* history : 2012/12/05 1.0  new
-*           2012/12/16 1.1  fix bug on ssr high rate clock correction
-*           2012/12/24 1.2  fix bug on msm carrier-phase offset correction
-*                           fix bug on SBAS sat id in 1001-1004
-*                           fix bug on carrier-phase in 1001-1004,1009-1012
-*           2012/12/28 1.3  fix bug on compass carrier wave length
-*           2013/01/18 1.4  fix bug on ssr message generation
-*           2013/05/11 1.5  change type of arg value of setbig()
-*           2013/05/19 1.5  gpst -> bdt of time-tag in beidou msm message
-*           2013/04/27 1.7  comply with rtcm 3.2 with amendment 1/2 (ref[15])
-*                           delete MT 1046 according to ref [15]
-*           2014/05/15 1.8  set NT field in MT 1020 glonass ephemeris
-*           2014/12/06 1.9  support SBAS/BeiDou SSR messages (ref [16])
-*                           fix bug on invalid staid in qzss ssr messages
-*           2015/03/22 1.9  add handling of iodcrc for beidou/sbas ssr messages
-*           2015/08/03 1.10 fix bug on wrong udint and iod in ssr 7.
-*                           support rtcm ssr fcb message mt 2065-2069.
-*           2015/09/07 1.11 add message count of MT 2000-2099
-*           2015/10/21 1.12 add MT1046 support for IGS MGEX
-*           2015/12/04 1.13 add MT63 beidou ephemeris (rtcm draft)
-*                           fix bug on msm message generation of beidou
-*                           fix bug on ssr 3 message generation (#321)
-*           2016/06/12 1.14 fix bug on segmentation fault by generating msm1
-*           2016/09/20 1.15 fix bug on MT1045 Galileo week rollover
-*           2017/04/11 1.16 fix bug on gst-week in MT1045/1046
-*           2018/10/10 1.17 merge changes for 2.4.2 p13
-*                           change mt for ssr 7 phase biases
-*           2019/05/10 1.21 save galileo E5b data to obs index 2
-*           2020/11/30 1.22 support MT1230 GLONASS code-phase biases
-*                           support MT1131-1137,1041 (NavIC MSM and ephemeris)
-*                           support MT4076 IGS SSR
-*                           fixed invalid delta clock C2 value for SSR 2 and 4
-*                           delete SSR signal and tracking mode ID table
-*                           use API code2idx() to get freq-index
-*                           use API code2freq() to get carrier frequency
-*                           use integer types in stdint.h
-*           2021/01/07 1.23 remove codes_*[] and replace them by msm_sig_*[]
-*                           support GLO extended SVH, SVA and flags in MT1020
-*           2025/02/06 1.24 support MT2001-2016 trop/iono correction data
-*-----------------------------------------------------------------------------*/
+ * mrtk_rtcm3e.c : RTCM version 3 message encoder functions
+ *
+ * Copyright (C) 2026 H.SHIONO (MRTKLIB Project)
+ * Copyright (C) 2023-2025 Japan Aerospace Exploration Agency
+ * Copyright (C) 2023-2025 TOSHIBA ELECTRONIC TECHNOLOGIES CORPORATION
+ * Copyright (C) 2014 T.SUZUKI
+ * Copyright (C) 2007-2023 T.TAKASU
+ *
+ * SPDX-License-Identifier: BSD-2-Clause
+ *----------------------------------------------------------------------------*/
 #include "mrtklib/mrtk_rtcm.h"
 #include "mrtklib/mrtk_bits.h"
 #include "mrtklib/mrtk_sys.h"

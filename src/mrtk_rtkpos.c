@@ -1,61 +1,14 @@
 /*------------------------------------------------------------------------------
-* mrtk_rtkpos.c : precise positioning
-*
-* Copyright (C) 2024-2025 Japan Aerospace Exploration Agency. All Rights Reserved.
-* Copyright (C) 2007-2023 by T.TAKASU, All rights reserved.
-* history : 2007/01/12 1.0  new
-*           2007/03/13 1.1  add slip detection by LLI flag
-*           2007/04/18 1.2  add antenna pcv correction
-*                           change rtkpos argin
-*           2008/07/18 1.3  refactored
-*           2009/01/02 1.4  modify rtk positioning api
-*           2009/03/09 1.5  support glonass, gallileo and qzs
-*           2009/08/27 1.6  fix bug on numerical exception
-*           2009/09/03 1.7  add check of valid satellite number
-*                           add check time sync for moving-base
-*           2009/11/23 1.8  add api rtkopenstat(),rtkclosestat()
-*                           add receiver h/w bias estimation
-*                           add solution status output
-*           2010/04/04 1.9  support ppp-kinematic and ppp-static modes
-*                           support earth tide correction
-*                           changed api:
-*                               rtkpos()
-*           2010/09/07 1.10 add elevation mask to hold ambiguity
-*           2012/02/01 1.11 add extended receiver error model
-*                           add glonass interchannel bias correction
-*                           add slip detectior by L1-L5 gf jump
-*                           output snr of rover receiver in residuals
-*           2013/03/10 1.12 add otl and pole tides corrections
-*           2014/05/26 1.13 support beidou and galileo
-*                           add output of gal-gps and bds-gps time offset
-*           2014/05/28 1.14 fix bug on memory exception with many sys and freq
-*           2014/08/26 1.15 add function to swap sol-stat file with keywords
-*           2014/10/21 1.16 fix bug on beidou amb-res with pos2-bdsarmode=0
-*           2014/11/08 1.17 fix bug on ar-degradation by unhealthy satellites
-*           2015/03/23 1.18 residuals referenced to reference satellite
-*           2015/05/20 1.19 no output solution status file with Q=0
-*           2015/07/22 1.20 fix bug on base station position setting
-*           2016/07/30 1.21 suppress single solution if !prcopt.outsingle
-*                           fix bug on slip detection of backward filter
-*           2016/08/20 1.22 fix bug on ddres() function
-*           2018/10/10 1.13 support api change of satexclude()
-*           2018/12/15 1.14 disable ambiguity resolution for gps-qzss
-*           2019/08/19 1.15 fix bug on return value of resamb_LAMBDA()
-*           2020/11/30 1.16 support of NavIC/IRNSS in API rtkpos()
-*                           add detecting cycle slips by L1-Lx GF phase jump
-*                           delete GLONASS IFB correction in ddres()
-*                           use integer types in stdint.h
-*           2023/01/12 1.17 valid data flags defined by carrier-phase data 
-*                           add elevation mask for rover by testelmask()
-*                           fix typos in comments
-*           2024/02/01 1.18 branch from ver.2.4.3b35 for MALIB
-*           2024/12/20 1.19 support of BeiDou in signal_sel_ppp()
-*                           move signal_replace() for rtkcmn.c
-*                           support Bias-SINEX and FCB correction
-*           2025/02/06 1.20 fix bug on udsatcb() function
-*                           change the sign of the code/phase bias correction 
-*                           in udsatcb(),udsatpb(),udstacb()
-*-----------------------------------------------------------------------------*/
+ * mrtk_rtkpos.c : RTK positioning functions
+ *
+ * Copyright (C) 2026 H.SHIONO (MRTKLIB Project)
+ * Copyright (C) 2023-2025 Japan Aerospace Exploration Agency
+ * Copyright (C) 2023-2025 TOSHIBA ELECTRONIC TECHNOLOGIES CORPORATION
+ * Copyright (C) 2014 T.SUZUKI
+ * Copyright (C) 2007-2023 T.TAKASU
+ *
+ * SPDX-License-Identifier: BSD-2-Clause
+ *----------------------------------------------------------------------------*/
 #include "mrtklib/mrtk_rtkpos.h"
 #include "mrtklib/mrtk_ppp.h"
 #include "mrtklib/mrtk_mat.h"

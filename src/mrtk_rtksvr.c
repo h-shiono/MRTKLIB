@@ -1,58 +1,14 @@
 /*------------------------------------------------------------------------------
-* rtksvr.c : rtk server functions
-*
-* Copyright (C) 2024-2025 Japan Aerospace Exploration Agency. All Rights Reserved.
-* Copyright (C) 2007-2021 by T.TAKASU, All rights reserved.
-*
-* references :
-*     [1]  CAO IS-QZSS-MDC-002, November, 2023
-*
-* options : -DWIN32    use WIN32 API
-*
-* history : 2009/01/07  1.0  new
-*           2009/06/02  1.1  support glonass
-*           2010/07/25  1.2  support correction input/log stream
-*                            supoort online change of output/log streams
-*                            supoort monitor stream
-*                            added api:
-*                                rtksvropenstr(),rtksvrclosestr()
-*                            changed api:
-*                                rtksvrstart()
-*           2010/08/25  1.3  fix problem of ephemeris time inversion (2.4.0_p6)
-*           2010/09/08  1.4  fix problem of ephemeris and ssr squence upset
-*                            (2.4.0_p8)
-*           2011/01/10  1.5  change api: rtksvrstart(),rtksvrostat()
-*           2011/06/21  1.6  fix ephemeris handover problem
-*           2012/05/14  1.7  fix bugs
-*           2013/03/28  1.8  fix problem on lack of glonass freq number in raw
-*                            fix problem on ephemeris with inverted toe
-*                            add api rtksvrfree()
-*           2014/06/28  1.9  fix probram on ephemeris update of beidou
-*           2015/04/29  1.10 fix probram on ssr orbit/clock inconsistency
-*           2015/07/31  1.11 add phase bias (fcb) correction
-*           2015/12/05  1.12 support opt->pppopt=-DIS_FCB
-*           2016/07/01  1.13 support averaging single pos as base position
-*           2016/07/31  1.14 fix bug on ion/utc parameters input
-*           2016/08/20  1.15 support api change of sendnmea()
-*           2016/09/18  1.16 fix server-crash with server-cycle > 1000
-*           2016/09/20  1.17 change api rtksvrstart()
-*           2016/10/01  1.18 change api rtksvrstart()
-*           2016/10/04  1.19 fix problem to send nmea of single solution
-*           2016/10/09  1.20 add reset-and-single-sol mode for nmea-request
-*           2017/04/11  1.21 add rtkfree() in rtksvrfree()
-*           2020/11/30  1.22 add initializing svr->nav in rtksvrinit()
-*                            allocate double size ephemeris in rtksvrinit()
-*                            handle multiple ephemeris sets in updatesvr()
-*                            use API sat2freq() to get carrier frequency
-*                            use integer types in stdint.h
-*           2021/01/11  1.23 lock(),unlock(),initlock()->
-*                              rtk_lock(),rtk_unlock(),rtk_initlock()
-*           2021/05/21  1.24 fix typos in comments
-*           2024/02/01  1.25 branch from ver.2.4.3b35 for MALIB
-*                            fix bug update_ssr(),rtksrvinit()
-*           2024/08/02  1.26 support stat format
-*           2025/02/06  1.27 update stat format support local correction data
-*-----------------------------------------------------------------------------*/
+ * mrtk_rtksvr.c : real-time RTK server functions
+ *
+ * Copyright (C) 2026 H.SHIONO (MRTKLIB Project)
+ * Copyright (C) 2023-2025 Japan Aerospace Exploration Agency
+ * Copyright (C) 2023-2025 TOSHIBA ELECTRONIC TECHNOLOGIES CORPORATION
+ * Copyright (C) 2014 T.SUZUKI
+ * Copyright (C) 2007-2023 T.TAKASU
+ *
+ * SPDX-License-Identifier: BSD-2-Clause
+ *----------------------------------------------------------------------------*/
 #include "mrtklib/mrtk_rtksvr.h"
 #include "mrtklib/mrtk_stream.h"
 #include "mrtklib/mrtk_rtkpos.h"
@@ -642,11 +598,7 @@ static void send_nmea(rtksvr_t *svr, uint32_t *tickreset)
     }
 }
 /* rtk server thread ---------------------------------------------------------*/
-#ifdef WIN32
-static DWORD WINAPI rtksvrthread(void *arg)
-#else
 static void *rtksvrthread(void *arg)
-#endif
 {
     rtksvr_t *svr=(rtksvr_t *)arg;
     obs_t obs;
@@ -1033,9 +985,6 @@ extern int rtksvrstart(rtksvr_t *svr, int cycle, int buffsize, int *strs,
         writesolhead(svr->stream+i,svr->solopt+i-3);
     }
     /* create rtk server thread */
-#ifdef WIN32
-    if (!(svr->thread=CreateThread(NULL,0,rtksvrthread,svr,0,NULL))) {
-#else
     {
         pthread_attr_t attr;
         int rc;
@@ -1044,14 +993,11 @@ extern int rtksvrstart(rtksvr_t *svr, int cycle, int buffsize, int *strs,
         rc=pthread_create(&svr->thread,&attr,rtksvrthread,svr);
         pthread_attr_destroy(&attr);
         if (rc) {
-#endif
-        for (i=0;i<MAXSTRRTK;i++) strclose(svr->stream+i);
-        sprintf(errmsg,"thread create error\n");
-        return 0;
-#ifndef WIN32
+            for (i=0;i<MAXSTRRTK;i++) strclose(svr->stream+i);
+            sprintf(errmsg,"thread create error\n");
+            return 0;
         }
     }
-#endif
     return 1;
 }
 /* stop rtk server -------------------------------------------------------------
@@ -1080,12 +1026,7 @@ extern void rtksvrstop(rtksvr_t *svr, char **cmds)
     svr->state=0;
     
     /* free rtk server thread */
-#ifdef WIN32
-    WaitForSingleObject(svr->thread,10000);
-    CloseHandle(svr->thread);
-#else
     pthread_join(svr->thread,NULL);
-#endif
 }
 /* open output/log stream ------------------------------------------------------
 * open output/log stream

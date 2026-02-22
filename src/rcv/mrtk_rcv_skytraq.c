@@ -1,46 +1,14 @@
 /*------------------------------------------------------------------------------
-* skytraq.c : skytraq receiver dependent functions
-*
-*          Copyright (C) 2009-2020 by T.TAKASU, All rights reserved.
-*
-* reference :
-*     [1] Skytraq, Application Note AN0023 Binary Message of SkyTraq Venus 6 
-*         GPS Receiver, ver 1.4.8, August 21, 2008
-*     [2] Skytraq, Application Note AN0024 Raw Measurement Binary Message
-*         Extension of SkyTraq Venus 6 GPS Receiver, ver 0.5, October 9, 2009
-*     [3] Skytraq, Application Note AN0024G2 Binary Message of SkyTraq Venus 7
-*         GLONASS/GPS Receiver (Raw Measurement F/W), ver 1.4.26, April 26, 2012
-*     [4] Skytraq, Application Note AN0030 Binary Message of Raw Measurement
-*         Data Extension of SkyTraq Venus 8 GNSS Receiver, ver.1.4.29,
-*         April 3, 2014
-*     [5] Skytraq, Application Note AN0030 Binary Message of Raw Measurement
-*         Data Extension of SkyTraq Venus 8 GNSS Receiver, ver.1.4.31,
-*         August 12, 2014
-*     [6] Skytraq, Application Note AN0030 Binary Message of Raw Measurement
-*         Data Extension of SkyTraq Venus 8 GNSS Receiver, ver.1.4.32,
-*         Sep 26, 2016
-*
-* notes   :
-*     The byte order of S1315F raw message is big-endian inconsistent to [1].
-*
-* version : $Revision:$
-* history : 2009/10/10 1.0 new
-*           2009/11/08 1.1 flip carrier-phase polarity for F/W 1.8.23-20091106
-*           2011/05/27 1.2 add almanac decoding
-*                          fix problem with ARM compiler
-*           2011/07/01 1.3 suppress warning
-*           2013/03/10 1.5 change option -invcp to -INVCP
-*           2014/11/09 1.6 support glonass, qzss and beidou
-*           2016/10/09 1.7 support F/W version specified as ref [6]
-*           2017/04/11 1.8 (char *) -> (signed char *)
-*           2017/05/08 1.9 fix bug on decoding extended raw meas v.1 (0xE5)
-*                          fix bug on encoding CFG-BIN message (0x1E)
-*                          add decode of ack/nack to request msg (0x83/0x84)
-*           2020/10/30 1.10 add adjustment of gps week by cpu time
-*                           CODE_L1I -> CODE_L2I for BDS
-*                           use integer type in stdint.h
-*                           suppress warnings
-*-----------------------------------------------------------------------------*/
+ * mrtk_rcv_skytraq.c : SkyTraq receiver raw data decoder
+ *
+ * Copyright (C) 2026 H.SHIONO (MRTKLIB Project)
+ * Copyright (C) 2023-2025 Japan Aerospace Exploration Agency
+ * Copyright (C) 2023-2025 TOSHIBA ELECTRONIC TECHNOLOGIES CORPORATION
+ * Copyright (C) 2014 T.SUZUKI
+ * Copyright (C) 2007-2023 T.TAKASU
+ *
+ * SPDX-License-Identifier: BSD-2-Clause
+ *----------------------------------------------------------------------------*/
 #include "mrtklib/mrtk_rcvraw.h"
 #include "mrtklib/mrtk_time.h"
 #include "mrtklib/mrtk_bits.h"

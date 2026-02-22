@@ -1,35 +1,14 @@
 /*------------------------------------------------------------------------------
-* rt17.c : Trimble RT-17 dependent functions
-*
-*          Copyright (C) 2016 Daniel A. Cook, All rights reserved.
-*          Copyright (C) 2020-2021 T.TAKASU, All rights reserved.
-*
-* references:
-*     [1] https://github.com/astrodanco/RTKLIB/tree/cmr/src/rcv/rt17.c
-*     [2] Trimble, Trimble OEM BD9xx GNSS Receiver Family IDC, version 4.82
-*         Revision A, December, 2013
-*
-* version : $Revision:$ $Date:$
-* history : 2014/08/26 1.0  imported from GitHub (ref [1])
-*                           modified to get initial week number
-*                           modified obs types for raw obs data
-*                           function added to output message type
-*           2014/09/06 1.1  Remove prehistorical revision history
-*                           Remove dead code
-*                           Fix len vs. plen typo
-*                           Check week/time valid flag in GSOF 16 message
-*                           Set time when reading GSOF messages, where possible.
-*           2016/06/16 1.2  Refactored
-*           2016/07/16 1.3  modified by T.T
-*                           raw->strfmt -> raw->format
-*                           int free_rt17() -> void free_rt17()
-*           2016/07/29 1.4  suppress warning
-*           2017/04/11 1.5  (char *) -> (signed char *)
-*           2020/11/30 1.6  use integer type in stdint.h
-*           2021/01/11 1.7  remove EXPORT
-*           2021/05/21 1.8  fix typos in comments
-*-----------------------------------------------------------------------------*/
-
+ * mrtk_rcv_rt17.c : Trimble RT17 receiver raw data decoder
+ *
+ * Copyright (C) 2026 H.SHIONO (MRTKLIB Project)
+ * Copyright (C) 2023-2025 Japan Aerospace Exploration Agency
+ * Copyright (C) 2023-2025 TOSHIBA ELECTRONIC TECHNOLOGIES CORPORATION
+ * Copyright (C) 2014 T.SUZUKI
+ * Copyright (C) 2007-2023 T.TAKASU
+ *
+ * SPDX-License-Identifier: BSD-2-Clause
+ *----------------------------------------------------------------------------*/
 /*
 | Trimble real-time binary data stream and file handler functions.
 |

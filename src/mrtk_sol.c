@@ -1,16 +1,14 @@
 /*------------------------------------------------------------------------------
-* mrtk_sol.c : solution functions
-*
-*          Copyright (C) 2007-2021 by T.TAKASU, All rights reserved.
-*
-* Pure cut-and-paste extraction from solution.c with zero algorithmic changes.
-*
-* references :
-*     [1] National Marine Electronic Association and International Marine
-*         Electronics Association, NMEA 0183 version 4.10, August 1, 2012
-*     [2] NMEA 0183 Talker Identifier Mnemonics, March 3, 2019
-*         (https://www.nmea.org/content/STANDARDS/NMEA_0183_Standard)
-*-----------------------------------------------------------------------------*/
+ * mrtk_sol.c : solution I/O functions
+ *
+ * Copyright (C) 2026 H.SHIONO (MRTKLIB Project)
+ * Copyright (C) 2023-2025 Japan Aerospace Exploration Agency
+ * Copyright (C) 2023-2025 TOSHIBA ELECTRONIC TECHNOLOGIES CORPORATION
+ * Copyright (C) 2014 T.SUZUKI
+ * Copyright (C) 2007-2023 T.TAKASU
+ *
+ * SPDX-License-Identifier: BSD-2-Clause
+ *----------------------------------------------------------------------------*/
 #include "mrtklib/mrtk_sol.h"
 #include "mrtklib/mrtk_sys.h"
 #include "mrtklib/mrtk_coords.h"

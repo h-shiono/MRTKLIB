@@ -1,3 +1,14 @@
+/*------------------------------------------------------------------------------
+ * mrtk_time.c : time and date functions
+ *
+ * Copyright (C) 2026 H.SHIONO (MRTKLIB Project)
+ * Copyright (C) 2023-2025 Japan Aerospace Exploration Agency
+ * Copyright (C) 2023-2025 TOSHIBA ELECTRONIC TECHNOLOGIES CORPORATION
+ * Copyright (C) 2014 T.SUZUKI
+ * Copyright (C) 2007-2023 T.TAKASU
+ *
+ * SPDX-License-Identifier: BSD-2-Clause
+ *----------------------------------------------------------------------------*/
 /**
  * @file mrtk_time.c
  * @brief MRTKLIB Time Module — Implementation.
@@ -11,9 +22,7 @@
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
-#ifndef WIN32
 #include <sys/time.h>
-#endif
 
 /*============================================================================
  * Private Constants
@@ -261,13 +270,6 @@ extern gtime_t timeget(void)
 {
     gtime_t time;
     double ep[6]={0};
-#ifdef WIN32
-    SYSTEMTIME ts;
-
-    GetSystemTime(&ts); /* utc */
-    ep[0]=ts.wYear; ep[1]=ts.wMonth;  ep[2]=ts.wDay;
-    ep[3]=ts.wHour; ep[4]=ts.wMinute; ep[5]=ts.wSecond+ts.wMilliseconds*1E-3;
-#else
     struct timeval tv;
     struct tm *tt;
 
@@ -275,7 +277,6 @@ extern gtime_t timeget(void)
         ep[0]=tt->tm_year+1900; ep[1]=tt->tm_mon+1; ep[2]=tt->tm_mday;
         ep[3]=tt->tm_hour; ep[4]=tt->tm_min; ep[5]=tt->tm_sec+tv.tv_usec*1E-6;
     }
-#endif
     time=epoch2time(ep);
 
 #ifdef CPUTIME_IN_GPST /* cputime operated in gpst */
@@ -531,9 +532,6 @@ extern int adjgpsweek(int week)
 *-----------------------------------------------------------------------------*/
 extern uint32_t tickget(void)
 {
-#ifdef WIN32
-    return (uint32_t)timeGetTime();
-#else
     struct timespec tp={0};
     struct timeval  tv={0};
 
@@ -550,7 +548,6 @@ extern uint32_t tickget(void)
     gettimeofday(&tv,NULL);
     return tv.tv_sec*1000u+tv.tv_usec/1000u;
 #endif
-#endif /* WIN32 */
 }
 /* sleep ms --------------------------------------------------------------------
 * sleep ms
@@ -559,13 +556,9 @@ extern uint32_t tickget(void)
 *-----------------------------------------------------------------------------*/
 extern void sleepms(int ms)
 {
-#ifdef WIN32
-    if (ms<5) Sleep(1); else Sleep(ms);
-#else
     struct timespec ts;
     if (ms<=0) return;
     ts.tv_sec=(time_t)(ms/1000);
     ts.tv_nsec=(long)(ms%1000*1000000);
     nanosleep(&ts,NULL);
-#endif
 }

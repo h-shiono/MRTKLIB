@@ -1,18 +1,14 @@
 /*------------------------------------------------------------------------------
-* mrtk_madoca.c : QZSS L6E signal MADOCA-PPP Compact SSR message decode functions
-*
-* Copyright (C) 2024-2025 TOSHIBA ELECTRONIC TECHNOLOGIES CORPORATION. All Rights Reserved.
-*
-* references :
-*     [1]  CAO IS-QZSS-MDC-004, May, 2025
-*
-* history : 2024/02/01 1.0  new, for MALIB from TETC original tools.
-*           2025/08/31 1.1  add vendor type setting
-*                           change the sign of the phase bias correction to
-*                           correspond to IS-QZSS-MDC (ref.[1]).modify Compact SSR decoding function regarding
-*                           undefined GNSS ID handling of Compact SSR.
-*           2026/02/22 1.2  moved to mrtklib (mrtk_madoca.c)
-*-----------------------------------------------------------------------------*/
+ * mrtk_madoca.c : MADOCA-PPP processing functions
+ *
+ * Copyright (C) 2026 H.SHIONO (MRTKLIB Project)
+ * Copyright (C) 2023-2025 Japan Aerospace Exploration Agency
+ * Copyright (C) 2023-2025 TOSHIBA ELECTRONIC TECHNOLOGIES CORPORATION
+ * Copyright (C) 2014 T.SUZUKI
+ * Copyright (C) 2007-2023 T.TAKASU
+ *
+ * SPDX-License-Identifier: BSD-2-Clause
+ *----------------------------------------------------------------------------*/
 #include "mrtklib/mrtk_madoca.h"
 #include "mrtklib/mrtk_bits.h"
 

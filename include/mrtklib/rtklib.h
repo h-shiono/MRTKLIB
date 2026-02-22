@@ -1,17 +1,14 @@
 /*------------------------------------------------------------------------------
-* rtklib.h : RTKLIB compatibility wrapper
-*
-* Copyright (C) 2024-2025 Japan Aerospace Exploration Agency. All Rights Reserved.
-* Copyright (C) 2007-2021 by T.TAKASU, All rights reserved.
-*
-* This header is now a pure wrapper that includes all MRTKLIB modular headers.
-* Legacy code can continue to #include "rtklib.h" and get the same types,
-* constants, and function declarations as before.
-*
-* history : 2007/01/13 1.0  rtklib ver.1.0.0
-*           ...
-*           2025/02/22 2.0  reduced to pure include wrapper (Phase 1 complete)
-*-----------------------------------------------------------------------------*/
+ * rtklib.h : RTKLIB compatibility wrapper (includes all MRTKLIB headers)
+ *
+ * Copyright (C) 2026 H.SHIONO (MRTKLIB Project)
+ * Copyright (C) 2023-2025 Japan Aerospace Exploration Agency
+ * Copyright (C) 2023-2025 TOSHIBA ELECTRONIC TECHNOLOGIES CORPORATION
+ * Copyright (C) 2014 T.SUZUKI
+ * Copyright (C) 2007-2023 T.TAKASU
+ *
+ * SPDX-License-Identifier: BSD-2-Clause
+ *----------------------------------------------------------------------------*/
 #ifndef RTKLIB_H
 #define RTKLIB_H
 
@@ -23,13 +20,8 @@
 #include <time.h>
 #include <ctype.h>
 #include <stdint.h>
-#ifdef WIN32
-#include <winsock2.h>
-#include <windows.h>
-#else
 #include <pthread.h>
 #include <sys/select.h>
-#endif
 
 /* MRTKLIB modular headers */
 #include "mrtklib/mrtk_foundation.h"

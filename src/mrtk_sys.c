@@ -1,3 +1,14 @@
+/*------------------------------------------------------------------------------
+ * mrtk_sys.c : system utility functions
+ *
+ * Copyright (C) 2026 H.SHIONO (MRTKLIB Project)
+ * Copyright (C) 2023-2025 Japan Aerospace Exploration Agency
+ * Copyright (C) 2023-2025 TOSHIBA ELECTRONIC TECHNOLOGIES CORPORATION
+ * Copyright (C) 2014 T.SUZUKI
+ * Copyright (C) 2007-2023 T.TAKASU
+ *
+ * SPDX-License-Identifier: BSD-2-Clause
+ *----------------------------------------------------------------------------*/
 /**
  * @file mrtk_sys.c
  * @brief MRTKLIB System Module — Implementation.
@@ -17,11 +28,9 @@
 #include <stdlib.h>
 #include <string.h>
 
-#ifndef WIN32
 #include <dirent.h>
 #include <sys/stat.h>
 #include <sys/types.h>
-#endif
 
 /*============================================================================
  * Forward Declarations (resolved at link time from rtkcmn.c)
@@ -34,11 +43,7 @@ extern void tracet(int level, const char *format, ...);
  * Platform Constants
  *===========================================================================*/
 
-#ifdef WIN32
-#define FILEPATHSEP '\\'
-#else
 #define FILEPATHSEP '/'
-#endif
 
 /*============================================================================
  * String Conversion Functions
@@ -72,28 +77,9 @@ extern double str2num(const char *s, int i, int n)
 *-----------------------------------------------------------------------------*/
 extern int execcmd(const char *cmd)
 {
-#ifdef WIN32
-    PROCESS_INFORMATION info;
-    STARTUPINFO si={0};
-    DWORD stat;
-    char cmds[1024];
-
-    trace(3,"execcmd: cmd=%s\n",cmd);
-
-    si.cb=sizeof(si);
-    sprintf(cmds,"cmd /c %s",cmd);
-    if (!CreateProcess(NULL,(LPTSTR)cmds,NULL,NULL,FALSE,CREATE_NO_WINDOW,NULL,
-                       NULL,&si,&info)) return -1;
-    WaitForSingleObject(info.hProcess,INFINITE);
-    if (!GetExitCodeProcess(info.hProcess,&stat)) stat=-1;
-    CloseHandle(info.hProcess);
-    CloseHandle(info.hThread);
-    return (int)stat;
-#else
     trace(3,"execcmd: cmd=%s\n",cmd);
 
     return system(cmd);
-#endif
 }
 /* expand file path ------------------------------------------------------------
 * expand file path with wild-card (*) in file
@@ -107,27 +93,6 @@ extern int expath(const char *path, char *paths[], int nmax)
 {
     int i,j,n=0;
     char tmp[1024];
-#ifdef WIN32
-    WIN32_FIND_DATA file;
-    HANDLE h;
-    char dir[1024]="",*p;
-
-    trace(3,"expath  : path=%s nmax=%d\n",path,nmax);
-
-    if ((p=strrchr(path,'\\'))) {
-        strncpy(dir,path,p-path+1); dir[p-path+1]='\0';
-    }
-    if ((h=FindFirstFile((LPCTSTR)path,&file))==INVALID_HANDLE_VALUE) {
-        strcpy(paths[0],path);
-        return 1;
-    }
-    sprintf(paths[n++],"%s%s",dir,file.cFileName);
-    while (FindNextFile(h,&file)&&n<nmax) {
-        if (file.dwFileAttributes&FILE_ATTRIBUTE_DIRECTORY) continue;
-        sprintf(paths[n++],"%s%s",dir,file.cFileName);
-    }
-    FindClose(h);
-#else
     struct dirent *d;
     DIR *dp;
     const char *file=path;
@@ -152,7 +117,6 @@ extern int expath(const char *path, char *paths[], int nmax)
         if (p&&n<nmax) sprintf(paths[n++],"%s%s",dir,d->d_name);
     }
     closedir(dp);
-#endif
     /* sort paths in alphabetical order */
     for (i=0;i<n-1;i++) {
         for (j=i+1;j<n;j++) {
@@ -171,26 +135,6 @@ extern int expath(const char *path, char *paths[], int nmax)
 static int mkdir_r(const char *dir)
 {
     char pdir[1024],*p;
-
-#ifdef WIN32
-    HANDLE h;
-    WIN32_FIND_DATA data;
-
-    if (!*dir||!strcmp(dir+1,":\\")) return 1;
-
-    sprintf(pdir,"%.1023s",dir);
-    if ((p=strrchr(pdir,FILEPATHSEP))) {
-        *p='\0';
-        h=FindFirstFile(pdir,&data);
-        if (h==INVALID_HANDLE_VALUE) {
-            if (!mkdir_r(pdir)) return 0;
-        }
-        else FindClose(h);
-    }
-    if (CreateDirectory(dir,NULL)||GetLastError()==ERROR_ALREADY_EXISTS) {
-        return 1;
-    }
-#else
     FILE *fp;
 
     if (!*dir) return 1;
@@ -204,7 +148,6 @@ static int mkdir_r(const char *dir)
         else fclose(fp);
     }
     if (!mkdir(dir,0777)||errno==EEXIST) return 1;
-#endif
     trace(2,"directory generation error: dir=%s\n",dir);
     return 0;
 }
@@ -396,18 +339,10 @@ extern int rtk_uncompress(const char *file, char *uncfile)
         strcpy(uncfile,tmpfile); uncfile[p-tmpfile]='\0';
         strcpy(buff,tmpfile);
         fname=buff;
-#ifdef WIN32
-        if ((p=strrchr(buff,'\\'))) {
-            *p='\0'; dir=fname; fname=p+1;
-        }
-        sprintf(cmd,"set PATH=%%CD%%;%%PATH%% & cd /D \"%s\" & tar -xf \"%s\"",
-                dir,fname);
-#else
         if ((p=strrchr(buff,'/'))) {
             *p='\0'; dir=fname; fname=p+1;
         }
         sprintf(cmd,"tar -C \"%s\" -xf \"%s\"",dir,tmpfile);
-#endif
         if (execcmd(cmd)) {
             if (stat) remove(tmpfile);
             return -1;

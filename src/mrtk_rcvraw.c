@@ -1,57 +1,14 @@
 /*------------------------------------------------------------------------------
-* rcvraw.c : receiver raw data functions
-*
-*          Copyright (C) 2009-2021 by T.TAKASU, All rights reserved.
-*          Copyright (C) 2014 by T.SUZUKI, All rights reserved.
-*
-* references :
-*     [1] IS-GPS-200K, Navstar GPS Space Segment/Navigation User Interfaces,
-*         March 4, 2019
-*     [2] Global navigation satellite system GLONASS interface control document
-*         navigation radiosignal in bands L1,L2 (version 5.1), 2008
-*     [3] BeiDou satellite navigation system signal in space interface control
-*         document open service signal B1I (version 3.0), February, 2019
-*     [4] Quasi-Zenith Satellite System Interface Specification Satellite
-*         Positioning, Navigation and Timing Service (IS-QZSS-PNT-003), November
-*         5, 2018
-*     [5] European GNSS (Galileo) Open Service Signal In Space Interface Control
-*         Document, Issue 1.3, December, 2016
-*     [6] ISRO-IRNSS-ICD-SPS-1.1, Indian Regional Navigation Satellite System
-*         Signal in Space ICD for Standard Positioning Service version 1.1,
-*         August, 2017
-*
-* version : $Revision:$ $Date:$
-* history : 2009/04/10 1.0  new
-*           2009/06/02 1.1  support glonass
-*           2010/07/31 1.2  support eph_t struct change
-*           2010/12/06 1.3  add almanac decoding, support of GW10
-*                           change api decode_frame()
-*           2013/04/11 1.4  fix bug on decode fit interval
-*           2014/01/31 1.5  fix bug on decode fit interval
-*           2014/06/22 1.6  add api decode_glostr()
-*           2014/06/22 1.7  add api decode_bds_d1(), decode_bds_d2()
-*           2014/08/14 1.8  add test_glostr()
-*                           add support input format rt17
-*           2014/08/31 1.9  suppress warning
-*           2014/11/07 1.10 support qzss navigation subframes
-*           2016/01/23 1.11 enable septentrio
-*           2016/01/28 1.12 add decode_gal_inav() for galileo I/NAV
-*           2016/07/04 1.13 support CMR/CMR+
-*           2017/05/26 1.14 support TERSUS
-*           2018/10/10 1.15 update reference [5]
-*                           add set of eph->code/flag for galileo and beidou
-*           2018/12/05 1.16 add test of galileo i/nav word type 5
-*           2020/11/30 1.17 add API decode_gal_fnav() and decode_irn_nav()
-*                           allocate double size of raw->nav.eph[] for multiple
-*                            ephemeris sets (e.g. Gallieo I/NAV and F/NAV)
-*                           no support of STRFMT_LEXR by API input_raw/rawf()
-*                           update references [1], [3] and [4]
-*                           add reference [6]
-*                           use integer types in stdint.h
-*           2021/01/07 1.18 support GLONASS extended SVH and status flags
-*           2024/02/01 1.19 branch from ver.2.4.3b35 for MALIB
-*                           add support input L6E correction
-*-----------------------------------------------------------------------------*/
+ * mrtk_rcvraw.c : receiver raw data functions
+ *
+ * Copyright (C) 2026 H.SHIONO (MRTKLIB Project)
+ * Copyright (C) 2023-2025 Japan Aerospace Exploration Agency
+ * Copyright (C) 2023-2025 TOSHIBA ELECTRONIC TECHNOLOGIES CORPORATION
+ * Copyright (C) 2014 T.SUZUKI
+ * Copyright (C) 2007-2023 T.TAKASU
+ *
+ * SPDX-License-Identifier: BSD-2-Clause
+ *----------------------------------------------------------------------------*/
 #include "mrtklib/mrtk_rcvraw.h"
 #include "mrtklib/mrtk_time.h"
 #include "mrtklib/mrtk_bits.h"

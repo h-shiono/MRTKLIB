@@ -1,83 +1,14 @@
 /*------------------------------------------------------------------------------
-* stream.c : stream input/output functions
-*
-*          Copyright (C) 2008-2021 by T.TAKASU, All rights reserved.
-*
-* options : -DWIN32    use WIN32 API
-*           -DSVR_REUSEADDR reuse tcp server address
-*
-* references :
-*     [1] RTCM Recommendaed Standards for Networked Transport for RTCM via
-*         Internet Protocol (Ntrip), Version 1.0, Semptember 30, 2004
-*     [2] H.Niksic and others, GNU Wget 1.12, The non-iteractive download
-*         utility, 4 September 2009
-*     [3] RTCM Recommendaed Standards for Networked Transport for RTCM via
-*         Internet Protocol (Ntrip), Version 2.0, June 28, 2011
-*
-* history : 2009/01/16 1.0  new
-*           2009/04/02 1.1  support nmea request in ntrip request
-*                           support time-tag of file as stream
-*           2009/09/04 1.2  ported to linux environment
-*                           add fflush() to save file stream
-*           2009/10/10 1.3  support multiple connection for tcp server
-*                           add keyword replacement in file path
-*                           add function strsendnmea(), strsendcmd()
-*           2010/07/18 1.4  support ftp/http stream types
-*                           add keywords replacement of %ha,%hb,%hc in path
-*                           add api: strsetdir(),strsettimeout()
-*           2010/08/31 1.5  reconnect after error of ntrip client
-*                           fix bug on no file swap at week start (2.4.0_p6)
-*           2011/05/29 1.6  add fast stream replay mode
-*                           add time margin to swap file
-*                           change api strsetopt()
-*                           introduce non_block send for send socket
-*                           add api: strsetproxy()
-*           2011/12/21 1.7  fix bug decode tcppath (rtklib_2.4.1_p5)
-*           2012/06/09 1.8  fix problem if user or password contains /
-*                           (rtklib_2.4.1_p7)
-*           2012/12/25 1.9  compile option SVR_REUSEADDR added
-*           2013/03/10 1.10 fix problem with ntrip mountpoint containing "/"
-*           2013/04/15 1.11 fix bug on swapping files if swapmargin=0
-*           2013/05/28 1.12 fix bug on playback of file with 64 bit size_t
-*           2014/05/23 1.13 retry to connect after gethostbyname() error
-*                           fix bug on malloc size in openftp()
-*           2014/06/21 1.14 add general hex message rcv command by !HEX ...
-*           2014/10/16 1.15 support stdin/stdout for input/output from/to file
-*           2014/11/08 1.16 fix getconfig error (87) with bluetooth device
-*           2015/01/12 1.15 add rcv command to change bitrate by !BRATE
-*           2016/01/16 1.16 add constant CRTSCTS for non-CRTSCTS-defined env.
-*                           fix serial status for non-windows systems
-*           2016/06/09 1.17 fix bug on !BRATE rcv command always failed
-*                           fix program on struct alignment in time tag header
-*           2016/06/21 1.18 reverse time-tag handler of file to previous
-*           2016/07/23 1.19 add output of received stream to tcp port for serial
-*           2016/08/20 1.20 modify api strsendnmea()
-*           2016/08/29 1.21 fix bug on starting serial thread for windows
-*           2016/09/03 1.22 add ntrip caster functions
-*                           add api strstatx(),strsetsrctbl()
-*                           add api strsetsel(),strgetsel()
-*           2016/09/06 1.23 fix bug on ntrip caster socket and request handling
-*           2016/09/27 1.24 support udp server and client
-*           2016/10/10 1.25 support ::P={4|8} option in path for STR_FILE
-*           2018/11/05 1.26 fix bug on default playback speed (= 0)
-*                           fix bug on file playback as slave mode
-*                           fix bug on timeset() in gpst instead of utc
-*                           update trace levels and buffer sizes
-*           2019/05/10 1.27 fix bug on dropping message on tcp stream (#144)
-*           2019/08/19 1.28 support 460800 and 921600 bps for serial
-*           2020/11/30 1.29 delete API strsetsrctbl(), strsetsel(), strgetsel()
-*                           fix bug on numerical error in computing output rate
-*                           no support stream type STR_NTRIPC_S in API stropen()
-*                           no support rcv. command LEXR in API strsendcmd()
-*                           change stream type STR_NTRIPC_C to STR_NTRIPCAS
-*                           accept HTTP/1.1 as protocol for NTRIP caster
-*                           suppress warning for buffer overflow by sprintf()
-*                           use integer types in stdint.h
-*           2021/01/11 1.30 lock_t,lock(),unlock(),initlock()->
-*                             rtk_lock_t,rtk_lock(),rtk_unlock(),rtk_initlock()
-*           2021/02/19 1.31 support NTRIP 2.0 by NTRIP caster
-*           2021/05/21 1.32 fix typos
-*-----------------------------------------------------------------------------*/
+ * mrtk_stream.c : stream I/O functions
+ *
+ * Copyright (C) 2026 H.SHIONO (MRTKLIB Project)
+ * Copyright (C) 2023-2025 Japan Aerospace Exploration Agency
+ * Copyright (C) 2023-2025 TOSHIBA ELECTRONIC TECHNOLOGIES CORPORATION
+ * Copyright (C) 2014 T.SUZUKI
+ * Copyright (C) 2007-2023 T.TAKASU
+ *
+ * SPDX-License-Identifier: BSD-2-Clause
+ *----------------------------------------------------------------------------*/
 #include <ctype.h>
 
 #include "mrtklib/mrtk_stream.h"
@@ -98,7 +29,6 @@
 /* Forward declarations for functions in rtklib (resolved at link time) */
 extern void trace (int level, const char *format, ...);
 extern void tracet(int level, const char *format, ...);
-#ifndef WIN32
 #include <fcntl.h>
 #include <unistd.h>
 #include <sys/stat.h>
@@ -114,7 +44,6 @@ extern void tracet(int level, const char *format, ...);
 #include <netinet/tcp.h>
 #include <arpa/inet.h>
 #include <netdb.h>
-#endif
 
 /* constants -----------------------------------------------------------------*/
 
@@ -170,15 +99,9 @@ const char *formatstrs[32]={    /* stream format strings */
 
 /* macros --------------------------------------------------------------------*/
 
-#ifdef WIN32
-#define dev_t               HANDLE
-#define socket_t            SOCKET
-typedef int socklen_t;
-#else
 #define dev_t               int
 #define socket_t            int
 #define closesocket         close
-#endif
 
 /* type definition -----------------------------------------------------------*/
 
@@ -231,13 +154,6 @@ typedef struct {            /* tcp cilent type */
 typedef struct {            /* serial control type */
     dev_t dev;              /* serial device */
     int error;              /* error state */
-#ifdef WIN32
-    int state,wp,rp;        /* state,write/read pointer */
-    int buffsize;           /* write buffer size (bytes) */
-    HANDLE thread;          /* write thread */
-    rtk_lock_t lock;        /* lock flag */
-    uint8_t *buff;          /* write buffer */
-#endif
     tcpsvr_t *tcpsvr;       /* tcp server for received stream */
 } serial_t;
 
@@ -321,70 +237,6 @@ static char proxyaddr[256]=""; /* http/ntrip/ftp proxy address */
 static uint32_t tick_master=0; /* time tick master for replay */
 static int fswapmargin=30;  /* file swap margin (s) */
 
-/* read/write serial buffer --------------------------------------------------*/
-#ifdef WIN32
-static int readseribuff(serial_t *serial, uint8_t *buff, int nmax)
-{
-    int ns;
-    
-    tracet(5,"readseribuff: dev=%d\n",serial->dev);
-    
-    rtk_lock(&serial->lock);
-    for (ns=0;serial->rp!=serial->wp&&ns<nmax;ns++) {
-       buff[ns]=serial->buff[serial->rp];
-       if (++serial->rp>=serial->buffsize) serial->rp=0;
-    }
-    rtk_unlock(&serial->lock);
-    tracet(5,"readseribuff: ns=%d rp=%d wp=%d\n",ns,serial->rp,serial->wp);
-    return ns;
-}
-static int writeseribuff(serial_t *serial, uint8_t *buff, int n)
-{
-    int ns,wp;
-    
-    tracet(5,"writeseribuff: dev=%d n=%d\n",serial->dev,n);
-    
-    rtk_lock(&serial->lock);
-    for (ns=0;ns<n;ns++) {
-        serial->buff[wp=serial->wp]=buff[ns];
-        if (++wp>=serial->buffsize) wp=0;
-        if (wp!=serial->rp) serial->wp=wp;
-        else {
-            tracet(2,"serial buffer overflow: size=%d\n",serial->buffsize);
-            break;
-        }
-    }
-    rtk_unlock(&serial->lock);
-    tracet(5,"writeseribuff: ns=%d rp=%d wp=%d\n",ns,serial->rp,serial->wp);
-    return ns;
-}
-#endif /* WIN32 */
-
-/* write serial thread -------------------------------------------------------*/
-#ifdef WIN32
-static DWORD WINAPI serialthread(void *arg)
-{
-    serial_t *serial=(serial_t *)arg;
-    uint8_t buff[128];
-    uint32_t tick;
-    DWORD ns;
-    int n;
-    
-    tracet(3,"serialthread:\n");
-    
-    while (1) {
-        tick=tickget();
-        while ((n=readseribuff(serial,buff,sizeof(buff)))>0) {
-            if (!WriteFile(serial->dev,buff,n,&ns,NULL)) serial->error=1;
-        }
-        if (!serial->state) break;
-        sleepms(10-(int)(tickget()-tick)); /* cycle=10ms */
-    }
-    free(serial->buff);
-    return 0;
-}
-#endif /* WIN32 */
-
 /* open serial ---------------------------------------------------------------*/
 static serial_t *openserial(const char *path, int mode, char *msg)
 {
@@ -401,12 +253,6 @@ static serial_t *openserial(const char *path, int mode, char *msg)
     serial_t *serial;
     int i,brate=9600,bsize=8,stopb=1,tcp_port=0;
     char *p,parity='N',dev[128],port[128],fctr[64]="",path_tcp[32],msg_tcp[128];
-#ifdef WIN32
-    DWORD error,rw=0,siz=sizeof(COMMCONFIG);
-    COMMCONFIG cc={0};
-    COMMTIMEOUTS co={MAXDWORD,0,0,0,0}; /* non-block-read */
-    char dcb[64]="";
-#else
     const speed_t bs[]={
         B300,B600,B1200,B2400,B4800,B9600,B19200,B38400,B57600,B115200,B230400
 #ifdef B460800
@@ -418,7 +264,6 @@ static serial_t *openserial(const char *path, int mode, char *msg)
     };
     struct termios ios={0};
     int rw=0;
-#endif
     tracet(3,"openserial: path=%s mode=%d\n",path,mode);
     
     if (!(serial=(serial_t *)calloc(1,sizeof(serial_t)))) return NULL;
@@ -441,67 +286,12 @@ static serial_t *openserial(const char *path, int mode, char *msg)
     }
     parity=(char)toupper((int)parity);
     
-#ifdef WIN32
-    sprintf(dev,"\\\\.\\%.120s",port);
-    if (mode&STR_MODE_R) rw|=GENERIC_READ;
-    if (mode&STR_MODE_W) rw|=GENERIC_WRITE;
-    
-    serial->dev=CreateFile(dev,rw,0,0,OPEN_EXISTING,0,NULL);
-    if (serial->dev==INVALID_HANDLE_VALUE) {
-        sprintf(msg,"%s open error (%d)",port,(int)GetLastError());
-        tracet(1,"openserial: %s path=%s\n",msg,path);
-        free(serial);
-        return NULL;
-    }
-    if (!GetCommConfig(serial->dev,&cc,&siz)) {
-        sprintf(msg,"%s getconfig error (%d)",port,(int)GetLastError());
-        tracet(1,"openserial: %s\n",msg);
-        CloseHandle(serial->dev);
-        free(serial);
-        return NULL;
-    }
-    sprintf(dcb,"baud=%d parity=%c data=%d stop=%d",brate,parity,bsize,stopb);
-    if (!BuildCommDCB(dcb,&cc.dcb)) {
-        sprintf(msg,"%s buiddcb error (%d)",port,(int)GetLastError());
-        tracet(1,"openserial: %s\n",msg);
-        CloseHandle(serial->dev);
-        free(serial);
-        return NULL;
-    }
-    if (!strcmp(fctr,"rts")) {
-        cc.dcb.fRtsControl=RTS_CONTROL_HANDSHAKE;
-    }
-    SetCommConfig(serial->dev,&cc,siz); /* ignore error to support novatel */
-    SetCommTimeouts(serial->dev,&co);
-    ClearCommError(serial->dev,&error,NULL);
-    PurgeComm(serial->dev,PURGE_TXABORT|PURGE_RXABORT|PURGE_TXCLEAR|PURGE_RXCLEAR);
-    
-    /* create write thread */
-    rtk_initlock(&serial->lock);
-    serial->state=serial->wp=serial->rp=serial->error=0;
-    serial->buffsize=buffsize;
-    if (!(serial->buff=(uint8_t *)malloc(buffsize))) {
-        CloseHandle(serial->dev);
-        free(serial);
-        return NULL;
-    }
-    serial->state=1;
-    if (!(serial->thread=CreateThread(NULL,0,serialthread,serial,0,NULL))) {
-        sprintf(msg,"%s serial thread error (%d)",port,(int)GetLastError());
-        tracet(1,"openserial: %s\n",msg);
-        CloseHandle(serial->dev);
-        serial->state=0;
-        free(serial);
-        return NULL;
-    }
-    sprintf(msg,"%s",port);
-#else
     sprintf(dev,"/dev/%.*s",(int)sizeof(port)-6,port);
-    
+
     if ((mode&STR_MODE_R)&&(mode&STR_MODE_W)) rw=O_RDWR;
     else if (mode&STR_MODE_R) rw=O_RDONLY;
     else if (mode&STR_MODE_W) rw=O_WRONLY;
-    
+
     if ((serial->dev=open(dev,rw|O_NOCTTY|O_NONBLOCK))<0) {
         sprintf(msg,"%s open error (%d)",dev,errno);
         tracet(1,"openserial: %s dev=%s\n",msg,dev);
@@ -523,7 +313,6 @@ static serial_t *openserial(const char *path, int mode, char *msg)
     tcsetattr(serial->dev,TCSANOW,&ios);
     tcflush(serial->dev,TCIOFLUSH);
     sprintf(msg,"%s",dev);
-#endif
     serial->tcpsvr=NULL;
     
     /* open tcp sever to output received stream */
@@ -540,14 +329,7 @@ static void closeserial(serial_t *serial)
     tracet(3,"closeserial: dev=%d\n",serial->dev);
     
     if (!serial) return;
-#ifdef WIN32
-    serial->state=0;
-    WaitForSingleObject(serial->thread,10000);
-    CloseHandle(serial->dev);
-    CloseHandle(serial->thread);
-#else
     close(serial->dev);
-#endif
     if (serial->tcpsvr) {
         closetcpsvr(serial->tcpsvr);
     }
@@ -557,18 +339,10 @@ static void closeserial(serial_t *serial)
 static int readserial(serial_t *serial, uint8_t *buff, int n, char *msg)
 {
     char msg_tcp[128];
-#ifdef WIN32
-    DWORD nr;
-#else
     int nr;
-#endif
     tracet(4,"readserial: dev=%d n=%d\n",serial->dev,n);
     if (!serial) return 0;
-#ifdef WIN32
-    if (!ReadFile(serial->dev,buff,n,&nr,NULL)) return 0;
-#else
     if ((nr=read(serial->dev,buff,n))<0) return 0;
-#endif
     tracet(5,"readserial: exit dev=%d nr=%d\n",serial->dev,nr);
     
     /* write received stream to tcp server port */
@@ -585,13 +359,9 @@ static int writeserial(serial_t *serial, uint8_t *buff, int n, char *msg)
     tracet(3,"writeserial: dev=%d n=%d\n",serial->dev,n);
     
     if (!serial) return 0;
-#ifdef WIN32
-    if ((ns=writeseribuff(serial,buff,n))<n) serial->error=1;
-#else
     if (write(serial->dev,buff,n)<n) {
         serial->error=1;
     }
-#endif
     tracet(5,"writeserial: exit dev=%d ns=%d\n",serial->dev,ns);
     return ns;
 }
@@ -609,17 +379,8 @@ static int statexserial(serial_t *serial, char *msg)
     p+=sprintf(p,"serial:\n");
     p+=sprintf(p,"  state   = %d\n",state);
     if (!state) return 0;
-#ifdef WIN32
-    p+=sprintf(p,"  dev     = %p\n",serial->dev);
-#else
     p+=sprintf(p,"  dev     = %d\n",serial->dev);
-#endif
     p+=sprintf(p,"  error   = %d\n",serial->error);
-#ifdef WIN32
-    p+=sprintf(p,"  buffsize= %d\n",serial->buffsize);
-    p+=sprintf(p,"  wp      = %d\n",serial->wp);
-    p+=sprintf(p,"  rp      = %d\n",serial->rp);
-#endif
     return state;
 }
 /* open file -----------------------------------------------------------------*/
@@ -849,10 +610,8 @@ static int statexfile(file_t *file, char *msg)
 /* read file -----------------------------------------------------------------*/
 static int readfile(file_t *file, uint8_t *buff, int nmax, char *msg)
 {
-#ifndef WIN32
     struct timeval tv={0};
     fd_set rs;
-#endif
     uint64_t fpos_8B;
     uint32_t t,tick,fpos_4B;
     long pos,n;
@@ -863,15 +622,11 @@ static int readfile(file_t *file, uint8_t *buff, int nmax, char *msg)
     if (!file) return 0;
     
     if (file->fp==stdin) {
-#ifndef WIN32
         /* input from stdin */
         FD_ZERO(&rs); FD_SET(0,&rs);
         if (!select(1,&rs,NULL,NULL,&tv)) return 0;
         if ((nr=(int)read(0,buff,nmax))<0) return 0;
         return nr;
-#else
-        return 0;
-#endif
     }
     if (file->fp_tag) {
         
@@ -1040,21 +795,13 @@ static void decodetcppath(const char *path, char *addr, char *port, char *user,
     if (addr) sprintf(addr,"%.255s",p);
 }
 /* get socket error ----------------------------------------------------------*/
-#ifdef WIN32
-static int errsock(void) {return WSAGetLastError();}
-#else
 static int errsock(void) {return errno;}
-#endif
 
 /* set socket option ---------------------------------------------------------*/
 static int setsock(socket_t sock, char *msg)
 {
     int bs=buffsize,mode=1;
-#ifdef WIN32
-    int tv=0;
-#else
     struct timeval tv={0};
-#endif
     tracet(3,"setsock: sock=%d\n",sock);
     
     if (setsockopt(sock,SOL_SOCKET,SO_RCVTIMEO,(const char *)&tv,sizeof(tv))==-1||
@@ -1090,22 +837,10 @@ static socket_t accept_nb(socket_t sock, struct sockaddr *addr, socklen_t *len)
 /* non-block connect ---------------------------------------------------------*/
 static int connect_nb(socket_t sock, struct sockaddr *addr, socklen_t len)
 {
-#ifdef WIN32
-    u_long mode=1; 
-    int err;
-    
-    ioctlsocket(sock,FIONBIO,&mode);
-    if (connect(sock,addr,len)==-1) {
-        err=errsock();
-        if (err==WSAEWOULDBLOCK||err==WSAEINPROGRESS||
-            err==WSAEALREADY   ||err==WSAEINVAL) return 0;
-        if (err!=WSAEISCONN) return -1;
-    }
-#else
     struct timeval tv={0};
     fd_set rs,ws;
     int err,flag;
-    
+
     flag=fcntl(sock,F_GETFL,0);
     fcntl(sock,F_SETFL,flag|O_NONBLOCK);
     if (connect(sock,addr,len)==-1) {
@@ -1114,7 +849,6 @@ static int connect_nb(socket_t sock, struct sockaddr *addr, socklen_t len)
         FD_ZERO(&rs); FD_SET(sock,&rs); ws=rs;
         if (select(sock+1,&rs,&ws,NULL,&tv)==0) return 0;
     }
-#endif
     return 1;
 }
 /* non-block receive ---------------------------------------------------------*/
@@ -2424,11 +2158,7 @@ static gtime_t nextdltime(const int *topts, int stat)
     return time;
 }
 /* ftp thread ----------------------------------------------------------------*/
-#ifdef WIN32
-static DWORD WINAPI ftpthread(void *arg)
-#else
 static void *ftpthread(void *arg)
-#endif
 {
     ftp_t *ftp=(ftp_t *)arg;
     FILE *fp;
@@ -2568,11 +2298,7 @@ static int readftp(ftp_t *ftp, uint8_t *buff, int n, char *msg)
         ftp->state=1;
         sprintf(msg,"%s://%s",ftp->proto?"http":"ftp",ftp->addr);
     
-#ifdef WIN32
-        if (!(ftp->thread=CreateThread(NULL,0,ftpthread,ftp,0,NULL))) {
-#else
         if (pthread_create(&ftp->thread,NULL,ftpthread,ftp)) {
-#endif
             tracet(2,"readftp: ftp thread create error\n");
             ftp->state=3;
             strcpy(msg,"ftp thread error");
@@ -2720,14 +2446,7 @@ static int statexmembuf(membuf_t *membuf, char *msg)
 *-----------------------------------------------------------------------------*/
 extern void strinitcom(void)
 {
-#ifdef WIN32
-    WSADATA data;
-#endif
     tracet(3,"strinitcom:\n");
-
-#ifdef WIN32
-    WSAStartup(MAKEWORD(2,0),&data);
-#endif
 }
 /* initialize stream -----------------------------------------------------------
 * initialize stream struct

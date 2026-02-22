@@ -1,3 +1,14 @@
+/*------------------------------------------------------------------------------
+ * mrtk_foundation.h : common types, standard includes, and system constants
+ *
+ * Copyright (C) 2026 H.SHIONO (MRTKLIB Project)
+ * Copyright (C) 2023-2025 Japan Aerospace Exploration Agency
+ * Copyright (C) 2023-2025 TOSHIBA ELECTRONIC TECHNOLOGIES CORPORATION
+ * Copyright (C) 2014 T.SUZUKI
+ * Copyright (C) 2007-2023 T.TAKASU
+ *
+ * SPDX-License-Identifier: BSD-2-Clause
+ *----------------------------------------------------------------------------*/
 /**
  * @file mrtk_foundation.h
  * @brief MRTKLIB Foundation — Common types, standard includes, and system
@@ -253,14 +264,6 @@ extern "C" {
  * Platform-Dependent Lock / Thread Types
  *===========================================================================*/
 
-#ifdef WIN32
-#define rtk_thread_t    HANDLE
-#define rtk_lock_t      CRITICAL_SECTION
-#define rtk_initlock(f) InitializeCriticalSection(f)
-#define rtk_lock(f)     EnterCriticalSection(f)
-#define rtk_unlock(f)   LeaveCriticalSection(f)
-#define FILEPATHSEP '\\'
-#else
 #include <pthread.h>
 #define rtk_thread_t    pthread_t
 #define rtk_lock_t      pthread_mutex_t
@@ -268,7 +271,6 @@ extern "C" {
 #define rtk_lock(f)     pthread_mutex_lock(f)
 #define rtk_unlock(f)   pthread_mutex_unlock(f)
 #define FILEPATHSEP '/'
-#endif
 
 #ifdef __cplusplus
 }

@@ -1,27 +1,14 @@
 /*------------------------------------------------------------------------------
-* nvs.c : NVS receiver dependent functions
-*
-*    Copyright (C) 2012-2016 by M.BAVARO and T.TAKASU, All rights reserved.
-*    Copyright (C) 2014-2023 by T.TAKASU, All rights reserved.
-*
-*     [1] Description of BINR messages which is used by RC program for RINEX
-*         files accumulation, NVS
-*     [2] NAVIS Navis Standard Interface Protocol BINR, NVS
-*
-* version : $Revision:$ $Date:$
-* history : 2012/01/30 1.0  first version by M.BAVARO
-*           2012/11/08 1.1  modified by T.TAKASU
-*           2013/02/23 1.2  fix memory access violation problem on arm
-*           2013/04/24 1.3  fix bug on cycle-slip detection
-*                           add range check of gps ephemeris week
-*           2013/09/01 1.4  add check error of week, time jump, obs data range
-*           2014/08/26 1.5  fix bug on iode in glonass ephemeris
-*           2016/01/26 1.6  fix bug on unrecognized meas data (#130)
-*           2017/04/11 1.7  (char *) -> (signed char *)
-*           2020/07/10 1.8  suppress warnings
-*           2020/11/30 1.9  use integer type in stdint.h
-*           2023/01/12 1.10 support ephemeris type in eph_t
-*-----------------------------------------------------------------------------*/
+ * mrtk_rcv_nvs.c : NVS receiver raw data decoder
+ *
+ * Copyright (C) 2026 H.SHIONO (MRTKLIB Project)
+ * Copyright (C) 2023-2025 Japan Aerospace Exploration Agency
+ * Copyright (C) 2023-2025 TOSHIBA ELECTRONIC TECHNOLOGIES CORPORATION
+ * Copyright (C) 2014 T.SUZUKI
+ * Copyright (C) 2007-2023 T.TAKASU
+ *
+ * SPDX-License-Identifier: BSD-2-Clause
+ *----------------------------------------------------------------------------*/
 #include "mrtklib/mrtk_rcvraw.h"
 #include "mrtklib/mrtk_time.h"
 #include "mrtklib/mrtk_bits.h"

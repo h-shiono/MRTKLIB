@@ -1,21 +1,14 @@
 /*------------------------------------------------------------------------------
-* ss2.c : superstar II receiver dependent functions
-*
-*          Copyright (C) 2007-2020 by T.TAKASU, All rights reserved.
-*
-* reference:
-*     [1] NovAtel, OM-20000086 Superstar II Firmware Reference Manual, 2005
-*
-* version : $Revision: 1.2 $ $Date: 2008/07/14 00:05:05 $
-* history : 2008/05/18 1.0 new
-*           2008/06/16 1.2 separate common functions to rcvcmn.c
-*           2009/04/01 1.3 fix bug on decode #21 message
-*           2010/08/20 1.4 fix problem with minus value of time slew in #23
-*                          (2.4.0_p5)
-*           2011/05/27 1.5 fix problem with ARM compiler
-*           2013/02/23 1.6 fix memory access violation problem on arm
-*           2020/11/30 1.7 use integer type in stdint.h
-*-----------------------------------------------------------------------------*/
+ * mrtk_rcv_ss2.c : NovAtel Superstar II receiver raw data decoder
+ *
+ * Copyright (C) 2026 H.SHIONO (MRTKLIB Project)
+ * Copyright (C) 2023-2025 Japan Aerospace Exploration Agency
+ * Copyright (C) 2023-2025 TOSHIBA ELECTRONIC TECHNOLOGIES CORPORATION
+ * Copyright (C) 2014 T.SUZUKI
+ * Copyright (C) 2007-2023 T.TAKASU
+ *
+ * SPDX-License-Identifier: BSD-2-Clause
+ *----------------------------------------------------------------------------*/
 #include "mrtklib/mrtk_rcvraw.h"
 #include "mrtklib/mrtk_time.h"
 #include "mrtklib/mrtk_bits.h"

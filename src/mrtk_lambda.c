@@ -1,19 +1,14 @@
 /*------------------------------------------------------------------------------
-* mrtk_lambda.c : integer ambiguity resolution
-*
-*          Copyright (C) 2007-2021 by T.TAKASU, All rights reserved.
-*
-* reference :
-*     [1] P.J.G.Teunissen, The least-square ambiguity decorrelation adjustment:
-*         a method for fast GPS ambiguity estimation, J.Geodesy, Vol.70, 65-82,
-*         1995
-*     [2] X.-W.Chang, X.Yang, T.Zhou, MLAMBDA: A modified LAMBDA method for
-*         integer least-squares estimation, J.Geodesy, Vol.79, 552-565, 2005
-*
-* history : 2007/01/13 1.0 new
-*           2015/05/31 1.1 add api lambda_reduction(), lambda_search()
-*           2021/02/03 1.2 modify constant LOOPMAX 10000 -> 80000
-*-----------------------------------------------------------------------------*/
+ * mrtk_lambda.c : integer ambiguity resolution (LAMBDA/MLAMBDA)
+ *
+ * Copyright (C) 2026 H.SHIONO (MRTKLIB Project)
+ * Copyright (C) 2023-2025 Japan Aerospace Exploration Agency
+ * Copyright (C) 2023-2025 TOSHIBA ELECTRONIC TECHNOLOGIES CORPORATION
+ * Copyright (C) 2014 T.SUZUKI
+ * Copyright (C) 2007-2023 T.TAKASU
+ *
+ * SPDX-License-Identifier: BSD-2-Clause
+ *----------------------------------------------------------------------------*/
 #include "mrtklib/mrtk_lambda.h"
 #include "mrtklib/mrtk_mat.h"
 

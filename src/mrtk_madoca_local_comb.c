@@ -1,11 +1,14 @@
 /*------------------------------------------------------------------------------
-* mrtk_madoca_local_comb.c : local correction data combination common functions
-*
-* Copyright (C) 2025 Japan Aerospace Exploration Agency. All Rights Reserved.
-*
-* history : 2025/02/06  1.0  new, for MALIB from madoca ver.2.0.2
-*           2026/02/22  1.1  moved to mrtklib (mrtk_madoca_local_comb.c)
-*-----------------------------------------------------------------------------*/
+ * mrtk_madoca_local_comb.c : MADOCA local correction data combination
+ *
+ * Copyright (C) 2026 H.SHIONO (MRTKLIB Project)
+ * Copyright (C) 2023-2025 Japan Aerospace Exploration Agency
+ * Copyright (C) 2023-2025 TOSHIBA ELECTRONIC TECHNOLOGIES CORPORATION
+ * Copyright (C) 2014 T.SUZUKI
+ * Copyright (C) 2007-2023 T.TAKASU
+ *
+ * SPDX-License-Identifier: BSD-2-Clause
+ *----------------------------------------------------------------------------*/
 #include "mrtklib/mrtk_madoca_local_comb.h"
 #include "mrtklib/mrtk_mat.h"
 #include "mrtklib/mrtk_coords.h"

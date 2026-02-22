@@ -1,89 +1,14 @@
 /*------------------------------------------------------------------------------
-* notvatel.c : NovAtel OEM7/OEM6/OEM5/OEM4/OEM3 receiver functions
-*
-*          Copyright (C) 2007-2023 by T.TAKASU, All rights reserved.
-*
-* reference :
-*     [1] NovAtel, OM-20000094 Rev6 OEMV Family Firmware Reference Manual, 2008
-*     [2] NovAtel, OM-20000053 Rev2 MiLLennium GPSCard Software Versions 4.503
-*         and 4.52 Command Descriptions Manual, 2001
-*     [3] NovAtel, OM-20000129 Rev2 OEM6 Family Firmware Reference Manual, 2011
-*     [4] NovAtel, OM-20000127 Rev1 OEMStar Firmware Reference Manual, 2009
-*     [5] NovAtel, OM-20000129 Rev6 OEM6 Family Firmware Reference Manual, 2014
-*     [6] NovAtel, OM-20000169 v15C OEM7 Commands and Logs Reference Manual,
-*         June 2020
-*     [7] NovAtel, OM-20000169 v24  OEM7 Commands and Logs Reference Manual,
-*         July 2023
-*
-* version : $Revision: 1.2 $ $Date: 2008/07/14 00:05:05 $
-* history : 2007/10/08 1.0 new
-*           2008/05/09 1.1 fix bug lli flag outage
-*           2008/06/16 1.2 separate common functions to rcvcmn.c
-*           2009/04/01 1.3 add prn number check for raw obs data
-*           2009/04/10 1.4 refactored
-*                          add oem3, oem4 rangeb support
-*           2009/06/06 1.5 fix bug on numerical exception with illegal snr
-*                          support oem3 regd message
-*           2009/12/09 1.6 support oem4 gloephemerisb message
-*                          invalid if parity unknown in GLONASS range
-*                          fix bug of dopper polarity inversion for oem3 regd
-*           2010/04/29 1.7 add tod field in geph_t
-*           2011/05/27 1.8 support RAWALM for oem4/v
-*                          add almanac decoding
-*                          add -EPHALL option
-*                          fix problem on ARM compiler
-*           2012/05/02 1.9 support OEM6,L5,QZSS
-*           2012/10/18 1.10 change obs codes
-*                           support Galileo
-*                           support rawsbasframeb,galephemerisb,galalmanacb,
-*                           galclockb,galionob
-*           2012/11/08 1.11 support galfnavrawpageb, galinavrawword
-*           2012/11/19 1.12 fix bug on decodeing rangeb
-*           2013/02/23 1.13 fix memory access violation problem on arm
-*           2013/03/28 1.14 fix invalid phase if glonass wavelen unavailable
-*           2013/06/02 1.15 fix bug on reading galephemrisb,galalmanacb,
-*                           galclockb,galionob
-*                           fix bug on decoding rawwaasframeb for qzss-saif
-*           2014/05/24 1.16 support beidou
-*           2014/07/01 1.17 fix problem on decoding of bdsephemerisb
-*                           fix bug on beidou tracking codes
-*           2014/10/20 1.11 fix bug on receiver option -GL*,-RL*,-EL*
-*           2016/01/28 1.12 precede I/NAV for galileo ephemeris
-*                           add option -GALINAV and -GALFNAV
-*           2016/07/31 1.13 add week number check to decode oem4 messages
-*           2017/04/11 1.14 (char *) -> (signed char *)
-*                           improve unchange-test of beidou ephemeris
-*           2017/06/15 1.15 add output half-cycle-ambiguity status to LLI
-*                           improve slip-detection by lock-time rollback
-*           2018/10/10 1.16 fix problem on data source for galileo ephemeris
-*                           output L2W instead of L2D for L2Pcodeless
-*                           test toc difference to output beidou ephemeris
-*           2019/05/10 1.17 save galileo E5b data to obs index 2
-*           2020/11/30 1.18 support OEM7 receiver (ref [6])
-*                           support NavIC/IRNSS
-*                           support GPS/QZS L1C, GLO L3, GAL E6, QZS L6, BDS B3,
-*                            B1C, B2a, B2b
-*                           support message NAVICEPHEMERISB
-*                           support QZS L1S in RANGEB and RANGECMPB
-*                           no support message GALALMANACB
-*                           add receiver option -GL1L,-GL2S,-GL2P,-EL6B,-JL1L,
-*                            -JL1Z,-CL1P,-CL7D,-GLOBIAS=bias
-*                           delete receiver option -GL1P,-GL2X,EL2C
-*                           fix bug on reading SVH in GLOEPHEMERISB
-*                           add reading of dtaun field in GLOEPHEMERISB
-*                           output GAL I/NAV or F/NAV to seperated ephem sets
-*                           use API sat2freq() to get carrier-frequency
-*                           use API code2idx() to get freq-index
-*                           use integer types in stdint.h
-*           2021/01/04 1.19 support reading of sva and flags in GLOEPHEMERISB
-*           2021/02/01 1.20 support BDS satno in RANGEB/RANGECMPB for Tersus BX
-*           2021/06/19 1.21 support message GPSEPHEMB and QZSSEPHEMERISB
-*                           support Galileo E1B code in RANGEB and RANGECMPB
-*                           fix typos
-*           2023/01/12 1.22 support ephemeris type in eph_t
-*           2024/02/01 1.23 branch from ver.2.4.3b35 for MALIB 
-*                           support message GALINAVEPHEMERISB (ref [7])
-*-----------------------------------------------------------------------------*/
+ * mrtk_rcv_novatel.c : NovAtel receiver raw data decoder
+ *
+ * Copyright (C) 2026 H.SHIONO (MRTKLIB Project)
+ * Copyright (C) 2023-2025 Japan Aerospace Exploration Agency
+ * Copyright (C) 2023-2025 TOSHIBA ELECTRONIC TECHNOLOGIES CORPORATION
+ * Copyright (C) 2014 T.SUZUKI
+ * Copyright (C) 2007-2023 T.TAKASU
+ *
+ * SPDX-License-Identifier: BSD-2-Clause
+ *----------------------------------------------------------------------------*/
 #include "mrtklib/mrtk_rcvraw.h"
 #include "mrtklib/mrtk_time.h"
 #include "mrtklib/mrtk_bits.h"

@@ -1,34 +1,14 @@
 /*------------------------------------------------------------------------------
-* crescent.c : hemisphere crescent/eclipse receiver dependent functions
-*
-*          Copyright (C) 2007-2020 by T.TAKASU, All rights reserved.
-*
-* reference :
-*     [1] Hemisphere GPS, Crescent Integrator's Manual, December, 2005
-*     [2] Hemisphere GPS, GPS Technical Reference, Part No. 875-0175-000,
-*         Rev.D1, 2008
-*     [3] Hemisphere GPS, Hemisphere GPS Technical Reference Manual, v4.0,
-*         June 30, 2020
-*
-* version : $Revision:$ $Date:$
-* history : 2008/05/21 1.0  new
-*           2009/04/01 1.1  support sbas, set 0 to L2 observables
-*                           fix bug on getting doppler observables
-*           2009/10/19 1.2  support eclipse (message bin 76)
-*           2009/10/24 1.3  ignore valid phase flag
-*           2011/05/27 1.4  add -EPHALL option
-*                           fix problem with ARM compiler
-*           2011/07/01 1.5  suppress warning
-*           2013/02/23 1.6  fix memory access violation problem on arm
-*           2014/05/13 1.7  support bin65 and bin66
-*                           add receiver option -TTCORR
-*           2014/06/21 1.8  move decode_glostr() to rcvraw.c
-*           2017/04/11 1.9  (char *) -> (signed char *)
-*           2020/11/30 1.10 use integer type in stdint.h
-*                           use sat2freq() instead of lam_carr()
-*                           update reference [3]
-*           2021/05/21 1.11 fix typos in comments
-*-----------------------------------------------------------------------------*/
+ * mrtk_rcv_crescent.c : Hemisphere (Crescent) receiver raw data decoder
+ *
+ * Copyright (C) 2026 H.SHIONO (MRTKLIB Project)
+ * Copyright (C) 2023-2025 Japan Aerospace Exploration Agency
+ * Copyright (C) 2023-2025 TOSHIBA ELECTRONIC TECHNOLOGIES CORPORATION
+ * Copyright (C) 2014 T.SUZUKI
+ * Copyright (C) 2007-2023 T.TAKASU
+ *
+ * SPDX-License-Identifier: BSD-2-Clause
+ *----------------------------------------------------------------------------*/
 #include "mrtklib/mrtk_rcvraw.h"
 #include "mrtklib/mrtk_time.h"
 #include "mrtklib/mrtk_bits.h"

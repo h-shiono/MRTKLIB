@@ -1,58 +1,14 @@
 /*------------------------------------------------------------------------------
-* javad.c : javad receiver dependent functions
-*
-*          Copyright (C) 2011-2023 by T.TAKASU, All rights reserved.
-*
-* reference :
-*     [1] Javad GNSS, GREIS GNSS Receiver External Interface Specification,
-*         Reflects Firmware Version 3.2.0, July 22, 2010
-*     [2] Javad navigation systemms, GPS Receiver Interface Language (GRIL)
-*         Reference Guide Rev 2.2, Reflects Firmware Version 2.6.0
-*     [3] Javad GNSS, User visible changes in the firmware vesion 3.4.0 since
-*         version 3.3.x (NEWS_3_4_0.txt)
-*     [4] Javad GNSS, GREIS GNSS Receiver External Interface Specification,
-*         Reflects Firmware Version 3.4.6, October 9, 2012
-*     [5] Javad GNSS, GREIS GNSS Receiver External Interface Specification,
-*         Reflects Firmware Version 3.5.4, January 30, 2014
-*     [6] Javad GNSS, GREIS GNSS Receiver External Interface Specification,
-*         Reflects Firmware Version 3.6.7, August 25, 2016
-*     [7] Javad GNSS, GREIS GNSS Receiver External Interface Specification,
-*         Reflects Firmware Version 3.7.2, October 11, 2017
-*
-* version : $Revision:$ $Date:$
-* history : 2011/05/27 1.0  new
-*           2011/07/07 1.1  fix QZSS IODC-only-update problem
-*           2012/07/17 1.2  change GALILEO scale factor for short pseudorange
-*           2012/10/18 1.3  change receiver options and rinex obs code
-*           2013/01/24 1.4  change compass factor for short pseudorange
-*                           add raw option -NOET
-*           2013/02/23 1.6  fix memory access violation problem on arm
-*           2013/05/08 1.7  fix bug on week number of galileo ephemeris
-*           2014/05/23 1.8  support beidou
-*           2014/06/23 1.9  support [lD] for glonass raw navigation data
-*           2014/08/26 1.10 fix bug on decoding iode in glonass ephemeris [NE]
-*           2014/10/20 1.11 fix bug on receiver option -GL*,-RL*,-JL*
-*           2016/01/26 1.12 fix problem on bus-error on ARM CPU (#129)
-*           2017/04/11 1.13 support IRNSS
-*                           fix bug on carrier frequency for beidou
-*                           fix bug on unchange-test for beidou ephemeris
-*                           update Asys coef for [r*] short pseudorange by [6]
-*                           (char *) -> (signed char *)
-*           2018/10/10 1.14 update signal allocation by ref [7]
-*                           update Ksys value for galileo by ref [7]
-*                           fix problem to set eph->code for beidou and galileo
-*                           fix bug on saving galileo bgd to ephemeris
-*                           add receiver option -GALINAV, -GALFNAV
-*           2019/05/10 1.15 save galileo E5b data to obs index 2
-*           2020/11/30 1.16 output L1C for GLONASS G1 as default
-*                           change receiver option -RL1C -> -RL1P
-*                           CODE_L1I -> CODE_L2I for BDS B1I (RINEX 3.04)
-*                           output GAL I/NAV and F/NAV to separated ephem sets
-*                           fix bug on decoding SVH in message [NE] for GLONASS
-*                           use API code2idx() to get freq-index
-*                           use integer types in stdint.h
-*           2023/01/12 1.17 support ephemeris type in eph_t
-*-----------------------------------------------------------------------------*/
+ * mrtk_rcv_javad.c : Javad receiver raw data decoder
+ *
+ * Copyright (C) 2026 H.SHIONO (MRTKLIB Project)
+ * Copyright (C) 2023-2025 Japan Aerospace Exploration Agency
+ * Copyright (C) 2023-2025 TOSHIBA ELECTRONIC TECHNOLOGIES CORPORATION
+ * Copyright (C) 2014 T.SUZUKI
+ * Copyright (C) 2007-2023 T.TAKASU
+ *
+ * SPDX-License-Identifier: BSD-2-Clause
+ *----------------------------------------------------------------------------*/
 #include "mrtklib/mrtk_rcvraw.h"
 #include "mrtklib/mrtk_time.h"
 #include "mrtklib/mrtk_bits.h"

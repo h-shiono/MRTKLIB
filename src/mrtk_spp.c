@@ -1,34 +1,14 @@
 /*------------------------------------------------------------------------------
-* mrtk_spp.c : standard positioning
-*
-* Copyright (C) 2024-2025 Japan Aerospace Exploration Agency. All Rights Reserved.
-* Copyright (C) 2007-2020 by T.TAKASU, All rights reserved.
-*
-* history : 2010/07/28 1.0  moved from rtkcmn.c
-*                           changed api:
-*                               pntpos()
-*                           deleted api:
-*                               pntvel()
-*           2011/01/12 1.1  add option to include unhealthy satellite
-*                           reject duplicated observation data
-*                           changed api: ionocorr()
-*           2011/11/08 1.2  enable snr mask for single-mode (rtklib_2.4.1_p3)
-*           2012/12/25 1.3  add variable snr mask
-*           2014/05/26 1.4  support galileo and beidou
-*           2015/03/19 1.5  fix bug on ionosphere correction for GLO and BDS
-*           2018/10/10 1.6  support api change of satexclude()
-*           2020/11/30 1.7  support NavIC/IRNSS in pntpos()
-*                           no support IONOOPT_LEX option in ioncorr()
-*                           improve handling of TGD correction for each system
-*                           use E1-E5b for Galileo dual-freq iono-correction
-*                           use API sat2freq() to get carrier frequency
-*                           add output of velocity estimation error in estvel()
-*           2021/05/21 1.8  fix bug on missing initializations in rescode()
-*                           fix bug on ionosphere error variance in rescode()
-*           2024/02/01 1.9  branch from ver.2.4.3b35 for MALIB
-*                           add ignore chi-square error
-*           2024/12/20 1.10 enable GPS-QZS time offset estimation
-*-----------------------------------------------------------------------------*/
+ * mrtk_spp.c : standard single-point positioning
+ *
+ * Copyright (C) 2026 H.SHIONO (MRTKLIB Project)
+ * Copyright (C) 2023-2025 Japan Aerospace Exploration Agency
+ * Copyright (C) 2023-2025 TOSHIBA ELECTRONIC TECHNOLOGIES CORPORATION
+ * Copyright (C) 2014 T.SUZUKI
+ * Copyright (C) 2007-2023 T.TAKASU
+ *
+ * SPDX-License-Identifier: BSD-2-Clause
+ *----------------------------------------------------------------------------*/
 #include "mrtklib/mrtk_spp.h"
 #include "mrtklib/mrtk_mat.h"
 #include "mrtklib/mrtk_coords.h"

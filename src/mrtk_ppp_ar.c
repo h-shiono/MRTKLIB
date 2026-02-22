@@ -1,24 +1,14 @@
 /*------------------------------------------------------------------------------
-* mrtk_ppp_ar.c : ppp ambiguity resolution
-*
-* Copyright (C) 2024-2025 Japan Aerospace Exploration Agency. All Rights Reserved.
-*
-* reference :
-*    [1] H.Okumura, C-gengo niyoru saishin algorithm jiten (in Japanese),
-*        Software Technology, 1991
-*
-*          Copyright (C) 2012-2015 by T.TAKASU, All rights reserved.
-*
-* history : 2013/03/11  1.0  new
-*           2015/05/15  1.1  refine complete algorithms
-*           2015/05/31  1.2  delete WL-ambiguity resolution by ILS
-*                            add PAR (partial ambiguity resolution)
-*           2015/11/26  1.3  support option opt->pppopt=-TRACE_AR
-*           2024/02/01  1.4  port from previous version of MALIB
-*                            support option opt->arsys in gen_sat_sd()
-*           2024/12/20  1.5  delete L5-receiver-dcb estimation
-*                            add BeiDou-2 ISB estimation
-*-----------------------------------------------------------------------------*/
+ * mrtk_ppp_ar.c : PPP ambiguity resolution functions
+ *
+ * Copyright (C) 2026 H.SHIONO (MRTKLIB Project)
+ * Copyright (C) 2023-2025 Japan Aerospace Exploration Agency
+ * Copyright (C) 2023-2025 TOSHIBA ELECTRONIC TECHNOLOGIES CORPORATION
+ * Copyright (C) 2014 T.SUZUKI
+ * Copyright (C) 2007-2023 T.TAKASU
+ *
+ * SPDX-License-Identifier: BSD-2-Clause
+ *----------------------------------------------------------------------------*/
 #include "mrtklib/mrtk_ppp_ar.h"
 #include "mrtklib/mrtk_mat.h"
 #include "mrtklib/mrtk_lambda.h"

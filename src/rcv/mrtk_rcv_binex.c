@@ -1,40 +1,14 @@
 /*------------------------------------------------------------------------------
-* BINEX.c : BINEX dependent functions
-*
-*          Copyright (C) 2013-2023 by T.TAKASU, All rights reserved.
-*
-* reference :
-*     [1] UNAVCO, BINEX: Binary exchange format (updated on July 13, 2018)
-*         (http://BINEX.unavco.org/BINEX.html)
-*
-* version : $Revision:$ $Date:$
-* history : 2013/02/20 1.0 new
-*           2013/04/15 1.1 support 0x01-05 beidou-2/compass ephemeris
-*           2013/05/18 1.2 fix bug on decoding obsflags in message 0x7f-05
-*           2014/04/27 1.3 fix bug on decoding iode for message 0x01-02
-*           2015/12/05 1.4 fix bug on decoding tgd for message 0x01-05
-*           2016/07/29 1.5 crc16() -> rtk_crc16()
-*           2017/04/11 1.6 (char *) -> (signed char *)
-*                          fix bug on unchange-test of beidou ephemeris
-*           2018/10/10 1.7 fix problem of sisa handling in galileo ephemeris
-*                          add receiver option -GALINAV, -GALFNAV
-*           2018/12/06 1.8 fix bug on decoding galileo ephemeirs iode (0x01-04)
-*           2019/05/10 1.9 save galileo E5b data to obs index 2
-*           2019/07/25 1.10 support upgraded galileo ephemeris (0x01-14)
-*           2020/11/30 1.11 support NavIC/IRNSS raw obs data (0x7f-05)
-*                           support BDS B2b in raw obs data (0x7f-05)
-*                           support IRNSS decoded ephemeris (0x01-07)
-*                           support station info in site metadata (0x00)
-*                           handle I/NAV and F/NAV seperately for Galileo
-*                           CODE_L1I/L1Q/L1X -> CODE_L2I/L2Q/L2X for BDS B1I
-*                           use API code2idx() to get frequency index
-*                           use API code2idx() to get carrier frequency
-*                           use integer types in stdint.h
-*           2021/01/06 1.12 support GLONASS extended SVH in ephemeris (0x01-02)
-*           2021/02/17 1.13 fix bug on reading unsupported sat data in 0x7f-05
-*           2021/04/08 1.14 fix bug on 100 nsec time-tag error in in 0x7f-05
-*           2023/01/12 1.15 support ephemeris type in eph_t
-*-----------------------------------------------------------------------------*/
+ * mrtk_rcv_binex.c : BINEX receiver raw data decoder
+ *
+ * Copyright (C) 2026 H.SHIONO (MRTKLIB Project)
+ * Copyright (C) 2023-2025 Japan Aerospace Exploration Agency
+ * Copyright (C) 2023-2025 TOSHIBA ELECTRONIC TECHNOLOGIES CORPORATION
+ * Copyright (C) 2014 T.SUZUKI
+ * Copyright (C) 2007-2023 T.TAKASU
+ *
+ * SPDX-License-Identifier: BSD-2-Clause
+ *----------------------------------------------------------------------------*/
 #include "mrtklib/mrtk_rcvraw.h"
 #include "mrtklib/mrtk_time.h"
 #include "mrtklib/mrtk_bits.h"

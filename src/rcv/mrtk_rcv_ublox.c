@@ -1,89 +1,14 @@
 /*------------------------------------------------------------------------------
-* ublox.c : ublox receiver dependent functions
-*
-* Copyright (C) 2024 Japan Aerospace Exploration Agency. All Rights Reserved.
-* Copyright (C) 2007-2023 by T.TAKASU, All rights reserved.
-* Copyright (C) 2014 by T.SUZUKI, All rights reserved.
-*
-* reference :
-*     [1] ublox-AG, GPS.G3-X-03002-D, ANTARIS Positioning Engine NMEA and UBX
-*         Protocol Specification, Version 5.00, 2003
-*     [2] ublox-AG, UBX-13003221-R03, u-blox M8 Receiver Description including
-*         Protocol Specification V5, Dec 20, 2013
-*     [3] ublox-AG, UBX-13003221-R07, u-blox M8 Receiver Description including
-*         Protocol Specification V15.00-17.00, Nov 3, 2014
-*     [4] ublox-AG, UBX-13003221-R09, u-blox 8 /u-blox M8 Receiver Description
-*         including Protocol Specification V15.00-18.00, January, 2016
-*     [5] ublox-AG, UBX-18010854-R08, u-blox ZED-F9P Interface Description,
-*         May, 2020
-*     [6] u-blox D9 QZS 1.01, UBX-21031777-R01 C1-Public, u-blox D9
-*         QZSS correction service receiver Interface Description, Sep, 2021
-*
-* history : 2007/10/08 1.0  new
-*           2008/06/16 1.1  separate common functions to rcvcmn.c
-*           2009/04/01 1.2  add range check of prn number
-*           2009/04/10 1.3  refactored
-*           2009/09/25 1.4  add function gen_ubx()
-*           2010/01/17 1.5  add time tag adjustment option -tadj sec
-*           2010/10/31 1.6  fix bug on playback disabled for raw data (2.4.0_p9)
-*           2011/05/27 1.7  add almanac decoding
-*                           add -EPHALL option
-*                           fix problem with ARM compiler
-*           2013/02/23 1.8  fix memory access violation problem on arm
-*                           change options -tadj to -TADJ, -invcp to -INVCP
-*           2014/05/26 1.9  fix bug on message size of CFG-MSG
-*                           fix bug on return code of decode_alm1()
-*           2014/06/21 1.10 support message TRK-MEAS and TRK-SFRBX
-*                           support message NAV-SOL and NAV-TIMEGPS to get time
-*                           support message GFG-GNSS generation
-*           2014/06/23 1.11 support message TRK-MEAS for beidou ephemeris
-*           2014/08/11 1.12 fix bug on unable to read RXM-RAW
-*                           fix problem on decoding glo ephemeris in TRK-SFRBX
-*                           support message TRK-TRKD5
-*           2014/08/31 1.13 suppress warning
-*           2014/11/04 1.14 support message RXM-RAWX and RXM-SFRBX
-*           2015/03/20 1.15 omit time adjustment for RXM-RAWX
-*           2016/01/22 1.16 add time-tag in raw-message-type
-*           2016/01/26 1.17 support galileo navigation data in RXM-SFRBX
-*                           enable option -TADJ for RXM-RAWX
-*           2016/05/25 1.18 fix bug on crc-buffer-overflow by decoding galileo
-*                           navigation data
-*           2016/07/04 1.19 add half-cycle vaild check for ubx-trk-meas
-*           2016/07/29 1.20 support RXM-CFG-TMODE3 (0x06 0x71) for M8P
-*                           crc24q() -> rtk_crc24q()
-*                           check week number zero for ubx-rxm-raw and rawx
-*           2016/08/20 1.21 add test of std-dev for carrier-phase valid
-*           2016/08/26 1.22 add option -STD_SLIP to test slip by std-dev of cp
-*                           fix on half-cyc valid for sbas in trkmeas
-*           2017/04/11 1.23 (char *) -> (signed char *)
-*                           fix bug on week handover in decode_trkmeas/trkd5()
-*                           fix bug on prn for geo in decode_cnav()
-*           2017/06/10 1.24 output half-cycle-subtracted flag
-*           2018/10/09 1.25 support ZED-F9P according to [5]
-*                           beidou C17 is handled as GEO (navigation D2).
-*           2018/11/05 1.26 fix problem on missing QZSS L2C signal
-*                           save signal in obs data by signal index
-*                           suppress warning for cnav in ubx-rxm-sfrbx
-*           2019/05/10 1.27 disable half-cyc-subtract flag on LLI for RXM-RAWX
-*                           save galileo E5b data to obs index 2
-*                           handle C17 as no-GEO (MEO/IGSO)
-*           2020/11/30 1.28 update reference [5]
-*                           support UBX-CFG-VALDEL,VALGET,VALSET
-*                           support hex field format for ubx binary message
-*                           add quality test for receiver time in decode_trkd5()
-*                           add half cycle shift correction for BDS GEO
-*                           delete receiver option -GALFNAV
-*                           use API code2idx() and code2freq()
-*                           support QZSS L1S (CODE_L1Z)
-*                           CODE_L1I -> CODE_L2I for BDS B1I (RINEX 3.04)
-*                           use integer types in stdint.h
-*           2023/01/06 1.29 support UBX-RXM-QZSSL6 and UBX-NAV-TIMEGPS for D9C
-*                           add option -OUT_QZSSL6
-*           2024/02/01 1.30 branch from ver.2.4.3b35 for MALIB
-*                           add L6E message decoding for UBX-RXM-QZSSL6
-*           2024/03/01 1.31 improved performance of the decode_rxmqzssl6()
-*           2024/08/02 1.32 suppress warnings
-*-----------------------------------------------------------------------------*/
+ * mrtk_rcv_ublox.c : u-blox receiver raw data decoder
+ *
+ * Copyright (C) 2026 H.SHIONO (MRTKLIB Project)
+ * Copyright (C) 2023-2025 Japan Aerospace Exploration Agency
+ * Copyright (C) 2023-2025 TOSHIBA ELECTRONIC TECHNOLOGIES CORPORATION
+ * Copyright (C) 2014 T.SUZUKI
+ * Copyright (C) 2007-2023 T.TAKASU
+ *
+ * SPDX-License-Identifier: BSD-2-Clause
+ *----------------------------------------------------------------------------*/
 #include "mrtklib/mrtk_rcvraw.h"
 #include "mrtklib/mrtk_time.h"
 #include "mrtklib/mrtk_bits.h"

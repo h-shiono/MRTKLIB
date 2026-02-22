@@ -1,40 +1,14 @@
 /*------------------------------------------------------------------------------
-* mrtk_options.c : options functions (mrtklib module)
-*
-* Copyright (C) 2024-2025 Japan Aerospace Exploration Agency. All Rights Reserved.
-* Copyright (C) 2010-2021 by T.TAKASU, All rights reserved.
-*
-* history : 2010/07/20  1.1  moved from postpos.c
-*                            added api:
-*                                searchopt(),str2opt(),opt2str(),opt2buf(),
-*                                loadopts(),saveopts(),resetsysopts(),
-*                                getsysopts(),setsysopts()
-*           2010/09/11  1.2  add options
-*                                pos2-elmaskhold,pos1->snrmaskena
-*                                pos1-snrmask1,2,3
-*           2013/03/11  1.3  add pos1-posopt1,2,3,4,5,pos2-syncsol
-*                                misc-rnxopt1,2,pos1-snrmask_r,_b,_L1,_L2,_L5
-*           2014/10/21  1.4  add pos2-bdsarmode
-*           2015/02/20  1.4  add ppp-fixed as pos1-posmode option
-*           2015/05/10  1.5  add pos2-arthres1,2,3,4
-*           2015/05/31  1.6  add pos2-armaxiter, pos1-posopt6
-*                            add selection precise for pos1-pospot3
-*           2015/11/26  1.7  modify pos1-frequency 4:l1+l2+l5+l6 -> l1+l5
-*           2015/12/05  1.8  add misc-pppopt
-*           2016/06/10  1.9  add ant2-maxaveep,ant2-initrst
-*           2016/07/31  1.10 add out-outsingle,out-maxsolstd
-*           2017/06/14  1.11 add out-outvel
-*           2020/11/30  1.12 change options pos1-frequency, pos1-ionoopt,
-*                             pos1-tropopt, pos1-sateph, pos1-navsys,
-*                             pos2-gloarmode,
-*           2021/01/11  1.13 remove EXPORT
-*           2021/05/07  1.14 add file-elmaskfile
-*           2024/02/01  1.15 branch from ver.2.4.3b35 for MALIB
-*                            add pos2-arsys,pos2-ign_chierr
-*           2024/12/20  1.16 add pos2-sigbds3,pos2-bds2bias,pos2-pppsatcb,
-*                             pos2-pppsatpb,pos2-uncorrbias,pos2-maxbiasdt,
-*                             file-fcbfile,file-biafile
-*-----------------------------------------------------------------------------*/
+ * mrtk_options.c : option string processing functions
+ *
+ * Copyright (C) 2026 H.SHIONO (MRTKLIB Project)
+ * Copyright (C) 2023-2025 Japan Aerospace Exploration Agency
+ * Copyright (C) 2023-2025 TOSHIBA ELECTRONIC TECHNOLOGIES CORPORATION
+ * Copyright (C) 2014 T.SUZUKI
+ * Copyright (C) 2007-2023 T.TAKASU
+ *
+ * SPDX-License-Identifier: BSD-2-Clause
+ *----------------------------------------------------------------------------*/
 /* mrtklib modular headers */
 #include "mrtklib/mrtk_options.h"
 #include "mrtklib/mrtk_coords.h"

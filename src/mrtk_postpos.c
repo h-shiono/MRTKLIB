@@ -1,57 +1,14 @@
 /*------------------------------------------------------------------------------
-* mrtk_postpos.c : post-processing positioning (mrtklib module)
-*
-* Copyright (C) 2024-2025 Japan Aerospace Exploration Agency. All Rights Reserved.
-* Copyright (C) 2007-2021 by T.TAKASU, All rights reserved.
-*
-* history : 2007/05/08  1.0  new
-*           2008/06/16  1.1  support binary inputs
-*           2009/01/02  1.2  support new rtk positioing api
-*           2009/09/03  1.3  fix bug on combined mode of moving-baseline
-*           2009/12/04  1.4  fix bug on obs data buffer overflow
-*           2010/07/26  1.5  support ppp-kinematic and ppp-static
-*                            support multiple sessions
-*                            support sbas positioning
-*                            changed api:
-*                                postpos()
-*                            deleted api:
-*                                postposopt()
-*           2010/08/16  1.6  fix bug sbas message synchronization (2.4.0_p4)
-*           2010/12/09  1.7  support qzss lex and ssr corrections
-*           2011/02/07  1.8  fix bug on sbas navigation data conflict
-*           2011/03/22  1.9  add function reading g_tec file
-*           2011/08/20  1.10 fix bug on freez if solstatic=single and combined
-*           2011/09/15  1.11 add function reading stec file
-*           2012/02/01  1.12 support keyword expansion of rtcm ssr corrections
-*           2013/03/11  1.13 add function reading otl and erp data
-*           2014/06/29  1.14 fix problem on overflow of # of satellites
-*           2015/03/23  1.15 fix bug on ant type replacement by rinex header
-*                            fix bug on combined filter for moving-base mode
-*           2015/04/29  1.16 fix bug on reading rtcm ssr corrections
-*                            add function to read satellite fcb
-*                            add function to read stec and troposphere file
-*                            add keyword replacement in dcb, erp and ionos file
-*           2015/11/13  1.17 add support of L5 antenna phase center paramters
-*                            add *.stec and *.trp file for ppp correction
-*           2015/11/26  1.18 support opt->freqopt(disable L2)
-*           2016/01/12  1.19 add carrier-phase bias correction by ssr
-*           2016/07/31  1.20 fix error message problem in rnx2rtkp
-*           2016/08/29  1.21 suppress warnings
-*           2016/10/10  1.22 fix bug on identification of file fopt->blq
-*           2017/06/13  1.23 add smoother of velocity solution
-*           2020/11/30  1.24 use API sat2freq() to get carrier frequency
-*                            fix bug on select best solution in static mode
-*                            delete function to use L2 instead of L5 PCV
-*                            writing solution file in binary mode
-*           2021/05/21  1.25 fix typos
-*           2024/02/01  1.26 branch from ver.2.4.3b35 for MALIB
-*                            add support to read solution status files for ppp correction
-*           2024/08/02  1.27 update version info for solution
-*           2024/09/26  1.28 update version info for solution
-*           2024/12/20  1.29 support Bias-SINEX and FCB files correction
-*           2025/02/06  1.30 update read solution status files
-*                            add support to read local correction file
-*-----------------------------------------------------------------------------*/
+ * mrtk_postpos.c : post-processing positioning functions
+ *
+ * Copyright (C) 2026 H.SHIONO (MRTKLIB Project)
+ * Copyright (C) 2023-2025 Japan Aerospace Exploration Agency
+ * Copyright (C) 2023-2025 TOSHIBA ELECTRONIC TECHNOLOGIES CORPORATION
+ * Copyright (C) 2014 T.SUZUKI
+ * Copyright (C) 2007-2023 T.TAKASU
+ *
+ * SPDX-License-Identifier: BSD-2-Clause
+ *----------------------------------------------------------------------------*/
 /* mrtklib modular headers */
 #include "mrtklib/mrtk_postpos.h"
 #include "mrtklib/mrtk_obs.h"
@@ -96,11 +53,7 @@
 #define PROGNAME    "rnx2rtkp"          /* default program name */
 #endif
 
-#ifdef WIN32
-#define FILEPATHSEP '\\'
-#else
 #define FILEPATHSEP '/'
-#endif
 
 /* forward declarations for functions still in legacy rtkcmn.c ----------------*/
 extern void trace   (int level, const char *format, ...);

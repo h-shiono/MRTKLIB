@@ -1,51 +1,14 @@
 /*------------------------------------------------------------------------------
-* septentrio.c : Septentrio Binary Format (SBF) decoder
-*
-* Copyright (C) 2024-2025 Japan Aerospace Exploration Agency. All Rights Reserved.
-* Copyright (C) 2020-2021 by Tomoji TAKASU
-*
-* reference :
-*     [1] Septentrio, mosaic-X5 reference guide applicable to version 4.8.0 of
-*         the firmware, June 4, 2020
-*     [2] Septentrio, AsteRx-m3 CLAS Reference Guide Applicable to version 4.12.1
-*         of the Firmware, April 14, 2021
-*
-* history : 2013/07/17  1.0  begin writing
-*           2013/10/24  1.1  GPS L1 working
-*           2013/11/02  1.2  modified by TTAKASU
-*           2015/01/26  1.3  fix some problems by Jens Reimann
-*           2016/02/04  1.4  by Jens Reimann
-*                           - added more sanity checks
-*                           - added galileon raw decoding
-*                           - added usage of decoded SBAS messages for testing
-*                           - add QZSS and Compass/Beidou navigation messages
-*                           - fixed code and Doppler for 2nd and following frequency
-*                           - fixed bug in glonass ephemeris
-*                           - fixed decoding of galileo ephemeris
-*                           - fixed lost lock indicator
-*                           - fixed sbas decoding
-*                           - cleanups
-*           2016/03/03  1.5 - fixed TOW in SBAS messages
-*           2016/03/12  1.6 - respect code priorities
-*                           - fixed bug in carrier phase calculation of type2 data
-*                           - unify frequency determination
-*                           - improve lock handling
-*                           - various bug fixes
-*           2016/05/25  1.7  rtk_crc24q() -> crc24q() by T.T
-*           2016/07/29  1.8  crc24q() -> rtk_crc24q() by T.T
-*           2017/04/11  1.9  (char *) -> (signed char *) by T.T
-*           2017/09/01  1.10 suppress warnings
-*
-*           2020/11/30  1.11 rewritten from scratch to support mosaic-X5 [1]
-*           2021/01/07  1.12 added test of SVH for GLONASS ephemeris change
-*           2021/02/01  1.13 fix problem on detecting EOF in input_sbff()
-*           2024/02/01  1.14 branch from ver.2.4.3b35 for MALIB
-*                            support QZSRawL6 [2]
-*           2024/03/01  1.15 improved performance of the decode_qzsrawl6()
-*           2024/08/02  1.16 suppress warnings
-*                            fix bug decode_ionutc()
-*           2025/07/31  1.17 fix bug signal type offset when SigIdxLo=31
-*-----------------------------------------------------------------------------*/
+ * mrtk_rcv_septentrio.c : Septentrio receiver raw data decoder
+ *
+ * Copyright (C) 2026 H.SHIONO (MRTKLIB Project)
+ * Copyright (C) 2023-2025 Japan Aerospace Exploration Agency
+ * Copyright (C) 2023-2025 TOSHIBA ELECTRONIC TECHNOLOGIES CORPORATION
+ * Copyright (C) 2014 T.SUZUKI
+ * Copyright (C) 2007-2023 T.TAKASU
+ *
+ * SPDX-License-Identifier: BSD-2-Clause
+ *----------------------------------------------------------------------------*/
 #include "mrtklib/mrtk_rcvraw.h"
 #include "mrtklib/mrtk_time.h"
 #include "mrtklib/mrtk_bits.h"
@@ -1094,4 +1057,3 @@ extern int input_sbff(raw_t *raw, rtcm_t *rtcm, FILE *fp)
     /* decode SBF block */
     return decode_sbf(raw, rtcm);
 }
-

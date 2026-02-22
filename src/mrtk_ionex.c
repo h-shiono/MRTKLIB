@@ -1,21 +1,14 @@
 /*------------------------------------------------------------------------------
-* mrtk_ionex.c : ionex functions
-*
-*          Copyright (C) 2011-2013 by T.TAKASU, All rights reserved.
-*
-* references:
-*     [1] S.Schear, W.Gurtner and J.Feltens, IONEX: The IONosphere Map EXchange
-*         Format Version 1, February 25, 1998
-*     [2] S.Schaer, R.Markus, B.Gerhard and A.S.Timon, Daily Global Ionosphere
-*         Maps based on GPS Carrier Phase Data Routinely producted by CODE
-*         Analysis Center, Proceeding of the IGS Analysis Center Workshop, 1996
-*
-* version : $Revision:$ $Date:$
-* history : 2011/03/29 1.0 new
-*           2013/03/05 1.1 change api readtec()
-*                          fix problem in case of lat>85deg or lat<-85deg
-*           2014/02/22 1.2 fix problem on compiled as C++
-*-----------------------------------------------------------------------------*/
+ * mrtk_ionex.c : IONEX TEC grid functions
+ *
+ * Copyright (C) 2026 H.SHIONO (MRTKLIB Project)
+ * Copyright (C) 2023-2025 Japan Aerospace Exploration Agency
+ * Copyright (C) 2023-2025 TOSHIBA ELECTRONIC TECHNOLOGIES CORPORATION
+ * Copyright (C) 2014 T.SUZUKI
+ * Copyright (C) 2007-2023 T.TAKASU
+ *
+ * SPDX-License-Identifier: BSD-2-Clause
+ *----------------------------------------------------------------------------*/
 #include "mrtklib/mrtk_ionex.h"
 #include "mrtklib/mrtk_sys.h"
 #include "mrtklib/mrtk_atmos.h"
