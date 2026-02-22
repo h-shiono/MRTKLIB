@@ -85,6 +85,7 @@
 #include "mrtklib/mrtk_ppp_ar.h"
 #include "mrtklib/mrtk_ppp.h"
 #include "mrtklib/mrtk_postpos.h"
+#include "mrtklib/mrtk_options.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -434,12 +435,7 @@ typedef struct {        /* download URL type */
     double tint;        /* time interval (s) */
 } url_t;
 
-typedef struct {        /* option type */
-    const char *name;   /* option name */
-    int format;         /* option format (0:int,1:double,2:string,3:enum) */
-    void *var;          /* pointer to option variable */
-    const char *comment; /* option comment/enum labels/unit */
-} opt_t;
+/* opt_t moved to mrtklib/mrtk_options.h */
 
 /* snrmask_t moved to mrtklib/mrtk_obs.h */
 /* prcopt_t moved to mrtklib/mrtk_opt.h */
@@ -658,7 +654,7 @@ extern const double chisqr[];        /* Chi-sqr(n) table (alpha=0.001) */
 extern const sbsigpband_t igpband1[9][8]; /* SBAS IGP band 0-8 */
 extern const sbsigpband_t igpband2[2][5]; /* SBAS IGP band 9-10 */
 extern const char *formatstrs[];     /* stream format strings */
-extern opt_t sysopts[];              /* system options table */
+/* sysopts moved to mrtklib/mrtk_options.h */
 
 /* satno, satsys, satid2no, satno2id moved to mrtklib/mrtk_nav.h */
 /* obs2code, code2obs, code2freq, sat2freq, code2idx moved to mrtklib/mrtk_obs.h */
@@ -800,18 +796,7 @@ int convgpx(const char *infile, const char *outfile, gtime_t ts, gtime_t te,
 
 /* SBAS functions moved to mrtklib/mrtk_sbas.h */
 
-/* options functions ---------------------------------------------------------*/
-opt_t *searchopt(const char *name, const opt_t *opts);
-int str2opt(opt_t *opt, const char *str);
-int opt2str(const opt_t *opt, char *str);
-int opt2buf(const opt_t *opt, char *buff);
-int loadopts(const char *file, opt_t *opts);
-int saveopts(const char *file, const char *mode, const char *comment,
-             const opt_t *opts);
-void resetsysopts(void);
-void getsysopts(prcopt_t *popt, solopt_t *sopt, filopt_t *fopt);
-void setsysopts(const prcopt_t *popt, const solopt_t *sopt,
-                const filopt_t *fopt);
+/* options functions moved to mrtklib/mrtk_options.h */
 
 /* stream data input and output functions ------------------------------------*/
 void strinitcom(void);

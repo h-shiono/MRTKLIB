@@ -27,6 +27,8 @@
 #include <stdarg.h>
 #include "rtklib.h"
 #include "mrtklib/mrtklib.h"
+#include "mrtklib/mrtk_options.h"
+#include "mrtklib/mrtk_postpos.h"
 
 #define PROGNAME    "rnx2rtkp"          /* program name */
 #define MAXFILE     16                  /* max number of input files */

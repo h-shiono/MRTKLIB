@@ -1,5 +1,5 @@
 /*------------------------------------------------------------------------------
-* options.c : options functions
+* mrtk_options.c : options functions (mrtklib module)
 *
 * Copyright (C) 2024-2025 Japan Aerospace Exploration Agency. All Rights Reserved.
 * Copyright (C) 2010-2021 by T.TAKASU, All rights reserved.
@@ -35,7 +35,22 @@
 *                             pos2-pppsatpb,pos2-uncorrbias,pos2-maxbiasdt,
 *                             file-fcbfile,file-biafile
 *-----------------------------------------------------------------------------*/
-#include "rtklib.h"
+/* mrtklib modular headers */
+#include "mrtklib/mrtk_options.h"
+#include "mrtklib/mrtk_coords.h"
+#include "mrtklib/mrtk_nav.h"
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <ctype.h>
+
+/* local constants (duplicated from rtklib.h to avoid rtklib.h dependency) ----*/
+#define D2R         (3.1415926535897932384626433832795/180.0)
+#define R2D         (180.0/3.1415926535897932384626433832795)
+
+/* forward declarations for functions still in legacy rtkcmn.c ----------------*/
+extern void trace(int level, const char *format, ...);
 
 /* system options buffer -----------------------------------------------------*/
 static prcopt_t prcopt_;
