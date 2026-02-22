@@ -81,6 +81,8 @@
 #include "mrtklib/mrtk_madoca_local_comb.h"
 #include "mrtklib/mrtk_madoca.h"
 #include "mrtklib/mrtk_lambda.h"
+#include "mrtklib/mrtk_rtkpos.h"
+#include "mrtklib/mrtk_ppp_ar.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -444,29 +446,7 @@ typedef struct {        /* option type */
 /* rnxopt_t moved to mrtklib/mrtk_rinex.h */
 /* ssat_t moved to mrtklib/mrtk_sol.h */
 
-typedef struct {        /* ambiguity control type */
-    gtime_t epoch[4];   /* last epoch */
-    int n[4];           /* number of epochs */
-    double LC [4];      /* linear combination average */
-    double LCv[4];      /* linear combination variance */
-    int fixcnt;         /* fix count */
-    char flags[MAXSAT]; /* fix flags */
-} ambc_t;
-
-typedef struct {        /* RTK control/result type */
-    sol_t  sol;         /* RTK solution */
-    double rb[6];       /* base position/velocity (ecef) (m|m/s) */
-    int nx,na;          /* number of float states/fixed states */
-    double tt;          /* time difference between current and previous (s) */
-    double *x, *P;      /* float states and their covariance */
-    double *xa,*Pa;     /* fixed states and their covariance */
-    int nfix;           /* number of continuous fixes of ambiguity */
-    ambc_t ambc[MAXSAT]; /* ambibuity control */
-    ssat_t ssat[MAXSAT]; /* satellite status */
-    int neb;            /* bytes in error message buffer */
-    char errbuf[MAXERRMSG]; /* error message buffer */
-    prcopt_t opt;       /* processing options */
-} rtk_t;
+/* ambc_t, rtk_t moved to mrtklib/mrtk_rtkpos.h */
 
 typedef struct {        /* receiver raw data control type */
     gtime_t time;       /* message time */
@@ -856,21 +836,13 @@ void strsetproxy(const char *addr);
 
 /* pntpos moved to mrtklib/mrtk_spp.h */
 
-/* precise positioning -------------------------------------------------------*/
-void rtkinit(rtk_t *rtk, const prcopt_t *opt);
-void rtkfree(rtk_t *rtk);
-int rtkpos(rtk_t *rtk, const obsd_t *obs, int nobs, nav_t *nav);
-int rtkopenstat(const char *file, int level);
-void rtkclosestat(void);
-int rtkoutstat(rtk_t *rtk, char *buff);
+/* rtkinit/rtkfree/rtkpos/rtkopenstat/rtkclosestat/rtkoutstat moved to mrtklib/mrtk_rtkpos.h */
+/* ppp_ar moved to mrtklib/mrtk_ppp_ar.h */
 
 /* precise point positioning -------------------------------------------------*/
 void pppos(rtk_t *rtk, const obsd_t *obs, int n, const nav_t *nav);
 int pppnx(const prcopt_t *opt);
 int pppoutstat(rtk_t *rtk, char *buff);
-
-int ppp_ar(rtk_t *rtk, const obsd_t *obs, int n, int *exc, const nav_t *nav,
-           const double *azel, double *x, double *P);
 
 /* post-processing positioning -----------------------------------------------*/
 int postpos(gtime_t ts, gtime_t te, double ti, double tu, const prcopt_t *popt,

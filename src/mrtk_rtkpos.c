@@ -1,5 +1,5 @@
 /*------------------------------------------------------------------------------
-* rtkpos.c : precise positioning
+* mrtk_rtkpos.c : precise positioning
 *
 * Copyright (C) 2024-2025 Japan Aerospace Exploration Agency. All Rights Reserved.
 * Copyright (C) 2007-2023 by T.TAKASU, All rights reserved.
@@ -56,8 +56,58 @@
 *                           change the sign of the code/phase bias correction 
 *                           in udsatcb(),udsatpb(),udstacb()
 *-----------------------------------------------------------------------------*/
+#include "mrtklib/mrtk_rtkpos.h"
+#include "mrtklib/mrtk_mat.h"
+#include "mrtklib/mrtk_lambda.h"
+#include "mrtklib/mrtk_sys.h"
+#include "mrtklib/mrtk_coords.h"
+#include "mrtklib/mrtk_atmos.h"
+#include "mrtklib/mrtk_antenna.h"
+#include "mrtklib/mrtk_tides.h"
+#include "mrtklib/mrtk_peph.h"
+#include "mrtklib/mrtk_spp.h"
+#include "mrtklib/mrtk_bits.h"
+#include "mrtklib/mrtk_madoca.h"
+#include "mrtklib/mrtk_bias_sinex.h"
+#include "mrtklib/mrtk_fcb.h"
+
 #include <stdarg.h>
-#include "rtklib.h"
+#include <string.h>
+#include <stdlib.h>
+#include <math.h>
+#include <stdio.h>
+
+/* local constants (duplicated from rtklib.h to avoid circular dependency) */
+#define CLIGHT      299792458.0         /* speed of light (m/s) */
+#define D2R         (3.1415926535897932384626433832795/180.0)
+#define R2D         (180.0/3.1415926535897932384626433832795)
+#define FREQ1       1.57542E9           /* L1/E1/B1C  frequency (Hz) */
+
+#define SYS_NONE    0x00                /* navigation system: none */
+#define SYS_GPS     0x01                /* navigation system: GPS */
+#define SYS_SBS     0x02                /* navigation system: SBAS */
+#define SYS_GLO     0x04                /* navigation system: GLONASS */
+#define SYS_GAL     0x08                /* navigation system: Galileo */
+#define SYS_QZS     0x10                /* navigation system: QZSS */
+#define SYS_CMP     0x20                /* navigation system: BeiDou */
+#define SYS_IRN     0x40                /* navigation system: IRNSS */
+
+#define EFACT_GPS   1.0                 /* error factor: GPS */
+#define EFACT_GLO   1.5                 /* error factor: GLONASS */
+#define EFACT_SBS   3.0                 /* error factor: SBAS */
+
+#define INT_SWAP_STAT 86400.0           /* swap interval of solution status (s) */
+#define SSR_VENDOR_L6   0               /* SSR vendor: L6 */
+#define SSR_VENDOR_RTCM 1               /* SSR vendor: RTCM */
+#define MAXAGESSRL6 60.0                /* max age of SSR L6 (s) */
+
+/* forward declarations (implemented in rtkcmn.c/ppp.c, resolved at link time) */
+extern void trace(int level, const char *format, ...);
+extern void tracemat(int level, const double *A, int n, int m, int p, int q);
+extern void traceobs(int level, const obsd_t *obs, int n);
+extern void pppos(rtk_t *rtk, const obsd_t *obs, int n, const nav_t *nav);
+extern int  pppnx(const prcopt_t *opt);
+extern int  pppoutstat(rtk_t *rtk, char *buff);
 
 /* constants/macros ----------------------------------------------------------*/
 

@@ -1,5 +1,5 @@
 /*------------------------------------------------------------------------------
-* ppp_ar.c : ppp ambiguity resolution
+* mrtk_ppp_ar.c : ppp ambiguity resolution
 *
 * Copyright (C) 2024-2025 Japan Aerospace Exploration Agency. All Rights Reserved.
 *
@@ -19,7 +19,33 @@
 *           2024/12/20  1.5  delete L5-receiver-dcb estimation
 *                            add BeiDou-2 ISB estimation
 *-----------------------------------------------------------------------------*/
-#include "rtklib.h"
+#include "mrtklib/mrtk_ppp_ar.h"
+#include "mrtklib/mrtk_mat.h"
+#include "mrtklib/mrtk_lambda.h"
+#include "mrtklib/mrtk_sys.h"
+#include "mrtklib/mrtk_obs.h"
+#include "mrtklib/mrtk_madoca.h"
+
+#include <string.h>
+#include <stdlib.h>
+#include <math.h>
+#include <stdio.h>
+
+/* local constants (duplicated from rtklib.h to avoid circular dependency) */
+#define CLIGHT      299792458.0
+
+#define SYS_NONE    0x00
+#define SYS_GPS     0x01
+#define SYS_SBS     0x02
+#define SYS_GLO     0x04
+#define SYS_GAL     0x08
+#define SYS_QZS     0x10
+#define SYS_CMP     0x20
+#define SYS_IRN     0x40
+
+/* forward declarations (implemented in rtkcmn.c, resolved at link time) */
+extern void trace(int level, const char *format, ...);
+extern char *time_str(gtime_t t, int n);
 
 #define MIN_AMB_RES 4         /* min number of ambiguities for ILS-AR */
 #define MIN_ARC_GAP 300.0     /* min arc gap (s) */
@@ -52,7 +78,7 @@ static double p_gamma(double a, double x, double log_gamma_a)
 {
     double y,w;
     int i;
-    
+
     if (x==0.0) return 0.0;
     if (x>=a+1.0) return 1.0-q_gamma(a,x,log_gamma_a);
     y=w=exp(a*log(x)-x-log_gamma_a)/a;
@@ -67,7 +93,7 @@ static double q_gamma(double a, double x, double log_gamma_a)
 {
     double y,w,la=1.0,lb=x+1.0-a,lc;
     int i;
-    
+
     if (x<a+1.0) return 1.0-p_gamma(a,x,log_gamma_a);
     w=exp(-x+a*log(x)-log_gamma_a);
     y=w/lb;
@@ -89,7 +115,7 @@ static double conf_func(int N, double B, double var)
 {
     double x,p=1.0,sig=sqrt(var);
     int i;
-    
+
     x=fabs(B-N);
     for (i=1;i<6;i++) {
         p-=f_erfc((i-x)/(SQRT2*sig))-f_erfc((i+x)/(SQRT2*sig));
@@ -104,16 +130,16 @@ static int gen_sat_sd(rtk_t *rtk, const obsd_t *obs, int n, const int *exc,
     int sys[4],s=0;
     double elmask,el[MAXOBS];
     int i,j,k,m,ns=0,sat[MAXOBS];
-    
+
     if(rtk->opt.arsys & SYS_GPS) sys[s++]=SYS_GPS;
     if(rtk->opt.arsys & SYS_GAL) sys[s++]=SYS_GAL;
     if(rtk->opt.arsys & SYS_QZS) sys[s++]=SYS_QZS;
     sys[s]=0;
 
     elmask=MAX(rtk->opt.elmaskar,rtk->opt.elmin);
-    
+
     for (i=0;sys[i];i++) { /* for each system */
-        
+
         /* sort by elevation angle */
         for (j=m=0;j<n;j++) {
             if (exc[j]||!(satsys(obs[j].sat,NULL)&sys[i])||
@@ -144,14 +170,14 @@ static void filter_EWL(rtk_t *rtk, const obsd_t *obs, int n, const int *exc,
     ambc_t *amb;
     double lamE,lamN,EW,var,K;
     int i,sat,sys;
-    
+
     for (i=0;i<n;i++) {
         sat=obs[i].sat;
         sys=satsys(sat,NULL);
         if (sys!=SYS_GPS&&sys!=SYS_QZS) continue;
         amb=rtk->ambc+sat-1;
         lam=nav->lam[sat-1];
-        
+
         if (rtk->ssat[sat-1].slip[1]||rtk->ssat[sat-1].slip[2]||
             fabs(timediff(amb->epoch[0],obs[i].time))>MIN_ARC_GAP) {
             amb->n[1]=0;
@@ -159,7 +185,7 @@ static void filter_EWL(rtk_t *rtk, const obsd_t *obs, int n, const int *exc,
         if (exc[i]||azel[1+2*i]<rtk->opt.elmin||lam[1]==0.0||lam[2]==0.0||
             obs[i].L[1]==0.0||obs[i].P[2]==0.0||
             obs[i].L[1]==0.0||obs[i].P[2]==0.0) continue;
-        
+
         /* EMW-LC and variance */
         lamE=lam[1]*lam[2]/(lam[2]-lam[1]);
         lamN=lam[1]*lam[2]/(lam[2]+lam[1]);
@@ -167,7 +193,7 @@ static void filter_EWL(rtk_t *rtk, const obsd_t *obs, int n, const int *exc,
            lamN*(obs[i].P[1]/lam[1]+obs[i].P[2]/lam[2]);
         var=SQR(0.7*rtk->opt.eratio[0])*
             (SQR(rtk->opt.err[1])+SQR(rtk->opt.err[2]/sin(azel[1+2*i])));
-        
+
         /* filter EWL-ambiguity */
         if (amb->n[1]<=0) {
             amb->LC[1]=EW;
@@ -192,13 +218,13 @@ static void filter_WL(rtk_t *rtk, const obsd_t *obs, int n, const int *exc,
     ambc_t *amb;
     double lamW,lamN,MW,var,K;
     int i,l,sat;
-    
+
     for (i=0;i<n;i++) {
         sat=obs[i].sat;
         amb=rtk->ambc+sat-1;
         lam=nav->lam[sat-1];
         l=satsys(sat,NULL)==SYS_GAL?2:1; /* L1/L2 or L1/L5 */
-        
+
         if (rtk->ssat[sat-1].slip[0]||rtk->ssat[sat-1].slip[l]||
             fabs(timediff(amb->epoch[0],obs[i].time))>MIN_ARC_GAP) {
             amb->n[0]=0;
@@ -206,7 +232,7 @@ static void filter_WL(rtk_t *rtk, const obsd_t *obs, int n, const int *exc,
         if (exc[i]||azel[1+2*i]<rtk->opt.elmin||lam[0]==0.0||lam[l]==0.0||
             obs[i].L[0]==0.0||obs[i].P[0]==0.0||
             obs[i].L[l]==0.0||obs[i].P[l]==0.0) continue;
-        
+
         /* MW-LC and variance */
         lamW=lam[0]*lam[l]/(lam[l]-lam[0]);
         lamN=lam[0]*lam[l]/(lam[l]+lam[0]);
@@ -214,7 +240,7 @@ static void filter_WL(rtk_t *rtk, const obsd_t *obs, int n, const int *exc,
            lamN*(obs[i].P[0]/lam[0]+obs[i].P[l]/lam[l]);
         var=SQR(0.7*rtk->opt.eratio[0])*
             (SQR(rtk->opt.err[1])+SQR(rtk->opt.err[2]/sin(azel[1+2*i])));
-        
+
         /* filter WL-ambiguity */
         if (amb->n[0]<=0) {
             amb->LC[0]=MW;
@@ -241,18 +267,18 @@ static int ppp_amb_IFLC(rtk_t *rtk, const obsd_t *obs, int n, int *exc,
     double lamN,lamW,lamE,C1,C2,Be,Bw,B1,varw,var1;
     double v[MAXOBS],R[MAXOBS*MAXOBS]={0},*H,*thres=rtk->opt.thresar;
     int i,j,k,l,info,ns,nw=0,na=0,Ne,Nw,N1,sat1[MAXOBS],sat2[MAXOBS],frq[MAXOBS];
-    
+
     /* filter EWL-ambiguity */
     filter_EWL(rtk,obs,n,exc,nav,azel);
-    
+
     /* filter WL-ambiguity */
     filter_WL(rtk,obs,n,exc,nav,azel);
-    
+
     /* generate satellite SD */
     if (!(ns=gen_sat_sd(rtk,obs,n,exc,azel,0,sat1,sat2,frq))) return 0;
-    
+
     H=zeros(rtk->nx,ns);
-    
+
     for (i=0;i<ns;i++) {
         lam=nav->lam[sat1[i]-1];
         l=satsys(sat1[i],NULL)==SYS_GAL?2:1; /* L1/L2 or L1/L5 */
@@ -261,13 +287,13 @@ static int ppp_amb_IFLC(rtk_t *rtk, const obsd_t *obs, int n, int *exc,
         lamN=lam[0]*lam[l]/(lam[l]+lam[0]);
         C1= SQR(lam[l])/(SQR(lam[l])-SQR(lam[0]));
         C2=-SQR(lam[0])/(SQR(lam[l])-SQR(lam[0]));
-        
+
         j=IB(sat1[i],0,&rtk->opt);
         k=IB(sat2[i],0,&rtk->opt);
         amb1=rtk->ambc+sat1[i]-1;
         amb2=rtk->ambc+sat2[i]-1;
         if (!amb1->n[0]||!amb2->n[0]) continue;
-        
+
         if (amb1->n[1]&&amb2->n[1]) {
             Be=(amb1->LC[1]-amb2->LC[1])/lamE;
             Ne=ROUND(Be);
@@ -284,28 +310,28 @@ static int ppp_amb_IFLC(rtk_t *rtk, const obsd_t *obs, int n, int *exc,
         N1=ROUND(B1);
         varw=(amb1->LCv[0]+amb2->LCv[0])/SQR(lamW);
         var1=(P[j+j*rtk->nx]+P[k+k*rtk->nx]-2.0*P[j+k*rtk->nx])/SQR(lamN);
-        
+
         if (conf_func(Nw,Bw,varw)<thres[1]||fabs(Nw-Bw)>thres[2]) continue;
         nw++;
         if (conf_func(N1,B1,var1)<thres[1]||fabs(N1-B1)>thres[3]) continue;
-        
+
         /* constraint to fixed LC-ambiguty */
         H[j+na*rtk->nx]= 1.0;
         H[k+na*rtk->nx]=-1.0;
         v[na++]=C1*lam[0]*N1+C2*lam[l]*(N1-Nw)-(rtk->x[j]-rtk->x[k]);
-        
+
         /* update fix flags */
         rtk->ssat[sat1[i]-1].fix[0]=rtk->ssat[sat2[i]-1].fix[0]=2;
     }
     rtk->sol.age  =(float)nw; /* # of WL-fixed */
     rtk->sol.ratio=(float)na; /* # of NL-fixed */
-    
+
     if (na<=0) {
         free(H);
         return 0;
     }
     for (i=0;i<na;i++) R[i+i*na]=SQR(CONST_AMB);
-    
+
     /* update states with fixed LC-ambiguity constraints */
     if ((info=filter(x,P,H,v,R,rtk->nx,na))) {
         trace(1,"filter error (info=%d)\n",info);
@@ -324,9 +350,9 @@ static void write_trace1(rtk_t *rtk, const double *Z, const double *a,
     const char freq[]="125678";
     char buff[1024],s[32],*p=buff;
     int i,j;
-    
+
     trace(2,"EPOCH=%s NFIX=%d\n",time_str(rtk->sol.time,0),rtk->nfix);
-    
+
     for (i=0,p=buff;i<na;i++) {
         satno2id(sat1[i],s); p+=sprintf(p,"%s ",s);
     }
@@ -356,7 +382,7 @@ static void write_trace2(rtk_t *rtk, const double *x, const double *P,
     double *xp,*Pp,b[256],R[256*256]={0},std[3];
     char buff[1024],*p=buff;
     int i;
-    
+
     xp=mat(rtk->nx,1); Pp=mat(rtk->nx,rtk->nx);
     matcpy(xp,x,rtk->nx,1);
     matcpy(Pp,P,rtk->nx,rtk->nx);
@@ -379,7 +405,7 @@ static int decorr_space(rtk_t *rtk, double *a, double *Q, double *D, int na,
                         const int *sat1, const int *sat2, const int *frq)
 {
     double *W=mat(na,rtk->nx),*Z=eye(na);
-    
+
     /* lambda reduction */
     if (lambda_reduction(na,Q,Z)) {
         free(W); free(Z);
@@ -392,7 +418,7 @@ static int decorr_space(rtk_t *rtk, double *a, double *Q, double *D, int na,
     matmul("NN",na,na,na,1.0,W,Z,0.0,Q);
     matmul("NN",rtk->nx,na,na,1.0,D,Z,0.0,W);
     matcpy(D,W,rtk->nx,na);
-    
+
     if (strstr(rtk->opt.pppopt,"-TRACE_AR")) {
         write_trace1(rtk,Z,a,Q,na,sat1,sat2,frq);
     }
@@ -403,7 +429,7 @@ static int decorr_space(rtk_t *rtk, double *a, double *Q, double *D, int na,
 static int shrink_space(double *a, double *Q, double *H, int is, int na, int nx)
 {
     int i,j,n=0,*index=imat(na,1);
-    
+
     for (i=is;i<na;i++) {
         index[n++]=i;
     }
@@ -429,16 +455,16 @@ static int ppp_amb_ILS_FRQ(rtk_t *rtk, const obsd_t *obs, int n, const int *exc,
     double *W,*Q,s[2],thres=0.0;
     int i,j,k,l,na=0,sat1[MAXOBS*NFREQ],sat2[MAXOBS*NFREQ],frq[MAXOBS*NFREQ];
     int trace_AR=0;
-    
+
     if (strstr(rtk->opt.pppopt,"-TRACE_AR")) trace_AR=1;
-    
+
     /* generate satellite SD */
     for (i=0;i<rtk->opt.nf;i++) {
         if (rtk->opt.freqopt==1&&i==1) continue;
         na+=gen_sat_sd(rtk,obs,n,exc,azel,i,sat1+na,sat2+na,frq+na);
     }
     if (na<=0) return 0;
-    
+
     /* freq-ambiguity SD-matrix */
     for (i=0;i<na;i++) {
 #if 0
@@ -462,14 +488,14 @@ static int ppp_amb_ILS_FRQ(rtk_t *rtk, const obsd_t *obs, int n, const int *exc,
     matmul("TN",na,1,rtk->nx,1.0,D,x,0.0,a);
     matmul("TN",na,rtk->nx,rtk->nx,1.0,D,P,0.0,W);
     matmul("NN",na,na,rtk->nx,1.0,W,D,0.0,Q);
-    
+
     /* decorrelate search space */
     if (!decorr_space(rtk,a,Q,D,na,sat1,sat2,frq)) {
         free(W); free(Q);
         return 0;
     }
     for (i=0;i<rtk->opt.armaxiter&&na>=MIN_AMB_RES;i++) {
-        
+
         /* integer least-square (a->N) */
         if (lambda_search(na,2,a,Q,N,s)||s[0]<=0.0) {
             free(W); free(Q);
@@ -480,20 +506,20 @@ static int ppp_amb_ILS_FRQ(rtk_t *rtk, const obsd_t *obs, int n, const int *exc,
         }
         thres=rtk->opt.thresar[0];
         if (na-MIN_AMB_RES<5) thres*=thres_fact[na-MIN_AMB_RES];
-        
+
         /* validation by ratio-test */
         if (s[1]/s[0]>=thres) break;
-        
+
         /* shrink search space */
         na=shrink_space(a,Q,D,1,na,rtk->nx);
     }
     free(W); free(Q);
-    
+
     rtk->sol.ratio=(float)MIN(s[1]/s[0],999.9);
     rtk->sol.thres=(float)thres;
-    
+
     if (i>=rtk->opt.armaxiter||na<MIN_AMB_RES) return 0;
-    
+
     /* update fix flags */
     for (i=0;i<na;i++) {
         rtk->ssat[sat1[i]-1].fix[frq[i]]=rtk->ssat[sat2[i]-1].fix[frq[i]]=2;
@@ -507,16 +533,16 @@ static int ppp_amb_ILS(rtk_t *rtk, const obsd_t *obs, int n, int *exc,
 {
     double *D,*R,a[MAXOBS*NFREQ],N[MAXOBS*NFREQ*2];
     int i,na,info;
-    
+
     D=zeros(rtk->nx,n*NF(&rtk->opt));
-    
+
     /* freq-ambiguity resolution */
     if (!(na=ppp_amb_ILS_FRQ(rtk,obs,n,exc,nav,azel,x,P,D,a,N))) {
         free(D);
         return 0;
     }
     R=zeros(na,na);
-    
+
     /* update states with integer ambiguity constraints */
     for (i=0;i<na;i++) {
         a[i]=N[i]-a[i];
@@ -533,7 +559,7 @@ extern int ppp_ar(rtk_t *rtk, const obsd_t *obs, int n, int *exc,
                   const nav_t *nav, const double *azel, double *x, double *P)
 {
     if (n<=0||rtk->opt.modear<ARMODE_CONT) return 0;
-    
+
 #if 0
     /* ambiguity resolution by WL/NL for iono-free LC */
     if (rtk->opt.ionoopt==IONOOPT_IFLC) {
@@ -546,4 +572,4 @@ extern int ppp_ar(rtk_t *rtk, const obsd_t *obs, int n, int *exc,
 #endif
     if (rtk->opt.ionoopt!=IONOOPT_EST) return 0;
     return ppp_amb_ILS(rtk,obs,n,exc,nav,azel,x,P);
-}   
+}
