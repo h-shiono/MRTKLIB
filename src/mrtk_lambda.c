@@ -1,5 +1,5 @@
 /*------------------------------------------------------------------------------
-* lambda.c : integer ambiguity resolution
+* mrtk_lambda.c : integer ambiguity resolution
 *
 *          Copyright (C) 2007-2021 by T.TAKASU, All rights reserved.
 *
@@ -14,7 +14,13 @@
 *           2015/05/31 1.1 add api lambda_reduction(), lambda_search()
 *           2021/02/03 1.2 modify constant LOOPMAX 10000 -> 80000
 *-----------------------------------------------------------------------------*/
-#include "rtklib.h"
+#include "mrtklib/mrtk_lambda.h"
+#include "mrtklib/mrtk_mat.h"
+
+#include <string.h>
+#include <stdlib.h>
+#include <math.h>
+#include <stdio.h>
 
 /* constants/macros ----------------------------------------------------------*/
 
@@ -29,7 +35,7 @@ static int LD(int n, const double *Q, double *L, double *D)
 {
     int i,j,k,info=0;
     double a,*A=mat(n,n);
-    
+
     memcpy(A,Q,sizeof(double)*n*n);
     for (i=n-1;i>=0;i--) {
         if ((D[i]=A[i+i*n])<=0.0) {info=-1; break;}
@@ -46,7 +52,7 @@ static int LD(int n, const double *Q, double *L, double *D)
 static void gauss(int n, double *L, double *Z, int i, int j)
 {
     int k,mu;
-    
+
     if ((mu=(int)ROUND(L[i+j*n]))!=0) {
         for (k=i;k<n;k++) L[k+n*j]-=(double)mu*L[k+i*n];
         for (k=0;k<n;k++) Z[k+n*j]-=(double)mu*Z[k+i*n];
@@ -57,7 +63,7 @@ static void perm(int n, double *L, double *D, int j, double del, double *Z)
 {
     int k;
     double eta,lam,a0,a1;
-    
+
     eta=D[j]/del;
     lam=D[j+1]*L[j+1+j*n]/del;
     D[j]=eta*D[j+1]; D[j+1]=del;
@@ -75,7 +81,7 @@ static void reduction(int n, double *L, double *D, double *Z)
 {
     int i,j,k;
     double del;
-    
+
     j=n-2; k=n-2;
     while (j>=0) {
         if (j<=k) for (i=j+1;i<n;i++) gauss(n,L,Z,i,j);
@@ -94,7 +100,7 @@ static int search(int n, int m, const double *L, const double *D,
     int i,j,k,c,nn=0,imax=0;
     double newdist,maxdist=1E99,y;
     double *S=zeros(n,n),*dist=mat(n,1),*zb=mat(n,1),*z=mat(n,1),*step=mat(n,1);
-    
+
     k=n-1; dist[k]=0.0;
     zb[k]=zs[k];
     z[k]=ROUND(zb[k]); y=zb[k]-z[k]; step[k]=SGN(y);
@@ -141,7 +147,7 @@ static int search(int n, int m, const double *L, const double *D,
         }
     }
     free(S); free(dist); free(zb); free(z); free(step);
-    
+
     if (c>=LOOPMAX) {
         fprintf(stderr,"%s : search loop count overflow\n",__FILE__);
         return -1;
@@ -165,20 +171,20 @@ extern int lambda(int n, int m, const double *a, const double *Q, double *F,
 {
     int info;
     double *L,*D,*Z,*z,*E;
-    
+
     if (n<=0||m<=0) return -1;
     L=zeros(n,n); D=mat(n,1); Z=eye(n); z=mat(n,1); E=mat(n,m);
-    
+
     /* LD factorization */
     if (!(info=LD(n,Q,L,D))) {
-        
+
         /* lambda reduction */
         reduction(n,L,D,Z);
         matmul("TN",n,1,n,1.0,Z,a,0.0,z); /* z=Z'*a */
-        
+
         /* mlambda search */
         if (!(info=search(n,m,L,D,z,E,s))) {
-            
+
             info=solve("T",Z,E,n,m,F); /* F=Z'\E */
         }
     }
@@ -196,11 +202,11 @@ extern int lambda_reduction(int n, const double *Q, double *Z)
 {
     double *L,*D;
     int i,j,info;
-    
+
     if (n<=0) return -1;
-    
+
     L=zeros(n,n); D=mat(n,1);
-    
+
     for (i=0;i<n;i++) for (j=0;j<n;j++) {
         Z[i+j*n]=i==j?1.0:0.0;
     }
@@ -211,7 +217,7 @@ extern int lambda_reduction(int n, const double *Q, double *Z)
     }
     /* lambda reduction */
     reduction(n,L,D,Z);
-     
+
     free(L); free(D);
     return 0;
 }
@@ -230,11 +236,11 @@ extern int lambda_search(int n, int m, const double *a, const double *Q,
 {
     double *L,*D;
     int info;
-    
+
     if (n<=0||m<=0) return -1;
-    
+
     L=zeros(n,n); D=mat(n,1);
-    
+
     /* LD factorization */
     if ((info=LD(n,Q,L,D))) {
         free(L); free(D);
@@ -242,7 +248,7 @@ extern int lambda_search(int n, int m, const double *a, const double *Q,
     }
     /* mlambda search */
     info=search(n,m,L,D,a,F,s);
-    
+
     free(L); free(D);
     return info;
 }
@@ -335,9 +341,8 @@ static double cdf_norm(double x)
     };
     double a=x/0.1;
     int i=(int)floor(a);
-    
+
     if (i< 0) return 0.0; /* x < 0.0 */
     if (i>69) return 1.0;
     return (1.0-a+i)*cdf_tbl[i]+(a-i)*cdf_tbl[i+1];
 }
-

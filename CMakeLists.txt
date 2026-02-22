@@ -50,6 +50,7 @@ add_library(mrtklib STATIC
     src/mrtk_madoca_local_corr.c
     src/mrtk_madoca_local_comb.c
     src/mrtk_madoca.c
+    src/mrtk_lambda.c
 )
 target_include_directories(mrtklib PUBLIC include)
 set_target_properties(mrtklib PROPERTIES C_STANDARD 11 C_STANDARD_REQUIRED ON)
@@ -64,7 +65,7 @@ target_link_libraries(mrtklib PUBLIC m)
 # Contains the union of all src/ files used by rnx2rtkp and rtkrcv.
 # The linker pulls only the object files referenced by each executable.
 add_library(rtklib STATIC
-    src/lambda.c        src/options.c
+    src/options.c
     src/ppp.c           src/ppp_ar.c
     src/rcvraw.c
     src/rtkcmn.c        src/rtkpos.c        src/rtksvr.c

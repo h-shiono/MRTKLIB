@@ -80,6 +80,7 @@
 #include "mrtklib/mrtk_madoca_local_corr.h"
 #include "mrtklib/mrtk_madoca_local_comb.h"
 #include "mrtklib/mrtk_madoca.h"
+#include "mrtklib/mrtk_lambda.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -851,12 +852,7 @@ void strsettimeout(stream_t *stream, int toinact, int tirecon);
 void strsetdir(const char *dir);
 void strsetproxy(const char *addr);
 
-/* integer ambiguity resolution ----------------------------------------------*/
-int lambda(int n, int m, const double *a, const double *Q, double *F,
-           double *s);
-int lambda_reduction(int n, const double *Q, double *Z);
-int lambda_search(int n, int m, const double *a, const double *Q, double *F,
-                  double *s);
+/* integer ambiguity resolution moved to mrtklib/mrtk_lambda.h */
 
 /* pntpos moved to mrtklib/mrtk_spp.h */
 
