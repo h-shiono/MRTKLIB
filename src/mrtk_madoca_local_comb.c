@@ -1,99 +1,32 @@
 /*------------------------------------------------------------------------------
-* lclcmbcmn.c : local correction data combination common functions
+* mrtk_madoca_local_comb.c : local correction data combination common functions
 *
 * Copyright (C) 2025 Japan Aerospace Exploration Agency. All Rights Reserved.
 *
 * history : 2025/02/06  1.0  new, for MALIB from madoca ver.2.0.2
+*           2026/02/22  1.1  moved to mrtklib (mrtk_madoca_local_comb.c)
 *-----------------------------------------------------------------------------*/
-#include "rtklib.h"
+#include "mrtklib/mrtk_madoca_local_comb.h"
+#include "mrtklib/mrtk_mat.h"
+#include "mrtklib/mrtk_coords.h"
+#include "mrtklib/mrtk_atmos.h"
 
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <math.h>
+
+/* local constants -----------------------------------------------------------*/
+#define D2R         (3.1415926535897932/180.0)
+#define R2D         (180.0/3.1415926535897932)
+
+/* local macros --------------------------------------------------------------*/
 #define GN(gp)      (gp==1?64:16)
 
-/* initialize grid/station setting ---------------------------------------------
-* initialize grid/station settings from a specified file
-* args   : const char *setfile  I    grid/station setting file path
-*          lclblock_t *lclblk   IO   local block information struct
-*          lclblock_t *lclblk   IO   local block information struct
-* return : status (0: error, 1: success)
-*-----------------------------------------------------------------------------*/
-extern int initgridsta(const char *setfile, lclblock_t *lclblk, int btype)
-{
-    FILE *sfp=NULL;
-    char *token,buff[256];
-    int *bnum;
-    double gp;
-    blkinf_t *bi;
-    char type[8];
+/* forward declarations (implemented in rtkcmn.c/stream.c, resolved at link) -*/
+extern void trace(int level, const char *format, ...);
+extern int strwrite(struct stream_tag *stream, uint8_t *buff, int n);
 
-    if ((sfp=fopen(setfile,"r")) == NULL) {
-        trace(2,"initgridsta : setting file open error :%s\n", setfile);
-        return 0;
-    }
-    while (fgets(buff,sizeof(buff),sfp)!=NULL) {
-        if (buff[0]=='#') continue;
-
-        strcpy(type,strtok(buff,","));
-        if (strncmp(type,"I",1)==0) {
-            bi=&lclblk->iblkinf[lclblk->inum];
-            bnum=&lclblk->inum;
-            bi->bs=ION_BLKSIZE;
-        }
-        else if (strncmp(type,"T",1)==0) {
-            bi=&lclblk->tblkinf[lclblk->tnum];
-            bnum=&lclblk->tnum;
-            bi->bs=TRP_BLKSIZE;
-        }else{
-            trace(2,"initgrid : grid setting file type error :%s\n", type);
-            continue;
-        }
-
-        /* init grid/station data */
-        bi->btype=btype;
-        token=strtok(NULL,",");
-        if(token == NULL){
-            trace(2,"initgrid : grid setting file format error : bn\n");
-            continue;
-        }
-        bi->bn=atoi(token);
-        if(btype==BTYPE_GRID) {
-            token=strtok(NULL,",");
-            if(token == NULL){
-                trace(2,"initgrid : grid setting file format error : gp\n");
-                continue;
-            }
-            gp=atoi(token);
-            if (gp==16){
-                bi->gpitch=0;
-            }
-            else if(gp==64){
-                bi->gpitch=1;
-            }
-            else{
-                trace(2,"initgrid : grid setting file grid pitch error :%d\n", gp);
-                continue;
-            }
-            token=strtok(NULL,",");
-            if(token == NULL){
-                trace(2,"initgrid : grid setting file format error : mask[0]\n");
-                continue;
-            }
-            bi->mask[0]=strtol(token, NULL, 0);
-            token=strtok(NULL,",");
-            if(token == NULL){
-                trace(2,"initgrid : grid setting file format error : mask[1]\n");
-                continue;
-            }
-            bi->mask[1]=strtol(token, NULL, 0);
-        }
-
-        initblkinf(bi);
-        *bnum+=1;
-        trace(3,"initgrid : read grid setting file [%s]\n",buff);
-    }
-    fclose(sfp);
-
-    return 1;
-}
 /* substruct vector ----------------------------------------------------------*/
 static void vsub(const double a[3], const double b[3], double c[3])
 {
@@ -143,7 +76,7 @@ static int selpersta(const stat_t *stat, const double *llh, int flag,
     double sdist[MAXSITES];
     double ecef[3],tllh[2][3];
     const spos_t *spos;
-    
+
     for(i=0; i<MAXSITES; i++) {
         sdist[i] = maxdist*1E3;
     }
@@ -235,7 +168,7 @@ static int gettriangledd(const stat_t *stat, const double *llh, int flag,
                 staid[2]=id[k];
                 ret = coldet(sllh[0], sllh[1], sllh[2], llh);
                 if(ret) {
-                    trace(3,"interpolation: %.1f %.1f site=%s %s %s\n", 
+                    trace(3,"interpolation: %.1f %.1f site=%s %s %s\n",
                         llh[0]*R2D, llh[1]*R2D, site[0].name, site[1].name,
                         site[2].name);
                     return 3;
@@ -254,7 +187,7 @@ static int gettriangledd(const stat_t *stat, const double *llh, int flag,
             }
             staid[i]=id[i];
         }
-        trace(3,"extrapolation: %.1f %.1f site=%s %s %s\n", 
+        trace(3,"extrapolation: %.1f %.1f site=%s %s %s\n",
             llh[0]*R2D, llh[1]*R2D, site[0].name, site[1].name, site[2].name);
         return 3;
     }
@@ -290,7 +223,7 @@ static int corr_trop_plane(const stat_t *stat, gtime_t time, const double *llh,
     for(i=0; i<3; i++) {
         for(j=0; j<3; j++){
             tri[j*3+2]=trp_s[j][i];
-        } 
+        }
         intpt(&tri[0], &tri[3], &tri[6], &trit[0]);
         trp[i] = trit[2];
         for(j=0; j<3; j++){
@@ -304,7 +237,7 @@ static int corr_trop_plane(const stat_t *stat, gtime_t time, const double *llh,
 }
 /* calculate iono correction using planar interpolation with 3 points --------*/
 static int corr_iono_plane(const stat_t *stat, gtime_t time, const double *llh,
-                           double maxdist, int extp, double *ion, double *std, 
+                           double maxdist, int extp, double *ion, double *std,
                            double maxres, int *nrej, int *ncnt)
 {
     int i, j, siteno[3];
@@ -315,7 +248,7 @@ static int corr_iono_plane(const stat_t *stat, gtime_t time, const double *llh,
 
     /* convert station position & time interpolation */
     for(i=0; i<3; i++) {
-        if(get_iono_sta(time, stat->sion[siteno[i]].iond, ion_s[i], std_s[i], 
+        if(get_iono_sta(time, stat->sion[siteno[i]].iond, ion_s[i], std_s[i],
             el_s[i])==0) {
             return 0;
         }
@@ -352,6 +285,91 @@ static int corr_iono_plane(const stat_t *stat, gtime_t time, const double *llh,
     }
     return 1;
 }
+/* initialize grid/station setting ---------------------------------------------
+* initialize grid/station settings from a specified file
+* args   : const char *setfile  I    grid/station setting file path
+*          lclblock_t *lclblk   IO   local block information struct
+*          int btype            I    block type (BTYPE_GRID or BTYPE_STA)
+* return : status (0: error, 1: success)
+*-----------------------------------------------------------------------------*/
+extern int initgridsta(const char *setfile, lclblock_t *lclblk, int btype)
+{
+    FILE *sfp=NULL;
+    char *token,buff[256];
+    int *bnum;
+    double gp;
+    blkinf_t *bi;
+    char type[8];
+
+    if ((sfp=fopen(setfile,"r")) == NULL) {
+        trace(2,"initgridsta : setting file open error :%s\n", setfile);
+        return 0;
+    }
+    while (fgets(buff,sizeof(buff),sfp)!=NULL) {
+        if (buff[0]=='#') continue;
+
+        strcpy(type,strtok(buff,","));
+        if (strncmp(type,"I",1)==0) {
+            bi=&lclblk->iblkinf[lclblk->inum];
+            bnum=&lclblk->inum;
+            bi->bs=ION_BLKSIZE;
+        }
+        else if (strncmp(type,"T",1)==0) {
+            bi=&lclblk->tblkinf[lclblk->tnum];
+            bnum=&lclblk->tnum;
+            bi->bs=TRP_BLKSIZE;
+        }else{
+            trace(2,"initgrid : grid setting file type error :%s\n", type);
+            continue;
+        }
+
+        /* init grid/station data */
+        bi->btype=btype;
+        token=strtok(NULL,",");
+        if(token == NULL){
+            trace(2,"initgrid : grid setting file format error : bn\n");
+            continue;
+        }
+        bi->bn=atoi(token);
+        if(btype==BTYPE_GRID) {
+            token=strtok(NULL,",");
+            if(token == NULL){
+                trace(2,"initgrid : grid setting file format error : gp\n");
+                continue;
+            }
+            gp=atoi(token);
+            if (gp==16){
+                bi->gpitch=0;
+            }
+            else if(gp==64){
+                bi->gpitch=1;
+            }
+            else{
+                trace(2,"initgrid : grid setting file grid pitch error :%d\n", gp);
+                continue;
+            }
+            token=strtok(NULL,",");
+            if(token == NULL){
+                trace(2,"initgrid : grid setting file format error : mask[0]\n");
+                continue;
+            }
+            bi->mask[0]=strtol(token, NULL, 0);
+            token=strtok(NULL,",");
+            if(token == NULL){
+                trace(2,"initgrid : grid setting file format error : mask[1]\n");
+                continue;
+            }
+            bi->mask[1]=strtol(token, NULL, 0);
+        }
+
+        initblkinf(bi);
+        *bnum+=1;
+        trace(3,"initgrid : read grid setting file [%s]\n",buff);
+    }
+    fclose(sfp);
+
+    return 1;
+}
 /* trop grid interpolation -----------------------------------------------------
 * interpolate tropospheric grid data based on the given time and stat data
 * args   : gtime_t gt         I    time
@@ -371,7 +389,7 @@ extern void grid_intp_trop(const gtime_t gt, const stat_t *stat,
         bi->mask[1]=0;
         memset(bi->gp,0x00,sizeof(bi->gp));
         bi->n=0;
-        for (j=0,n=0; j < GN(bi->gpitch); j++) { 
+        for (j=0,n=0; j < GN(bi->gpitch); j++) {
             trpp=&lclblk->tstat[i][j].trpd;
             if(lclblk->interp==MODE_PLANE){
                 if (!corr_trop_plane(stat, gt, bi->grid[j], lclblk->tdist,
@@ -392,11 +410,11 @@ extern void grid_intp_trop(const gtime_t gt, const stat_t *stat,
         bi->n=n;
         for (j=0;j<n;j++) {
             if (bi->gp[j]<32) {
-                bi->mask[0]|=1<<bi->gp[j]; 
+                bi->mask[0]|=1<<bi->gp[j];
             }
             else{
-                bi->mask[1]|=1<<(bi->gp[j]-32); 
-            }                
+                bi->mask[1]|=1<<(bi->gp[j]-32);
+            }
         }
     }
 }
@@ -428,7 +446,7 @@ extern void sta_sel_trop(const gtime_t time, const stat_t *stat,
             for (k=0;k<3;k++){
                 bi->grid[bi->n][k]=llh[k];
                 strp->site.ecef[k]=stat->strp[j].site.ecef[k];
-            } 
+            }
             memcpy(&strp->trpd,&stat->strp[j].trpd,sizeof(trp_t));
             bi->n++;
         }
@@ -444,7 +462,7 @@ extern void sta_sel_trop(const gtime_t time, const stat_t *stat,
 *          int *ncnt          O    number of counts
 *-----------------------------------------------------------------------------*/
 extern void grid_intp_iono(const gtime_t gt, const stat_t *stat,
-                           lclblock_t *lclblk, double maxres, int *nrej, 
+                           lclblock_t *lclblk, double maxres, int *nrej,
                            int *ncnt)
 {
     int i,j,k,n=0;
@@ -458,15 +476,15 @@ extern void grid_intp_iono(const gtime_t gt, const stat_t *stat,
         bi->mask[1]=0;
         memset(bi->gp,0x00,sizeof(bi->gp));
         bi->n=0;
-        for (j=0,n=0; j < GN(bi->gpitch); j++) { 
+        for (j=0,n=0; j < GN(bi->gpitch); j++) {
             if(lclblk->interp==MODE_PLANE) {
-                if (!corr_iono_plane(stat, gt, bi->grid[j], lclblk->idist, 
+                if (!corr_iono_plane(stat, gt, bi->grid[j], lclblk->idist,
                     lclblk->extp, ion, std, maxres, nrej, ncnt)) {
                     continue;
                 }
             }
             else {
-                if (!corr_iono_distwgt(stat, gt, bi->grid[j], NULL, 
+                if (!corr_iono_distwgt(stat, gt, bi->grid[j], NULL,
                     lclblk->idist, ion, std, maxres, nrej, ncnt)) {
                     continue;
                 }
@@ -488,11 +506,11 @@ extern void grid_intp_iono(const gtime_t gt, const stat_t *stat,
         bi->n=n;
         for (j=0;j<n;j++) {
             if (bi->gp[j]<32) {
-                bi->mask[0]|=1<<bi->gp[j]; 
+                bi->mask[0]|=1<<bi->gp[j];
             }
             else{
-                bi->mask[1]|=1<<(bi->gp[j]-32); 
-            }                
+                bi->mask[1]|=1<<(bi->gp[j]-32);
+            }
         }
     }
 }
@@ -514,7 +532,7 @@ extern void sta_sel_iono(const gtime_t gt, const stat_t *stat,
     for (i=0;i<lslblk->tnum;i++) {
         bi=&lslblk->iblkinf[i];
         bi->n=0;
-        
+
         for (j=0;j<stat->nsi;j++) {
             ecef2pos(stat->sion[j].site.ecef,llh);
             if (llh[0]>=bi->bpos[0])           continue;
@@ -538,7 +556,7 @@ extern void sta_sel_iono(const gtime_t gt, const stat_t *stat,
                     sion->iond[k].std=0.0;
                 }
             }
-            
+
             bi->n++;
         }
     }
@@ -549,7 +567,7 @@ extern void sta_sel_iono(const gtime_t gt, const stat_t *stat,
 *          int btype       I    block type (BTYPE_GRID or BTYPE_STA)
 *          stream_t *ostr  I    output stream
 *-----------------------------------------------------------------------------*/
-extern void output_lclcmb(rtcm_t *rtcm, int btype, stream_t *ostr)
+extern void output_lclcmb(rtcm_t *rtcm, int btype, struct stream_tag *ostr)
 {
     int i, j, basemt;
 

@@ -77,6 +77,9 @@
 #include "mrtklib/mrtk_bias_sinex.h"
 #include "mrtklib/mrtk_fcb.h"
 #include "mrtklib/mrtk_spp.h"
+#include "mrtklib/mrtk_madoca_local_corr.h"
+#include "mrtklib/mrtk_madoca_local_comb.h"
+#include "mrtklib/mrtk_madoca.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -336,12 +339,8 @@ extern "C" {
 
 #define TOW_LSB         30.0            /* epoch time 30s */
 #define MAXTRP          2880            /* all time data, (1hour/1day) */
-#define TYPE_TRP        0               /* data type of troposphere */
-#define TYPE_ION        1               /* data type of ionosphere */
-#define MAX_DIST_TRP    100.0           /* max distance for tropospheric correction (km) */
-#define MAX_DIST_ION    50.0            /* max distance for ionospheric correction (km) */
-#define MODE_PLANE      0               /* interpolation mode planer fitting */
-#define MODE_DISTWGT    1               /* interpolation mode weighted average of distance */
+/* TYPE_TRP, TYPE_ION, MAX_DIST_TRP, MAX_DIST_ION, MODE_PLANE, MODE_DISTWGT
+ * moved to mrtklib/mrtk_madoca_local_corr.h */
 
 #define SVR_CYCLE       10              /* server cycle (ms) */
 /* MAXSITES moved to mrtklib/mrtk_foundation.h */
@@ -357,13 +356,8 @@ extern "C" {
 
 #define RTCM3PREAMB     0xD3            /* rtcm ver.3 frame preamble */
 /* MAXBLK, MAXTRPSTA, MAXIONSTA, MAX_REJ_SITES moved to mrtklib/mrtk_foundation.h */
-#define BTYPE_GRID      0               /* block type grid */
-#define BTYPE_STA       1               /* block type station */
-
-#define ION_BLKSIZE     2.0             /* ionosphere block size */
-#define TRP_BLKSIZE     4.0             /* troposphere block size */
-
-#define MAX_STANAME     16              /* max length of station name */
+/* BTYPE_GRID, BTYPE_STA, ION_BLKSIZE, TRP_BLKSIZE, MAX_STANAME
+ * moved to mrtklib/mrtk_madoca_local_corr.h */
 
 #ifdef WIN32
 #define rtk_thread_t    HANDLE
@@ -503,7 +497,7 @@ typedef struct {        /* receiver raw data control type */
     void *rcv_data;     /* receiver dependent data */
 } raw_t;
 
-typedef struct {        /* stream type */
+typedef struct stream_tag {        /* stream type */
     int type;           /* type (STR_???) */
     int mode;           /* mode (STR_MODE_?) */
     int state;          /* state (-1:error,0:close,1:open) */
@@ -945,12 +939,7 @@ extern int showmsg(const char *format,...);
 extern void settspan(gtime_t ts, gtime_t te);
 extern void settime(gtime_t time);
 
-/* MADOCA-PPP functions ------------------------------------------------------*/
-extern void init_mcssr(const gtime_t gt);
-extern int decode_qzss_l6emsg(rtcm_t *rtcm);
-extern int input_qzssl6e(rtcm_t *rtcm, const uint8_t data);
-extern int input_qzssl6ef(rtcm_t *rtcm, FILE *fp);
-extern int mcssr_sel_biascode(const int sys, const int code);
+/* MADOCA-PPP functions moved to mrtklib/mrtk_madoca.h */
 
 
 
@@ -958,37 +947,9 @@ extern int mcssr_sel_biascode(const int sys, const int code);
 
 
 
-/* local correction data combination common functions ------------------------*/
-extern int initgridsta(const char *setfile, lclblock_t *lclblk, int btype);
-extern void grid_intp_trop(const gtime_t gt, const stat_t *stat,
-                           lclblock_t *lclblk);
-extern void sta_sel_trop(const gtime_t time, const stat_t *stat,
-                         lclblock_t *lslblk);
-extern void grid_intp_iono(const gtime_t gt, const stat_t *stat,
-                           lclblock_t *lclblk, double maxres, int *nrej, 
-                           int *ncnt);
-extern void sta_sel_iono(const gtime_t gt, const stat_t *stat,
-                         lclblock_t *lslblk);
-extern void output_lclcmb(rtcm_t *rtcm, int btype, stream_t *ostr);
-
-/* local correction common functions -----------------------------------------*/
-extern void initblkinf(blkinf_t *b);
-extern int getstano(stat_t *stat, const char* sta);
-extern int input_stat(sstat_t *sstat, const char data, char *buff, int *nbyte);
-extern int input_statf(sstat_t *sstat, FILE *fp, char *buff, int *nbyte);
-extern double posdist(const double *ecef1, const double *ecef2);
-extern int get_trop_sta(gtime_t time, const trp_t *trpd, double *trp,
-                        double *std);
-extern int get_iono_sta(gtime_t time, const ion_t *iond, double *ion,
-                        double *std, double *el);
-extern int corr_trop_distwgt(const stat_t *stat, gtime_t time,
-                             const double *llh,double maxdist, double *trp,
-                             double *std);
-extern int corr_iono_distwgt(const stat_t *stat, gtime_t time,
-                             const double *llh,const double *el, double maxdist,
-                             double *ion, double *std, double maxres, int *nrej,
-                             int *ncnt);
-extern int block2stat(rtcm_t *rtcm, stat_t *stat);
+/* local correction data combination common functions moved to mrtklib/mrtk_madoca_local_comb.h */
+/* local correction common functions moved to mrtklib/mrtk_madoca_local_corr.h */
+/* initblkinf moved to mrtklib/mrtk_rtcm.h */
 
 /* rtcm3 local correction message encoder/decoder functions ------------------*/
 extern int encode_lcltrop(rtcm_t *rtcm, int type);

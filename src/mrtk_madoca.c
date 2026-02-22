@@ -1,5 +1,5 @@
 /*------------------------------------------------------------------------------
-* mdccssr.c : QZSS L6E signal MADOCA-PPP Compact SSR message decode functions
+* mrtk_madoca.c : QZSS L6E signal MADOCA-PPP Compact SSR message decode functions
 *
 * Copyright (C) 2024-2025 TOSHIBA ELECTRONIC TECHNOLOGIES CORPORATION. All Rights Reserved.
 *
@@ -8,11 +8,37 @@
 *
 * history : 2024/02/01 1.0  new, for MALIB from TETC original tools.
 *           2025/08/31 1.1  add vendor type setting
-*                           change the sign of the phase bias correction to 
-*                           correspond to IS-QZSS-MDC (ref.[1]).modify Compact SSR decoding function regarding 
+*                           change the sign of the phase bias correction to
+*                           correspond to IS-QZSS-MDC (ref.[1]).modify Compact SSR decoding function regarding
 *                           undefined GNSS ID handling of Compact SSR.
+*           2026/02/22 1.2  moved to mrtklib (mrtk_madoca.c)
 *-----------------------------------------------------------------------------*/
-#include "rtklib.h"
+#include "mrtklib/mrtk_madoca.h"
+#include "mrtklib/mrtk_bits.h"
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <math.h>
+
+/* local system constants (duplicated to avoid rtklib.h dependency) ----------*/
+#define SYS_NONE    0x00
+#define SYS_GPS     0x01
+#define SYS_SBS     0x02
+#define SYS_GLO     0x04
+#define SYS_GAL     0x08
+#define SYS_QZS     0x10
+#define SYS_CMP     0x20
+#define SYS_IRN     0x40
+
+/* forward declarations (implemented in rtkcmn.c, resolved at link time) -----*/
+extern void trace(int level, const char *format, ...);
+extern int satno(int sys, int prn);
+extern void satno2id(int sat, char *id);
+extern double time2gpst(gtime_t t, int *week);
+extern gtime_t utc2gpst(gtime_t t);
+extern gtime_t timeget(void);
+extern char *time_str(gtime_t t, int n);
 
 /* constants -----------------------------------------------------------------*/
 
@@ -23,7 +49,7 @@
 #define L6DATA_BYTELEN            212   /* L6 message data part byte length */
 
 #define RTCM_MN_CSSR             4073   /* Compact SSR message number */
-                                    
+
 #define MCSSR_BYTELEN            1060   /* MADOCA-PPP message 5 frames byte length */
 
 #define MCSSR_ST_MASK               1   /* Compact SSR Mask */
@@ -192,7 +218,7 @@ static void adjweek(gtime_t *gt, double tow)
 {
     double tow_p;
     int week;
-    
+
     /* if no time, get cpu time */
     if (gt->time == 0) *gt = utc2gpst(timeget());
     tow_p = time2gpst(*gt, &week);
@@ -584,7 +610,7 @@ extern int decode_qzss_l6emsg(rtcm_t *rtcm)
     anme  =getbitu(rtcm->buff,i, 1); i+= 1; /* Applicable Nav. Msg. Ext.(0:Default,1:CNAV/CNAV2) */
     si    =getbitu(rtcm->buff,i, 1); i+= 1; /* Subframe Indicator(0:others,1:First Data) */
     alert =getbitu(rtcm->buff,i, 1); i+= 1; /* Alert Flag(1:Alert) */
-    
+
     trace(3,"decode_qzss_l6emsg : %s,preamb=0x%08X,prn=%d,type=0x%X(vid=%d,mgfid=%d,csid=%d,anme=%d,si=%d),alert=%d\n",
         time_str(_mcssr.gt,3),preamb,prn,type,vid,mgfid,csid,anme,si,alert);
 
@@ -663,7 +689,7 @@ extern int decode_qzss_l6emsg(rtcm_t *rtcm)
         time_str(_mcssr.gt,3),_mcssr.maxframe,_mcssr.frame);
     switch(_mcssr.frame){
         case 1: ibuff=  0; n = 8; mask = 0xFE; break;
-        case 2: ibuff=211; n = 1; mask = 0xFC; break; 
+        case 2: ibuff=211; n = 1; mask = 0xFC; break;
         case 3: ibuff=423; n = 2; mask = 0xF8; break;
         case 4: ibuff=635; n = 3; mask = 0xF0; break;
         case 5: ibuff=847; n = 4; mask = 0xE0; break;
@@ -683,7 +709,7 @@ extern int decode_qzss_l6emsg(rtcm_t *rtcm)
         mn = getbitu(_mcssr.buff,i,12); i+=12; /* Message Number */
         if(mn != RTCM_MN_CSSR) continue;
         st = getbitu(_mcssr.buff,i, 4); i+= 4; /* Message Sub Type ID */
-        if((st != MCSSR_ST_MASK) && (st != MCSSR_ST_OC) && 
+        if((st != MCSSR_ST_MASK) && (st != MCSSR_ST_OC) &&
            (st != MCSSR_ST_CC)   && (st != MCSSR_ST_CB) &&
            (st != MCSSR_ST_PB)   && (st != MCSSR_ST_URA)) continue;
         if (st == MCSSR_ST_MASK) {
@@ -735,7 +761,7 @@ extern int decode_qzss_l6emsg(rtcm_t *rtcm)
     _mcssr.maxframe = 0;
     trace(4,"decode_qzss_l6emsg : %s,frames=%d\n",
         time_str(_mcssr.gt,3),_mcssr.frame);
-    return ret; 
+    return ret;
 }
 
 /* initialize MADOCA-PPP CSSR control ----------------------------------------
@@ -763,7 +789,7 @@ extern void init_mcssr(const gtime_t gt)
 extern int input_qzssl6e(rtcm_t *rtcm, const uint8_t data)
 {
      trace(5,"input_qzssl6e: data=%02x,%d\n",data,rtcm->nbyte);
-    
+
     /* synchronize frame with L6 preamble */
     if      ((rtcm->nbyte == 0) && (data != 0x1A)) return 0;
     else if(((rtcm->nbyte == 1) && (data != 0xCF)) ||
@@ -792,9 +818,9 @@ extern int input_qzssl6e(rtcm_t *rtcm, const uint8_t data)
 extern int input_qzssl6ef(rtcm_t *rtcm, FILE *fp)
 {
     int i,data,ret;
-    
+
     trace(4,"input_qzssl6ef\n");
-    
+
     for (i=0;i<4096;i++) {
         if ((data=fgetc(fp))==EOF) return -2;
         if ((ret=input_qzssl6e(rtcm,(uint8_t)data))) return ret;

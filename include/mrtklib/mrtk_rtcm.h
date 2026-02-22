@@ -192,6 +192,12 @@ int encode_lcltrop(rtcm_t *rtcm, int type);
  */
 int encode_lcliono(rtcm_t *rtcm, int type);
 
+/**
+ * @brief Initialize block information struct.
+ * @param[in,out] b  Block information struct
+ */
+void initblkinf(blkinf_t *b);
+
 #ifdef __cplusplus
 }
 #endif
