@@ -1,5 +1,5 @@
 # cleanup_testdata.cmake
-# Removes files extracted from data/MALIB_OSS_data.tar.gz.
+# Removes test data files used by regression tests.
 # Called as a CTest FIXTURES_CLEANUP script.
 #
 # Usage:
@@ -18,6 +18,7 @@ set(extracted_files
     "${TESTDATA_DIR}/MALIB_OSS_data_l6e_240822-1100.sbf"
     "${TESTDATA_DIR}/MALIB_OSS_data_l6e_240822-1100.sbf.tag"
     "${TESTDATA_DIR}/igs14_20230719_KMD_add.atx"
+    "${TESTDATA_DIR}/COD0OPSFIN_20242350000_01D_01H_GIM.INX"
 )
 
 foreach(f IN LISTS extracted_files)
