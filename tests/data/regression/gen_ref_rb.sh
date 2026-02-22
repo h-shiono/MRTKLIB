@@ -4,21 +4,19 @@ set -euo pipefail
 # Generate Reference Receiver Code Biases using recvbias
 #
 # This script:
-#   1. Builds recvbias from source
-#   2. Extracts test data from data/MALIB_OSS_data.tar.gz
-#   3. Downloads IONEX TEC data from CODE (Univ. of Bern) if not already present
-#   4. Runs recvbias to generate reference receiver code biases
+#   1. Extracts test data from data/MALIB_OSS_data.tar.gz
+#   2. Downloads IONEX TEC data from CODE (Univ. of Bern) if not already present
+#   3. Runs recvbias to generate reference receiver code biases
 #
 # The TEC file is downloaded to data/ and cleaned up on exit.
 #
 # Usage:
-#   bash test/data/regression/gen_ref_rb.sh            # without trace
-#   bash test/data/regression/gen_ref_rb.sh --trace     # with trace (level 5)
-#   bash test/data/regression/gen_ref_rb.sh --trace 3   # with trace (custom level)
+#   bash tests/data/regression/gen_ref_rb.sh            # without trace
+#   bash tests/data/regression/gen_ref_rb.sh --trace     # with trace (level 5)
+#   bash tests/data/regression/gen_ref_rb.sh --trace 3   # with trace (custom level)
 #
-# Requirements:
-#   - curl (for downloading IONEX TEC file)
-#   - gunzip (for decompressing .gz file)
+# Requires cmake build to have been run first:
+#   cmake --preset default && cmake --build build
 
 # Parse options
 TRACE_OPTS=()
@@ -46,6 +44,14 @@ done
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 cd "$ROOT_DIR"
+
+# Locate cmake-built binary
+RECVBIAS="${ROOT_DIR}/build/recvbias"
+if [[ ! -x "$RECVBIAS" ]]; then
+    echo "ERROR: $RECVBIAS not found. Run 'cmake --preset default && cmake --build build' first." >&2
+    exit 1
+fi
+echo "Using binary: $RECVBIAS"
 
 # Test parameters
 #   Date: 2024-08-22 (DOY 235, GPS week 2328)
@@ -80,13 +86,6 @@ cleanup() {
 }
 trap cleanup EXIT
 
-# Build binary
-echo "Building recvbias..."
-make -C app/consapp/recvbias/gcc clean
-make -C app/consapp/recvbias/gcc
-mv app/consapp/recvbias/gcc/recvbias .
-CLEANUP_FILES+=(./recvbias)
-
 # Extract test data
 echo "Extracting data..."
 tar -xzf data/MALIB_OSS_data.tar.gz
@@ -118,7 +117,7 @@ nav=data/MALIB_OSS_data_obsnav_240822-1100.nav
 l6e=data/2024235L.209.l6
 
 # Output directory
-output_dir=test/data/regression
+output_dir=tests/data/regression
 mkdir -p "$output_dir"
 
 # Execute recvbias
@@ -127,7 +126,7 @@ mkdir -p "$output_dir"
 output="${output_dir}/MALIB_OSS_data_obsnav_240822-1100.rb.bia"
 echo "Running recvbias..."
 set +e
-./recvbias \
+"$RECVBIAS" \
     -td "$DATE" \
     -nav "$nav" \
     -tec "$TEC_FILE" \

@@ -4,9 +4,12 @@ set -euo pipefail
 # Generate Reference Position for PPP and SPP using rnx2rtkp
 #
 # Usage:
-#   bash test/data/regression/gen_ref_pp.sh            # without trace
-#   bash test/data/regression/gen_ref_pp.sh --trace     # with trace (level 5)
-#   bash test/data/regression/gen_ref_pp.sh --trace 3   # with trace (custom level)
+#   bash tests/data/regression/gen_ref_pp.sh            # without trace
+#   bash tests/data/regression/gen_ref_pp.sh --trace     # with trace (level 5)
+#   bash tests/data/regression/gen_ref_pp.sh --trace 3   # with trace (custom level)
+#
+# Requires cmake build to have been run first:
+#   cmake --preset default && cmake --build build
 
 # Parse options
 TRACE_OPTS=()
@@ -20,6 +23,14 @@ fi
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 cd "$ROOT_DIR"
+
+# Locate cmake-built binary
+RNX2RTKP="${ROOT_DIR}/build/rnx2rtkp"
+if [[ ! -x "$RNX2RTKP" ]]; then
+    echo "ERROR: $RNX2RTKP not found. Run 'cmake --preset default && cmake --build build' first." >&2
+    exit 1
+fi
+echo "Using binary: $RNX2RTKP"
 
 # Temporary files to clean up (populated as script runs)
 CLEANUP_FILES=()
@@ -37,13 +48,6 @@ cleanup() {
 }
 trap cleanup EXIT
 
-# Build binary
-echo "Building rnx2rtkp..."
-make -C app/consapp/rnx2rtkp/gcc clean
-make -C app/consapp/rnx2rtkp/gcc
-mv app/consapp/rnx2rtkp/gcc/rnx2rtkp .
-CLEANUP_FILES+=(./rnx2rtkp)
-
 # Extract test data
 echo "Extracting data..."
 tar -xzf data/MALIB_OSS_data.tar.gz
@@ -58,18 +62,18 @@ nav=data/MALIB_OSS_data_obsnav_240822-1100.nav
 l6e=data/2024235L.209.l6
 
 # Output directory
-output_dir=test/data/regression
+output_dir=tests/data/regression
 mkdir -p "$output_dir"
 
 # Execute rnx2rtkp (PPP)
 output="${output_dir}/MALIB_OSS_data_obsnav_240822-1100.pp.pos"
 echo "Running rnx2rtkp for PPP..."
-./rnx2rtkp -k rnx2rtkp.conf ${TRACE_OPTS[@]+"${TRACE_OPTS[@]}"} -o "$output" "$obs" "$nav" "$l6e"
+"$RNX2RTKP" -k rnx2rtkp.conf ${TRACE_OPTS[@]+"${TRACE_OPTS[@]}"} -o "$output" "$obs" "$nav" "$l6e"
 
 # Execute rnx2rtkp (SPP)
 output_spp="${output_dir}/MALIB_OSS_data_obsnav_240822-1100.pp.spp.pos"
 echo "Running rnx2rtkp for SPP..."
-./rnx2rtkp -p 0 -sys G,R,E,J ${TRACE_OPTS[@]+"${TRACE_OPTS[@]}"} -o "$output_spp" "$obs" "$nav"
+"$RNX2RTKP" -p 0 -sys G,R,E,J ${TRACE_OPTS[@]+"${TRACE_OPTS[@]}"} -o "$output_spp" "$obs" "$nav"
 
 # Verify outputs
 echo "Verifying outputs..."
