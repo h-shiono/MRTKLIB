@@ -76,7 +76,7 @@
 #include "mrtklib/mrtk_sol.h"
 #include "mrtklib/mrtk_bias_sinex.h"
 #include "mrtklib/mrtk_fcb.h"
-#include "mrtklib/mrtk_pntpos.h"
+#include "mrtklib/mrtk_spp.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -724,7 +724,7 @@ void traceb(int level, const uint8_t *p, int n);
 /* atmosphere model functions (ionmodel, ionmapf, ionppp, tropmodel, tropmapf)
  * are now declared in mrtklib/mrtk_atmos.h */
 /* readtec, iontec moved to mrtklib/mrtk_ionex.h */
-/* ionocorr, tropcorr moved to mrtklib/mrtk_pntpos.h */
+/* ionocorr, tropcorr moved to mrtklib/mrtk_atmos.h */
 
 /* readpcv, searchpcv, antmodel, antmodel_s moved to mrtklib/mrtk_antenna.h */
 /* sunmoonpos, sunmoonpos_eci moved to mrtklib/mrtk_astro.h */
@@ -864,7 +864,7 @@ int lambda_reduction(int n, const double *Q, double *Z);
 int lambda_search(int n, int m, const double *a, const double *Q, double *F,
                   double *s);
 
-/* pntpos moved to mrtklib/mrtk_pntpos.h */
+/* pntpos moved to mrtklib/mrtk_spp.h */
 
 /* precise positioning -------------------------------------------------------*/
 void rtkinit(rtk_t *rtk, const prcopt_t *opt);

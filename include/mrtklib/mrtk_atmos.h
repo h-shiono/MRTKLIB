@@ -19,6 +19,8 @@ extern "C" {
 #include "mrtklib/mrtk_foundation.h"
 #include "mrtklib/mrtk_time.h"
 #include "mrtklib/mrtk_coords.h"
+#include "mrtklib/mrtk_nav.h"
+#include "mrtklib/mrtk_opt.h"
 
 /*============================================================================
  * Ionosphere Models
@@ -82,6 +84,39 @@ double tropmodel(gtime_t time, const double *pos, const double *azel,
  */
 double tropmapf(gtime_t time, const double *pos, const double *azel,
                 double *mapfw);
+
+/*============================================================================
+ * Ionosphere / Troposphere Correction (multi-model dispatch)
+ *===========================================================================*/
+
+/**
+ * @brief Compute ionospheric correction.
+ * @param[in]  time     Time
+ * @param[in]  nav      Navigation data
+ * @param[in]  sat      Satellite number
+ * @param[in]  pos      Receiver position {lat,lon,h} (rad|m)
+ * @param[in]  azel     Azimuth/elevation angle {az,el} (rad)
+ * @param[in]  ionoopt  Ionospheric correction option (IONOOPT_???)
+ * @param[out] ion      Ionospheric delay (L1) (m)
+ * @param[out] var      Ionospheric delay (L1) variance (m^2)
+ * @return Status (1:ok, 0:error)
+ */
+int ionocorr(gtime_t time, const nav_t *nav, int sat, const double *pos,
+             const double *azel, int ionoopt, double *ion, double *var);
+
+/**
+ * @brief Compute tropospheric correction.
+ * @param[in]  time     Time
+ * @param[in]  nav      Navigation data
+ * @param[in]  pos      Receiver position {lat,lon,h} (rad|m)
+ * @param[in]  azel     Azimuth/elevation angle {az,el} (rad)
+ * @param[in]  tropopt  Tropospheric correction option (TROPOPT_???)
+ * @param[out] trp      Tropospheric delay (m)
+ * @param[out] var      Tropospheric delay variance (m^2)
+ * @return Status (1:ok, 0:error)
+ */
+int tropcorr(gtime_t time, const nav_t *nav, const double *pos,
+             const double *azel, int tropopt, double *trp, double *var);
 
 #ifdef __cplusplus
 }

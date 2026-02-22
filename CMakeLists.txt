@@ -46,7 +46,7 @@ add_library(mrtklib STATIC
     src/mrtk_sol.c
     src/mrtk_bias_sinex.c
     src/mrtk_fcb.c
-    src/mrtk_pntpos.c
+    src/mrtk_spp.c
 )
 target_include_directories(mrtklib PUBLIC include)
 set_target_properties(mrtklib PROPERTIES C_STANDARD 11 C_STANDARD_REQUIRED ON)

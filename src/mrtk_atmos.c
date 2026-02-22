@@ -6,6 +6,8 @@
  * extracted from rtkcmn.c with zero algorithmic changes (pure cut-and-paste).
  */
 #include "mrtklib/mrtk_atmos.h"
+#include "mrtklib/mrtk_sbas.h"
+#include "mrtklib/mrtk_ionex.h"
 
 #include <math.h>
 
@@ -262,4 +264,93 @@ extern double tropmapf(gtime_t time, const double pos[], const double azel[],
 #else
     return nmf(time,pos,azel,mapfw); /* NMF */
 #endif
+}
+
+/*============================================================================
+ * Ionosphere / Troposphere Correction (multi-model dispatch)
+ *===========================================================================*/
+
+#define SQR(x)      ((x)*(x))
+#define ERR_ION     5.0         /* ionospheric delay Std (m) */
+#define ERR_TROP    3.0         /* tropspheric delay Std (m) */
+#define ERR_SAAS    0.3         /* Saastamoinen model error Std (m) */
+#define ERR_BRDCI   0.5         /* broadcast ionosphere model error factor */
+#define REL_HUMI    0.7         /* relative humidity for Saastamoinen model */
+
+/* ionospheric correction ------------------------------------------------------
+* compute ionospheric correction
+* args   : gtime_t time     I   time
+*          nav_t  *nav      I   navigation data
+*          int    sat       I   satellite number
+*          double *pos      I   receiver position {lat,lon,h} (rad|m)
+*          double *azel     I   azimuth/elevation angle {az,el} (rad)
+*          int    ionoopt   I   ionospheric correction option (IONOOPT_???)
+*          double *ion      O   ionospheric delay (L1) (m)
+*          double *var      O   ionospheric delay (L1) variance (m^2)
+* return : status(1:ok,0:error)
+*-----------------------------------------------------------------------------*/
+int ionocorr(gtime_t time, const nav_t *nav, int sat, const double *pos,
+                    const double *azel, int ionoopt, double *ion, double *var)
+{
+    trace(4,"ionocorr: time=%s opt=%d sat=%2d pos=%.3f %.3f azel=%.3f %.3f\n",
+          time_str(time,3),ionoopt,sat,pos[0]*R2D,pos[1]*R2D,azel[0]*R2D,
+          azel[1]*R2D);
+
+    /* GPS broadcast ionosphere model */
+    if (ionoopt==IONOOPT_BRDC) {
+        *ion=ionmodel(time,nav->ion_gps,pos,azel);
+        *var=SQR(*ion*ERR_BRDCI);
+        return 1;
+    }
+    /* SBAS ionosphere model */
+    if (ionoopt==IONOOPT_SBAS) {
+        return sbsioncorr(time,nav,pos,azel,ion,var);
+    }
+    /* IONEX TEC model */
+    if (ionoopt==IONOOPT_TEC) {
+        return iontec(time,nav,pos,azel,1,ion,var);
+    }
+    /* QZSS broadcast ionosphere model */
+    if (ionoopt==IONOOPT_QZS&&norm(nav->ion_qzs,8)>0.0) {
+        *ion=ionmodel(time,nav->ion_qzs,pos,azel);
+        *var=SQR(*ion*ERR_BRDCI);
+        return 1;
+    }
+    *ion=0.0;
+    *var=ionoopt==IONOOPT_OFF?SQR(ERR_ION):0.0;
+    return 1;
+}
+/* tropospheric correction -----------------------------------------------------
+* compute tropospheric correction
+* args   : gtime_t time     I   time
+*          nav_t  *nav      I   navigation data
+*          double *pos      I   receiver position {lat,lon,h} (rad|m)
+*          double *azel     I   azimuth/elevation angle {az,el} (rad)
+*          int    tropopt   I   tropospheric correction option (TROPOPT_???)
+*          double *trp      O   tropospheric delay (m)
+*          double *var      O   tropospheric delay variance (m^2)
+* return : status(1:ok,0:error)
+*-----------------------------------------------------------------------------*/
+int tropcorr(gtime_t time, const nav_t *nav, const double *pos,
+                    const double *azel, int tropopt, double *trp, double *var)
+{
+    trace(4,"tropcorr: time=%s opt=%d pos=%.3f %.3f azel=%.3f %.3f\n",
+          time_str(time,3),tropopt,pos[0]*R2D,pos[1]*R2D,azel[0]*R2D,
+          azel[1]*R2D);
+
+    /* Saastamoinen model */
+    if (tropopt==TROPOPT_SAAS||tropopt==TROPOPT_EST||tropopt==TROPOPT_ESTG) {
+        *trp=tropmodel(time,pos,azel,REL_HUMI);
+        *var=SQR(ERR_SAAS/(sin(azel[1])+0.1));
+        return 1;
+    }
+    /* SBAS (MOPS) troposphere model */
+    if (tropopt==TROPOPT_SBAS) {
+        *trp=sbstropcorr(time,pos,azel,var);
+        return 1;
+    }
+    /* no correction */
+    *trp=0.0;
+    *var=tropopt==TROPOPT_OFF?SQR(ERR_TROP):0.0;
+    return 1;
 }
