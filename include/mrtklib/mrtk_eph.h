@@ -191,6 +191,27 @@ void seph2pos(gtime_t time, const seph_t *seph, double *rs, double *dts,
  */
 void alm2pos(gtime_t time, const alm_t *alm, double *rs, double *dts);
 
+/*============================================================================
+ * Ephemeris Selection Functions
+ *===========================================================================*/
+
+/**
+ * @brief Set selected satellite ephemeris for multiple ones.
+ * @param[in] sys  Satellite system (SYS_???)
+ * @param[in] sel  Selection of ephemeris
+ *                   GPS,QZS : 0:LNAV ,1:CNAV  (default: LNAV)
+ *                   GAL     : 0:I/NAV,1:F/NAV (default: I/NAV)
+ *                   others  : undefined
+ */
+void setseleph(int sys, int sel);
+
+/**
+ * @brief Get selected satellite ephemeris.
+ * @param[in] sys  Satellite system (SYS_???)
+ * @return Selected ephemeris (refer setseleph())
+ */
+int getseleph(int sys);
+
 #ifdef __cplusplus
 }
 #endif

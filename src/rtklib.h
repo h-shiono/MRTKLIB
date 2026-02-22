@@ -485,24 +485,7 @@ typedef struct {        /* NORAD TLE (two line element) type */
     tled_t *data;       /* NORAD TLE data */
 } tle_t;
 
-/* tec_t..nav_t and all dependent types moved to mrtklib/mrtk_nav.h */
-typedef struct {        /* station parameter type */
-    char name   [MAXANT]; /* marker name */
-    char marker [MAXANT]; /* marker number */
-    char antdes [MAXANT]; /* antenna descriptor */
-    char antsno [MAXANT]; /* antenna serial number */
-    char rectype[MAXANT]; /* receiver type descriptor */
-    char recver [MAXANT]; /* receiver firmware version */
-    char recsno [MAXANT]; /* receiver serial number */
-    int antsetup;       /* antenna setup id */
-    int itrf;           /* ITRF realization year */
-    int deltype;        /* antenna delta type (0:enu,1:xyz) */
-    double pos[3];      /* station position (ecef) (m) */
-    double del[3];      /* antenna position delta (e/n/u or x/y/z) (m) */
-    double hgt;         /* antenna height (m) */
-    int glo_cp_align;   /* GLONASS code-phase alignment (0:no,1:yes) */
-    double glo_cp_bias[4]; /* GLONASS code-phase biases {1C,1P,2C,2P} (m) */
-} sta_t;
+/* tec_t..nav_t, sta_t and all dependent types moved to mrtklib/mrtk_nav.h */
 
 typedef struct {        /* solution type */
     gtime_t time;       /* time (GPST) */
@@ -1151,21 +1134,10 @@ int open_rnxctr(rnxctr_t *rnx, FILE *fp);
 int input_rnxctr(rnxctr_t *rnx, FILE *fp);
 
 /* ephemeris and clock functions ---------------------------------------------*/
-/* eph2clk, geph2clk, seph2clk, eph2pos, geph2pos, seph2pos, alm2pos
-   moved to mrtklib/mrtk_eph.h */
-int peph2pos(gtime_t time, int sat, const nav_t *nav, int opt, double *rs,
-             double *dts, double *var);
-void satantoff(gtime_t time, const double *rs, int sat, const nav_t *nav,
-               double *dant);
-int  satpos(gtime_t time, gtime_t teph, int sat, int ephopt, const nav_t *nav,
-            double *rs, double *dts, double *var, int *svh);
-void satposs(gtime_t time, const obsd_t *obs, int n, const nav_t *nav,
-             int sateph, double *rs, double *dts, double *var, int *svh);
-void setseleph(int sys, int sel);
-int getseleph(int sys);
-void readsp3(const char *file, nav_t *nav, int opt);
-int readsap(const char *file, gtime_t time, nav_t *nav);
-int readdcb(const char *file, nav_t *nav, const sta_t *sta);
+/* eph2clk, geph2clk, seph2clk, eph2pos, geph2pos, seph2pos, alm2pos,
+   setseleph, getseleph moved to mrtklib/mrtk_eph.h */
+/* satpos, satposs, peph2pos, satantoff, readsp3, readsap, readdcb
+   moved to mrtklib/mrtk_nav.h */
 
 /* NORAD TLE (two line element) functions ------------------------------------*/
 int tle_read(const char *file, tle_t *tle);

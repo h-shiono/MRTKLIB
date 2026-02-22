@@ -46,10 +46,10 @@ target_link_libraries(mrtklib PUBLIC m)
 # Contains the union of all src/ files used by rnx2rtkp and rtkrcv.
 # The linker pulls only the object files referenced by each executable.
 add_library(rtklib STATIC
-    src/biassnx.c       src/ephemeris.c     src/geoid.c         src/ionex.c
+    src/biassnx.c       src/geoid.c         src/ionex.c
     src/lambda.c        src/lclcmn.c        src/mdccssr.c       src/options.c
     src/pntpos.c        src/ppp.c           src/ppp_ar.c
-    src/preceph.c       src/rcvraw.c        src/readfcb.c       src/rinex.c
+    src/rcvraw.c        src/readfcb.c       src/rinex.c
     src/rtcm.c          src/rtcm2.c         src/rtcm3.c         src/rtcm3lcl.c
     src/rtcm3e.c        src/rtkcmn.c        src/rtkpos.c        src/rtksvr.c
     src/sbas.c          src/solution.c      src/stream.c        src/tides.c

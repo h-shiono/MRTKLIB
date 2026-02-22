@@ -283,6 +283,28 @@ typedef struct {        /* block type */
 } lclblock_t;
 
 /*============================================================================
+ * Station Parameter Type
+ *===========================================================================*/
+
+typedef struct {        /* station parameter type */
+    char name   [MAXANT]; /* marker name */
+    char marker [MAXANT]; /* marker number */
+    char antdes [MAXANT]; /* antenna descriptor */
+    char antsno [MAXANT]; /* antenna serial number */
+    char rectype[MAXANT]; /* receiver type descriptor */
+    char recver [MAXANT]; /* receiver firmware version */
+    char recsno [MAXANT]; /* receiver serial number */
+    int antsetup;       /* antenna setup id */
+    int itrf;           /* ITRF realization year */
+    int deltype;        /* antenna delta type (0:enu,1:xyz) */
+    double pos[3];      /* station position (ecef) (m) */
+    double del[3];      /* antenna position delta (e/n/u or x/y/z) (m) */
+    double hgt;         /* antenna height (m) */
+    int glo_cp_align;   /* GLONASS code-phase alignment (0:no,1:yes) */
+    double glo_cp_bias[4]; /* GLONASS code-phase biases {1C,1P,2C,2P} (m) */
+} sta_t;
+
+/*============================================================================
  * Navigation Data Type (central aggregation)
  *===========================================================================*/
 
@@ -407,6 +429,93 @@ int savenav(const char *file, const nav_t *nav);
  *                     0x08:peph, 0x10:pclk, 0x20:alm, 0x40:tec)
  */
 void freenav(nav_t *nav, int opt);
+
+/*============================================================================
+ * Ephemeris and Clock Functions (nav_t-dependent)
+ *===========================================================================*/
+
+/**
+ * @brief Compute satellite position, velocity and clock.
+ * @param[in]  time    Time (GPST)
+ * @param[in]  teph    Time to select ephemeris (GPST)
+ * @param[in]  sat     Satellite number
+ * @param[in]  ephopt  Ephemeris option (EPHOPT_???)
+ * @param[in]  nav     Navigation data
+ * @param[out] rs      Sat position and velocity (ecef) {x,y,z,vx,vy,vz} (m|m/s)
+ * @param[out] dts     Sat clock {bias,drift} (s|s/s)
+ * @param[out] var     Sat position and clock error variance (m^2)
+ * @param[out] svh     Sat health flag (-1:correction not available)
+ * @return Status (1:ok, 0:error)
+ */
+int satpos(gtime_t time, gtime_t teph, int sat, int ephopt,
+           const nav_t *nav, double *rs, double *dts, double *var,
+           int *svh);
+
+/**
+ * @brief Compute satellite positions, velocities and clocks.
+ * @param[in]  teph    Time to select ephemeris (GPST)
+ * @param[in]  obs     Observation data
+ * @param[in]  n       Number of observation data
+ * @param[in]  nav     Navigation data
+ * @param[in]  ephopt  Ephemeris option (EPHOPT_???)
+ * @param[out] rs      Satellite positions and velocities (ecef)
+ * @param[out] dts     Satellite clocks
+ * @param[out] var     Sat position and clock error variances (m^2)
+ * @param[out] svh     Sat health flag (-1:correction not available)
+ */
+void satposs(gtime_t teph, const obsd_t *obs, int n, const nav_t *nav,
+             int ephopt, double *rs, double *dts, double *var, int *svh);
+
+/**
+ * @brief Compute satellite position/clock with precise ephemeris/clock.
+ * @param[in]  time  Time (GPST)
+ * @param[in]  sat   Satellite number
+ * @param[in]  nav   Navigation data
+ * @param[in]  opt   Sat position option (0:center of mass, 1:antenna phase center)
+ * @param[out] rs    Sat position and velocity (ecef) {x,y,z,vx,vy,vz} (m|m/s)
+ * @param[out] dts   Sat clock {bias,drift} (s|s/s)
+ * @param[out] var   Sat position and clock error variance (m^2) (NULL: no output)
+ * @return Status (1:ok, 0:error or data outage)
+ */
+int peph2pos(gtime_t time, int sat, const nav_t *nav, int opt,
+             double *rs, double *dts, double *var);
+
+/**
+ * @brief Compute satellite antenna phase center offset in ecef.
+ * @param[in]  time  Time (GPST)
+ * @param[in]  rs    Satellite position and velocity (ecef) {x,y,z,vx,vy,vz} (m|m/s)
+ * @param[in]  sat   Satellite number
+ * @param[in]  nav   Navigation data
+ * @param[out] dant  Satellite antenna phase center offset (ecef) {dx,dy,dz} (m)
+ */
+void satantoff(gtime_t time, const double *rs, int sat, const nav_t *nav,
+               double *dant);
+
+/**
+ * @brief Read sp3 precise ephemeris file.
+ * @param[in]  file  SP3 precise ephemeris file (wild-card * expanded)
+ * @param[in,out] nav  Navigation data
+ * @param[in]  opt   Options (1:only observed + 2:only predicted + 4:not combined)
+ */
+void readsp3(const char *file, nav_t *nav, int opt);
+
+/**
+ * @brief Read satellite antenna parameters.
+ * @param[in]  file  Antenna parameter file
+ * @param[in]  time  Time (GPST)
+ * @param[in,out] nav  Navigation data
+ * @return Status (1:ok, 0:error)
+ */
+int readsap(const char *file, gtime_t time, nav_t *nav);
+
+/**
+ * @brief Read differential code bias (DCB) parameters.
+ * @param[in]  file  DCB parameters file (wild-card * expanded)
+ * @param[in,out] nav  Navigation data
+ * @param[in]  sta   Station info data to import receiver DCB (NULL: no use)
+ * @return Status (1:ok, 0:error)
+ */
+int readdcb(const char *file, nav_t *nav, const sta_t *sta);
 
 #ifdef __cplusplus
 }
