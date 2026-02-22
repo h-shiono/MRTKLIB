@@ -64,34 +64,25 @@ add_library(mrtklib STATIC
     src/rcv/mrtk_rcv_ss2.c       src/rcv/mrtk_rcv_ublox.c
     src/mrtk_stream.c
     src/mrtk_rtksvr.c
+    src/mrtk_trace.c
 )
 target_include_directories(mrtklib PUBLIC include)
 set_target_properties(mrtklib PROPERTIES C_STANDARD 11 C_STANDARD_REQUIRED ON)
 # Override the global -ansi (= -std=c90) for this target: -std=c11 wins when placed after.
 target_compile_options(mrtklib PRIVATE -std=c11)
 target_compile_definitions(mrtklib PUBLIC
-    ENAGLO ENAGAL ENAQZS ENACMP ENAIRN NFREQ=5 NEXOBS=5
+    ENAGLO ENAGAL ENAQZS ENACMP ENAIRN NFREQ=5 NEXOBS=5 TRACE
 )
 target_link_libraries(mrtklib PUBLIC m)
-
-# ── Core static library (legacy RTKLIB, C89/-ansi) ────────────────────────────
-# Contains the union of all src/ files used by rnx2rtkp and rtkrcv.
-# The linker pulls only the object files referenced by each executable.
-add_library(rtklib STATIC
-    src/rtkcmn.c
-)
-target_include_directories(rtklib PUBLIC src)
-target_compile_definitions(rtklib PUBLIC TRACE)
-target_link_libraries(rtklib PUBLIC m mrtklib)
 if(UNIX AND NOT APPLE)
-    target_link_libraries(rtklib PUBLIC rt)
+    target_link_libraries(mrtklib PUBLIC rt)
 endif()
 
 # ── rnx2rtkp ─────────────────────────────────────────────────────────────────
 add_executable(rnx2rtkp
     apps/rnx2rtkp/rnx2rtkp.c
 )
-target_link_libraries(rnx2rtkp PRIVATE rtklib)
+target_link_libraries(rnx2rtkp PRIVATE mrtklib)
 
 # ── rtkrcv ───────────────────────────────────────────────────────────────────
 add_executable(rtkrcv
@@ -100,14 +91,14 @@ add_executable(rtkrcv
 )
 target_include_directories(rtkrcv PRIVATE apps/rtkrcv)
 target_compile_definitions(rtkrcv PRIVATE PROGNAME=\"rtkrcv\" SVR_REUSEADDR)
-target_link_libraries(rtkrcv PRIVATE rtklib pthread)
+target_link_libraries(rtkrcv PRIVATE mrtklib pthread)
 
 # ── recvbias ──────────────────────────────────────────────────────────────────
 add_executable(recvbias
     apps/recvbias/recvbias.c
 )
 target_compile_definitions(recvbias PRIVATE PROGNAME=\"recvbias\")
-target_link_libraries(recvbias PRIVATE rtklib)
+target_link_libraries(recvbias PRIVATE mrtklib)
 
 # ── Install ───────────────────────────────────────────────────────────────────
 # cmake --install build  →  copies binaries to bin/ (matches make install)

@@ -21,10 +21,52 @@ extern "C" {
 #include "mrtklib/mrtk_time.h"
 #include "mrtklib/mrtk_nav.h"
 #include "mrtklib/mrtk_rtcm.h"
+#include "mrtklib/mrtk_stream.h"
 #include "mrtklib/mrtk_madoca_local_corr.h"
 
-/* forward-declare stream_t (defined in rtklib.h, not yet migrated) */
-struct stream_tag;
+/*============================================================================
+ * Input Monitor Stream Type
+ *===========================================================================*/
+
+typedef struct {        /* input monitor stream type */
+    char sta[32];       /* station */
+    int  fmt;           /* format */
+    int  stat;          /* input stream status */
+    int  dis;           /* disable flag */
+    int  type_str;      /* input stream type */
+    int  type_log;      /* log stream type */
+    char path_str[MAXSTRPATH]; /* input stream path */
+    char path_log[MAXSTRPATH]; /* log stream path */
+    stream_t str;       /* input stream */
+    stream_t log;       /* log stream */
+    gtime_t tcon;       /* connect time */
+    gtime_t time;       /* time tag of last stat data */
+    unsigned int cnt;   /* input data count {stat} */
+    sstat_t sstat;      /* stat correction */
+    uint8_t buff[4096]; /* stat message buffer */
+    int nbyte;          /* number of stat message */
+    double rr[3];       /* position(ecef) */
+} instat_t;
+
+/*============================================================================
+ * Stream Local Combination Server Type
+ *===========================================================================*/
+
+typedef struct {        /* stream local combination server */
+    gtime_t ts;         /* update time */
+    int btype;          /* block type */
+    int state;          /* state (0:stop,1:run) */
+    int navsys;         /* system nav data */
+    int ninp;           /* number of input monitor streams */
+    unsigned int cnt;   /* count {rtcm} */
+    instat_t ins[MAXSITES]; /* input stat streams */
+    stat_t stat;        /* input of iono/trop corrections */
+    rtcm_t rtcm;        /* output of iono/trop corrections */
+    stream_t ostr;      /* output stream for combined data */
+    stream_t olog;      /* log stream for combined data */
+    rtk_thread_t thread;/* server thread */
+    rtk_lock_t lock;    /* mutex for lock */
+} lclcmbsvr_t;
 
 /*============================================================================
  * Local Correction Data Combination Functions
@@ -84,7 +126,7 @@ void sta_sel_iono(const gtime_t gt, const stat_t *stat,
  * @param[in]     btype  Block type (BTYPE_GRID or BTYPE_STA)
  * @param[in]     ostr   Output stream
  */
-void output_lclcmb(rtcm_t *rtcm, int btype, struct stream_tag *ostr);
+void output_lclcmb(rtcm_t *rtcm, int btype, stream_t *ostr);
 
 #ifdef __cplusplus
 }
