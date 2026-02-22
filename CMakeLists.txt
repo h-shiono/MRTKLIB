@@ -56,9 +56,16 @@ target_include_directories(rtkrcv PRIVATE app/consapp/rtkrcv)
 target_compile_definitions(rtkrcv PRIVATE PROGNAME=\"rtkrcv\" SVR_REUSEADDR)
 target_link_libraries(rtkrcv PRIVATE mrtklib pthread)
 
+# ── recvbias ──────────────────────────────────────────────────────────────────
+add_executable(recvbias
+    app/consapp/recvbias/recvbias.c
+)
+target_compile_definitions(recvbias PRIVATE PROGNAME=\"recvbias\")
+target_link_libraries(recvbias PRIVATE mrtklib)
+
 # ── Install ───────────────────────────────────────────────────────────────────
 # cmake --install build  →  copies binaries to bin/ (matches make install)
-install(TARGETS rnx2rtkp rtkrcv RUNTIME DESTINATION bin)
+install(TARGETS rnx2rtkp rtkrcv recvbias RUNTIME DESTINATION bin)
 
 # ── Regression tests ──────────────────────────────────────────────────────────
 # Run with: ctest --test-dir build --output-on-failure
@@ -77,6 +84,17 @@ add_test(NAME regression_setup
 set_tests_properties(regression_setup PROPERTIES
     FIXTURES_SETUP  regression_data
     TIMEOUT         30
+)
+
+# ── Fixture: download IONEX TEC file (for recvbias) ──────────────────────────
+add_test(NAME regression_download_tec
+    COMMAND ${CMAKE_COMMAND}
+        -DTESTDATA_DIR=${_TESTDATA}
+        -P ${_TESTCMAKE}/download_tec.cmake
+)
+set_tests_properties(regression_download_tec PROPERTIES
+    FIXTURES_SETUP  regression_data
+    TIMEOUT         60
 )
 
 add_test(NAME regression_cleanup
@@ -141,6 +159,40 @@ set_tests_properties(rnx2rtkp_spp_check PROPERTIES
     DEPENDS           rnx2rtkp_spp
     FIXTURES_REQUIRED regression_data
     LABELS            "regression;spp"
+)
+
+# ── recvbias regression ──────────────────────────────────────────────────────
+# Note: recvbias returns exit code 1 on success (non-standard).
+# The bash wrapper normalises this so CTest sees exit code 0.
+add_test(NAME recvbias_rb
+    COMMAND bash -c "\"$@\"; rc=$?; [ $rc -eq 1 ] && exit 0 || exit $rc" _
+        $<TARGET_FILE:recvbias>
+        -td 2024/8/22
+        -nav ${_TESTDATA}/MALIB_OSS_data_obsnav_240822-1100.nav
+        -tec ${_TESTDATA}/COD0OPSFIN_20242350000_01D_01H_GIM.INX
+        -scb ${_TESTDATA}/2024235L.209.l6
+        -pos -3961440.433,3308948.812,3734425.963
+        -el 30
+        -out ${CMAKE_BINARY_DIR}/out_rb.bia
+        ${_TESTDATA}/MALIB_OSS_data_obsnav_240822-1100.obs
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+set_tests_properties(recvbias_rb PROPERTIES
+    FIXTURES_REQUIRED regression_data
+    TIMEOUT           120
+    LABELS            "regression;recvbias"
+)
+
+add_test(NAME recvbias_rb_check
+    COMMAND ${CMAKE_COMMAND}
+        -DOUTPUT=${CMAKE_BINARY_DIR}/out_rb.bia
+        -DREFERENCE=${_REFDATA}/MALIB_OSS_data_obsnav_240822-1100.rb.bia
+        -P ${_TESTCMAKE}/compare_bia.cmake
+)
+set_tests_properties(recvbias_rb_check PROPERTIES
+    DEPENDS           recvbias_rb
+    FIXTURES_REQUIRED regression_data
+    LABELS            "regression;recvbias"
 )
 
 # ── rtkrcv RT-PPP regression ──────────────────────────────────────────────────

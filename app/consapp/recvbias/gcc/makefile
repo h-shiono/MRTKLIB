@@ -9,7 +9,13 @@ OPTS  = -DTRACE -DENAGLO -DENAQZS -DENAGAL -DENACMP -DENAIRN -DNFREQ=5 -DNEXOBS=
 LIBS  =
 
 CFLAGS = -Wall -O3 -ansi -pedantic -Wno-unused-but-set-variable -I$(SRC) $(OPTS) -g -O -std=c99
-LDLIBS = $(LIBS) -lm -lrt
+LDLIBS = $(LIBS) -lm
+
+# Linux requires -lrt for clock_gettime; macOS does not
+UNAME_S := $(shell uname -s)
+ifeq ($(UNAME_S),Linux)
+    LDLIBS += -lrt
+endif
 
 all        : $(PROGNAME)
 $(PROGNAME): $(PROGNAME).o biassnx.o ephemeris.o ionex.o lclcmn.o mdccssr.o
