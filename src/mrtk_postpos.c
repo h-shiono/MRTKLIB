@@ -1,5 +1,5 @@
 /*------------------------------------------------------------------------------
-* postpos.c : post-processing positioning
+* mrtk_postpos.c : post-processing positioning (mrtklib module)
 *
 * Copyright (C) 2024-2025 Japan Aerospace Exploration Agency. All Rights Reserved.
 * Copyright (C) 2007-2021 by T.TAKASU, All rights reserved.
@@ -52,7 +52,64 @@
 *           2025/02/06  1.30 update read solution status files
 *                            add support to read local correction file
 *-----------------------------------------------------------------------------*/
-#include "rtklib.h"
+/* mrtklib modular headers */
+#include "mrtklib/mrtk_postpos.h"
+#include "mrtklib/mrtk_obs.h"
+#include "mrtklib/mrtk_nav.h"
+#include "mrtklib/mrtk_sol.h"
+#include "mrtklib/mrtk_rtkpos.h"
+#include "mrtklib/mrtk_ppp.h"
+#include "mrtklib/mrtk_spp.h"
+#include "mrtklib/mrtk_mat.h"
+#include "mrtklib/mrtk_coords.h"
+#include "mrtklib/mrtk_bits.h"
+#include "mrtklib/mrtk_sys.h"
+#include "mrtklib/mrtk_rinex.h"
+#include "mrtklib/mrtk_antenna.h"
+#include "mrtklib/mrtk_station.h"
+#include "mrtklib/mrtk_tides.h"
+#include "mrtklib/mrtk_geoid.h"
+#include "mrtklib/mrtk_ionex.h"
+#include "mrtklib/mrtk_peph.h"
+#include "mrtklib/mrtk_sbas.h"
+#include "mrtklib/mrtk_rtcm.h"
+#include "mrtklib/mrtk_madoca.h"
+#include "mrtklib/mrtk_madoca_local_corr.h"
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdarg.h>
+#include <string.h>
+#include <math.h>
+#include <ctype.h>
+
+/* local constants (duplicated from rtklib.h to avoid rtklib.h dependency) ----*/
+#define R2D         (180.0/3.1415926535897932384626433832795)
+#define D2R         (3.1415926535897932384626433832795/180.0)
+
+#define COMMENTH    "%"                 /* comment line indicator for solution */
+
+#define SOFTNAME    "MALIB"             /* software name */
+#define VER_MALIB   "1.1.0"             /* MALIB version */
+
+#ifndef PROGNAME
+#define PROGNAME    "rnx2rtkp"          /* default program name */
+#endif
+
+#ifdef WIN32
+#define FILEPATHSEP '\\'
+#else
+#define FILEPATHSEP '/'
+#endif
+
+/* forward declarations for functions still in legacy rtkcmn.c ----------------*/
+extern void trace   (int level, const char *format, ...);
+extern void traceopen (const char *file);
+extern void traceclose(void);
+extern void tracelevel(int level);
+extern int  showmsg (const char *format, ...);
+extern void settspan(gtime_t ts, gtime_t te);
+extern void settime (gtime_t time);
 
 #define MIN(x,y)    ((x)<(y)?(x):(y))
 #define SQRT(x)     ((x)<=0.0||(x)!=(x)?0.0:sqrt(x))

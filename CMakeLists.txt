@@ -54,6 +54,7 @@ add_library(mrtklib STATIC
     src/mrtk_ppp_ar.c
     src/mrtk_rtkpos.c
     src/mrtk_ppp.c
+    src/mrtk_postpos.c
 )
 target_include_directories(mrtklib PUBLIC include)
 set_target_properties(mrtklib PROPERTIES C_STANDARD 11 C_STANDARD_REQUIRED ON)
@@ -84,12 +85,9 @@ if(UNIX AND NOT APPLE)
 endif()
 
 # ── rnx2rtkp ─────────────────────────────────────────────────────────────────
-# postpos.c uses PROGNAME so it must be compiled as part of this target
 add_executable(rnx2rtkp
     apps/rnx2rtkp/rnx2rtkp.c
-    src/postpos.c
 )
-target_compile_definitions(rnx2rtkp PRIVATE PROGNAME=\"rnx2rtkp\")
 target_link_libraries(rnx2rtkp PRIVATE rtklib)
 
 # ── rtkrcv ───────────────────────────────────────────────────────────────────

@@ -84,6 +84,7 @@
 #include "mrtklib/mrtk_rtkpos.h"
 #include "mrtklib/mrtk_ppp_ar.h"
 #include "mrtklib/mrtk_ppp.h"
+#include "mrtklib/mrtk_postpos.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -842,10 +843,7 @@ void strsetproxy(const char *addr);
 
 /* pppos/pppnx/pppoutstat moved to mrtklib/mrtk_ppp.h */
 
-/* post-processing positioning -----------------------------------------------*/
-int postpos(gtime_t ts, gtime_t te, double ti, double tu, const prcopt_t *popt,
-            const solopt_t *sopt, const filopt_t *fopt, char **infile, int n,
-            char *outfile, const char *rov, const char *base);
+/* postpos moved to mrtklib/mrtk_postpos.h */
 
 /* stream server functions ---------------------------------------------------*/
 void strsvrinit (strsvr_t *svr, int nout);
