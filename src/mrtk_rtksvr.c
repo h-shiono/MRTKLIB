@@ -53,7 +53,48 @@
 *           2024/08/02  1.26 support stat format
 *           2025/02/06  1.27 update stat format support local correction data
 *-----------------------------------------------------------------------------*/
-#include "rtklib.h"
+#include "mrtklib/mrtk_rtksvr.h"
+#include "mrtklib/mrtk_stream.h"
+#include "mrtklib/mrtk_rtkpos.h"
+#include "mrtklib/mrtk_ppp.h"
+#include "mrtklib/mrtk_spp.h"
+#include "mrtklib/mrtk_time.h"
+#include "mrtklib/mrtk_obs.h"
+#include "mrtklib/mrtk_nav.h"
+#include "mrtklib/mrtk_sol.h"
+#include "mrtklib/mrtk_opt.h"
+#include "mrtklib/mrtk_rcvraw.h"
+#include "mrtklib/mrtk_rtcm.h"
+#include "mrtklib/mrtk_peph.h"
+#include "mrtklib/mrtk_eph.h"
+#include "mrtklib/mrtk_sbas.h"
+#include "mrtklib/mrtk_coords.h"
+#include "mrtklib/mrtk_mat.h"
+#include "mrtklib/mrtk_sys.h"
+#include "mrtklib/mrtk_madoca.h"
+#include "mrtklib/mrtk_madoca_local_corr.h"
+#include "mrtklib/mrtk_rinex.h"
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <math.h>
+
+/* Local constants (duplicated from rtklib.h to avoid dependency) */
+#define SYS_GPS     0x01
+#define SYS_GLO     0x04
+#define SYS_GAL     0x08
+#define SYS_QZS     0x10
+#define SYS_CMP     0x20
+
+#define R2D         (180.0/3.1415926535897932)
+
+#define COMMENTH    "%"
+
+/* Forward declarations for functions in rtklib (resolved at link time) */
+extern void tracet  (int level, const char *format, ...);
+extern void trace   (int level, const char *format, ...);
+extern void timeset (gtime_t t);
 
 #define MIN_INT_RESET   30000   /* mininum interval of reset command (ms) */
 

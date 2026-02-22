@@ -79,7 +79,25 @@
 *           2021/05/21 1.32 fix typos
 *-----------------------------------------------------------------------------*/
 #include <ctype.h>
-#include "rtklib.h"
+
+#include "mrtklib/mrtk_stream.h"
+#include "mrtklib/mrtk_time.h"
+#include "mrtklib/mrtk_sol.h"
+#include "mrtklib/mrtk_rcvraw.h"
+#include "mrtklib/mrtk_sys.h"
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <math.h>
+
+/* Local constants (duplicated from rtklib.h to avoid dependency) */
+#define VER_MALIB           "1.1.0"
+#define PATCH_LEVEL_MALIB   "feature/1.2.0"
+
+/* Forward declarations for functions in rtklib (resolved at link time) */
+extern void trace (int level, const char *format, ...);
+extern void tracet(int level, const char *format, ...);
 #ifndef WIN32
 #include <fcntl.h>
 #include <unistd.h>
@@ -126,6 +144,29 @@
 #define FTP_TIMEOUT         30          /* ftp/http timeout (s) */
 
 #define MIN(x,y)            ((x)<(y)?(x):(y))
+
+/* stream format strings (moved from rtkcmn.c) */
+const char *formatstrs[32]={    /* stream format strings */
+    "RTCM 2",                   /*  0 */
+    "RTCM 3",                   /*  1 */
+    "NovAtel OEM7",             /*  2 */
+    "NovAtel OEM3",             /*  3 */
+    "u-blox UBX",               /*  4 */
+    "Superstar II",             /*  5 */
+    "Hemisphere",               /*  6 */
+    "SkyTraq",                  /*  7 */
+    "Javad GREIS",              /*  8 */
+    "NVS BINR",                 /*  9 */
+    "BINEX",                    /* 10 */
+    "Trimble RT17",             /* 11 */
+    "Septentrio SBF",           /* 12 */
+    "RINEX",                    /* 13 */
+    "SP3",                       /* 14 */
+    "RINEX CLK",                /* 15 */
+    "SBAS",                     /* 16 */
+    "NMEA 0183",                /* 17 */
+    NULL
+};
 
 /* macros --------------------------------------------------------------------*/
 

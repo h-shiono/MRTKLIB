@@ -87,6 +87,8 @@
 #include "mrtklib/mrtk_postpos.h"
 #include "mrtklib/mrtk_options.h"
 #include "mrtklib/mrtk_rcvraw.h"
+#include "mrtklib/mrtk_stream.h"
+#include "mrtklib/mrtk_rtksvr.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -211,31 +213,11 @@ extern "C" {
 /* PMODE_*, SOLF_*, SOLQ_*, TIMES_*, IONOOPT_*, TROPOPT_*, EPHOPT_*,
  * ARMODE_*, SBSOPT_*, POSOPT_* moved to mrtklib/mrtk_opt.h */
 
-#define STR_NONE     0                  /* stream type: none */
-#define STR_SERIAL   1                  /* stream type: serial */
-#define STR_FILE     2                  /* stream type: file */
-#define STR_TCPSVR   3                  /* stream type: TCP server */
-#define STR_TCPCLI   4                  /* stream type: TCP client */
-#define STR_NTRIPSVR 5                  /* stream type: NTRIP server */
-#define STR_NTRIPCLI 6                  /* stream type: NTRIP client */
-#define STR_FTP      7                  /* stream type: ftp */
-#define STR_HTTP     8                  /* stream type: http */
-#define STR_NTRIPCAS 9                  /* stream type: NTRIP caster */
-#define STR_UDPSVR   10                 /* stream type: UDP server */
-#define STR_UDPCLI   11                 /* stream type: UDP server */
-#define STR_MEMBUF   12                 /* stream type: memory buffer */
-
+/* STR_*, STR_MODE_*, MAXRCVFMT, MSG_DISCONN moved to mrtklib/mrtk_stream.h */
 /* STRFMT_* constants moved to mrtklib/mrtk_rcvraw.h */
-#define MAXRCVFMT    12                 /* max number of receiver format */
-
-#define STR_MODE_R  0x1                 /* stream mode: read */
-#define STR_MODE_W  0x2                 /* stream mode: write */
-#define STR_MODE_RW 0x3                 /* stream mode: read/write */
-
 /* GEOID_* constants moved to mrtklib/mrtk_geoid.h */
 
 #define COMMENTH    "%"                 /* comment line indicator for solution */
-#define MSG_DISCONN "$_DISCONNECT\r\n"  /* disconnect message */
 
 #define DLOPT_FORCE   0x01              /* download option: force download existing */
 #define DLOPT_KEEPCMP 0x02              /* download option: keep compressed file */
@@ -347,21 +329,8 @@ extern "C" {
 /* BTYPE_GRID, BTYPE_STA, ION_BLKSIZE, TRP_BLKSIZE, MAX_STANAME
  * moved to mrtklib/mrtk_madoca_local_corr.h */
 
-#ifdef WIN32
-#define rtk_thread_t    HANDLE
-#define rtk_lock_t      CRITICAL_SECTION
-#define rtk_initlock(f) InitializeCriticalSection(f)
-#define rtk_lock(f)     EnterCriticalSection(f)
-#define rtk_unlock(f)   LeaveCriticalSection(f)
-#define FILEPATHSEP '\\'
-#else
-#define rtk_thread_t    pthread_t
-#define rtk_lock_t      pthread_mutex_t
-#define rtk_initlock(f) pthread_mutex_init(f,NULL)
-#define rtk_lock(f)     pthread_mutex_lock(f)
-#define rtk_unlock(f)   pthread_mutex_unlock(f)
-#define FILEPATHSEP '/'
-#endif
+/* rtk_lock_t, rtk_thread_t, rtk_initlock, rtk_lock, rtk_unlock, FILEPATHSEP
+ * moved to mrtklib/mrtk_foundation.h */
 
 /* type definitions ----------------------------------------------------------*/
 
@@ -430,97 +399,8 @@ typedef struct {        /* download URL type */
 
 /* raw_t moved to mrtklib/mrtk_rcvraw.h */
 
-typedef struct stream_tag {        /* stream type */
-    int type;           /* type (STR_???) */
-    int mode;           /* mode (STR_MODE_?) */
-    int state;          /* state (-1:error,0:close,1:open) */
-    uint32_t inb,inr;   /* input bytes/rate */
-    uint32_t outb,outr; /* output bytes/rate */
-    uint32_t tick_i;    /* input tick tick */
-    uint32_t tick_o;    /* output tick */
-    uint32_t tact;      /* active tick */
-    uint32_t inbt,outbt; /* input/output bytes at tick */
-    rtk_lock_t lock;    /* lock flag */
-    void *port;         /* type dependent port control struct */
-    char path[MAXSTRPATH]; /* stream path */
-    char msg [MAXSTRMSG];  /* stream message */
-} stream_t;
-
-typedef struct {        /* stream converter type */
-    int itype,otype;    /* input and output stream type */
-    int nmsg;           /* number of output messages */
-    int msgs[32];       /* output message types */
-    double tint[32];    /* output message intervals (s) */
-    uint32_t tick[32];  /* cycle tick of output message */
-    int ephsat[32];     /* satellites of output ephemeris */
-    int stasel;         /* station info selection (0:remote,1:local) */
-    rtcm_t rtcm;        /* rtcm input data buffer */
-    raw_t raw;          /* raw  input data buffer */
-    rtcm_t out;         /* rtcm output data buffer */
-} strconv_t;
-
-typedef struct {        /* stream server type */
-    int state;          /* server state (0:stop,1:running) */
-    int cycle;          /* server cycle (ms) */
-    int buffsize;       /* input/monitor buffer size (bytes) */
-    int nmeacycle;      /* NMEA request cycle (ms) (0:no) */
-    int relayback;      /* relay back of output streams (0:no) */
-    int nstr;           /* number of streams (1 input + (nstr-1) outputs */
-    int npb;            /* data length in peek buffer (bytes) */
-    char cmds_periodic[16][MAXRCVCMD]; /* periodic commands */
-    double nmeapos[3];  /* NMEA request position (ecef) (m) */
-    uint8_t *buff;      /* input buffers */
-    uint8_t *pbuf;      /* peek buffer */
-    uint32_t tick;      /* start tick */
-    stream_t stream[16]; /* input/output streams */
-    stream_t strlog[16]; /* return log streams */
-    strconv_t *conv[16]; /* stream converter */
-    rtk_thread_t thread; /* server thread */
-    rtk_lock_t lock;    /* lock flag */
-} strsvr_t;
-
-typedef struct {        /* RTK server type */
-    int state;          /* server state (0:stop,1:running) */
-    int cycle;          /* processing cycle (ms) */
-    int nmeacycle;      /* NMEA request cycle (ms) (0:no req) */
-    int nmeareq;        /* NMEA request (0:no,1:nmeapos,2:single sol) */
-    double nmeapos[3];  /* NMEA request position (ecef) (m) */
-    int buffsize;       /* input buffer size (bytes) */
-    int format[3];      /* input format {rov,base,corr} */
-    solopt_t solopt[2]; /* output solution options {sol1,sol2} */
-    int navsel;         /* ephemeris select (0:all,1:rover,2:base,3:corr) */
-    int nsbs;           /* number of sbas message */
-    int nsol;           /* number of solution buffer */
-    rtk_t rtk;          /* RTK control/result struct */
-    int nb [3];         /* bytes in input buffers {rov,base} */
-    int nsb[2];         /* bytes in soulution buffers */
-    int npb[3];         /* bytes in input peek buffers */
-    uint8_t *buff[3];   /* input buffers {rov,base,corr} */
-    uint8_t *sbuf[2];   /* output buffers {sol1,sol2} */
-    uint8_t *pbuf[3];   /* peek buffers {rov,base,corr} */
-    sol_t solbuf[MAXSOLBUF]; /* solution buffer */
-    uint32_t nmsg[3][12]; /* input message counts */
-    raw_t  raw [3];     /* receiver raw control {rov,base,corr} */
-    rtcm_t rtcm[3];     /* RTCM control {rov,base,corr} */
-    sstat_t sstat;      /* single stat control */
-    gtime_t ftime[3];   /* download time {rov,base,corr} */
-    char files[3][MAXSTRPATH]; /* download paths {rov,base,corr} */
-    obs_t obs[3][MAXOBSBUF]; /* observation data {rov,base,corr} */
-    nav_t nav;          /* navigation data */
-    sbsmsg_t sbsmsg[MAXSBSMSG]; /* SBAS message buffer */
-    stream_t stream[8]; /* streams {rov,base,corr,sol1,sol2,logr,logb,logc} */
-    stream_t *moni;     /* monitor stream */
-    uint32_t tick;      /* start tick */
-    rtk_thread_t thread; /* server thread */
-    int cputime;        /* CPU time (ms) for a processing cycle */
-    int prcout;         /* missing observation data count */
-    int nave;           /* number of averaging base pos */
-    double rb_ave[3];   /* averaging base pos */
-    char cmds_periodic[3][MAXRCVCMD]; /* periodic commands */
-    char cmd_reset[MAXRCVCMD]; /* reset command */
-    double bl_reset;    /* baseline length to reset (km) */
-    rtk_lock_t lock;    /* lock flag */
-} rtksvr_t;
+/* stream_t, strconv_t, strsvr_t moved to mrtklib/mrtk_stream.h */
+/* rtksvr_t moved to mrtklib/mrtk_rtksvr.h */
 
 typedef struct {        /* input monitor stream type */
     char sta[32];       /* station */
@@ -607,7 +487,7 @@ extern const double chisqr[];        /* Chi-sqr(n) table (alpha=0.001) */
 /* prcopt_default, solopt_default moved to mrtklib/mrtk_opt.h */
 extern const sbsigpband_t igpband1[9][8]; /* SBAS IGP band 0-8 */
 extern const sbsigpband_t igpband2[2][5]; /* SBAS IGP band 9-10 */
-extern const char *formatstrs[];     /* stream format strings */
+/* formatstrs moved to mrtklib/mrtk_stream.h */
 /* sysopts moved to mrtklib/mrtk_options.h */
 
 /* satno, satsys, satid2no, satno2id moved to mrtklib/mrtk_nav.h */
@@ -707,68 +587,17 @@ int convgpx(const char *infile, const char *outfile, gtime_t ts, gtime_t te,
 
 /* options functions moved to mrtklib/mrtk_options.h */
 
-/* stream data input and output functions ------------------------------------*/
-void strinitcom(void);
-void strinit(stream_t *stream);
-void strlock(stream_t *stream);
-void strunlock(stream_t *stream);
-int stropen(stream_t *stream, int type, int mode, const char *path);
-void strclose(stream_t *stream);
-int strread(stream_t *stream, uint8_t *buff, int n);
-int strwrite(stream_t *stream, uint8_t *buff, int n);
-void strsync(stream_t *stream1, stream_t *stream2);
-int strstat(stream_t *stream, char *msg);
-int strstatx(stream_t *stream, char *msg);
-void strsum(stream_t *stream, int *inb, int *inr, int *outb, int *outr);
-void strsetopt(const int *opt);
-gtime_t strgettime(stream_t *stream);
-void strsendnmea(stream_t *stream, const sol_t *sol);
-void strsendcmd(stream_t *stream, const char *cmd);
-void strsettimeout(stream_t *stream, int toinact, int tirecon);
-void strsetdir(const char *dir);
-void strsetproxy(const char *addr);
+/* stream functions moved to mrtklib/mrtk_stream.h */
 
 /* integer ambiguity resolution moved to mrtklib/mrtk_lambda.h */
-
 /* pntpos moved to mrtklib/mrtk_spp.h */
-
 /* rtkinit/rtkfree/rtkpos/rtkopenstat/rtkclosestat/rtkoutstat moved to mrtklib/mrtk_rtkpos.h */
 /* ppp_ar moved to mrtklib/mrtk_ppp_ar.h */
-
 /* pppos/pppnx/pppoutstat moved to mrtklib/mrtk_ppp.h */
-
 /* postpos moved to mrtklib/mrtk_postpos.h */
 
-/* stream server functions ---------------------------------------------------*/
-void strsvrinit (strsvr_t *svr, int nout);
-int strsvrstart(strsvr_t *svr, int *opts, int *strs, char **paths, char **logs,
-                strconv_t **conv, char **cmds, char **cmds_priodic,
-                const double *nmeapos);
-void strsvrstop(strsvr_t *svr, char **cmds);
-void strsvrstat(strsvr_t *svr, int *stat, int *log_stat, int *byte, int *bps,
-                char *msg);
-strconv_t *strconvnew(int itype, int otype, const char *msgs, int staid,
-                      int stasel, const char *opt);
-void strconvfree(strconv_t *conv);
-
-/* RTK server functions ------------------------------------------------------*/
-int rtksvrinit(rtksvr_t *svr);
-void rtksvrfree(rtksvr_t *svr);
-int rtksvrstart(rtksvr_t *svr, int cycle, int buffsize, int *strs, char **paths,
-                int *formats, int navsel, char **cmds, char **cmds_periodic,
-                char **rcvopts, int nmeacycle, int nmeareq,
-                const double *nmeapos, prcopt_t *prcopt, solopt_t *solopt,
-                stream_t *moni, gtime_t rst, char *errmsg);
-void rtksvrstop(rtksvr_t *svr, char **cmds);
-int rtksvropenstr(rtksvr_t *svr, int index, int str, const char *path,
-                  const solopt_t *solopt);
-void rtksvrclosestr(rtksvr_t *svr, int index);
-void rtksvrlock(rtksvr_t *svr);
-void rtksvrunlock(rtksvr_t *svr);
-int rtksvrostat(rtksvr_t *svr, int type, gtime_t *time, int *sat, double *az,
-                double *el, int **snr, int *vsat);
-void rtksvrsstat(rtksvr_t *svr, int *sstat, char *msg);
-int rtksvrmark(rtksvr_t *svr, const char *name, const char *comment);
+/* stream server functions moved to mrtklib/mrtk_stream.h */
+/* RTK server functions moved to mrtklib/mrtk_rtksvr.h */
 
 /* downloader functions ------------------------------------------------------*/
 int dl_readurls(const char *file, char **types, int ntype, url_t *urls,

@@ -189,27 +189,7 @@ const double chisqr[100]={      /* chi-sqr(n) (alpha=0.001) */
     138 ,139 ,140 ,142 ,143 ,144 ,145 ,147 ,148 ,149
 };
 /* prcopt_default, solopt_default moved to mrtk_opt.c */
-const char *formatstrs[32]={    /* stream format strings */
-    "RTCM 2",                   /*  0 */
-    "RTCM 3",                   /*  1 */
-    "NovAtel OEM7",             /*  2 */
-    "NovAtel OEM3",             /*  3 */
-    "u-blox UBX",               /*  4 */
-    "Superstar II",             /*  5 */
-    "Hemisphere",               /*  6 */
-    "SkyTraq",                  /*  7 */
-    "Javad GREIS",              /*  8 */
-    "NVS BINR",                 /*  9 */
-    "BINEX",                    /* 10 */
-    "Trimble RT17",             /* 11 */
-    "Septentrio SBF",           /* 12 */
-    "RINEX",                    /* 13 */
-    "SP3",                      /* 14 */
-    "RINEX CLK",                /* 15 */
-    "SBAS",                     /* 16 */
-    "NMEA 0183",                /* 17 */
-    NULL
-};
+/* formatstrs[] moved to mrtk_stream.c */
 /* obscodes[], codepris[][] moved to mrtk_obs.c */
 /* fatalfunc, fatalerr, add_fatal moved to mrtk_mat.c */
 

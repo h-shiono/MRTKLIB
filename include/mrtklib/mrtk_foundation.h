@@ -249,6 +249,27 @@ extern "C" {
 #define MAXIONSTA       256             /* max number of ionospheric station blocks */
 #define MAX_REJ_SITES   5               /* max number of reject sites */
 
+/*============================================================================
+ * Platform-Dependent Lock / Thread Types
+ *===========================================================================*/
+
+#ifdef WIN32
+#define rtk_thread_t    HANDLE
+#define rtk_lock_t      CRITICAL_SECTION
+#define rtk_initlock(f) InitializeCriticalSection(f)
+#define rtk_lock(f)     EnterCriticalSection(f)
+#define rtk_unlock(f)   LeaveCriticalSection(f)
+#define FILEPATHSEP '\\'
+#else
+#include <pthread.h>
+#define rtk_thread_t    pthread_t
+#define rtk_lock_t      pthread_mutex_t
+#define rtk_initlock(f) pthread_mutex_init(f,NULL)
+#define rtk_lock(f)     pthread_mutex_lock(f)
+#define rtk_unlock(f)   pthread_mutex_unlock(f)
+#define FILEPATHSEP '/'
+#endif
+
 #ifdef __cplusplus
 }
 #endif
