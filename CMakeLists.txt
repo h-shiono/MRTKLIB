@@ -155,7 +155,7 @@ add_test(NAME recvbias_rb
     COMMAND $<TARGET_FILE:recvbias>
         -td 2024/8/22
         -nav ${_TESTDATA}/MALIB_OSS_data_obsnav_240822-1100.nav
-        -tec ${_TESTDATA}/CODG2350.24I
+        -tec ${_TESTDATA}/COD0OPSFIN_20242350000_01D_01H_GIM.INX
         -scb ${_TESTDATA}/2024235L.209.l6
         -pos -3961440.433,3308948.812,3734425.963
         -el 30

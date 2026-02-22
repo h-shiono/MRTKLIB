@@ -17,7 +17,7 @@ set -euo pipefail
 #
 # Requirements:
 #   - curl (for downloading IONEX TEC file)
-#   - uncompress or gunzip (for decompressing .Z file)
+#   - gunzip (for decompressing .gz file)
 
 # Parse options
 TRACE_OPTS=()
@@ -55,11 +55,12 @@ ECEF_POS="-3961440.433,3308948.812,3734425.963"
 EL_MASK=30
 
 # IONEX TEC file (CODE analysis center, University of Bern)
-#   Product: CODE final global ionosphere map
+#   Product: CODE final global ionosphere map (long-name convention)
 #   Format:  IONEX 1.0
-TEC_BASENAME="CODG2350.24I"
+#   .INX = IONEX TEC grid data (not .ION which is spherical harmonic coefficients)
+TEC_BASENAME="COD0OPSFIN_20242350000_01D_01H_GIM.INX"
 TEC_FILE="data/${TEC_BASENAME}"
-TEC_URL="http://ftp.aiub.unibe.ch/CODE/2024/${TEC_BASENAME}.Z"
+TEC_URL="http://ftp.aiub.unibe.ch/CODE/2024/${TEC_BASENAME}.gz"
 
 # Temporary files to clean up (populated as script runs)
 CLEANUP_FILES=()
@@ -93,17 +94,9 @@ tar -xzf data/MALIB_OSS_data.tar.gz
 if [[ ! -f "$TEC_FILE" ]]; then
     echo "Downloading IONEX TEC file from CODE..."
     echo "  URL: $TEC_URL"
-    tec_compressed="${TEC_FILE}.Z"
+    tec_compressed="${TEC_FILE}.gz"
     if curl -fSL -o "$tec_compressed" "$TEC_URL"; then
-        if command -v uncompress >/dev/null 2>&1; then
-            uncompress "$tec_compressed"
-        elif command -v gunzip >/dev/null 2>&1; then
-            mv "$tec_compressed" "${tec_compressed%.Z}.gz"
-            gunzip "${tec_compressed%.Z}.gz"
-        else
-            echo "ERROR: Neither uncompress nor gunzip available" >&2
-            exit 1
-        fi
+        gunzip "$tec_compressed"
         echo "  Downloaded: $TEC_FILE"
     else
         rm -f "$tec_compressed"
