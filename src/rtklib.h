@@ -71,6 +71,9 @@
 #include "mrtklib/mrtk_geoid.h"
 #include "mrtklib/mrtk_sbas.h"
 #include "mrtklib/mrtk_rtcm.h"
+#include "mrtklib/mrtk_ionex.h"
+#include "mrtklib/mrtk_opt.h"
+#include "mrtklib/mrtk_sol.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -192,76 +195,8 @@ extern "C" {
 #define FREQTYPE_ALL 0xFF               /* frequency type: all */
 
 /* CODE_NONE..MAXCODE moved to mrtklib/mrtk_foundation.h */
-#define PMODE_SINGLE 0                  /* positioning mode: single */
-#define PMODE_DGPS   1                  /* positioning mode: DGPS/DGNSS */
-#define PMODE_KINEMA 2                  /* positioning mode: kinematic */
-#define PMODE_STATIC 3                  /* positioning mode: static */
-#define PMODE_MOVEB  4                  /* positioning mode: moving-base */
-#define PMODE_FIXED  5                  /* positioning mode: fixed */
-#define PMODE_PPP_KINEMA 6              /* positioning mode: PPP-kinemaric */
-#define PMODE_PPP_STATIC 7              /* positioning mode: PPP-static */
-#define PMODE_PPP_FIXED 8               /* positioning mode: PPP-fixed */
-
-#define SOLF_LLH    0                   /* solution format: lat/lon/height */
-#define SOLF_XYZ    1                   /* solution format: x/y/z-ecef */
-#define SOLF_ENU    2                   /* solution format: e/n/u-baseline */
-#define SOLF_NMEA   3                   /* solution format: NMEA-183 */
-#define SOLF_STAT   4                   /* solution format: solution status */
-#define SOLF_GSIF   5                   /* solution format: GSI F1/F2 */
-
-#define SOLQ_NONE   0                   /* solution status: no solution */
-#define SOLQ_FIX    1                   /* solution status: fix */
-#define SOLQ_FLOAT  2                   /* solution status: float */
-#define SOLQ_SBAS   3                   /* solution status: SBAS */
-#define SOLQ_DGPS   4                   /* solution status: DGPS/DGNSS */
-#define SOLQ_SINGLE 5                   /* solution status: single */
-#define SOLQ_PPP    6                   /* solution status: PPP */
-#define SOLQ_DR     7                   /* solution status: dead reconing */
-#define MAXSOLQ     7                   /* max number of solution status */
-
-#define TIMES_GPST  0                   /* time system: gps time */
-#define TIMES_UTC   1                   /* time system: utc */
-#define TIMES_JST   2                   /* time system: jst */
-
-#define IONOOPT_OFF 0                   /* ionosphere option: correction off */
-#define IONOOPT_BRDC 1                  /* ionosphere option: broadcast model */
-#define IONOOPT_SBAS 2                  /* ionosphere option: SBAS model */
-#define IONOOPT_IFLC 3                  /* ionosphere option: L1/L2 iono-free LC */
-#define IONOOPT_EST 4                   /* ionosphere option: estimation */
-#define IONOOPT_TEC 5                   /* ionosphere option: IONEX TEC model */
-#define IONOOPT_QZS 6                   /* ionosphere option: QZSS broadcast model */
-#define IONOOPT_STEC 8                  /* ionosphere option: SLANT TEC model */
-
-#define TROPOPT_OFF 0                   /* troposphere option: correction off */
-#define TROPOPT_SAAS 1                  /* troposphere option: Saastamoinen model */
-#define TROPOPT_SBAS 2                  /* troposphere option: SBAS model */
-#define TROPOPT_EST 3                   /* troposphere option: ZTD estimation */
-#define TROPOPT_ESTG 4                  /* troposphere option: ZTD+grad estimation */
-#define TROPOPT_ZTD 5                   /* troposphere option: ZTD correction */
-
-#define EPHOPT_BRDC 0                   /* ephemeris option: broadcast ephemeris */
-#define EPHOPT_PREC 1                   /* ephemeris option: precise ephemeris */
-#define EPHOPT_SBAS 2                   /* ephemeris option: broadcast + SBAS */
-#define EPHOPT_SSRAPC 3                 /* ephemeris option: broadcast + SSR_APC */
-#define EPHOPT_SSRCOM 4                 /* ephemeris option: broadcast + SSR_COM */
-
-#define ARMODE_OFF  0                   /* AR mode: off */
-#define ARMODE_CONT 1                   /* AR mode: continuous */
-#define ARMODE_INST 2                   /* AR mode: instantaneous */
-#define ARMODE_FIXHOLD 3                /* AR mode: fix and hold */
-#define ARMODE_WLNL 4                   /* AR mode: wide lane/narrow lane */
-#define ARMODE_TCAR 5                   /* AR mode: triple carrier ar */
-
-#define SBSOPT_LCORR 1                  /* SBAS option: long term correction */
-#define SBSOPT_FCORR 2                  /* SBAS option: fast correction */
-#define SBSOPT_ICORR 4                  /* SBAS option: ionosphere correction */
-#define SBSOPT_RANGE 8                  /* SBAS option: ranging */
-
-#define POSOPT_POS   0                  /* pos option: LLH/XYZ */
-#define POSOPT_SINGLE 1                 /* pos option: average of single pos */
-#define POSOPT_FILE  2                  /* pos option: read from pos file */
-#define POSOPT_RINEX 3                  /* pos option: rinex header pos */
-#define POSOPT_RTCM  4                  /* pos option: rtcm/raw station pos */
+/* PMODE_*, SOLF_*, SOLQ_*, TIMES_*, IONOOPT_*, TROPOPT_*, EPHOPT_*,
+ * ARMODE_*, SBSOPT_*, POSOPT_* moved to mrtklib/mrtk_opt.h */
 
 #define STR_NONE     0                  /* stream type: none */
 #define STR_SERIAL   1                  /* stream type: serial */
@@ -486,57 +421,8 @@ typedef struct {        /* NORAD TLE (two line element) type */
 } tle_t;
 
 /* tec_t..nav_t, sta_t and all dependent types moved to mrtklib/mrtk_nav.h */
-
-typedef struct {        /* solution type */
-    gtime_t time;       /* time (GPST) */
-    double rr[6];       /* position/velocity (m|m/s) */
-                        /* {x,y,z,vx,vy,vz} or {e,n,u,ve,vn,vu} */
-    float  qr[6];       /* position variance/covariance (m^2) */
-                        /* {c_xx,c_yy,c_zz,c_xy,c_yz,c_zx} or */
-                        /* {c_ee,c_nn,c_uu,c_en,c_nu,c_ue} */
-    float  qv[6];       /* velocity variance/covariance (m^2/s^2) */
-    double dtr[6];      /* receiver clock bias to time systems (s) */
-    uint8_t type;       /* type (0:xyz-ecef,1:enu-baseline) */
-    uint8_t stat;       /* solution status (SOLQ_???) */
-    uint8_t ns;         /* number of valid satellites */
-    float age;          /* age of differential (s) */
-    float ratio;        /* AR ratio factor for valiation */
-    float thres;        /* AR ratio threshold for valiation */
-} sol_t;
-
-typedef struct {        /* solution buffer type */
-    int n,nmax;         /* number of solution/max number of buffer */
-    int cyclic;         /* cyclic buffer flag */
-    int start,end;      /* start/end index */
-    gtime_t time;       /* current solution time */
-    sol_t *data;        /* solution data */
-    double rb[3];       /* reference position {x,y,z} (ecef) (m) */
-    uint8_t buff[MAXSOLMSG+1]; /* message buffer */
-    int nb;             /* number of byte in message buffer */
-} solbuf_t;
-
-typedef struct {        /* solution status type */
-    gtime_t time;       /* time (GPST) */
-    uint8_t sat;        /* satellite number */
-    uint8_t frq;        /* frequency (1:L1,2:L2,...) */
-    float az,el;        /* azimuth/elevation angle (rad) */
-    float resp;         /* pseudorange residual (m) */
-    float resc;         /* carrier-phase residual (m) */
-    uint8_t flag;       /* flags: (vsat<<5)+(slip<<3)+fix */
-    uint16_t snr;       /* signal strength (*SNR_UNIT dBHz) */
-    uint16_t lock;      /* lock counter */
-    uint16_t outc;      /* outage counter */
-    uint16_t slipc;     /* slip counter */
-    uint16_t rejc;      /* reject counter */
-} solstat_t;
-
-typedef struct {        /* solution status buffer type */
-    int n,nmax;         /* number of solution/max number of buffer */
-    solstat_t *data;    /* solution status data */
-} solstatbuf_t;
-
+/* sol_t, solbuf_t, solstat_t, solstatbuf_t, ssat_t moved to mrtklib/mrtk_sol.h */
 /* rtcm_t moved to mrtklib/mrtk_rtcm.h */
-
 /* rnxctr_t moved to mrtklib/mrtk_rinex.h */
 
 typedef struct {        /* download URL type */
@@ -554,143 +440,11 @@ typedef struct {        /* option type */
 } opt_t;
 
 /* snrmask_t moved to mrtklib/mrtk_obs.h */
+/* prcopt_t moved to mrtklib/mrtk_opt.h */
 
-typedef struct {        /* processing options type */
-    int mode;           /* positioning mode (PMODE_???) */
-    int soltype;        /* solution type (0:forward,1:backward,2:combined) */
-    int nf;             /* number of frequencies (1:L1,2:L1+L2,3:L1+L2+L5) */
-    int navsys;         /* navigation system */
-    double elmin;       /* elevation mask angle (rad) */
-    snrmask_t snrmask;  /* SNR mask */
-    int sateph;         /* satellite ephemeris/clock (EPHOPT_???) */
-    int modear;         /* AR mode (0:off,1:continuous,2:instantaneous,3:fix and hold,4:ppp-ar) */
-    int glomodear;      /* GLONASS AR mode (0:off,1:on,2:auto cal,3:ext cal) */
-    int bdsmodear;      /* BeiDou AR mode (0:off,1:on) */
-    int arsys;          /* navigation system for PPP-AR */
-    int maxout;         /* obs outage count to reset bias */
-    int minlock;        /* min lock count to fix ambiguity */
-    int minfix;         /* min fix count to hold ambiguity */
-    int armaxiter;      /* max iteration to resolve ambiguity */
-    int ionoopt;        /* ionosphere option (IONOOPT_???) */
-    int tropopt;        /* troposphere option (TROPOPT_???) */
-    int dynamics;       /* dynamics model (0:none,1:velociy,2:accel) */
-    int tidecorr;       /* earth tide correction (0:off,1:solid,2:solid+otl+pole) */
-    int niter;          /* number of filter iteration */
-    int codesmooth;     /* code smoothing window size (0:none) */
-    int intpref;        /* interpolate reference obs (for post mission) */
-    int sbascorr;       /* SBAS correction options */
-    int sbassatsel;     /* SBAS satellite selection (0:all) */
-    int rovpos;         /* rover position for fixed mode */
-    int refpos;         /* base position for relative mode */
-                        /* (0:pos in prcopt,  1:average of single pos, */
-                        /*  2:read from file, 3:rinex header, 4:rtcm pos) */
-    double eratio[NFREQ]; /* code/phase error ratio */
-    double err[5];      /* measurement error factor */
-                        /* [0]:reserved */
-                        /* [1-3]:error factor a/b/c of phase (m) */
-                        /* [4]:doppler frequency (hz) */
-    double std[3];      /* initial-state std [0]bias,[1]iono [2]trop */
-    double prn[6];      /* process-noise std [0]bias,[1]iono [2]trop [3]acch [4]accv [5] pos */
-    double sclkstab;    /* satellite clock stability (sec/sec) */
-    double thresar[8];  /* AR validation threshold */
-    double elmaskar;    /* elevation mask of AR for rising satellite (deg) */
-    double elmaskhold;  /* elevation mask to hold ambiguity (deg) */
-    double thresslip;   /* slip threshold of geometry-free phase (m) */
-    double maxtdiff;    /* max difference of time (sec) */
-    double maxinno;     /* reject threshold of innovation (m) */
-    double maxgdop;     /* reject threshold of gdop */
-    double baseline[2]; /* baseline length constraint {const,sigma} (m) */
-    double ru[3];       /* rover position for fixed mode {x,y,z} (ecef) (m) */
-    double rb[3];       /* base position for relative mode {x,y,z} (ecef) (m) */
-    char anttype[2][MAXANT]; /* antenna types {rover,base} */
-    double antdel[2][3]; /* antenna delta {{rov_e,rov_n,rov_u},{ref_e,ref_n,ref_u}} */
-    pcv_t pcvr[2];      /* receiver antenna parameters {rov,base} */
-    uint8_t exsats[MAXSAT]; /* excluded satellites (1:excluded,2:included) */
-    int  ign_chierr;    /* ignore chi-square error mode (0:off,1:on) */
-    int  bds2bias;      /* estimate of bias for each BeiDou2 satellite type (0:off,1:on) */
-    int  sattmode;      /* 0:nominal */
-    int  pppsatcb;      /* satellite code bias selection (0:auto,1:ssr,2:bia,3:dcb) */
-    int  pppsatpb;      /* satellite phase bias selection (0:auto,1:ssr,3:fcb) */
-    int  unbias   ;     /* (0:use uncorrected code bias,1:do not use uncorrected code bias) */
-    double maxbiasdt;   /* bias sinex  and fcb  code/phase bias timeout(s) */
-    int  maxaveep;      /* max averaging epoches */
-    int  initrst;       /* initialize by restart */
-    int  outsingle;     /* output single by dgps/float/fix/ppp outage */
-    char rnxopt[2][256]; /* rinex options {rover,base} */
-    int  posopt[6];     /* positioning options */
-    int  syncsol;       /* solution sync mode (0:off,1:on) */
-    double odisp[2][6*11]; /* ocean tide loading parameters {rov,base} */
-    int  freqopt;       /* disable L2-AR */
-    int16_t elmaskopt[360]; /* elevation mask pattern */
-    char pppopt[256];   /* ppp option */
-    char rtcmopt[256];  /* rtcm options */
-    int  pppsig[6];     /* signal selection [0]GPS IIR-M,[1]GPS IIF,[2]GPS IIIA,[3]QZS-1/2,[4]BDS-3,[5]GAL */
-    char staname[32];   /* station name */
-} prcopt_t;
-
-typedef struct {        /* solution options type */
-    int posf;           /* solution format (SOLF_???) */
-    int times;          /* time system (TIMES_???) */
-    int timef;          /* time format (0:sssss.s,1:yyyy/mm/dd hh:mm:ss.s) */
-    int timeu;          /* time digits under decimal point */
-    int degf;           /* latitude/longitude format (0:ddd.ddd,1:ddd mm ss) */
-    int outhead;        /* output header (0:no,1:yes) */
-    int outopt;         /* output processing options (0:no,1:yes) */
-    int outvel;         /* output velocity options (0:no,1:yes) */
-    int datum;          /* datum (0:WGS84,1:Tokyo) */
-    int height;         /* height (0:ellipsoidal,1:geodetic) */
-    int geoid;          /* geoid model (0:EGM96,1:JGD2000) */
-    int solstatic;      /* solution of static mode (0:all,1:single) */
-    int sstat;          /* solution statistics level (0:off,1:states,2:residuals) */
-    int trace;          /* debug trace level (0:off,1-5:debug) */
-    double nmeaintv[2]; /* nmea output interval (s) (<0:no,0:all) */
-                        /* nmeaintv[0]:gprmc,gpgga,nmeaintv[1]:gpgsv */
-    char sep[64];       /* field separator */
-    char prog[64];      /* program name */
-    double maxsolstd;   /* max std-dev for solution output (m) (0:all) */
-} solopt_t;
-
-typedef struct {        /* file options type */
-    char satantp[MAXSTRPATH]; /* satellite antenna parameters file */
-    char rcvantp[MAXSTRPATH]; /* receiver antenna parameters file */
-    char stapos [MAXSTRPATH]; /* station positions file */
-    char geoid  [MAXSTRPATH]; /* external geoid data file */
-    char iono   [MAXSTRPATH]; /* ionosphere data file */
-    char dcb    [MAXSTRPATH]; /* dcb data file */
-    char eop    [MAXSTRPATH]; /* eop data file */
-    char blq    [MAXSTRPATH]; /* ocean tide loading blq file */
-    char tempdir[MAXSTRPATH]; /* ftp/http temporaly directory */
-    char geexe  [MAXSTRPATH]; /* google earth exec file */
-    char elmask [MAXSTRPATH]; /* elevation mask file */
-    char solstat[MAXSTRPATH]; /* solution statistics file */
-    char trace  [MAXSTRPATH]; /* debug trace file */
-    char bia    [MAXSTRPATH]; /* bias sinex data file */
-    char fcb    [MAXSTRPATH]; /* fcb data file */
-} filopt_t;
-
+/* solopt_t, filopt_t moved to mrtklib/mrtk_opt.h */
 /* rnxopt_t moved to mrtklib/mrtk_rinex.h */
-
-typedef struct {        /* satellite status type */
-    uint8_t sys;        /* navigation system */
-    uint8_t vs;         /* valid satellite flag single */
-    double azel[2];     /* azimuth/elevation angles {az,el} (rad) */
-    double resp[NFREQ]; /* residuals of pseudorange (m) */
-    double resc[NFREQ]; /* residuals of carrier-phase (m) */
-    uint8_t vsat[NFREQ]; /* valid satellite flag */
-    uint16_t snr[NFREQ]; /* signal strength (*SNR_UNIT dBHz) */
-    uint8_t fix [NFREQ]; /* ambiguity fix flag (1:fix,2:float,3:hold) */
-    uint8_t slip[NFREQ]; /* cycle-slip flag */
-    uint8_t half[NFREQ]; /* half-cycle valid flag */
-    int lock [NFREQ];   /* lock counter of phase */
-    uint32_t outc [NFREQ]; /* obs outage counter of phase */
-    uint32_t slipc[NFREQ]; /* cycle-slip counter */
-    uint32_t rejc [NFREQ]; /* reject counter */
-    double gf[NFREQ-1]; /* geometry-free phase (m) */
-    double mw[NFREQ-1]; /* MW-LC (m) */
-    double phw;         /* phase windup (cycle) */
-    gtime_t pt[2][NFREQ]; /* previous carrier-phase time */
-    double ph[2][NFREQ]; /* previous carrier-phase observable (cycle) */
-} ssat_t;
+/* ssat_t moved to mrtklib/mrtk_sol.h */
 
 typedef struct {        /* ambiguity control type */
     gtime_t epoch[4];   /* last epoch */
@@ -952,8 +706,7 @@ typedef struct {        /* BIAS-SINEX data type */
 
 /* global variables ----------------------------------------------------------*/
 extern const double chisqr[];        /* Chi-sqr(n) table (alpha=0.001) */
-extern const prcopt_t prcopt_default; /* default positioning options */
-extern const solopt_t solopt_default; /* default solution output options */
+/* prcopt_default, solopt_default moved to mrtklib/mrtk_opt.h */
 extern const sbsigpband_t igpband1[9][8]; /* SBAS IGP band 0-8 */
 extern const sbsigpband_t igpband2[2][5]; /* SBAS IGP band 9-10 */
 extern const char *formatstrs[];     /* stream format strings */
@@ -962,7 +715,7 @@ extern opt_t sysopts[];              /* system options table */
 /* satno, satsys, satid2no, satno2id moved to mrtklib/mrtk_nav.h */
 /* obs2code, code2obs, code2freq, sat2freq, code2idx moved to mrtklib/mrtk_obs.h */
 /* testsnr, testelmask, setcodepri, getcodepri moved to mrtklib/mrtk_obs.h */
-int satexclude(int sat, double var, int svh, const prcopt_t *opt);
+/* satexclude moved to mrtklib/mrtk_nav.h */
 
 /* matrix and vector functions are now declared in mrtklib/mrtk_mat.h */
 
@@ -999,9 +752,7 @@ void traceb(int level, const uint8_t *p, int n);
 
 /* atmosphere model functions (ionmodel, ionmapf, ionppp, tropmodel, tropmapf)
  * are now declared in mrtklib/mrtk_atmos.h */
-int iontec(gtime_t time, const nav_t *nav, const double *pos,
-           const double *azel, int opt, double *delay, double *var);
-void readtec(const char *file, nav_t *nav, int opt);
+/* readtec, iontec moved to mrtklib/mrtk_ionex.h */
 int ionocorr(gtime_t time, const nav_t *nav, int sat, const double *pos,
              const double *azel, int ionoopt, double *ion, double *var);
 int tropcorr(gtime_t time, const nav_t *nav, const double *pos,
@@ -1090,36 +841,7 @@ int gen_nvs(const char *msg, uint8_t *buff);
 
 /* RTCM functions moved to mrtklib/mrtk_rtcm.h */
 
-/* solution functions --------------------------------------------------------*/
-void initsolbuf(solbuf_t *solbuf, int cyclic, int nmax);
-void freesolbuf(solbuf_t *solbuf);
-void freesolstatbuf(solstatbuf_t *solstatbuf);
-sol_t *getsol(solbuf_t *solbuf, int index);
-int addsol(solbuf_t *solbuf, const sol_t *sol);
-int readsol (char *files[], int nfile, solbuf_t *sol);
-int readsolt(char *files[], int nfile, gtime_t ts, gtime_t te, double tint,
-             int qflag, solbuf_t *sol);
-int readsolstat(char *files[], int nfile, solstatbuf_t *statbuf);
-int readsolstatt(char *files[], int nfile, gtime_t ts, gtime_t te, double tint,
-                 solstatbuf_t *statbuf);
-int inputsol(uint8_t data, gtime_t ts, gtime_t te, double tint, int qflag,
-             const solopt_t *opt, solbuf_t *solbuf);
-
-int outprcopts(uint8_t *buff, const prcopt_t *opt);
-int outsolheads(uint8_t *buff, const solopt_t *opt);
-int outsols(uint8_t *buff, const sol_t *sol, const double *rb,
-            const solopt_t *opt);
-int outsolexs(uint8_t *buff, const sol_t *sol, const ssat_t *ssat,
-              const solopt_t *opt);
-void outprcopt(FILE *fp, const prcopt_t *opt);
-void outsolhead(FILE *fp, const solopt_t *opt);
-void outsol(FILE *fp, const sol_t *sol, const double *rb, const solopt_t *opt);
-void outsolex(FILE *fp, const sol_t *sol, const ssat_t *ssat,
-              const solopt_t *opt);
-int outnmea_rmc(uint8_t *buff, const sol_t *sol);
-int outnmea_gga(uint8_t *buff, const sol_t *sol);
-int outnmea_gsa(uint8_t *buff, const sol_t *sol, const ssat_t *ssat);
-int outnmea_gsv(uint8_t *buff, const sol_t *sol, const ssat_t *ssat);
+/* solution functions moved to mrtklib/mrtk_sol.h */
 
 /* Google Earth KML converter ------------------------------------------------*/
 int convkml(const char *infile, const char *outfile, gtime_t ts, gtime_t te,

@@ -188,36 +188,7 @@ const double chisqr[100]={      /* chi-sqr(n) (alpha=0.001) */
     126 ,127 ,128 ,129 ,131 ,132 ,133 ,134 ,135 ,137 ,
     138 ,139 ,140 ,142 ,143 ,144 ,145 ,147 ,148 ,149
 };
-const prcopt_t prcopt_default={ /* defaults processing options */
-    PMODE_SINGLE,0,2,SYS_GPS,   /* mode,soltype,nf,navsys */
-    15.0*D2R,{{0,0}},           /* elmin,snrmask */
-    0,1,0,0,                    /* sateph,modear,glomodear,bdsmodear */
-    SYS_GPS,                    /* arsys */
-    5,0,10,1,                   /* maxout,minlock,minfix,armaxiter */
-    0,0,0,0,                    /* estion,esttrop,dynamics,tidecorr */
-    1,0,0,0,0,                  /* niter,codesmooth,intpref,sbascorr,sbassatsel */
-    0,0,                        /* rovpos,refpos */
-    {100.0,100.0},              /* eratio[] */
-    {100.0,0.003,0.003,0.0,1.0}, /* err[] */
-    {30.0,0.03,0.3},            /* std[] */
-    {1E-4,1E-3,1E-4,1E-1,1E-2,0.0}, /* prn[] */
-    5E-12,                      /* sclkstab */
-    {3.0,0.9999,0.25,0.1,0.05}, /* thresar */
-    0.0,0.0,0.05,               /* elmaskar,almaskhold,thresslip */
-    30.0,30.0,30.0,             /* maxtdif,maxinno,maxgdop */
-    {0},{0},{0},                /* baseline,ru,rb */
-    {"",""},                    /* anttype */
-    {{0}},{{0}},{0}             /* antdel,pcv,exsats */
-    ,0,0                        /* ign_chierr,bds2bias */
-    ,0,0,0,0                    /* pppsatcb,pppsatpb,unbias,maxbiasdt */
-};
-const solopt_t solopt_default={ /* defaults solution output options */
-    SOLF_LLH,TIMES_GPST,1,3,    /* posf,times,timef,timeu */
-    0,1,0,0,0,0,0,              /* degf,outhead,outopt,outvel,datum,height,geoid */
-    0,0,0,                      /* solstatic,sstat,trace */
-    {0.0,0.0},                  /* nmeaintv */
-    " ",""                      /* separator/program name */
-};
+/* prcopt_default, solopt_default moved to mrtk_opt.c */
 const char *formatstrs[32]={    /* stream format strings */
     "RTCM 2",                   /*  0 */
     "RTCM 3",                   /*  1 */
@@ -265,44 +236,7 @@ extern int gmf_(double *mjd, double *lat, double *lon, double *hgt, double *zd,
 #endif
 
 /* satno, satsys, satid2no, satno2id moved to mrtk_nav.c */
-
-/* test excluded satellite -----------------------------------------------------
-* test excluded satellite
-* args   : int    sat       I   satellite number
-*          double var       I   variance of ephemeris (m^2)
-*          int    svh       I   sv health flag
-*          prcopt_t *opt    I   processing options (NULL: not used)
-* return : status (1:excluded,0:not excluded)
-*-----------------------------------------------------------------------------*/
-extern int satexclude(int sat, double var, int svh, const prcopt_t *opt)
-{
-    int sys=satsys(sat,NULL);
-    
-    if (svh<0) return 1; /* ephemeris unavailable */
-    
-    if (opt) {
-        if (opt->exsats[sat-1]==1) return 1; /* excluded satellite */
-        if (opt->exsats[sat-1]==2) return 0; /* included satellite */
-        if (!(sys&opt->navsys)) return 1; /* unselected sat sys */
-    }
-    if (sys==SYS_QZS) svh&=0xEE; /* mask QZSS L1C/A,C/B health */
-    
-    if (sys==SYS_GLO) {
-        if ((svh&9)||((svh>>1)&3)==2) { /* test Bn and extended SVH */
-            trace(3,"unhealthy GLO satellite: sat=%3d svh=%02X\n",sat,svh);
-            return 1;
-        }
-    }
-    else if (svh) {
-        trace(3,"unhealthy satellite: sat=%3d svh=%02X\n",sat,svh);
-        return 1;
-    }
-    if (var>MAX_VAR_EPH) {
-        trace(3,"invalid ura satellite: sat=%3d ura=%.2f\n",sat,sqrt(var));
-        return 1;
-    }
-    return 0;
-}
+/* satexclude moved to mrtk_nav.c */
 /* testsnr, testelmask, obs2code, code2obs, code2freq_*, code2idx, code2freq,
  * sat2freq, setcodepri, getcodepri moved to mrtk_obs.c */
 /* getbitu, getbits, setbitu, setbits, rtk_crc32, rtk_crc24q, rtk_crc16, decode_word

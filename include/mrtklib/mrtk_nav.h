@@ -517,6 +517,23 @@ int readsap(const char *file, gtime_t time, nav_t *nav);
  */
 int readdcb(const char *file, nav_t *nav, const sta_t *sta);
 
+/*============================================================================
+ * Satellite Exclusion
+ *===========================================================================*/
+
+/* Forward declaration to avoid circular dependency with mrtk_opt.h */
+struct prcopt_t;
+
+/**
+ * @brief Test excluded satellite.
+ * @param[in] sat  Satellite number
+ * @param[in] var  Variance of ephemeris (m^2)
+ * @param[in] svh  SV health flag (-1: correction not available)
+ * @param[in] opt  Processing options (NULL: not used)
+ * @return Status (1:excluded, 0:not excluded)
+ */
+int satexclude(int sat, double var, int svh, const struct prcopt_t *opt);
+
 #ifdef __cplusplus
 }
 #endif

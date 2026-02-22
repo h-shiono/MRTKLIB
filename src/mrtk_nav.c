@@ -7,6 +7,7 @@
  */
 
 #include "mrtklib/mrtk_nav.h"
+#include "mrtklib/mrtk_opt.h"
 
 #include <math.h>
 #include <stdio.h>
@@ -33,6 +34,9 @@ extern void trace(int level, const char *format, ...);
 #define SYS_IRN     0x40                /* navigation system: NavIC */
 #define SYS_LEO     0x80                /* navigation system: LEO */
 #define SYS_ALL     0xFF                /* navigation system: all */
+
+#define SQR(x)      ((x)*(x))
+#define MAX_VAR_EPH SQR(300.0)  /* max variance eph to reject satellite (m^2) */
 
 /*============================================================================
  * Public Functions
@@ -440,4 +444,41 @@ extern void freenav(nav_t *nav, int opt)
     if (opt&0x10) {free(nav->pclk); nav->pclk=NULL; nav->nc=nav->ncmax=0;}
     if (opt&0x20) {free(nav->alm ); nav->alm =NULL; nav->na=nav->namax=0;}
     if (opt&0x40) {free(nav->tec ); nav->tec =NULL; nav->nt=nav->ntmax=0;}
+}
+/* test excluded satellite ------------------------------------------------------
+* test excluded satellite
+* args   : int    sat       I   satellite number
+*          double var       I   variance of ephemeris (m^2)
+*          int    svh       I   sv health flag
+*          prcopt_t *opt    I   processing options (NULL: not used)
+* return : status (1:excluded,0:not excluded)
+*-----------------------------------------------------------------------------*/
+int satexclude(int sat, double var, int svh, const struct prcopt_t *opt)
+{
+    int sys=satsys(sat,NULL);
+
+    if (svh<0) return 1; /* ephemeris unavailable */
+
+    if (opt) {
+        if (opt->exsats[sat-1]==1) return 1; /* excluded satellite */
+        if (opt->exsats[sat-1]==2) return 0; /* included satellite */
+        if (!(sys&opt->navsys)) return 1; /* unselected sat sys */
+    }
+    if (sys==SYS_QZS) svh&=0xEE; /* mask QZSS L1C/A,C/B health */
+
+    if (sys==SYS_GLO) {
+        if ((svh&9)||((svh>>1)&3)==2) { /* test Bn and extended SVH */
+            trace(3,"unhealthy GLO satellite: sat=%3d svh=%02X\n",sat,svh);
+            return 1;
+        }
+    }
+    else if (svh) {
+        trace(3,"unhealthy satellite: sat=%3d svh=%02X\n",sat,svh);
+        return 1;
+    }
+    if (var>MAX_VAR_EPH) {
+        trace(3,"invalid ura satellite: sat=%3d ura=%.2f\n",sat,sqrt(var));
+        return 1;
+    }
+    return 0;
 }
