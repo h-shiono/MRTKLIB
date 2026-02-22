@@ -18,37 +18,7 @@
 #define MAX(x,y)    ((x)>(y)?(x):(y))
 #define GN(gp)      (gp==1?64:16)
 
-/* initialize station setting --------------------------------------------------
-* initialize station settings based on provided block information
-* args   : blkinf_t *b   IO   block information
-*-----------------------------------------------------------------------------*/
-extern void initblkinf(blkinf_t *b)
-{
-    int i,br,gr;
-    double gridsize;
-
-    gr=(int)sqrt(GN(b->gpitch));
-    br=(int)360.0/b->bs;
-    b->bpos[0]=90.0-(int)(b->bn/br)*b->bs;
-    b->bpos[1]=(b->bn%br)*b->bs;
-    if (b->bpos[1]>=180) b->bpos[1]-=360;
-    b->bpos[0]=b->bpos[0]*D2R;
-    b->bpos[1]=b->bpos[1]*D2R;
-
-    if(b->btype==BTYPE_GRID){
-        gridsize = (double)b->bs / (double)gr;
-        /* init grid position */
-        for (i=0;i<gr*gr;i++) {
-            if (i<32) {if (!((b->mask[0]>>i)&1)) continue;}
-            else      {if (!((b->mask[1]>>(i-32))&1)) continue;}
-            b->grid[b->n][0]=b->bpos[0]-((i/gr)*gridsize)*D2R;
-            b->grid[b->n][1]=b->bpos[1]+((i%gr)*gridsize)*D2R;
-            b->grid[b->n][2]=0;
-            b->gp[b->n]=i;
-            b->n++;
-        }
-    }
-}
+/* initblkinf moved to mrtk_rtcm3lcl.c (mrtklib) */
 /* get point no ----------------------------------------------------------------
 * search for a point by name or add a new point if not found
 * args   : stat_t *stat        IO   local correction data
