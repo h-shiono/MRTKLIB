@@ -18,6 +18,7 @@ set(extracted_files
     "${TESTDATA_DIR}/MALIB_OSS_data_l6e_240822-1100.sbf"
     "${TESTDATA_DIR}/MALIB_OSS_data_l6e_240822-1100.sbf.tag"
     "${TESTDATA_DIR}/igs14_20230719_KMD_add.atx"
+    "${TESTDATA_DIR}/CODG2350.24I"
 )
 
 foreach(f IN LISTS extracted_files)

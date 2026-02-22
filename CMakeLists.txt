@@ -56,9 +56,16 @@ target_include_directories(rtkrcv PRIVATE app/consapp/rtkrcv)
 target_compile_definitions(rtkrcv PRIVATE PROGNAME=\"rtkrcv\" SVR_REUSEADDR)
 target_link_libraries(rtkrcv PRIVATE mrtklib pthread)
 
+# ── recvbias ──────────────────────────────────────────────────────────────────
+add_executable(recvbias
+    app/consapp/recvbias/recvbias.c
+)
+target_compile_definitions(recvbias PRIVATE PROGNAME=\"recvbias\")
+target_link_libraries(recvbias PRIVATE mrtklib)
+
 # ── Install ───────────────────────────────────────────────────────────────────
 # cmake --install build  →  copies binaries to bin/ (matches make install)
-install(TARGETS rnx2rtkp rtkrcv RUNTIME DESTINATION bin)
+install(TARGETS rnx2rtkp rtkrcv recvbias RUNTIME DESTINATION bin)
 
 # ── Regression tests ──────────────────────────────────────────────────────────
 # Run with: ctest --test-dir build --output-on-failure
@@ -141,6 +148,37 @@ set_tests_properties(rnx2rtkp_spp_check PROPERTIES
     DEPENDS           rnx2rtkp_spp
     FIXTURES_REQUIRED regression_data
     LABELS            "regression;spp"
+)
+
+# ── recvbias regression ──────────────────────────────────────────────────────
+add_test(NAME recvbias_rb
+    COMMAND $<TARGET_FILE:recvbias>
+        -td 2024/8/22
+        -nav ${_TESTDATA}/MALIB_OSS_data_obsnav_240822-1100.nav
+        -tec ${_TESTDATA}/CODG2350.24I
+        -scb ${_TESTDATA}/2024235L.209.l6
+        -pos -3961440.433,3308948.812,3734425.963
+        -el 30
+        -out ${CMAKE_BINARY_DIR}/out_rb.bia
+        ${_TESTDATA}/MALIB_OSS_data_obsnav_240822-1100.obs
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+set_tests_properties(recvbias_rb PROPERTIES
+    FIXTURES_REQUIRED regression_data
+    TIMEOUT           120
+    LABELS            "regression;recvbias"
+)
+
+add_test(NAME recvbias_rb_check
+    COMMAND ${CMAKE_COMMAND}
+        -DOUTPUT=${CMAKE_BINARY_DIR}/out_rb.bia
+        -DREFERENCE=${_REFDATA}/MALIB_OSS_data_obsnav_240822-1100.rb.bia
+        -P ${_TESTCMAKE}/compare_bia.cmake
+)
+set_tests_properties(recvbias_rb_check PROPERTIES
+    DEPENDS           recvbias_rb
+    FIXTURES_REQUIRED regression_data
+    LABELS            "regression;recvbias"
 )
 
 # ── rtkrcv RT-PPP regression ──────────────────────────────────────────────────
