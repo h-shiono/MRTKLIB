@@ -44,6 +44,8 @@ add_library(mrtklib STATIC
     src/mrtk_ionex.c
     src/mrtk_opt.c
     src/mrtk_sol.c
+    src/mrtk_bias_sinex.c
+    src/mrtk_fcb.c
 )
 target_include_directories(mrtklib PUBLIC include)
 set_target_properties(mrtklib PROPERTIES C_STANDARD 11 C_STANDARD_REQUIRED ON)
@@ -58,10 +60,9 @@ target_link_libraries(mrtklib PUBLIC m)
 # Contains the union of all src/ files used by rnx2rtkp and rtkrcv.
 # The linker pulls only the object files referenced by each executable.
 add_library(rtklib STATIC
-    src/biassnx.c
     src/lambda.c        src/lclcmn.c        src/mdccssr.c       src/options.c
     src/pntpos.c        src/ppp.c           src/ppp_ar.c
-    src/rcvraw.c        src/readfcb.c
+    src/rcvraw.c
     src/rtkcmn.c        src/rtkpos.c        src/rtksvr.c
     src/stream.c
     src/rcv/binex.c     src/rcv/crescent.c  src/rcv/javad.c     src/rcv/novatel.c
@@ -98,7 +99,7 @@ add_executable(recvbias
     apps/recvbias/recvbias.c
 )
 target_compile_definitions(recvbias PRIVATE PROGNAME=\"recvbias\")
-target_link_libraries(recvbias PRIVATE mrtklib)
+target_link_libraries(recvbias PRIVATE rtklib)
 
 # ── Install ───────────────────────────────────────────────────────────────────
 # cmake --install build  →  copies binaries to bin/ (matches make install)

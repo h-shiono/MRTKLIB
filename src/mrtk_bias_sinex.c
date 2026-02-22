@@ -1,5 +1,5 @@
 /*------------------------------------------------------------------------------
-* biassnx.c : BIAS-SINEX functions
+* mrtk_bias_sinex.c : BIAS-SINEX functions
 *
 * Copyright (C) 2024 TOSHIBA ELECTRONIC TECHNOLOGIES CORPORATION. All Rights Reserved.
 *
@@ -11,8 +11,25 @@
 * history : 2024/12/20  1.0 new, for MALIB from TETC original tools.
 *-----------------------------------------------------------------------------*/
 
-#include "rtklib.h"
+#include "mrtklib/mrtk_bias_sinex.h"
+#include "mrtklib/mrtk_sys.h"
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <math.h>
+
+/* local constants -----------------------------------------------------------*/
+static const double CLIGHT  = 299792458.0;
+#define NS2M    (CLIGHT/1E9)
+#define M2NS    (1E9/CLIGHT)
+
+/*--- forward declarations for legacy functions resolved at link time -------*/
+extern void trace(int level, const char *format, ...);
+extern void satno2id(int sat, char *id);
+extern int satid2no(const char *id);
+extern uint8_t obs2code(const char *obs);
+extern char *code2obs(uint8_t code);
+extern char *time_str(gtime_t t, int n);
 
 static biass_t biass = {0};
 static char syscode[] = "GREJCIS";
@@ -23,7 +40,7 @@ static char typeid[][5] = {"DSB ","ISB ","OSB "};
 * args   : int    sat       I   satellite number
 * return : int              O   system code number(0 or positive:valid,-1:error)
 *-----------------------------------------------------------------------------*/
-extern int getsysno(int sat)
+int getsysno(int sat)
 {
     int i;
     char satid[8];
@@ -40,7 +57,7 @@ extern int getsysno(int sat)
 * args   : none
 * return : biass_t *        O   pointer to bias structure
 *-----------------------------------------------------------------------------*/
-extern biass_t *getbiass(void)
+biass_t *getbiass(void)
 {
     return &biass;
 }
@@ -93,7 +110,7 @@ static void freebiass(void)
 *          int    *nmax     IO  current maximum number of entries in array
 * return : none
 *-----------------------------------------------------------------------------*/
-extern void addbia(const bia_t *bia, bia_t **ary, int *n, int *nmax)
+void addbia(const bia_t *bia, bia_t **ary, int *n, int *nmax)
 {
     bia_t *b;
 
@@ -115,7 +132,7 @@ extern void addbia(const bia_t *bia, bia_t **ary, int *n, int *nmax)
 * args   : char   *file     I   SINEX file path
 * return : int              O   status (1:ok, 0:error)
 *-----------------------------------------------------------------------------*/
-extern int readbsnx(const char *file)
+int readbsnx(const char *file)
 {
     double ep[6] = {0,1,1,0,0,0}, doy, tod, unit;
     char satid[] = "   ", sta[] = "         ", sig1[] = "   ", sig2[] = "   ";
@@ -233,7 +250,7 @@ extern int readbsnx(const char *file)
                         }
                         if(j >= MAXBSNXSYS) continue;
                         addbia(&bia, &biass.sta[i].syscb[j],
-                            &biass.sta[i].nsyscb[j], 
+                            &biass.sta[i].nsyscb[j],
                             &biass.sta[i].nsyscbmax[j]);
                     }
                     else {               /* satellite code bias*/
@@ -297,7 +314,7 @@ static char *code2sigs(uint8_t code, int cpflag)
 *          char   *agency   I   agency name
 * return : none
 *-----------------------------------------------------------------------------*/
-extern void outbsnxh(FILE *fp, gtime_t ts, gtime_t te, const char *agency)
+void outbsnxh(FILE *fp, gtime_t ts, gtime_t te, const char *agency)
 {
     double year, doy, tod, ep[6];
     gtime_t nt = timeget();
@@ -321,7 +338,7 @@ extern void outbsnxh(FILE *fp, gtime_t ts, gtime_t te, const char *agency)
 * args   : FILE   *fp       I   output file pointer
 * return : none
 *-----------------------------------------------------------------------------*/
-extern void outbsnxrefh(FILE *fp)
+void outbsnxrefh(FILE *fp)
 {
     if(fp == NULL) return;
     trace(3, "outbsnxrefh: \n");
@@ -338,7 +355,7 @@ extern void outbsnxrefh(FILE *fp)
 *          char   *reftext  I   reference text to output
 * return : none
 *-----------------------------------------------------------------------------*/
-extern void outbsnxrefb(FILE *fp, int type, char *reftext)
+void outbsnxrefb(FILE *fp, int type, char *reftext)
 {
     char *inft[6] = {"DESCRIPTION","OUTPUT","CONTACT","SOFTWARE","HARDWARE","INPUT"};
     if(fp == NULL) return;
@@ -360,7 +377,7 @@ extern void outbsnxrefb(FILE *fp, int type, char *reftext)
 * args   : FILE   *fp       I   output file pointer
 * return : none
 *-----------------------------------------------------------------------------*/
-extern void outbsnxreff(FILE *fp)
+void outbsnxreff(FILE *fp)
 {
     if(fp == NULL) return;
     trace(3, "outbsnxreff: \n");
@@ -372,7 +389,7 @@ extern void outbsnxreff(FILE *fp)
 * args   : FILE   *fp       I   output file pointer
 * return : none
 *-----------------------------------------------------------------------------*/
-extern void outbsnxcomh(FILE *fp)
+void outbsnxcomh(FILE *fp)
 {
     if(fp == NULL) return;
     trace(3, "outbsnxcomh: \n");
@@ -386,7 +403,7 @@ extern void outbsnxcomh(FILE *fp)
 *          char   *comtext  I   comment text to output
 * return : none
 *-----------------------------------------------------------------------------*/
-extern void outbsnxcomb(FILE *fp, char *comtext)
+void outbsnxcomb(FILE *fp, char *comtext)
 {
     if(fp == NULL) return;
     if(strlen(comtext) > 79) {
@@ -403,7 +420,7 @@ extern void outbsnxcomb(FILE *fp, char *comtext)
 * args   : FILE   *fp       I   output file pointer
 * return : none
 *-----------------------------------------------------------------------------*/
-extern void outbsnxcomf(FILE *fp)
+void outbsnxcomf(FILE *fp)
 {
     if(fp == NULL) return;
     trace(3, "outbsnxcomf: \n");
@@ -441,7 +458,7 @@ static void outbsnxsold(FILE *fp, int cpflag, int n, const bia_t *biad,
 * args   : FILE   *fp       I   output file pointer
 * return : none
 *-----------------------------------------------------------------------------*/
-extern void outbsnxsol(FILE *fp)
+void outbsnxsol(FILE *fp)
 {
     biass_t *biass;
     int i, j;
@@ -497,7 +514,7 @@ extern void outbsnxsol(FILE *fp)
 *          int    mode      I   mode (0: current, 1: all)
 * return : int              O   number of updated biases
 *-----------------------------------------------------------------------------*/
-extern int udosb_sat(osb_t *osb, gtime_t gt, int mode)
+int udosb_sat(osb_t *osb, gtime_t gt, int mode)
 {
     biass_t *biass;
     bia_t   *bias;
@@ -546,7 +563,7 @@ extern int udosb_sat(osb_t *osb, gtime_t gt, int mode)
 *          char   *name     I   station name
 * return : int              O   number of updated biases
 *-----------------------------------------------------------------------------*/
-extern int udosb_station(osb_t *osb, gtime_t gt, int mode, char *name)
+int udosb_station(osb_t *osb, gtime_t gt, int mode, char *name)
 {
     biass_t *biass;
     bia_t   *bias;
@@ -571,7 +588,7 @@ extern int udosb_station(osb_t *osb, gtime_t gt, int mode, char *name)
         for(j = 0; j < biass->sta[k].nsyscb[i]; j++) {
             bias = &biass->sta[k].syscb[i][j];
             if(bias->code[0] == CODE_NONE) continue;
-            if(mode || 
+            if(mode ||
                 ((timediff(bias->t0, gt) <= 0.0) &&
                  (timediff(bias->t1, gt) >= 0.0))) {
                 osb->vrsyscb[i][bias->code[0] - 1] = 1;

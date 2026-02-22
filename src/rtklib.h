@@ -74,6 +74,8 @@
 #include "mrtklib/mrtk_ionex.h"
 #include "mrtklib/mrtk_opt.h"
 #include "mrtklib/mrtk_sol.h"
+#include "mrtklib/mrtk_bias_sinex.h"
+#include "mrtklib/mrtk_fcb.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -668,39 +670,7 @@ typedef struct event_tag {  /* orbit event list type */
     struct event_tag *next; /* pointer to next */
 } event_t;
 
-typedef struct {        /* BIAS data record type */
-    int type;           /* bias type(0:DSB,1:ISB,2:OSB)*/
-    gtime_t t0,t1;      /* start, end time */
-    int code[2];        /* signal CODE_xxx */
-    double val, valstd; /* estimated value, std */
-    double slp, slpstd; /* estimated slope, std */
-} bia_t;
-
-typedef struct {        /* satellite BIAS data record type */
-    int ncb[MAXSAT],ncbmax[MAXSAT]; /* number of code biases */
-    int rcb[MAXSAT];    /* bookmark of code biases */
-    int npb[MAXSAT],npbmax[MAXSAT]; /* number of phase biases */
-    int rpb[MAXSAT];    /* bookmark of phase biases */
-    bia_t *cb[MAXSAT];  /* code biases data record */
-    bia_t *pb[MAXSAT];  /* phase biases data record */
-} biasat_t;
-
-typedef struct {        /* station BIAS data record type */
-    char name[10];      /* station name */
-    int nsyscb[MAXBSNXSYS],nsyscbmax[MAXBSNXSYS]; /* number of system code biases */
-    int rsyscb[MAXBSNXSYS]; /* bookmark of system code biases */
-    int nsatcb[MAXSAT],nsatcbmax[MAXSAT]; /* number of satellite code biases */
-    int rsatcb[MAXSAT]; /* bookmark of satellite code biases */
-    bia_t *syscb[MAXBSNXSYS]; /* system code biases data record */
-    bia_t *satcb[MAXSAT]; /* satellite code biases data record */
-} biasta_t;
-
-typedef struct {        /* BIAS-SINEX data type */
-    int nsta;           /* number of stations */
-    biasat_t sat;       /* satellite biases data record */
-    biasta_t sta[MAXSTA]; /* station biases data record */
-    int refcode[MAXBSNXSYS][2]; /* reference observables */
-} biass_t;
+/* bia_t, biasat_t, biasta_t, biass_t moved to mrtklib/mrtk_bias_sinex.h */
 
 /* fatalfunc_t is now defined in mrtklib/mrtk_mat.h */
 
@@ -968,25 +938,8 @@ void dl_test(gtime_t ts, gtime_t te, double ti, const url_t *urls, int nurl,
 int gis_read(const char *file, gis_t *gis, int layer);
 void gis_free(gis_t *gis);
 
-/* BIAS-SINEX functions ------------------------------------------------------*/
-int getsysno(int sat);
-biass_t *getbiass(void);
-void addbia(const bia_t *bia, bia_t **ary, int *n, int *nmax);
-int readbsnx(const char *file);
-void outbsnxh(FILE *fp,gtime_t ts,gtime_t te,const char* agency);
-void outbsnxrefh(FILE *fp);
-void outbsnxrefb(FILE *fp, int type, char* reftext);
-void outbsnxreff(FILE *fp);
-void outbsnxcomh(FILE *fp);
-void outbsnxcomb(FILE *fp, char* comtext);
-void outbsnxcomf(FILE *fp);
-void outbsnxsol(FILE *fp);
-int udosb_sat(osb_t *osb, gtime_t gt, int mode);
-int udosb_station(osb_t *osb, gtime_t gt, int mode, char *name);
-
-/* read fcb functions ------------------------------------------------------*/
-int readfcb(const char *file);
-int udfcb_sat(osb_t *osb, gtime_t gt, int mode);
+/* BIAS-SINEX functions moved to mrtklib/mrtk_bias_sinex.h */
+/* FCB functions moved to mrtklib/mrtk_fcb.h */
 
 /* code/phase bias functions -------------------------------------------------*/
 void updatbiass(gtime_t t, prcopt_t *popt, nav_t *nav);

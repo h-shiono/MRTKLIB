@@ -1,11 +1,30 @@
 /*------------------------------------------------------------------------------
-* readfcb.c : fractional cycle bias functions
+* mrtk_fcb.c : fractional cycle bias functions
 *
 * Copyright (C) 2024 Japan Aerospace Exploration Agency. All Rights Reserved.
 *
 * history : 2024/12/20 1.0 new
 *-----------------------------------------------------------------------------*/
-#include "rtklib.h"
+#include "mrtklib/mrtk_fcb.h"
+#include "mrtklib/mrtk_bias_sinex.h"
+#include "mrtklib/mrtk_sys.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+/* local constants -----------------------------------------------------------*/
+static const double CLIGHT  = 299792458.0;
+
+#define SYS_GPS 0x01
+#define SYS_GAL 0x08
+#define SYS_QZS 0x10
+#define SYS_CMP 0x20
+
+/*--- forward declarations for legacy functions resolved at link time -------*/
+extern void trace(int level, const char *format, ...);
+extern int satid2no(const char *id);
+extern int satsys(int sat, int *prn);
+extern double code2freq(int sys, uint8_t code, int fcn);
 
 static biass_t fcbs = {0};
 
@@ -73,9 +92,9 @@ static int readfcbf(const char *file)
         bia.type = 2; /* OSB */
         if((p = strchr(buff, '#'))) *p = '\0';
         if(sscanf(buff, "%lf/%lf/%lf %lf:%lf:%lf %lf/%lf/%lf %lf:%lf:%lf %s"
-            "%lf %lf %lf %lf %lf %lf", 
+            "%lf %lf %lf %lf %lf %lf",
             ep1, ep1 + 1, ep1 + 2, ep1 + 3, ep1 + 4, ep1 + 5,
-            ep2, ep2 + 1, ep2 + 2, ep2 + 3, ep2 + 4, ep2 + 5, 
+            ep2, ep2 + 1, ep2 + 2, ep2 + 3, ep2 + 4, ep2 + 5,
             str, bias, std, bias + 1, std + 1, bias + 2, std + 2) < 17) continue;
         if(!(sat = satid2no(str))) continue;
         sys = satsys(sat, NULL);
@@ -96,7 +115,7 @@ static int readfcbf(const char *file)
                     cyc2m = CLIGHT / code2freq(sys, bia.code[0], 0);
                     bia.val     = bias[i] * cyc2m;
                     bia.valstd  = std[i]  * cyc2m;
-                    addbia(&bia, &fcbsp->sat.pb[sat - 1], 
+                    addbia(&bia, &fcbsp->sat.pb[sat - 1],
                         &fcbsp->sat.npb[sat - 1],
                         &fcbsp->sat.npbmax[sat - 1]);
                 }
@@ -112,7 +131,7 @@ static int readfcbf(const char *file)
 * args   : char *file       I   FCB file path (wild-card * expanded)
 * return : int              O   status (1: success, 0: failure)
 *-----------------------------------------------------------------------------*/
-extern int readfcb(const char *file)
+int readfcb(const char *file)
 {
     char *efiles[MAXEXFILE] = {0};
     int i, n;
@@ -142,7 +161,7 @@ extern int readfcb(const char *file)
 *          int    mode      I   mode (0: current, 1: all)
 * return : int              O   number of updated biases
 *-----------------------------------------------------------------------------*/
-extern int udfcb_sat(osb_t *osb, gtime_t gt, int mode)
+int udfcb_sat(osb_t *osb, gtime_t gt, int mode)
 {
     biass_t *fcbsp;
     bia_t *bias;
