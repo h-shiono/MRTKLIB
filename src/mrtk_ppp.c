@@ -1,5 +1,5 @@
 /*------------------------------------------------------------------------------
-* ppp.c : precise point positioning
+* mrtk_ppp.c : precise point positioning
 *
 * Copyright (C) 2024-2025 Japan Aerospace Exploration Agency. All Rights Reserved.
 * Copyright (C) 2010-2020 by T.TAKASU, All rights reserved.
@@ -75,7 +75,52 @@
 *                           change the sign of the code/phase bias correction 
 *                           in corr_meas()
 *-----------------------------------------------------------------------------*/
-#include "rtklib.h"
+#include "mrtklib/mrtk_ppp.h"
+#include "mrtklib/mrtk_ppp_ar.h"
+#include "mrtklib/mrtk_mat.h"
+#include "mrtklib/mrtk_coords.h"
+#include "mrtklib/mrtk_atmos.h"
+#include "mrtklib/mrtk_antenna.h"
+#include "mrtklib/mrtk_tides.h"
+#include "mrtklib/mrtk_peph.h"
+#include "mrtklib/mrtk_astro.h"
+#include "mrtklib/mrtk_ionex.h"
+#include "mrtklib/mrtk_bias_sinex.h"
+#include "mrtklib/mrtk_sbas.h"
+#include "mrtklib/mrtk_madoca_local_corr.h"
+
+#include <string.h>
+#include <stdlib.h>
+#include <math.h>
+#include <stdio.h>
+
+/* local constants (duplicated from rtklib.h to avoid circular dependency) */
+#define PI          3.1415926535897932  /* pi */
+#define CLIGHT      299792458.0         /* speed of light (m/s) */
+#define D2R         (PI/180.0)          /* deg to rad */
+#define R2D         (180.0/PI)          /* rad to deg */
+#define FREQ1       1.57542E9           /* L1/E1/B1C  frequency (Hz) */
+#define RE_WGS84    6378137.0           /* earth semimajor axis (WGS84) (m) */
+#define OMGE        7.2921151467E-5     /* earth angular velocity (IS-GPS) (rad/s) */
+#define M2NS        (1E9/CLIGHT)        /* m to ns */
+
+#define SYS_NONE    0x00                /* navigation system: none */
+#define SYS_GPS     0x01                /* navigation system: GPS */
+#define SYS_SBS     0x02                /* navigation system: SBAS */
+#define SYS_GLO     0x04                /* navigation system: GLONASS */
+#define SYS_GAL     0x08                /* navigation system: Galileo */
+#define SYS_QZS     0x10                /* navigation system: QZSS */
+#define SYS_CMP     0x20                /* navigation system: BeiDou */
+#define SYS_IRN     0x40                /* navigation system: IRNSS */
+
+#define EFACT_GPS   1.0                 /* error factor: GPS */
+#define EFACT_GLO   1.5                 /* error factor: GLONASS */
+#define EFACT_SBS   3.0                 /* error factor: SBAS */
+
+#define SATT_NORMAL 0                   /* nominal attitude */
+
+/* forward declarations (implemented in rtkcmn.c, resolved at link time) */
+extern void trace(int level, const char *format, ...);
 
 #define SQR(x)      ((x)*(x))
 #define SQRT(x)     ((x)<=0.0||(x)!=(x)?0.0:sqrt(x))

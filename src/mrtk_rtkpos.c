@@ -57,6 +57,7 @@
 *                           in udsatcb(),udsatpb(),udstacb()
 *-----------------------------------------------------------------------------*/
 #include "mrtklib/mrtk_rtkpos.h"
+#include "mrtklib/mrtk_ppp.h"
 #include "mrtklib/mrtk_mat.h"
 #include "mrtklib/mrtk_lambda.h"
 #include "mrtklib/mrtk_sys.h"
@@ -101,13 +102,10 @@
 #define SSR_VENDOR_RTCM 1               /* SSR vendor: RTCM */
 #define MAXAGESSRL6 60.0                /* max age of SSR L6 (s) */
 
-/* forward declarations (implemented in rtkcmn.c/ppp.c, resolved at link time) */
+/* forward declarations (implemented in rtkcmn.c, resolved at link time) */
 extern void trace(int level, const char *format, ...);
 extern void tracemat(int level, const double *A, int n, int m, int p, int q);
 extern void traceobs(int level, const obsd_t *obs, int n);
-extern void pppos(rtk_t *rtk, const obsd_t *obs, int n, const nav_t *nav);
-extern int  pppnx(const prcopt_t *opt);
-extern int  pppoutstat(rtk_t *rtk, char *buff);
 
 /* constants/macros ----------------------------------------------------------*/
 

@@ -83,6 +83,7 @@
 #include "mrtklib/mrtk_lambda.h"
 #include "mrtklib/mrtk_rtkpos.h"
 #include "mrtklib/mrtk_ppp_ar.h"
+#include "mrtklib/mrtk_ppp.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -839,10 +840,7 @@ void strsetproxy(const char *addr);
 /* rtkinit/rtkfree/rtkpos/rtkopenstat/rtkclosestat/rtkoutstat moved to mrtklib/mrtk_rtkpos.h */
 /* ppp_ar moved to mrtklib/mrtk_ppp_ar.h */
 
-/* precise point positioning -------------------------------------------------*/
-void pppos(rtk_t *rtk, const obsd_t *obs, int n, const nav_t *nav);
-int pppnx(const prcopt_t *opt);
-int pppoutstat(rtk_t *rtk, char *buff);
+/* pppos/pppnx/pppoutstat moved to mrtklib/mrtk_ppp.h */
 
 /* post-processing positioning -----------------------------------------------*/
 int postpos(gtime_t ts, gtime_t te, double ti, double tu, const prcopt_t *popt,
