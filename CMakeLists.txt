@@ -151,8 +151,11 @@ set_tests_properties(rnx2rtkp_spp_check PROPERTIES
 )
 
 # ── recvbias regression ──────────────────────────────────────────────────────
+# Note: recvbias returns exit code 1 on success (non-standard).
+# The bash wrapper normalises this so CTest sees exit code 0.
 add_test(NAME recvbias_rb
-    COMMAND $<TARGET_FILE:recvbias>
+    COMMAND bash -c "\"$@\"; rc=$?; [ $rc -eq 1 ] && exit 0 || exit $rc" _
+        $<TARGET_FILE:recvbias>
         -td 2024/8/22
         -nav ${_TESTDATA}/MALIB_OSS_data_obsnav_240822-1100.nav
         -tec ${_TESTDATA}/COD0OPSFIN_20242350000_01D_01H_GIM.INX

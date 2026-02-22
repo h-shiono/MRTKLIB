@@ -96,7 +96,9 @@ if [[ ! -f "$TEC_FILE" ]]; then
     echo "  URL: $TEC_URL"
     tec_compressed="${TEC_FILE}.gz"
     if curl -fSL -o "$tec_compressed" "$TEC_URL"; then
-        gunzip "$tec_compressed"
+        # Use gzip -dc to avoid "has other links" error on APFS (macOS)
+        gzip -dc "$tec_compressed" > "$TEC_FILE"
+        rm -f "$tec_compressed"
         echo "  Downloaded: $TEC_FILE"
     else
         rm -f "$tec_compressed"
@@ -137,8 +139,11 @@ output_dir=test/data/regression
 mkdir -p "$output_dir"
 
 # Execute recvbias
+# Note: recvbias returns exit code 1 on success (non-standard C convention).
+#       Exit code 255 (-1 wrapped) indicates actual failure.
 output="${output_dir}/MALIB_OSS_data_obsnav_240822-1100.rb.bia"
 echo "Running recvbias..."
+set +e
 ./recvbias \
     -td "$DATE" \
     -nav "$nav" \
@@ -149,6 +154,13 @@ echo "Running recvbias..."
     ${TRACE_OPTS[@]+"${TRACE_OPTS[@]}"} \
     -out "$output" \
     "$obs"
+rc=$?
+set -e
+
+if [[ $rc -ne 0 && $rc -ne 1 ]]; then
+    echo "ERROR: recvbias failed (exit code $rc)" >&2
+    exit 1
+fi
 
 # Verify output
 echo "Verifying output..."
