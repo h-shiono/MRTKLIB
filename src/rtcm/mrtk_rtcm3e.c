@@ -1627,7 +1627,7 @@ static int encode_ssr3(rtcm_t *rtcm, int sys, int subtype, int sync)
         if (satsys(j+1,&prn)!=sys||!rtcm->ssr[j].update) continue;
         
         for (k=nbias=0;k<32;k++) {
-            if (!sigs[k]||rtcm->ssr[j].cbias[sigs[k]-1]==0.0) continue;
+            if (!sigs[k]||rtcm->ssr[j].vcbias[sigs[k]-1]==0) continue;
             code[nbias]=k;
             bias[nbias++]=ROUND(rtcm->ssr[j].cbias[sigs[k]-1]/0.01);
         }
@@ -1803,9 +1803,10 @@ static int encode_ssr7(rtcm_t *rtcm, int sys, int subtype, int sync)
     double udint=0.0;
     int i,j,k,iod=0,nsat,prn,nbias,np,offp;
     int code[MAXCODE],pbias[MAXCODE],stdpb[MAXCODE],yaw_ang,yaw_rate;
-    
+    int discnt[MAXCODE];
+
     trace(NULL,3,"encode_ssr7: sys=%d subtype=%d sync=%d\n",sys,subtype,sync);
-    
+
     switch (sys) {
         case SYS_GPS: np=6; offp=  0; sigs=ssr_sig_gps; break;
         case SYS_GLO: np=5; offp=  0; sigs=ssr_sig_glo; break;
@@ -1829,13 +1830,14 @@ static int encode_ssr7(rtcm_t *rtcm, int sys, int subtype, int sync)
     }
     /* encode SSR header */
     i=encode_ssr_head(7,rtcm,sys,subtype,nsat,sync,iod,udint,0,0,0);
-    
+
     for (j=nsat=0;j<MAXSAT;j++) {
         if (satsys(j+1,&prn)!=sys||!rtcm->ssr[j].update) continue;
-        
+
         for (k=nbias=0;k<32;k++) {
-            if (!sigs[k]||rtcm->ssr[j].pbias[sigs[k]-1]==0.0) continue;
+            if (!sigs[k]||rtcm->ssr[j].vpbias[sigs[k]-1]==0) continue;
             code[nbias]=k;
+            discnt[nbias ]=rtcm->ssr[j].discnt[sigs[k]-1];
             pbias[nbias  ]=ROUND(rtcm->ssr[j].pbias[sigs[k]-1]/0.0001);
             stdpb[nbias++]=ROUND(rtcm->ssr[j].stdpb[sigs[k]-1]/0.0001);
         }
@@ -1845,13 +1847,13 @@ static int encode_ssr7(rtcm_t *rtcm, int sys, int subtype, int sync)
         setbitu(rtcm->buff,i, 5,nbias);    i+= 5; /* number of code biases */
         setbitu(rtcm->buff,i, 9,yaw_ang);  i+= 9; /* yaw angle */
         setbits(rtcm->buff,i, 8,yaw_rate); i+= 8; /* yaw rate */
-        
+
         for (k=0;k<nbias;k++) {
-            setbitu(rtcm->buff,i, 5,code[k] ); i+= 5; /* signal indicator */
-            setbitu(rtcm->buff,i, 1,0       ); i+= 1; /* integer-indicator */
-            setbitu(rtcm->buff,i, 2,0       ); i+= 2; /* WL integer-indicator */
-            setbitu(rtcm->buff,i, 4,0       ); i+= 4; /* discont counter */
-            setbits(rtcm->buff,i,20,pbias[k]); i+=20; /* phase bias */
+            setbitu(rtcm->buff,i, 5,code[k]  ); i+= 5; /* signal indicator */
+            setbitu(rtcm->buff,i, 1,0        ); i+= 1; /* integer-indicator */
+            setbitu(rtcm->buff,i, 2,0        ); i+= 2; /* WL integer-indicator */
+            setbitu(rtcm->buff,i, 4,discnt[k]); i+= 4; /* discont counter */
+            setbits(rtcm->buff,i,20,pbias[k] ); i+=20; /* phase bias */
             if (subtype==0) {
                 setbits(rtcm->buff,i,17,stdpb[k]); i+=17; /* std-dev ph-bias */
             }

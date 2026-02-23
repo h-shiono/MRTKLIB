@@ -424,6 +424,7 @@ static int decode_mcssr_cc(mcssr_t *mc, ssr_t *ssr, int i, int apply)
 static int decode_mcssr_cb(mcssr_t *mc, ssr_t *ssr, int i, int apply)
 {
     int j, k, sync, iod, ep, sat, nsig, mask, cb, flg;
+    int vcbias[MAXCODE]={0};
     double udint,cbias[MAXCODE];
     char satid[8];
 
@@ -447,7 +448,10 @@ static int decode_mcssr_cb(mcssr_t *mc, ssr_t *ssr, int i, int apply)
     }
     adjweek(&mc->gt, mc->tow0 + ep);
     for (j = 0; j < mc->ns; j++) {
-        for (k=0;k<MAXCODE;k++) cbias[k]=0.0;
+        for (k=0;k<MAXCODE;k++) {
+            cbias[k]=0.0;
+            vcbias[k]=0;
+        }
         sat = mc->satlist[j];
         satno2id(sat, satid);
         nsig = mc->nsig[mc->gidlist[j]];
@@ -461,7 +465,8 @@ static int decode_mcssr_cb(mcssr_t *mc, ssr_t *ssr, int i, int apply)
                 if(sat == 0) continue; /* unsupprted sat */
                 if(cb == MCSSR_INVALID_11BIT) continue; /* invalid value */
 
-                cbias[mc->siglist[mc->gidlist[j]][k]-1] = cb * 0.02;
+                cbias [mc->siglist[mc->gidlist[j]][k]-1] = cb * 0.02;
+                vcbias[mc->siglist[mc->gidlist[j]][k]-1] = 1; /* 1:output */
             }
             mask >>= 1;
         }
@@ -469,7 +474,10 @@ static int decode_mcssr_cb(mcssr_t *mc, ssr_t *ssr, int i, int apply)
             ssr[sat-1].t0[4]   = mc->gt;
             ssr[sat-1].udi[4]  = udint;
             ssr[sat-1].iod[4]  = iod;
-            for (k=0;k<MAXCODE;k++) ssr[sat-1].cbias[k]=(float)cbias[k];
+            for (k=0;k<MAXCODE;k++) {
+                ssr[sat-1].cbias [k]=(float)cbias[k];
+                ssr[sat-1].vcbias[k]=vcbias[k];
+            }
             ssr[sat-1].update=1;
         }
     }
@@ -480,6 +488,7 @@ static int decode_mcssr_cb(mcssr_t *mc, ssr_t *ssr, int i, int apply)
 static int decode_mcssr_pb(mcssr_t *mc, ssr_t *ssr, int i, int apply)
 {
     int j, k, sync, iod, ep, sat, nsig, mask, pb, di, flg;
+    int discnt[MAXCODE]={0},vpbias[MAXCODE]={0};
     double udint,pbias[MAXCODE];
     char satid[8];
 
@@ -503,7 +512,10 @@ static int decode_mcssr_pb(mcssr_t *mc, ssr_t *ssr, int i, int apply)
     }
     adjweek(&mc->gt, mc->tow0 + ep);
     for (j = 0; j < mc->ns; j++) {
-        for (k=0;k<MAXCODE;k++) pbias[k]=0.0;
+        for (k=0;k<MAXCODE;k++) {
+            pbias[k]=0.0;
+            discnt[k]=vpbias[k]=0;
+        }
         sat = mc->satlist[j];
         satno2id(sat, satid);
         nsig = mc->nsig[mc->gidlist[j]];
@@ -519,7 +531,9 @@ static int decode_mcssr_pb(mcssr_t *mc, ssr_t *ssr, int i, int apply)
                 if(sat == 0) continue; /* unsupprted sat */
                 if(pb == MCSSR_INVALID_15BIT) continue; /* invalid value */
 
-                pbias[mc->siglist[mc->gidlist[j]][k]-1] = pb * 0.001;
+                pbias [mc->siglist[mc->gidlist[j]][k]-1] = pb * 0.001;
+                vpbias[mc->siglist[mc->gidlist[j]][k]-1] = 1; /* 1:output */
+                discnt[mc->siglist[mc->gidlist[j]][k]-1] = di;
             }
             mask >>= 1;
         }
@@ -529,7 +543,11 @@ static int decode_mcssr_pb(mcssr_t *mc, ssr_t *ssr, int i, int apply)
             ssr[sat-1].iod[5]   = iod;
             ssr[sat-1].yaw_ang  = 0.0;
             ssr[sat-1].yaw_rate = 0.0;
-            for (k=0;k<MAXCODE;k++) ssr[sat-1].pbias[k] = (float)pbias[k];
+            for (k=0;k<MAXCODE;k++) {
+                ssr[sat-1].pbias [k] = (float)pbias[k];
+                ssr[sat-1].vpbias[k] = vpbias[k];
+                ssr[sat-1].discnt[k] = discnt[k];
+            }
             ssr[sat-1].update=1;
         }
     }

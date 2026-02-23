@@ -70,6 +70,7 @@ int init_rtcm(rtcm_t *rtcm)
     rtcm->obs.data=NULL;
     rtcm->nav.eph =NULL;
     rtcm->nav.geph=NULL;
+    rtcm->nav.pppiono=NULL;
     
     /* reallocate memory for observation and ephemeris buffer */
     if (!(rtcm->obs.data=(obsd_t *)malloc(sizeof(obsd_t)*MAXOBS))||
