@@ -4,9 +4,9 @@ set -euo pipefail
 # Generate Reference Position for PPP and SPP using rnx2rtkp
 #
 # Usage:
-#   bash tests/data/malib/gen_ref_pp.sh            # without trace
-#   bash tests/data/malib/gen_ref_pp.sh --trace     # with trace (level 5)
-#   bash tests/data/malib/gen_ref_pp.sh --trace 3   # with trace (custom level)
+#   bash tests/data/malib/generate_reference_rnx2rtkp.sh            # without trace
+#   bash tests/data/malib/generate_reference_rnx2rtkp.sh --trace     # with trace (level 5)
+#   bash tests/data/malib/generate_reference_rnx2rtkp.sh --trace 3   # with trace (custom level)
 #
 # Requires cmake build to have been run first:
 #   cmake --preset default && cmake --build build

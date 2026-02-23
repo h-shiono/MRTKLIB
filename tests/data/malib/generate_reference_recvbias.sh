@@ -11,9 +11,9 @@ set -euo pipefail
 # The TEC file is downloaded to tests/data/malib/ and cleaned up on exit.
 #
 # Usage:
-#   bash tests/data/malib/gen_ref_rb.sh            # without trace
-#   bash tests/data/malib/gen_ref_rb.sh --trace     # with trace (level 5)
-#   bash tests/data/malib/gen_ref_rb.sh --trace 3   # with trace (custom level)
+#   bash tests/data/malib/generate_reference_recvbias.sh            # without trace
+#   bash tests/data/malib/generate_reference_recvbias.sh --trace     # with trace (level 5)
+#   bash tests/data/malib/generate_reference_recvbias.sh --trace 3   # with trace (custom level)
 #
 # Requires cmake build to have been run first:
 #   cmake --preset default && cmake --build build

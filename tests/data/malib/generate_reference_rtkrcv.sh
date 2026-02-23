@@ -4,10 +4,10 @@ set -euo pipefail
 # Generate Reference Position for real-time PPP using rtkrcv
 #
 # Usage:
-#   bash tests/data/malib/gen_ref_rt.sh                # default (x10 speed)
-#   bash tests/data/malib/gen_ref_rt.sh --speed 20     # custom playback speed
-#   bash tests/data/malib/gen_ref_rt.sh --trace         # with trace (level 5)
-#   bash tests/data/malib/gen_ref_rt.sh --trace 3       # with trace (custom level)
+#   bash tests/data/malib/generate_reference_rtkrcv.sh                # default (x10 speed)
+#   bash tests/data/malib/generate_reference_rtkrcv.sh --speed 20     # custom playback speed
+#   bash tests/data/malib/generate_reference_rtkrcv.sh --trace         # with trace (level 5)
+#   bash tests/data/malib/generate_reference_rtkrcv.sh --trace 3       # with trace (custom level)
 #
 # Requires cmake build to have been run first:
 #   cmake --preset default && cmake --build build

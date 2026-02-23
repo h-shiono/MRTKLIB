@@ -18,7 +18,7 @@ PROJECT_ROOT="$2"
 REFERENCE="$3"
 PLAYBACK_SPEED="${4:-10}"
 
-RTKRCV_PORT=52003        # distinct from gen_ref_rt.sh port (52001)
+RTKRCV_PORT=52003        # distinct from generate_reference_rtkrcv.sh port (52001)
 IDLE_TIMEOUT=10
 MAX_TIMEOUT=300
 
