@@ -183,6 +183,9 @@ typedef struct {        /* SSR correction type */
     float  cbias[MAXCODE]; /* code biases (m) */
     double pbias[MAXCODE]; /* phase biases (m) */
     float  stdpb[MAXCODE]; /* std-dev of phase biases (m) */
+    int vcbias[MAXCODE]; /* code biases valid flag (0:invalid, 1:valid) */
+    int vpbias[MAXCODE]; /* phase biases valid flag (0:invalid, 1:valid) */
+    int discnt[MAXCODE]; /* phase biases discontinuity counter */
     double yaw_ang,yaw_rate; /* yaw angle and yaw rate (deg,deg/s) */
     uint8_t update;     /* update flag (0:no update,1:update) */
     int vendor;         /* vendor type(0:L6(MADOCA-PPP),1:RTCM3(JAXA-MADOCA)) */
@@ -200,6 +203,47 @@ typedef struct {        /* stec data type */
     int vrsyscb[MAXBSNXSYS][MAXCODE];  /* valid flag(0:invlalid,1:valid) */
     int vrsatcb[MAXSAT][MAXCODE];      /* valid flag(0:invlalid,1:valid) */
 } osb_t;
+
+/*============================================================================
+ * MADOCA-PPP L6D Ionospheric Correction Types
+ *===========================================================================*/
+
+typedef struct {        /* MADOCA-PPP L6D STEC polynomial type */
+    gtime_t t0;         /* correction time */
+    int sqi;            /* SSR STEC quality indicator */
+    double coef[6];     /* STEC poly.coef. {C00,C01,C10,C11,C02,C20} */
+} miono_sat_t;
+
+typedef struct {        /* MADOCA-PPP L6D area type */
+    int avalid;         /* 0:invalid, 1:valid */
+    int sid;            /* shape ID {rectangle, circle} */
+    int type;           /* STEC correction type */
+    double ref[2];      /* reference point {Lat., Lon.} */
+    double span[2];     /* rect.{Lat.,Lon.}, span{Effective range, N/A} */
+    miono_sat_t sat[MAXSAT]; /* satellite STEC polynomial coefficients */
+} miono_area_t;
+
+typedef struct {        /* MADOCA-PPP L6D region type */
+    int rvalid;         /* 0:invalid, 1:valid */
+    int ralert;         /* region alert flag */
+    int narea;          /* number of areas */
+    miono_area_t area[MIONO_MAX_ANUM]; /* areas */
+} miono_region_t;
+
+typedef struct {        /* PPP ionospheric correction data type */
+    gtime_t time;       /* update time (GPST) */
+    gtime_t t0[MAXSAT]; /* correction time */
+    double  dly[MAXSAT]; /* L1 slant delay (m) */
+    double  std[MAXSAT]; /* L1 slant delay std (m) */
+} pppiono_corr_t;
+
+typedef struct {        /* PPP ionospheric correction type */
+    pppiono_corr_t corr; /* ionospheric correction data */
+    miono_region_t re[MIONO_MAX_RID]; /* MADOCA-PPP L6D regions */
+    int rid;            /* MADOCA-PPP L6D region id */
+    int anum;           /* MADOCA-PPP L6D area number */
+    int valid;          /* PPP iono correction flag (0:invalid, 1:valid) */
+} pppiono_t;
 
 /*============================================================================
  * Station Correction Types
@@ -356,6 +400,7 @@ typedef struct {        /* navigation data type */
     sbsion_t sbsion[MAXBAND+1]; /* SBAS ionosphere corrections */
     dgps_t dgps[MAXSAT]; /* DGPS corrections */
     ssr_t ssr[MAXSAT];  /* SSR corrections */
+    pppiono_t *pppiono; /* PPP ionospheric corrections (MADOCA-PPP L6D) (heap) */
     stat_t stat;        /* stat corrections */
     osb_t osb;          /* Observable-specific Signal Bias data */
     char biapath [MAXSTRPATH]; /* bias sinex file path */

@@ -55,6 +55,8 @@ typedef struct {        /* RTK control/result type */
     int neb;            /* bytes in error message buffer */
     char errbuf[MAXERRMSG]; /* error message buffer */
     prcopt_t opt;       /* processing options */
+    int miono_info[2];  /* MADOCA-PPP iono info (0:region id, 1:area No.) */
+    double prev_qr[6];  /* previous position variance/covariance (m^2) */
 } rtk_t;
 
 /**

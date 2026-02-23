@@ -162,6 +162,7 @@ opt_t sysopts[]={
     {"stats-prniono",   1,  (void *)&prcopt_.prn[1],     "m"    },
     {"stats-prntrop",   1,  (void *)&prcopt_.prn[2],     "m"    },
     {"stats-prnpos",    1,  (void *)&prcopt_.prn[5],     "m"    },
+    {"stats-prndcb",    1,  (void *)&prcopt_.prn[6],     "m"    },
     {"stats-clkstab",   1,  (void *)&prcopt_.sclkstab,   "s/s"  },
     
     {"ant1-postype",    3,  (void *)&antpostype_[0],     POSOPT },

@@ -173,7 +173,7 @@ typedef struct prcopt_t {        /* processing options type */
                         /* [1-3]:error factor a/b/c of phase (m) */
                         /* [4]:doppler frequency (hz) */
     double std[3];      /* initial-state std [0]bias,[1]iono [2]trop */
-    double prn[6];      /* process-noise std [0]bias,[1]iono [2]trop [3]acch [4]accv [5] pos */
+    double prn[7];      /* process-noise std [0]bias,[1]iono [2]trop [3]acch [4]accv [5]pos [6]dcb */
     double sclkstab;    /* satellite clock stability (sec/sec) */
     double thresar[8];  /* AR validation threshold */
     double elmaskar;    /* elevation mask of AR for rising satellite (deg) */
@@ -210,6 +210,7 @@ typedef struct prcopt_t {        /* processing options type */
     int  pppsig[6];     /* signal selection [0]GPS IIR-M,[1]GPS IIF,[2]GPS IIIA,[3]QZS-1/2,[4]BDS-3,[5]GAL */
     char staname[32];   /* station name */
     int  ppp_engine;    /* PPP engine selection (MRTK_PPP_ENGINE_xxx) */
+    char *l6dpath[MIONO_MAX_PRN]; /* MADOCA-PPP L6D file paths */
 } prcopt_t;
 
 /*============================================================================

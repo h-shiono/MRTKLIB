@@ -103,11 +103,13 @@ typedef struct {        /* satellite status type */
     uint32_t outc [NFREQ]; /* obs outage counter of phase */
     uint32_t slipc[NFREQ]; /* cycle-slip counter */
     uint32_t rejc [NFREQ]; /* reject counter */
-    double gf[NFREQ-1]; /* geometry-free phase (m) */
-    double mw[NFREQ-1]; /* MW-LC (m) */
+    double gf[NFREQ];   /* geometry-free phase (m) */
+    double mw[NFREQ];   /* MW-LC (m) */
     double phw;         /* phase windup (cycle) */
     gtime_t pt[2][NFREQ]; /* previous carrier-phase time */
     double ph[2][NFREQ]; /* previous carrier-phase observable (cycle) */
+    int discont[NFREQ]; /* SSR phase bias discontinuity counter */
+    double ionc;        /* ionospheric delay by carrier phase (m) */
 } ssat_t;
 
 /*============================================================================

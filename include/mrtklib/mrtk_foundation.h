@@ -261,6 +261,14 @@ extern "C" {
 #define MAX_REJ_SITES   5               /* max number of reject sites */
 
 /*============================================================================
+ * MADOCA-PPP L6D Ionospheric Correction Constants
+ *===========================================================================*/
+
+#define MIONO_MAX_RID   256             /* max region id (IS-QZSS-MDC-002 Table 6.3.2-4) */
+#define MIONO_MAX_ANUM   32             /* max area number (Table 6.3.2-4) */
+#define MIONO_MAX_PRN    (2+1)          /* max MADOCA-PPP L6D signal (Table 3-1) + 1 reserved */
+
+/*============================================================================
  * Platform-Dependent Lock / Thread Types
  *===========================================================================*/
 

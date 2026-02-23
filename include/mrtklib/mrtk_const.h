@@ -412,6 +412,7 @@ extern "C" {
 #define SSR_VENDOR_L6   0               /* vendor type L6(MADOCA-PPP) */
 #define SSR_VENDOR_RTCM 1               /* vendor type RTCM3(JAXA-MADOCA) */
 #define MAXAGESSRL6     60.0            /* max age of ssr satellite code and phase bias (s) */
+#define MIONO_MAX_AGE   300.0           /* max age of STEC correction (s) (Table 6.3.2-3) */
 
 /*============================================================================
  * Satellite Attitude / Type Constants
