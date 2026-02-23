@@ -35,9 +35,9 @@ static void dumpclk(pclk_t *pclk, int n)
 /* readsp3() */
 void utest1(void)
 {
-    char *file1="../data/sp3/igs15904.sp4";
-    char *file2="../data/sp3/igs15904.sp3";
-    char *file3="../data/sp3/igs1590*.sp3";
+    char *file1="../data/rtklib/sp3/igs15904.sp4";
+    char *file2="../data/rtklib/sp3/igs15904.sp3";
+    char *file3="../data/rtklib/sp3/igs1590*.sp3";
     nav_t nav={0};
     
     printf("file=%s\n",file1);
@@ -61,7 +61,7 @@ void utest2(void)
 {
     double ep1[]={2008,3,1,0,0,0};
     double ep2[]={2006,11,4,23,59,59};
-    char *file1="../data/sp3/igs06.atx";
+    char *file1="../data/rtklib/sp3/igs06.atx";
     char *file2="../../data/igs05.atx";
     pcvs_t pcvs={0};
     pcv_t *pcv;
@@ -90,9 +90,9 @@ void utest2(void)
 /* readrnxc() */
 void utest3(void)
 {
-    char *file1="../data/sp3/igs15904.cls";
-    char *file2="../data/sp3/igs15904.clk";
-    char *file3="../data/sp3/igs1590*.clk";
+    char *file1="../data/rtklib/sp3/igs15904.cls";
+    char *file2="../data/rtklib/sp3/igs15904.clk";
+    char *file3="../data/rtklib/sp3/igs1590*.clk";
     nav_t nav={0};
     
     printf("file=%s\n",file1);
@@ -117,8 +117,8 @@ void utest3(void)
 void utest4(void)
 {
     FILE *fp;
-    char *file1="../data/sp3/igs1590*.sp3"; /* 2010/7/1 */
-    char *file2="../data/sp3/igs1590*.clk"; /* 2010/7/1 */
+    char *file1="../data/rtklib/sp3/igs1590*.sp3"; /* 2010/7/1 */
+    char *file2="../data/rtklib/sp3/igs1590*.clk"; /* 2010/7/1 */
     nav_t nav={0};
     int i,j,stat,sat;
     double ep[]={2010,7,1,0,0,0};
@@ -156,10 +156,10 @@ void utest4(void)
 void utest5(void)
 {
     FILE *fp;
-    char *file1="../data/sp3/igs1590*.sp3"; /* 2010/7/1 */
-    char *file2="../data/sp3/igs1590*.clk"; /* 2010/7/1 */
+    char *file1="../data/rtklib/sp3/igs1590*.sp3"; /* 2010/7/1 */
+    char *file2="../data/rtklib/sp3/igs1590*.clk"; /* 2010/7/1 */
     char *file3="../../data/igs05.atx";
-    char *file4="../data/rinex/brdc*.10n";
+    char *file4="../data/rtklib/rinex/brdc*.10n";
     pcvs_t pcvs={0};
     pcv_t *pcv;
     nav_t nav={0};

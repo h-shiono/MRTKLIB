@@ -4,10 +4,10 @@ set -euo pipefail
 # Generate Reference Position for real-time PPP using rtkrcv
 #
 # Usage:
-#   bash tests/data/regression/gen_ref_rt.sh                # default (x10 speed)
-#   bash tests/data/regression/gen_ref_rt.sh --speed 20     # custom playback speed
-#   bash tests/data/regression/gen_ref_rt.sh --trace         # with trace (level 5)
-#   bash tests/data/regression/gen_ref_rt.sh --trace 3       # with trace (custom level)
+#   bash tests/data/malib/gen_ref_rt.sh                # default (x10 speed)
+#   bash tests/data/malib/gen_ref_rt.sh --speed 20     # custom playback speed
+#   bash tests/data/malib/gen_ref_rt.sh --trace         # with trace (level 5)
+#   bash tests/data/malib/gen_ref_rt.sh --trace 3       # with trace (custom level)
 #
 # Requires cmake build to have been run first:
 #   cmake --preset default && cmake --build build
@@ -57,7 +57,7 @@ fi
 echo "Using binary: $RTKRCV"
 
 # Output paths
-output_dir=tests/data/regression
+output_dir=tests/data/malib
 output="${output_dir}/MALIB_OSS_data_obsnav_240822-1100.rt.pos"
 mkdir -p "$output_dir"
 
@@ -86,7 +86,7 @@ echo "Extracting data..."
 tar -xzf tests/data/malib/MALIB_OSS_data.tar.gz --strip-components=2 -C tests/data/malib
 
 # Prepare config: copy and patch output path + playback speed
-cp bin/rtkrcv.conf .
+cp conf/malib/rtkrcv.conf .
 # Set output file path
 sed -i.bak "s|^outstr1-path.*|outstr1-path       =./${output}|" rtkrcv.conf
 # Set playback speed

@@ -38,7 +38,7 @@ git clone https://github.com/JAXA-SNU/MALIB.git
 
 3. Execute rtkrcv (replay processing)
    ```sh
-   <install_dir>/bin/rtkrcv -o <install_dir>/bin/rtkrcv.conf
+   <install_dir>/bin/rtkrcv -o <install_dir>/conf/malib/rtkrcv.conf
    ```
    Then open rtkrcv ver.1.0.0 console:
    ```console
@@ -93,7 +93,7 @@ git clone https://github.com/JAXA-SNU/MALIB.git
 
 3. Execute rnx2rtkp (replay processing)
    ```
-   <install_dir>/bin/rnx2rtkp -k <install_dir>/bin/rnx2rtkp.conf <install_dir>/data/MALIB_OSS_data_obsnav_240822-1100.obs <install_dir>/data/MALIB_OSS_data_obsnav_240822-1100.nav <install_dir>/data/2024235L.209.l6 -o <install_dir>/data/out/rnx2rtkp_test.pos
+   <install_dir>/bin/rnx2rtkp -k <install_dir>/conf/malib/rnx2rtkp.conf <install_dir>/data/MALIB_OSS_data_obsnav_240822-1100.obs <install_dir>/data/MALIB_OSS_data_obsnav_240822-1100.nav <install_dir>/data/2024235L.209.l6 -o <install_dir>/data/out/rnx2rtkp_test.pos
    ```
 
 4. Plot data (e.g. RTKPLOT in RTKLIB) \
@@ -334,9 +334,10 @@ navigation satellite system).[RTKLIB manual](https://www.rtklib.com/prog/manual_
 │           ├── rtkrcv.c
 │           ├── vt.c
 │           └── vt.h
-├── bin
-│   ├── rnx2rtkp.conf
-│   └── rtkrcv.conf
+├── conf
+│   └── malib
+│       ├── rnx2rtkp.conf
+│       └── rtkrcv.conf
 ├── data
 │   └── MALIB_OSS_data.tar.gz
 ├── doc

@@ -4,9 +4,9 @@ set -euo pipefail
 # Generate Reference Position for PPP and SPP using rnx2rtkp
 #
 # Usage:
-#   bash tests/data/regression/gen_ref_pp.sh            # without trace
-#   bash tests/data/regression/gen_ref_pp.sh --trace     # with trace (level 5)
-#   bash tests/data/regression/gen_ref_pp.sh --trace 3   # with trace (custom level)
+#   bash tests/data/malib/gen_ref_pp.sh            # without trace
+#   bash tests/data/malib/gen_ref_pp.sh --trace     # with trace (level 5)
+#   bash tests/data/malib/gen_ref_pp.sh --trace 3   # with trace (custom level)
 #
 # Requires cmake build to have been run first:
 #   cmake --preset default && cmake --build build
@@ -53,7 +53,7 @@ echo "Extracting data..."
 tar -xzf tests/data/malib/MALIB_OSS_data.tar.gz --strip-components=2 -C tests/data/malib
 
 # Copy config file
-cp bin/rnx2rtkp.conf .
+cp conf/malib/rnx2rtkp.conf .
 CLEANUP_FILES+=(./rnx2rtkp.conf)
 
 # Input files
@@ -62,7 +62,7 @@ nav=tests/data/malib/MALIB_OSS_data_obsnav_240822-1100.nav
 l6e=tests/data/malib/2024235L.209.l6
 
 # Output directory
-output_dir=tests/data/regression
+output_dir=tests/data/malib
 mkdir -p "$output_dir"
 
 # Execute rnx2rtkp (PPP)

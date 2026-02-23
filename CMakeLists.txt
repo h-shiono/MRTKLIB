@@ -201,7 +201,7 @@ endforeach()
 
 # ── Regression test data ─────────────────────────────────────────────────────
 set(_TESTDATA  ${CMAKE_SOURCE_DIR}/tests/data/malib)
-set(_REFDATA   ${CMAKE_SOURCE_DIR}/tests/data/regression)
+set(_REFDATA   ${CMAKE_SOURCE_DIR}/tests/data/malib)
 set(_TESTCMAKE ${CMAKE_SOURCE_DIR}/tests/cmake)
 
 # ── Fixture: extract / clean test data archive ───────────────────────────────
@@ -238,7 +238,7 @@ set_tests_properties(regression_cleanup PROPERTIES
 # ── rnx2rtkp PPP regression ───────────────────────────────────────────────────
 add_test(NAME rnx2rtkp_ppp
     COMMAND $<TARGET_FILE:rnx2rtkp>
-        -k ${CMAKE_SOURCE_DIR}/bin/rnx2rtkp.conf
+        -k ${CMAKE_SOURCE_DIR}/conf/malib/rnx2rtkp.conf
         -o ${CMAKE_BINARY_DIR}/out_ppp.pos
         ${_TESTDATA}/MALIB_OSS_data_obsnav_240822-1100.obs
         ${_TESTDATA}/MALIB_OSS_data_obsnav_240822-1100.nav

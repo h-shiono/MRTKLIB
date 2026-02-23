@@ -58,9 +58,9 @@ static void dumpdcb(const nav_t *nav)
 /* readtec() */
 void utest1(void)
 {
-    char *file1="../data/sp3/igrg3380.10j";
-    char *file2="../data/sp3/igrg3380.10i";
-    char *file3="../data/sp3/igrg33*0.10i";
+    char *file1="../data/rtklib/sp3/igrg3380.10j";
+    char *file2="../data/rtklib/sp3/igrg3380.10i";
+    char *file3="../data/rtklib/sp3/igrg33*0.10i";
     nav_t nav={0};
     
     printf("file=%s\n",file1);
@@ -86,7 +86,7 @@ void utest1(void)
 /* iontec() 1 */
 void utest2(void)
 {
-    char *file3="../data/sp3/igrg33*0.10i";
+    char *file3="../data/rtklib/sp3/igrg33*0.10i";
     nav_t nav={0};
     gtime_t time1,time2,time3,time4;
     double ep1  []={2010,12, 4, 0, 0, 0};
@@ -139,7 +139,7 @@ void utest2(void)
 void utest3(void)
 {
     FILE *fp;
-    char *file3="../data/sp3/igrg33*0.10i";
+    char *file3="../data/rtklib/sp3/igrg33*0.10i";
     nav_t nav={0};
     gtime_t time1;
     double ep1[]={2010,12, 5, 0, 0, 0};
@@ -195,7 +195,7 @@ void utest3(void)
 void utest4(void)
 {
     FILE *fp;
-    char *file3="../data/sp3/igrg33*0.10i";
+    char *file3="../data/rtklib/sp3/igrg33*0.10i";
     nav_t nav={0};
     gtime_t time1;
     double ep1[]={2010,12, 3,12, 0, 0};

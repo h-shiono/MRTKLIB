@@ -59,10 +59,10 @@ void utest1(void)
 {
     char file1[]="abc.00o";
     char file2[]="bcd.00n";
-    char file3[]="../data/rinex/07590920.05o";
-    char file4[]="../data/rinex/07590920.05n";
-    char file5[]="../data/rinex/30400920.05o";
-    char file6[]="../data/rinex/30400920.05n";
+    char file3[]="../data/rtklib/rinex/07590920.05o";
+    char file4[]="../data/rtklib/rinex/07590920.05n";
+    char file5[]="../data/rtklib/rinex/30400920.05o";
+    char file6[]="../data/rtklib/rinex/30400920.05n";
     obs_t obs={0};
     nav_t nav={0};
     sta_t sta={""};
@@ -98,8 +98,8 @@ void utest2(void)
 {
     gtime_t t0={0},ts,te;
     double ep1[]={2005,4,2,1,0,0},ep2[]={2005,4,2,2,0,0};
-    char file1[]="../data/rinex/07590920.05o";
-    char file2[]="../data/rinex/07590920.05n";
+    char file1[]="../data/rtklib/rinex/07590920.05o";
+    char file2[]="../data/rtklib/rinex/07590920.05n";
     int n;
     obs_t obs={0};
     nav_t nav={0};
@@ -159,7 +159,7 @@ void utest3(void)
 /* outrneobsb() */
 void utest4(void)
 {
-    char file[]="../data/rinex/07590920.05o";
+    char file[]="../data/rtklib/rinex/07590920.05o";
     obs_t obs={0};
     int i,j;
     
@@ -176,7 +176,7 @@ void utest4(void)
 /* outrnxnavh() */
 void utest5(void)
 {
-    char file1[]="../data/rinex/07590920.05n";
+    char file1[]="../data/rtklib/rinex/07590920.05n";
     double ion[]={1E9,2E-4,3E8,4E3,-4E-3,-5E99,-6E-33,-9E-123};
     double utc[]={1E9,2E4,3E2,-9999};
     nav_t nav={0};
@@ -193,7 +193,7 @@ void utest5(void)
 /* outrnxnavb() */
 void utest6(void)
 {
-    char file[]="../data/rinex/07590920.05n";
+    char file[]="../data/rtklib/rinex/07590920.05n";
     nav_t nav={0};
     int i;
     readrnx(file,1,"",NULL,&nav,NULL);
