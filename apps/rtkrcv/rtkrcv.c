@@ -59,6 +59,7 @@
 #include <netdb.h>
 #include <errno.h>
 #include "rtklib.h"
+#include "mrtklib/mrtklib.h"
 #include "vt.h"
 
 #define PRGNAME     "rtkrcv"            /* program name */
@@ -1676,6 +1677,9 @@ int main(int argc, char **argv)
     double ee[]={2000,12,31,23,59,59};
     char staname[32]="";
     
+    /* Initialize MRTKLIB context for legacy trace bridge */
+    g_mrtk_legacy_ctx=mrtk_context_new();
+
     for (i=1;i<argc;i++) {
         if      (!strcmp(argv[i],"-s")) start=1;
         else if (!strcmp(argv[i],"-p")&&i+1<argc) port=atoi(argv[++i]);
@@ -1738,6 +1742,7 @@ int main(int argc, char **argv)
             if (moniport>0) closemoni();
             if (outstat>0) rtkclosestat();
             traceclose();
+            mrtk_context_free(g_mrtk_legacy_ctx);
             return -1;
         }
     }
@@ -1748,6 +1753,7 @@ int main(int argc, char **argv)
             if (moniport>0) closemoni();
             if (outstat>0) rtkclosestat();
             traceclose();
+            mrtk_context_free(g_mrtk_legacy_ctx);
             return -1;
         }
     }
@@ -1787,5 +1793,6 @@ int main(int argc, char **argv)
         fprintf(stderr,"navigation data save error: %s\n",NAVIFILE);
     }
     traceclose();
+    mrtk_context_free(g_mrtk_legacy_ctx);
     return 0;
 }

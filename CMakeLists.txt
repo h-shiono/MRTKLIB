@@ -14,24 +14,64 @@ if(CMAKE_C_COMPILER_ID STREQUAL "GNU" OR CMAKE_C_COMPILER_ID MATCHES "Clang")
     add_compile_options(-Wno-unused-but-set-variable)
 endif()
 
-# ── Core static library ──────────────────────────────────────────────────────
-# Contains the union of all src/ files used by rnx2rtkp and rtkrcv.
-# The linker pulls only the object files referenced by each executable.
+# ── MRTKLIB modular library (new, C11) ───────────────────────────────────────
+# New modular implementation that will gradually replace rtklib.
+# Uses C11 (ISO/IEC 9899:2011) and the include/mrtklib/ public headers.
 add_library(mrtklib STATIC
-    src/biassnx.c       src/ephemeris.c     src/geoid.c         src/ionex.c
-    src/lambda.c        src/lclcmn.c        src/mdccssr.c       src/options.c
-    src/pntpos.c        src/ppp.c           src/ppp_ar.c
-    src/preceph.c       src/rcvraw.c        src/readfcb.c       src/rinex.c
-    src/rtcm.c          src/rtcm2.c         src/rtcm3.c         src/rtcm3lcl.c
-    src/rtcm3e.c        src/rtkcmn.c        src/rtkpos.c        src/rtksvr.c
-    src/sbas.c          src/solution.c      src/stream.c        src/tides.c
-    src/rcv/binex.c     src/rcv/crescent.c  src/rcv/javad.c     src/rcv/novatel.c
-    src/rcv/nvs.c       src/rcv/rt17.c      src/rcv/septentrio.c src/rcv/skytraq.c
-    src/rcv/ss2.c       src/rcv/ublox.c
+    src/mrtk_core.c
+    src/mrtk_time.c
+    src/mrtk_mat.c
+    src/mrtk_coords.c
+    src/mrtk_atmos.c
+    src/mrtk_eph.c
+    src/mrtk_peph.c
+    src/mrtk_bits.c
+    src/mrtk_sys.c
+    src/mrtk_astro.c
+    src/mrtk_antenna.c
+    src/mrtk_station.c
+    src/mrtk_obs.c
+    src/mrtk_nav.c
+    src/mrtk_rinex.c
+    src/mrtk_tides.c
+    src/mrtk_geoid.c
+    src/mrtk_sbas.c
+    src/mrtk_rtcm.c
+    src/mrtk_rtcm2.c
+    src/mrtk_rtcm3.c
+    src/mrtk_rtcm3e.c
+    src/mrtk_rtcm3lcl.c
+    src/mrtk_ionex.c
+    src/mrtk_opt.c
+    src/mrtk_sol.c
+    src/mrtk_bias_sinex.c
+    src/mrtk_fcb.c
+    src/mrtk_spp.c
+    src/mrtk_madoca_local_corr.c
+    src/mrtk_madoca_local_comb.c
+    src/mrtk_madoca.c
+    src/mrtk_lambda.c
+    src/mrtk_ppp_ar.c
+    src/mrtk_rtkpos.c
+    src/mrtk_ppp.c
+    src/mrtk_postpos.c
+    src/mrtk_options.c
+    src/mrtk_rcvraw.c
+    src/rcv/mrtk_rcv_binex.c     src/rcv/mrtk_rcv_crescent.c
+    src/rcv/mrtk_rcv_javad.c     src/rcv/mrtk_rcv_novatel.c
+    src/rcv/mrtk_rcv_nvs.c       src/rcv/mrtk_rcv_rt17.c
+    src/rcv/mrtk_rcv_septentrio.c src/rcv/mrtk_rcv_skytraq.c
+    src/rcv/mrtk_rcv_ss2.c       src/rcv/mrtk_rcv_ublox.c
+    src/mrtk_stream.c
+    src/mrtk_rtksvr.c
+    src/mrtk_trace.c
 )
-target_include_directories(mrtklib PUBLIC src)
+target_include_directories(mrtklib PUBLIC include)
+set_target_properties(mrtklib PROPERTIES C_STANDARD 11 C_STANDARD_REQUIRED ON)
+# Override the global -ansi (= -std=c90) for this target: -std=c11 wins when placed after.
+target_compile_options(mrtklib PRIVATE -std=c11)
 target_compile_definitions(mrtklib PUBLIC
-    TRACE ENAGLO ENAGAL ENAQZS ENACMP ENAIRN NFREQ=5 NEXOBS=5
+    ENAGLO ENAGAL ENAQZS ENACMP ENAIRN NFREQ=5 NEXOBS=5 TRACE
 )
 target_link_libraries(mrtklib PUBLIC m)
 if(UNIX AND NOT APPLE)
@@ -39,12 +79,9 @@ if(UNIX AND NOT APPLE)
 endif()
 
 # ── rnx2rtkp ─────────────────────────────────────────────────────────────────
-# postpos.c uses PROGNAME so it must be compiled as part of this target
 add_executable(rnx2rtkp
     apps/rnx2rtkp/rnx2rtkp.c
-    src/postpos.c
 )
-target_compile_definitions(rnx2rtkp PRIVATE PROGNAME=\"rnx2rtkp\")
 target_link_libraries(rnx2rtkp PRIVATE mrtklib)
 
 # ── rtkrcv ───────────────────────────────────────────────────────────────────
