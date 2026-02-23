@@ -4,7 +4,7 @@
 #include <stdio.h>
 #include <math.h>
 #include <assert.h>
-#include "../../src/rtklib.h"
+#include "mrtklib/rtklib.h"
 
 /* ecef2pos() */
 void utest1(void)

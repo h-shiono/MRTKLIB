@@ -6,7 +6,8 @@
 * version : $Revision: 1.1 $ $Date: 2008/07/17 21:55:16 $
 * history : 2009/03/23  1.0 new
 *-----------------------------------------------------------------------------*/
-#include "rtklib.h"
+#include "mrtklib/rtklib.h"
+#include "mrtklib/mrtk_context.h"
 
 static const char rcsid[]="$Id:$";
 
@@ -69,8 +70,8 @@ static void errmodel(const double *azel, double *snr, double *ecp, double *epr)
     }
 }
 /* generate simulated observation data ---------------------------------------*/
-static int simobs(gtime_t ts, gtime_t te, double tint, const double *rr,
-                  nav_t *nav, obs_t *obs, int opt)
+static int simobs(mrtk_ctx_t *ctx, gtime_t ts, gtime_t te, double tint,
+                  const double *rr, nav_t *nav, obs_t *obs, int opt)
 {
     gtime_t time;
     obsd_t data[MAXSAT]={{{0}}};
@@ -83,7 +84,7 @@ static int simobs(gtime_t ts, gtime_t te, double tint, const double *rr,
     
     double pref[]={36.106114294,140.087190410,70.3010}; /* ref station */
     
-    trace(3,"simobs:nnav=%d ngnav=%d\n",nav->n,nav->ng);
+    trace(ctx, 3,"simobs:nnav=%d ngnav=%d\n",nav->n,nav->ng);
     
     for (i=0;i<2;i++) pref[i]*=D2R;
     pos2ecef(pref,rref);
@@ -190,7 +191,8 @@ int main(int argc, char **argv)
     double pos[3]={0},rr[3];
     char *infile[16]={0},*outfile="";
     int i,j,n=0,opt=0;
-    
+    mrtk_ctx_t *ctx = mrtk_ctx_create();
+
     for (i=1;i<argc;i++) {
         if      (!strcmp(argv[i],"-o")&&i+1<argc) outfile=argv[++i];
         else if (!strcmp(argv[i],"-ts")&&i+1<argc) {
@@ -209,14 +211,17 @@ int main(int argc, char **argv)
     }
     if (n<=0) {
         fprintf(stderr,"no input file\n");
+        mrtk_ctx_destroy(ctx);
         return -1;
     }
     if (!*outfile) {
         fprintf(stderr,"no output file\n");
+        mrtk_ctx_destroy(ctx);
         return -1;
     }
     if (norm(pos,3)<=0.0) {
         fprintf(stderr,"no receiver pos\n");
+        mrtk_ctx_destroy(ctx);
         return -1;
     }
     pos[0]*=D2R; pos[1]*=D2R; pos2ecef(pos,rr);
@@ -226,14 +231,16 @@ int main(int argc, char **argv)
     
     if (nav.n<=0) {
         fprintf(stderr,"no nav data\n");
+        mrtk_ctx_destroy(ctx);
         return -1;
     }
     /* generate simulated observation data */
-    if (!simobs(ts,te,tint,rr,&nav,&obs,opt)) return -1;
+    if (!simobs(ctx, ts,te,tint,rr,&nav,&obs,opt)) { mrtk_ctx_destroy(ctx); return -1; }
     
     /* output rinex obs file */
     if (!(fp=fopen(outfile,"w"))) {
         fprintf(stderr,"error : outfile open %s\n",outfile);
+        mrtk_ctx_destroy(ctx);
         return -1;
     }
     fprintf(stderr,"saving...: %s\n",outfile);
@@ -255,5 +262,6 @@ int main(int argc, char **argv)
         outrnxobsb(fp,&rnxopt,obs.data+i,j-i,0);
     }
     fclose(fp);
+    mrtk_ctx_destroy(ctx);
     return 0;
 }

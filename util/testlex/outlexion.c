@@ -4,7 +4,8 @@
 * 2010/12/09 0.1 new
 *-----------------------------------------------------------------------------*/
 #include <stdio.h>
-#include "rtklib.h"
+#include "mrtklib/rtklib.h"
+#include "mrtklib/mrtk_context.h"
 
 /* update lex ephemeris ------------------------------------------------------*/
 static int updatelex(int index, gtime_t time, lex_t *lex, nav_t *nav)
@@ -67,7 +68,8 @@ int main(int argc, char **argv)
     double rpos[]={35,137};
     char *ifile="",*ofile="";
     int i,trl=0,index=0,nlat=45,nlon=45;
-    
+    mrtk_ctx_t *ctx = mrtk_ctx_create();
+
     t0=epoch2time(ep0);
     
     for (i=1;i<argc;i++) {
@@ -75,6 +77,7 @@ int main(int argc, char **argv)
            if (sscanf(argv[++i],"%lf/%lf/%lf",ep0  ,ep0+1,ep0+2)<3||
                sscanf(argv[++i],"%lf:%lf:%lf",ep0+3,ep0+4,ep0+5)<1) {
                fprintf(stderr,"invalid time\n");
+               mrtk_ctx_destroy(ctx);
                return -1;
            }
        }
@@ -94,17 +97,19 @@ int main(int argc, char **argv)
        else ifile=argv[i];
     }
     if (trl>0) {
-       traceopen("diffeph.trace");
-       tracelevel(trl);
+       traceopen(ctx,"diffeph.trace");
+       tracelevel(ctx,trl);
     }
     t0=epoch2time(ep0);
     
     if (!lexreadmsg(ifile,0,&lex)) {
         fprintf(stderr,"file read error: %s\n",ifile);
+        mrtk_ctx_destroy(ctx);
         return -1;
     }
     if (!(fp=fopen(ofile,"w"))) {
         fprintf(stderr,"file open error: %s\n",ofile);
+        mrtk_ctx_destroy(ctx);
         return -1;
     }
     fprintf(fp,"epoch=[%.0f %.0f %.0f %.0f %.0f %.0f];\n",
@@ -120,6 +125,7 @@ int main(int argc, char **argv)
        printtec(i+1,time,tint*i,&nav,rpos,nlat,nlon,dpos,fp);
     }
     fclose(fp);
-    if (trl>0) traceclose();
+    if (trl>0) traceclose(ctx);
+    mrtk_ctx_destroy(ctx);
     return 0;
 }

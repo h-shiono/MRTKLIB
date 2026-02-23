@@ -7,16 +7,11 @@
 * history : 2015/01/11 1.0  separated from rtkrcv.c
 *           2016/09/19 1.1  change api vt_open()
 *-----------------------------------------------------------------------------*/
-#ifndef WIN32
 #define _POSIX_C_SOURCE 2
-#endif
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdarg.h>
 #include <ctype.h>
-#ifdef WIN32
-#include <winsock2.h>
-#else
 #include <unistd.h>
 #include <fcntl.h>
 #include <sys/types.h>
@@ -29,7 +24,6 @@
 #include <netdb.h>
 #include <errno.h>
 #include <termios.h>
-#endif
 #include "vt.h"
 
 #define DEF_DEV     "/dev/tty"          /* default console device */
@@ -64,7 +58,7 @@ extern vt_t *vt_open(int sock, const char *dev)
     vt_t *vt;
     int i;
     
-    trace(3,"vt_open: sock=%d dev=%s\n",sock,dev);
+    trace(NULL,3,"vt_open: sock=%d dev=%s\n",sock,dev);
     
     if (!(vt=(vt_t *)malloc(sizeof(vt_t)))) {
         return NULL;
@@ -105,7 +99,7 @@ extern void vt_close(vt_t *vt)
 {
     int i;
     
-    trace(3,"vt_close:\n");
+    trace(NULL,3,"vt_close:\n");
     
     /* restore terminal mode */
     if (!vt->type) {

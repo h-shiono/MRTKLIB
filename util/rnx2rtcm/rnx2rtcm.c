@@ -6,7 +6,8 @@
 * version : $Revision: 1.1 $ $Date: 2008/07/17 21:55:16 $
 * history : 2012/12/12  1.0 new
 *-----------------------------------------------------------------------------*/
-#include "rtklib.h"
+#include "mrtklib/rtklib.h"
+#include "mrtklib/mrtk_context.h"
 
 static const char rcsid[]="$Id:$";
 
@@ -61,7 +62,7 @@ static void gen_rtcm_obs(rtcm_t *rtcm, const int *type, int n, FILE *fp)
     for (i=0;i<n;i++) {
         if (is_nav(type[i])||is_gnav(type[i])||is_ant(type[i])) continue;
         
-        if (!gen_rtcm3(rtcm,type[i],i!=j)) continue;
+        if (!gen_rtcm3(rtcm,type[i],0,i!=j)) continue;
         if (fwrite(rtcm->buff,rtcm->nbyte,1,fp)<1) break;
     }
 }
@@ -82,7 +83,7 @@ static void gen_rtcm_nav(gtime_t time, rtcm_t *rtcm, const nav_t *nav,
         for (j=0;j<n;j++) {
             if (!is_nav(type[j])) continue;
             
-            if (!gen_rtcm3(rtcm,type[j],0)) continue;
+            if (!gen_rtcm3(rtcm,type[j],0,0)) continue;
             if (fwrite(rtcm->buff,rtcm->nbyte,1,fp)<1) break;
         }
         index[0]=i+1;
@@ -99,7 +100,7 @@ static void gen_rtcm_nav(gtime_t time, rtcm_t *rtcm, const nav_t *nav,
         for (j=0;j<n;j++) {
             if (!is_gnav(type[j])) continue;
             
-            if (!gen_rtcm3(rtcm,type[j],0)) continue;
+            if (!gen_rtcm3(rtcm,type[j],0,0)) continue;
             if (fwrite(rtcm->buff,rtcm->nbyte,1,fp)<1) break;
         }
         index[1]=i+1;
@@ -113,7 +114,7 @@ static void gen_rtcm_ant(rtcm_t *rtcm, const int *type, int n, FILE *fp)
     for (i=0;i<n;i++) {
         if (!is_ant(type[i])) continue;
         
-        if (!gen_rtcm3(rtcm,type[i],0)) continue;
+        if (!gen_rtcm3(rtcm,type[i],0,0)) continue;
         if (fwrite(rtcm->buff,rtcm->nbyte,1,fp)<1) break;
     }
 }
@@ -196,7 +197,8 @@ int main(int argc, char **argv)
     double es[6]={0},ee[6]={0},tint=0.0;
     char *infile[16]={0},*outfile="",buff[1024],*p;
     int i,n=0,m=0,type[16],trlevel=0,staid=0,ret=0;
-    
+    mrtk_ctx_t *ctx = mrtk_ctx_create();
+
     for (i=1;i<argc;i++) {
         if (!strcmp(argv[i],"-ts")&&i+2<argc) {
             sscanf(argv[++i],"%lf/%lf/%lf",es  ,es+1,es+2);
@@ -218,8 +220,8 @@ int main(int argc, char **argv)
         else infile[n++]=argv[i];
     }
     if (trlevel>0) {
-        traceopen(TRACEFILE);
-        tracelevel(trlevel);
+        traceopen(ctx, TRACEFILE);
+        tracelevel(ctx, trlevel);
     }
     if (es[0]>0.0) ts=epoch2time(es);
     if (ee[0]>0.0) te=epoch2time(ee);
@@ -238,7 +240,8 @@ int main(int argc, char **argv)
     freenav(&nav,0xFF);
     
     if (trlevel>0) {
-        traceclose();
+        traceclose(ctx);
     }
+    mrtk_ctx_destroy(ctx);
     return ret;
 }

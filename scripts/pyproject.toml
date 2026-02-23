@@ -1,0 +1,19 @@
+[project]
+name = "mrtklib-scripts"
+version = "0.1.0"
+description = "MRTKLIB plotting and code generation scripts"
+requires-python = ">=3.12"
+dependencies = [
+    "numpy",
+    "matplotlib",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "D"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"

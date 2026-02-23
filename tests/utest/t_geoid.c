@@ -4,7 +4,7 @@
 #include <stdio.h>
 #include <math.h>
 #include <assert.h>
-#include "../../src/rtklib.h"
+#include "mrtklib/rtklib.h"
 
 /* latitude, longitude, geoid height (m) */
 /* reference : http://sps.unavco.org/geoid */

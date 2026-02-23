@@ -1,5 +1,16 @@
 cmake_minimum_required(VERSION 3.15)
-project(QZSSLIB VERSION 1.2.0 LANGUAGES C)
+project(MRTKLIB VERSION 0.1.0 LANGUAGES C)
+
+# ── Version header generation ─────────────────────────────────────────────────
+set(MRTKLIB_VERSION_MAJOR ${PROJECT_VERSION_MAJOR})
+set(MRTKLIB_VERSION_MINOR ${PROJECT_VERSION_MINOR})
+set(MRTKLIB_VERSION_PATCH ${PROJECT_VERSION_PATCH})
+set(MRTKLIB_VERSION_STRING ${PROJECT_VERSION})
+configure_file(
+    ${CMAKE_SOURCE_DIR}/include/mrtklib/mrtk_version.h.in
+    ${CMAKE_BINARY_DIR}/include/mrtklib/mrtk_version.h
+    @ONLY
+)
 
 # Expose POSIX/BSD APIs hidden by -ansi (matches makefile platform detection)
 if(APPLE)
@@ -14,37 +25,97 @@ if(CMAKE_C_COMPILER_ID STREQUAL "GNU" OR CMAKE_C_COMPILER_ID MATCHES "Clang")
     add_compile_options(-Wno-unused-but-set-variable)
 endif()
 
-# ── Core static library ──────────────────────────────────────────────────────
-# Contains the union of all src/ files used by rnx2rtkp and rtkrcv.
-# The linker pulls only the object files referenced by each executable.
+# ── MRTKLIB modular library (new, C11) ───────────────────────────────────────
+# New modular implementation that will gradually replace rtklib.
+# Uses C11 (ISO/IEC 9899:2011) and the include/mrtklib/ public headers.
 add_library(mrtklib STATIC
-    src/biassnx.c       src/ephemeris.c     src/geoid.c         src/ionex.c
-    src/lambda.c        src/lclcmn.c        src/mdccssr.c       src/options.c
-    src/pntpos.c        src/ppp.c           src/ppp_ar.c
-    src/preceph.c       src/rcvraw.c        src/readfcb.c       src/rinex.c
-    src/rtcm.c          src/rtcm2.c         src/rtcm3.c         src/rtcm3lcl.c
-    src/rtcm3e.c        src/rtkcmn.c        src/rtkpos.c        src/rtksvr.c
-    src/sbas.c          src/solution.c      src/stream.c        src/tides.c
-    src/rcv/binex.c     src/rcv/crescent.c  src/rcv/javad.c     src/rcv/novatel.c
-    src/rcv/nvs.c       src/rcv/rt17.c      src/rcv/septentrio.c src/rcv/skytraq.c
-    src/rcv/ss2.c       src/rcv/ublox.c
+    # ── core/ (基盤・数学・ユーティリティ) ─────────────────────────────────────
+    src/core/mrtk_context.c
+    src/core/mrtk_core.c
+    src/core/mrtk_time.c
+    src/core/mrtk_mat.c
+    src/core/mrtk_coords.c
+    src/core/mrtk_bits.c
+    src/core/mrtk_sys.c
+    src/core/mrtk_trace.c
+    # ── models/ (物理・環境モデル) ─────────────────────────────────────────────
+    src/models/mrtk_atmos.c
+    src/models/mrtk_astro.c
+    src/models/mrtk_antenna.c
+    src/models/mrtk_geoid.c
+    src/models/mrtk_tides.c
+    src/models/mrtk_station.c
+    # ── data/ (データ構造・I/Oパース) ──────────────────────────────────────────
+    src/data/mrtk_eph.c
+    src/data/mrtk_peph.c
+    src/data/mrtk_obs.c
+    src/data/mrtk_nav.c
+    src/data/mrtk_rinex.c
+    src/data/mrtk_ionex.c
+    src/data/mrtk_bias_sinex.c
+    src/data/mrtk_fcb.c
+    src/data/mrtk_sbas.c
+    src/data/mrtk_rcvraw.c
+    src/data/rcv/mrtk_rcv_binex.c
+    src/data/rcv/mrtk_rcv_crescent.c
+    src/data/rcv/mrtk_rcv_javad.c
+    src/data/rcv/mrtk_rcv_novatel.c
+    src/data/rcv/mrtk_rcv_nvs.c
+    src/data/rcv/mrtk_rcv_rt17.c
+    src/data/rcv/mrtk_rcv_septentrio.c
+    src/data/rcv/mrtk_rcv_skytraq.c
+    src/data/rcv/mrtk_rcv_ss2.c
+    src/data/rcv/mrtk_rcv_ublox.c
+    # ── rtcm/ (RTCM関連) ──────────────────────────────────────────────────────
+    src/rtcm/mrtk_rtcm.c
+    src/rtcm/mrtk_rtcm2.c
+    src/rtcm/mrtk_rtcm3.c
+    src/rtcm/mrtk_rtcm3e.c
+    src/rtcm/mrtk_rtcm3lcl.c
+    # ── madoca/ (MADOCA-PPP固有処理) ───────────────────────────────────────────
+    src/madoca/mrtk_madoca.c
+    src/madoca/mrtk_madoca_local_corr.c
+    src/madoca/mrtk_madoca_local_comb.c
+    # ── pos/ (測位アルゴリズム・オプション) ────────────────────────────────────
+    src/pos/mrtk_spp.c
+    src/pos/mrtk_rtkpos.c
+    src/pos/mrtk_ppp_ar.c
+    src/pos/mrtk_ppp.c
+    src/pos/mrtk_lambda.c
+    src/pos/mrtk_postpos.c
+    src/pos/mrtk_sol.c
+    src/pos/mrtk_opt.c
+    src/pos/mrtk_options.c
+    # ── stream/ (リアルタイム基盤) ─────────────────────────────────────────────
+    src/stream/mrtk_stream.c
+    src/stream/mrtk_rtksvr.c
 )
-target_include_directories(mrtklib PUBLIC src)
+target_include_directories(mrtklib PUBLIC include ${CMAKE_BINARY_DIR}/include)
+set_target_properties(mrtklib PROPERTIES C_STANDARD 11 C_STANDARD_REQUIRED ON)
+# Override the global -ansi (= -std=c90) for this target: -std=c11 wins when placed after.
+target_compile_options(mrtklib PRIVATE -std=c11)
 target_compile_definitions(mrtklib PUBLIC
-    TRACE ENAGLO ENAGAL ENAQZS ENACMP ENAIRN NFREQ=5 NEXOBS=5
+    ENAGLO ENAGAL ENAQZS ENACMP ENAIRN NFREQ=5 NEXOBS=5 TRACE
 )
 target_link_libraries(mrtklib PUBLIC m)
 if(UNIX AND NOT APPLE)
     target_link_libraries(mrtklib PUBLIC rt)
 endif()
 
+# ── System LAPACK/BLAS integration for fast matrix operations ────────────────
+find_package(LAPACK)
+if(LAPACK_FOUND)
+    target_compile_definitions(mrtklib PRIVATE LAPACK)
+    target_link_libraries(mrtklib PRIVATE LAPACK::LAPACK)
+    message(STATUS "LAPACK found and enabled for fast matrix operations.")
+else()
+    message(WARNING "LAPACK not found. Falling back to internal (slower) matrix math.")
+endif()
+
 # ── rnx2rtkp ─────────────────────────────────────────────────────────────────
-# postpos.c uses PROGNAME so it must be compiled as part of this target
 add_executable(rnx2rtkp
     apps/rnx2rtkp/rnx2rtkp.c
-    src/postpos.c
 )
-target_compile_definitions(rnx2rtkp PRIVATE PROGNAME=\"rnx2rtkp\")
 target_link_libraries(rnx2rtkp PRIVATE mrtklib)
 
 # ── rtkrcv ───────────────────────────────────────────────────────────────────
@@ -67,19 +138,77 @@ target_link_libraries(recvbias PRIVATE mrtklib)
 # cmake --install build  →  copies binaries to bin/ (matches make install)
 install(TARGETS rnx2rtkp rtkrcv recvbias RUNTIME DESTINATION bin)
 
+# ── Utility tools (optional) ─────────────────────────────────────────────────
+# Build with: cmake --preset default -DBUILD_UTILS=ON
+option(BUILD_UTILS "Build utility tools" OFF)
+if(BUILD_UTILS)
+    # Tools that depend on mrtklib
+    add_executable(mrtk_rnx2rtcm  util/rnx2rtcm/rnx2rtcm.c)
+    # Excluded (depend on removed/changed internal types):
+    #   diffeph, dumplex, convlex, dumpssr, outlexion — lex_t removed
+    #   geniono, genstec, estiono, gengrid, rcvdcb    — sstat_t/lam changed
+    #   simobs — lam/nav_t.ion/satpos signature changed
+    #   margelog — unfinished draft code with many bugs
+
+    set(_UTIL_TARGETS
+        mrtk_rnx2rtcm
+    )
+    foreach(tgt IN LISTS _UTIL_TARGETS)
+        target_link_libraries(${tgt} PRIVATE mrtklib)
+    endforeach()
+
+    # Standalone tools excluded: gencrc, genmsk, genxor
+    #   — need stdint.h but global -ansi flag prevents it
+endif()
+
+# ── Doxygen documentation ────────────────────────────────────────────────────
+# Build with: cmake --build build --target doc
+find_package(Doxygen)
+if(DOXYGEN_FOUND)
+    configure_file(
+        ${CMAKE_SOURCE_DIR}/Doxyfile.in
+        ${CMAKE_BINARY_DIR}/Doxyfile
+        @ONLY
+    )
+    add_custom_target(doc
+        COMMAND ${DOXYGEN_EXECUTABLE} ${CMAKE_BINARY_DIR}/Doxyfile
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+        COMMENT "Generating API documentation with Doxygen"
+        VERBATIM
+    )
+endif()
+
 # ── Regression tests ──────────────────────────────────────────────────────────
 # Run with: ctest --test-dir build --output-on-failure
 # Skip slow rtkrcv test: ctest --test-dir build -LE realtime
 enable_testing()
 
-set(_TESTDATA  ${CMAKE_SOURCE_DIR}/data)
-set(_REFDATA   ${CMAKE_SOURCE_DIR}/tests/data/regression)
+# ── Unit tests ───────────────────────────────────────────────────────────────
+set(_UTEST_DIR ${CMAKE_SOURCE_DIR}/tests/utest)
+set(_UTEST_SOURCES
+    t_atmos t_coord t_geoid t_gloeph t_ionex
+    t_lambda t_matrix t_misc t_ppp t_preceph
+    t_rinex t_time
+    # t_tle excluded: tle_pos() implementation not yet in library
+)
+foreach(test IN LISTS _UTEST_SOURCES)
+    add_executable(${test} ${_UTEST_DIR}/${test}.c)
+    target_link_libraries(${test} PRIVATE mrtklib)
+    add_test(NAME utest_${test} COMMAND ${test}
+             WORKING_DIRECTORY ${_UTEST_DIR})
+    set_tests_properties(utest_${test} PROPERTIES LABELS "utest")
+endforeach()
+
+# ── Regression test data ─────────────────────────────────────────────────────
+set(_TESTDATA  ${CMAKE_SOURCE_DIR}/tests/data/malib)
+set(_REFDATA   ${CMAKE_SOURCE_DIR}/tests/data/malib)
 set(_TESTCMAKE ${CMAKE_SOURCE_DIR}/tests/cmake)
 
 # ── Fixture: extract / clean test data archive ───────────────────────────────
+# Archive has ./data/ prefix internally; --strip-components=2 removes it.
 add_test(NAME regression_setup
-    COMMAND ${CMAKE_COMMAND} -E tar xzf ${_TESTDATA}/MALIB_OSS_data.tar.gz
-    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}   # archive has ./data/ prefix → extract from project root
+    COMMAND bash -c "tar xzf ${_TESTDATA}/MALIB_OSS_data.tar.gz --strip-components=2 -C ${_TESTDATA}"
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
 )
 set_tests_properties(regression_setup PROPERTIES
     FIXTURES_SETUP  regression_data
@@ -109,7 +238,7 @@ set_tests_properties(regression_cleanup PROPERTIES
 # ── rnx2rtkp PPP regression ───────────────────────────────────────────────────
 add_test(NAME rnx2rtkp_ppp
     COMMAND $<TARGET_FILE:rnx2rtkp>
-        -k ${CMAKE_SOURCE_DIR}/bin/rnx2rtkp.conf
+        -k ${CMAKE_SOURCE_DIR}/conf/malib/rnx2rtkp.conf
         -o ${CMAKE_BINARY_DIR}/out_ppp.pos
         ${_TESTDATA}/MALIB_OSS_data_obsnav_240822-1100.obs
         ${_TESTDATA}/MALIB_OSS_data_obsnav_240822-1100.nav

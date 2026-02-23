@@ -7,7 +7,7 @@
 #   bash run_rtkrcv_test.sh <rtkrcv_binary> <project_root> <reference_pos>
 #
 # The test:
-#   1. Patches bin/rtkrcv.conf (output path, playback speed x10)
+#   1. Patches conf/malib/rtkrcv.conf (output path, playback speed x10)
 #   2. Runs rtkrcv with file stream replay
 #   3. Waits until output stabilises (10s idle timeout, 300s max)
 #   4. Checks that data line count >= 90% of reference
@@ -18,7 +18,7 @@ PROJECT_ROOT="$2"
 REFERENCE="$3"
 PLAYBACK_SPEED="${4:-10}"
 
-RTKRCV_PORT=52003        # distinct from gen_ref_rt.sh port (52001)
+RTKRCV_PORT=52003        # distinct from generate_reference_rtkrcv.sh port (52001)
 IDLE_TIMEOUT=10
 MAX_TIMEOUT=300
 
@@ -38,7 +38,7 @@ cleanup() {
 trap cleanup EXIT
 
 # Patch conf: set output path and playback speed
-cp bin/rtkrcv.conf "$CONF"
+cp conf/malib/rtkrcv.conf "$CONF"
 sed -i.bak "s|^outstr1-path.*|outstr1-path       =${OUTPUT}|" "$CONF"
 sed -i.bak "s|::x[0-9]*|::x${PLAYBACK_SPEED}|g" "$CONF"
 

@@ -26,6 +26,10 @@
 *-----------------------------------------------------------------------------*/
 #include <stdarg.h>
 #include "rtklib.h"
+#include "mrtklib/mrtklib.h"
+#include "mrtklib/mrtk_context.h"
+#include "mrtklib/mrtk_options.h"
+#include "mrtklib/mrtk_postpos.h"
 
 #define PROGNAME    "rnx2rtkp"          /* program name */
 #define MAXFILE     16                  /* max number of input files */
@@ -103,7 +107,7 @@ static void printhelp(void)
 /* print version -------------------------------------------------------------*/
 static void printver(void)
 {
-    fprintf(stderr,"%s(%s ver.%s %s)\n",PROGNAME,SOFTNAME,VER_MALIB,PATCH_LEVEL_MALIB);
+    fprintf(stderr,"%s(%s ver.%s)\n",PROGNAME,MRTKLIB_SOFTNAME,MRTKLIB_VERSION_STRING);
     exit(0);
 }
 /* rnx2rtkp main -------------------------------------------------------------*/
@@ -116,13 +120,19 @@ int main(int argc, char **argv)
     double tint=0.0,es[]={2000,1,1,0,0,0},ee[]={2000,12,31,23,59,59},pos[3];
     int i,j,n,ret;
     char *infile[MAXFILE],*outfile="",*p;
-    
+    mrtk_ctx_t *ctx;
+
+    /* Initialize MRTKLIB runtime context */
+    ctx=mrtk_ctx_create();
+    g_mrtk_ctx=ctx;
+    g_mrtk_legacy_ctx=mrtk_context_new();
+
     prcopt.mode  =PMODE_KINEMA;
     prcopt.navsys=0;
     prcopt.refpos=1;
     prcopt.glomodear=0;
     solopt.timef=0;
-    sprintf(solopt.prog ,"%s(%s ver.%s %s)",PROGNAME,SOFTNAME,VER_MALIB,PATCH_LEVEL_MALIB);
+    sprintf(solopt.prog ,"%s(%s ver.%s)",PROGNAME,MRTKLIB_SOFTNAME,MRTKLIB_VERSION_STRING);
     sprintf(filopt.trace,"%s.trace",PROGNAME);
     
     /* load options from configuration file */
@@ -201,10 +211,16 @@ int main(int argc, char **argv)
     }
     if (n<=0) {
         showmsg("error : no input file");
+        mrtk_context_free(g_mrtk_legacy_ctx);
+        g_mrtk_ctx=NULL;
+        mrtk_ctx_destroy(ctx);
         return -2;
     }
-    ret=postpos(ts,te,tint,0.0,&prcopt,&solopt,&filopt,infile,n,outfile,"","");
-    
+    ret=postpos(ctx,ts,te,tint,0.0,&prcopt,&solopt,&filopt,infile,n,outfile,"","");
+
     if (!ret) fprintf(stderr,"%40s\r","");
+    mrtk_context_free(g_mrtk_legacy_ctx);
+    g_mrtk_ctx=NULL;
+    mrtk_ctx_destroy(ctx);
     return ret;
 }

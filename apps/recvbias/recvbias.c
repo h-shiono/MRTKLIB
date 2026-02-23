@@ -9,6 +9,8 @@
 *                            update code bias calculation
 *-----------------------------------------------------------------------------*/
 #include "rtklib.h"
+#include "mrtklib/mrtk_context.h"
+#include "mrtklib/mrtk_trace.h"
 
 #define SQR(x)      ((x)*(x))
 
@@ -150,7 +152,7 @@ static int uprawbias(char *staname, int sat, int code, double rawbias)
         if(satid[0] == syscode[sysno]) break;
     }
     if(sysno >= MAXBSNXSYS) {
-        trace(1, "uprawbias: satellite system error %s\n", satid);
+        trace(NULL,1, "uprawbias: satellite system error %s\n", satid);
         return 0;
     }
 
@@ -165,7 +167,7 @@ static int uprawbias(char *staname, int sat, int code, double rawbias)
         if(nsatrbmax <= nsatrb) {
             nsatrbmax += 256;
             if(!(b = (rawbias_t *)realloc(satrb, sizeof(rawbias_t)*(nsatrbmax)))) {
-                trace(1, "uprawbias: memory allocation error\n");
+                trace(NULL,1, "uprawbias: memory allocation error\n");
                 free(satrb); satrb = NULL; nsatrb = nsatrbmax = 0;
                 return 0;
             }
@@ -199,7 +201,7 @@ static int uprawbias(char *staname, int sat, int code, double rawbias)
         if(nsysrbmax <= nsysrb) {
             nsysrbmax += 256;
             if(!(b = (rawbias_t *)realloc(sysrb, sizeof(rawbias_t)*(nsysrbmax)))) {
-                trace(1, "uprawbias: memory allocation error\n");
+                trace(NULL,1, "uprawbias: memory allocation error\n");
                 free(sysrb); sysrb = NULL; nsysrb = nsysrbmax = 0;
                 return 0;
             }
@@ -237,15 +239,15 @@ static void update_bias(const char *biafile, osb_t *osb, gtime_t time)
         strcpy(bsnx_path, path);
 
         if((ret = readbsnx(bsnx_path)) == 0) {
-            trace(2, "read bia file error: %s num=%d\n", path, ret);
+            trace(NULL,2, "read bia file error: %s num=%d\n", path, ret);
         }
-        trace(4, "read bia file: %s num=%d\n", path, ret);
+        trace(NULL,4, "read bia file: %s num=%d\n", path, ret);
     }
 
     if((ret = udosb_sat(osb, time, 0)) == 0) {
-        trace(2, "update satellite osb error: %s num=%d\n", time_str(time, 3), ret);
+        trace(NULL,2, "update satellite osb error: %s num=%d\n", time_str(time, 3), ret);
     }
-    trace(4, "update satellite osb: %s num=%d\n", time_str(time, 3), ret);
+    trace(NULL,4, "update satellite osb: %s num=%d\n", time_str(time, 3), ret);
 }
 /* update rtcm ssr correction ------------------------------------------------*/
 static void update_rtcm_ssr(const char *file, nav_t *nav, gtime_t time)
@@ -266,7 +268,7 @@ static void update_rtcm_ssr(const char *file, nav_t *nav, gtime_t time)
         if(fp_rtcm) {
             rtcm.time = time;
             input_rtcm3f(&rtcm, fp_rtcm);
-            trace(2, "rtcm file open: %s\n", path);
+            trace(NULL,2, "rtcm file open: %s\n", path);
         }
     }
     if(!fp_rtcm) return;
@@ -275,7 +277,7 @@ static void update_rtcm_ssr(const char *file, nav_t *nav, gtime_t time)
     while(timediff(rtcm.time, time) < 1E-3) {
         strcpy(tstr, time_str(rtcm.time, 3));
         if(input_rtcm3f(&rtcm, fp_rtcm) < -1) break;
-        trace(3, "update_rtcm_ssr: %s %s\n", time_str(time, 3), tstr);
+        trace(NULL,3, "update_rtcm_ssr: %s %s\n", time_str(time, 3), tstr);
 
         /* update ssr corrections */
         for(i = 0; i < MAXSAT; i++) {
@@ -305,7 +307,7 @@ static void update_qzssl6e(const char *file, nav_t *nav, gtime_t gt)
         if(fp_qzssl6e) fclose(fp_qzssl6e);
         fp_qzssl6e = fopen(path, "rb");
         if(fp_qzssl6e) {
-            trace(2, "qzssl6e file open: %s\n", path);
+            trace(NULL,2, "qzssl6e file open: %s\n", path);
         }
     }
     if(!fp_qzssl6e) return;
@@ -317,7 +319,7 @@ static void update_qzssl6e(const char *file, nav_t *nav, gtime_t gt)
 
     while(timediff(rtcm.time, gt) < 1E-3) {
         strcpy(tstr, time_str(rtcm.time, 3));
-        trace(3, "update_qzssl6e: %s %s\n", time_str(gt, 3), tstr);
+        trace(NULL,3, "update_qzssl6e: %s %s\n", time_str(gt, 3), tstr);
 
         /* update QZSS L6E MADOCA-PPP corrections */
         for(i = 0; i < MAXSAT; i++) {
@@ -367,7 +369,7 @@ static void udsatcb(gtime_t gt, nav_t *nav, osb_t *biaosb, int btype)
         }
     }
     if(0 < udcnt) {
-        trace(4, "%s ssr update satellite code bias cnt=%d vp=%.f\n",
+        trace(NULL,4, "%s ssr update satellite code bias cnt=%d vp=%.f\n",
             time_str(gt, 0), udcnt, vp);
         return;
     }
@@ -391,12 +393,12 @@ static void udsatcb(gtime_t gt, nav_t *nav, osb_t *biaosb, int btype)
         }
     }
     if(0 < udcnt) {
-        trace(4, "%s bia update satellite code bias cnt=%d\n",
+        trace(NULL,4, "%s bia update satellite code bias cnt=%d\n",
             time_str(gt, 0), udcnt);
         return;
     }
 
-    trace(3, "%s no update satellite code bias \n", time_str(gt, 0));
+    trace(NULL,3, "%s no update satellite code bias \n", time_str(gt, 0));
     return;
 }
 
@@ -424,7 +426,7 @@ static void udbiass(const char *scbfile, gtime_t gt, nav_t *nav)
     }
 
     if(btype == 0) {
-        trace(2, "update bias file error %s %s\n", time_str(gt, 3), scbfile);
+        trace(NULL,2, "update bias file error %s %s\n", time_str(gt, 3), scbfile);
         return;
     }
 
@@ -500,7 +502,7 @@ static void signal_sel_bias(obsd_t *biasobs, int ns)
                 break;
         }
         satno2id(biasobs->sat, satid);
-        trace(3, "signal_sel_bias %s %s code=%2d,%2d P=%13.3f,%13.3f L=%13.3f,%13.3f LLI=%d,%d SNR=%6.2f,%6.2f\n",
+        trace(NULL,3, "signal_sel_bias %s %s code=%2d,%2d P=%13.3f,%13.3f L=%13.3f,%13.3f LLI=%d,%d SNR=%6.2f,%6.2f\n",
             tstr, satid, biasobs->code[0], biasobs->code[1], biasobs->P[0],
             biasobs->P[1], biasobs->L[0], biasobs->L[1], biasobs->LLI[0],
             biasobs->LLI[1], biasobs->SNR[0] * 0.001, biasobs->SNR[1] * 0.001);
@@ -585,20 +587,20 @@ static int gen_bias_sta(nav_t *nav, const char *file, char *staname,
             P1 = sobs[j].P[0];
             P2 = sobs[j].P[1];
             if(freq1 == 0.0 || freq2 == 0.0 || P1 == 0.0 || P2 == 0.0) {
-                trace(4, "obs error %s freq1=%f freq2=%f P1=%f P2=%f code=%s,%s\n",
+                trace(NULL,4, "obs error %s freq1=%f freq2=%f P1=%f P2=%f code=%s,%s\n",
                     satid, freq1, freq2, P1, P2,
                     code2obs(sobs[j].code[0]), code2obs(sobs[j].code[1]));
                 continue;
             }
 
             if(get_cbias(nav, sat, sobs[j].code[0], &satcb1) == 0) {
-                trace(2, "no satellite code bias %s code=%s\n",
+                trace(NULL,2, "no satellite code bias %s code=%s\n",
                     satid, code2obs(sobs[j].code[0]));
                 continue;
             }
             P1 += satcb1;
             if(get_cbias(nav, sat, sobs[j].code[1], &satcb2) == 0) {
-                trace(2, "no satellite code bias %s code=%s\n",
+                trace(NULL,2, "no satellite code bias %s code=%s\n",
                     satid, code2obs(sobs[j].code[1]));
                 continue;
             }
@@ -608,7 +610,7 @@ static int gen_bias_sta(nav_t *nav, const char *file, char *staname,
             osb1 = dcb_t / (SQR(freq1 / freq2) - 1);
 
             uprawbias(staname, sat, sobs[j].code[0], osb1);
-            trace(3, "bias(%s-%s) : %s,%s,%s,%s,%10.6f,%10.6f,%6.2f\n",
+            trace(NULL,3, "bias(%s-%s) : %s,%s,%s,%s,%10.6f,%10.6f,%6.2f\n",
                 code2obs(sobs[j].code[0]), code2obs(sobs[j].code[1]),
                 time_str(data[0].time, 0), staname, satid,
                 code2obs(sobs[j].code[0]), osb1, satcb1, azel[1] * R2D);
@@ -626,7 +628,7 @@ static int gen_bias_sta(nav_t *nav, const char *file, char *staname,
                 dcb_t = (P2 - P1) - ion * (SQR(FREQ1 / freq2) - SQR(FREQ1 / freq1));
                 osb2 = osb1 + dcb_t;
                 uprawbias(staname, sat, data[j].code[k], osb2);
-                trace(3, "bias(%s-%s) : %s,%s,%s,%s,%10.6f,%10.6f,%6.2f\n",
+                trace(NULL,3, "bias(%s-%s) : %s,%s,%s,%s,%10.6f,%10.6f,%6.2f\n",
                     code2obs(sobs[j].code[0]), code2obs(data[j].code[k]),
                     time_str(data[0].time, 0), staname, satid,
                     code2obs(data[j].code[k]), osb2, satcb2, azel[1] * R2D);
@@ -645,17 +647,17 @@ static void outbsnx(const char *outfile, gtime_t ts, gtime_t te,
     char buff[81];
     FILE *fp;
 
-    trace(3, "outbsnx : file=%s\n", outfile);
+    trace(NULL,3, "outbsnx : file=%s\n", outfile);
 
     if(!(fp = fopen(outfile, "w"))) {
-        trace(2, "bias sinex file open error: %s\n", outfile);
+        trace(NULL,2, "bias sinex file open error: %s\n", outfile);
         return;
     }
     outbsnxh(fp, ts, te, "MLB");
 
     outbsnxrefh(fp);
-    outbsnxrefb(fp, 0, "Receiver Code biases estimated by MALIB");
-    snprintf(buff, sizeof(buff), "%s(%s ver.%s)", PROGNAME, SOFTNAME, VER_MALIB);
+    outbsnxrefb(fp, 0, "Receiver Code biases estimated by MRTKLIB");
+    snprintf(buff, sizeof(buff), "%s(%s ver.%s)", PROGNAME, MRTKLIB_SOFTNAME, MRTKLIB_VERSION_STRING);
     outbsnxrefb(fp, 3, buff);
     outbsnxreff(fp);
 
@@ -761,7 +763,7 @@ static int gen_bias(gtime_t ts, double tspan, const char *navfile,
             if(strcmp(sysrb[i].staname, biass->sta[j].name) == 0) break;
         }
         if(j >= MAXSTA) {
-            trace(2, "gen_bias %s has exceeded the station limit of %d.\n",
+            trace(NULL,2, "gen_bias %s has exceeded the station limit of %d.\n",
                 sysrb[i].staname, MAXSTA);
             continue;
         }
@@ -788,7 +790,7 @@ static int gen_bias(gtime_t ts, double tspan, const char *navfile,
                 if(strcmp(satrb[i].staname, biass->sta[j].name) == 0) break;
             }
             if(j >= MAXSTA) {
-                trace(2, "gen_bias %s has exceeded the station limit of %d.\n",
+                trace(NULL,2, "gen_bias %s has exceeded the station limit of %d.\n",
                     satrb[i].staname, MAXSTA);
                 continue;
             }
@@ -825,6 +827,11 @@ int main(int argc, char **argv)
     char tracefile[MAXSTRPATH] = "recvbias.trace";
     char *reqarg[] = {"-td", "-nav", "-tec", "-scb", "-pos", "obsavation file"};
     char staname[32] = "";
+    mrtk_ctx_t *ctx;
+
+    /* Initialize MRTKLIB runtime context */
+    ctx=mrtk_ctx_create();
+    g_mrtk_ctx=ctx;
 
     for(i = 1; i < argc; i++) {
         if(!strcmp(argv[i], "-td") && i + 1 < argc) {
@@ -891,9 +898,9 @@ int main(int argc, char **argv)
         if(*outfile) {
             snprintf(tracefile, sizeof(tracefile), "%s.trace", outfile);
         }
-        traceclose();
-        traceopen(tracefile);
-        tracelevel(tlevel);
+        traceclose(ctx);
+        traceopen(ctx,tracefile);
+        tracelevel(ctx,tlevel);
     }
 
     /* required input error check */
@@ -910,6 +917,8 @@ int main(int argc, char **argv)
         return -1;
     }
 
-    if(strlen(tracefile) > 0) traceclose();
+    if(strlen(tracefile) > 0) traceclose(ctx);
+    g_mrtk_ctx=NULL;
+    mrtk_ctx_destroy(ctx);
     return 1;
 }
