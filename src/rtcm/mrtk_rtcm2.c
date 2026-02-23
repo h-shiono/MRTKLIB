@@ -12,10 +12,6 @@
 /**
  * @file mrtk_rtcm2.c
  * @brief MRTKLIB RTCM Module — RTCM ver.2 message decoder.
- *
- * Pure cut-and-paste extraction from rtcm2.c with zero algorithmic changes.
- *
- * Original: Copyright (C) 2009-2014 by T.TAKASU, All rights reserved.
  */
 #include "mrtklib/mrtk_rtcm.h"
 #include "mrtklib/mrtk_bits.h"

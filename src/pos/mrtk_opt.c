@@ -12,10 +12,6 @@
 /**
  * @file mrtk_opt.c
  * @brief MRTKLIB Options Module — Default processing and solution options.
- *
- * Pure cut-and-paste extraction from rtkcmn.c with zero algorithmic changes.
- *
- * Original: Copyright (C) by T.TAKASU, All rights reserved.
  */
 #include "mrtklib/mrtk_opt.h"
 

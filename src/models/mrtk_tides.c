@@ -13,10 +13,6 @@
  * @file mrtk_tides.c
  * @brief MRTKLIB Tides Module — Tidal displacement corrections.
  *
- * Pure cut-and-paste extraction from tides.c with zero algorithmic changes.
- *
- * Original: Copyright (C) 2015-2017 by T.TAKASU, All rights reserved.
- *
  * options : -DIERS_MODEL use IERS tide model
  *
  * references :

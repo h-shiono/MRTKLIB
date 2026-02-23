@@ -12,10 +12,6 @@
 /**
  * @file mrtk_rtcm3lcl.c
  * @brief MRTKLIB RTCM Module — RTCM3 local correction message functions.
- *
- * Pure cut-and-paste extraction from rtcm3lcl.c with zero algorithmic changes.
- *
- * Original: Copyright (C) 2025 Japan Aerospace Exploration Agency.
  */
 #include "mrtklib/mrtk_rtcm.h"
 #include "mrtklib/mrtk_bits.h"

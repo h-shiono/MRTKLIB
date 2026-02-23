@@ -13,10 +13,6 @@
  * @file mrtk_geoid.c
  * @brief MRTKLIB Geoid Module — Geoid height models.
  *
- * Pure cut-and-paste extraction from geoid.c with zero algorithmic changes.
- *
- * Original: Copyright (C) 2007-2020 by T.TAKASU, All rights reserved.
- *
  * reference :
  *     [1] EGM96 The NASA GSFC and NIMA Joint Geopotential Model
  *     [2] Earth Gravitational Model 2008 (EGM2008)

@@ -13,10 +13,6 @@
  * @file mrtk_sbas.c
  * @brief MRTKLIB SBAS Module — SBAS message decoding and corrections.
  *
- * Pure cut-and-paste extraction from sbas.c with zero algorithmic changes.
- *
- * Original: Copyright (C) 2007-2021 by T.TAKASU, All rights reserved.
- *
  * option : -DRRCENA  enable rrc correction
  *
  * references :
