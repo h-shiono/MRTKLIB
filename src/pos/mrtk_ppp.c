@@ -22,6 +22,7 @@
 #include "mrtklib/mrtk_bias_sinex.h"
 #include "mrtklib/mrtk_sbas.h"
 #include "mrtklib/mrtk_madoca_local_corr.h"
+#include "mrtklib/mrtk_madoca.h"
 
 #include <string.h>
 #include <stdlib.h>
@@ -1239,8 +1240,9 @@ static int test_hold_amb(rtk_t *rtk)
     /* test # of continuous fixed */
     return ++rtk->nfix>=rtk->opt.minfix;
 }
-/* precise point positioning -------------------------------------------------*/
-extern void pppos(mrtk_ctx_t *ctx, rtk_t *rtk, const obsd_t *obs, int n, const nav_t *nav)
+/* MALIB PPP engine compute (original pppos implementation) -----------------*/
+static void mrtk_ppp_malib_compute(mrtk_ctx_t *ctx, rtk_t *rtk,
+                                   const obsd_t *obs, int n, const nav_t *nav)
 {
     const prcopt_t *opt=&rtk->opt;
     double *rs,*dts,*var,*v,*H,*R,*azel,*xp,*Pp,dr[3]={0},std[3];
@@ -1327,4 +1329,17 @@ extern void pppos(mrtk_ctx_t *ctx, rtk_t *rtk, const obsd_t *obs, int n, const n
     }
     free(rs); free(dts); free(var); free(azel);
     free(xp); free(Pp); free(v); free(H); free(R);
+}
+/* precise point positioning — PPP engine router ----------------------------*/
+extern void pppos(mrtk_ctx_t *ctx, rtk_t *rtk, const obsd_t *obs, int n,
+                  const nav_t *nav)
+{
+    switch (rtk->opt.ppp_engine) {
+    case MRTK_PPP_ENGINE_MADOCA:
+        mrtk_ppp_madoca_compute(ctx, rtk, obs, n, nav);
+        break;
+    default: /* MRTK_PPP_ENGINE_MALIB */
+        mrtk_ppp_malib_compute(ctx, rtk, obs, n, nav);
+        break;
+    }
 }

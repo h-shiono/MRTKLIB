@@ -44,6 +44,7 @@ const prcopt_t prcopt_default={ /* defaults processing options */
     {{0}},{{0}},{0}             /* antdel,pcv,exsats */
     ,0,0                        /* ign_chierr,bds2bias */
     ,0,0,0,0                    /* pppsatcb,pppsatpb,unbias,maxbiasdt */
+    /* ppp_engine: 0 (MRTK_PPP_ENGINE_MALIB) — zero-initialized by default */
 };
 const solopt_t solopt_default={ /* defaults solution output options */
     SOLF_LLH,TIMES_GPST,1,3,    /* posf,times,timef,timeu */

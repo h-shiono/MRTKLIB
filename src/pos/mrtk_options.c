@@ -65,6 +65,7 @@ static char snrmask_[NFREQ][1024];
 #define SIGOPT5 "0:E1C-E5a,1:E1C-E5b"
 #define SATCB   "0:auto,1:ssr,2:bia,3:dcb"
 #define SATPB   "0:auto,1:ssr,3:fcb"
+#define PPPENOPT "0:malib,1:madoca"
 
 opt_t sysopts[]={
     {"pos1-posmode",    3,  (void *)&prcopt_.mode,       MODOPT },
@@ -87,6 +88,7 @@ opt_t sysopts[]={
     {"pos1-posopt4",    3,  (void *)&prcopt_.posopt[3],  SWTOPT },
     {"pos1-posopt5",    3,  (void *)&prcopt_.posopt[4],  SWTOPT },
     {"pos1-posopt6",    3,  (void *)&prcopt_.posopt[5],  SWTOPT },
+    {"pos1-ppp-engine", 3,  (void *)&prcopt_.ppp_engine, PPPENOPT},
     {"pos1-exclsats",   2,  (void *)exsats_,             "prn ..."},
     {"pos1-navsys",     0,  (void *)&prcopt_.navsys,     NAVOPT },
     

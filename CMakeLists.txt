@@ -76,6 +76,7 @@ add_library(mrtklib STATIC
     src/madoca/mrtk_madoca.c
     src/madoca/mrtk_madoca_local_corr.c
     src/madoca/mrtk_madoca_local_comb.c
+    src/madoca/mrtk_ppp_madoca.c
     # ── pos/ (測位アルゴリズム・オプション) ────────────────────────────────────
     src/pos/mrtk_spp.c
     src/pos/mrtk_rtkpos.c
