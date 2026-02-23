@@ -356,8 +356,8 @@ void* mrtk_context_get_user_data(const mrtk_context_t* ctx) {
 /**
  * @brief Get the library version string.
  *
- * @return Static version string (e.g., "1.2.0")
+ * @return Static version string (e.g., "0.1.0")
  */
 const char* mrtk_version_string(void) {
-    return MRTK_VERSION_STRING;
+    return MRTKLIB_VERSION_STRING;
 }

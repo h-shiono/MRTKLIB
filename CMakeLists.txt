@@ -1,5 +1,16 @@
 cmake_minimum_required(VERSION 3.15)
-project(QZSSLIB VERSION 1.2.0 LANGUAGES C)
+project(MRTKLIB VERSION 0.1.0 LANGUAGES C)
+
+# ── Version header generation ─────────────────────────────────────────────────
+set(MRTKLIB_VERSION_MAJOR ${PROJECT_VERSION_MAJOR})
+set(MRTKLIB_VERSION_MINOR ${PROJECT_VERSION_MINOR})
+set(MRTKLIB_VERSION_PATCH ${PROJECT_VERSION_PATCH})
+set(MRTKLIB_VERSION_STRING ${PROJECT_VERSION})
+configure_file(
+    ${CMAKE_SOURCE_DIR}/include/mrtklib/mrtk_version.h.in
+    ${CMAKE_BINARY_DIR}/include/mrtklib/mrtk_version.h
+    @ONLY
+)
 
 # Expose POSIX/BSD APIs hidden by -ansi (matches makefile platform detection)
 if(APPLE)
@@ -79,7 +90,7 @@ add_library(mrtklib STATIC
     src/stream/mrtk_stream.c
     src/stream/mrtk_rtksvr.c
 )
-target_include_directories(mrtklib PUBLIC include)
+target_include_directories(mrtklib PUBLIC include ${CMAKE_BINARY_DIR}/include)
 set_target_properties(mrtklib PROPERTIES C_STANDARD 11 C_STANDARD_REQUIRED ON)
 # Override the global -ansi (= -std=c90) for this target: -std=c11 wins when placed after.
 target_compile_options(mrtklib PRIVATE -std=c11)
@@ -117,19 +128,37 @@ target_link_libraries(recvbias PRIVATE mrtklib)
 # cmake --install build  →  copies binaries to bin/ (matches make install)
 install(TARGETS rnx2rtkp rtkrcv recvbias RUNTIME DESTINATION bin)
 
+# ── Doxygen documentation ────────────────────────────────────────────────────
+# Build with: cmake --build build --target doc
+find_package(Doxygen)
+if(DOXYGEN_FOUND)
+    configure_file(
+        ${CMAKE_SOURCE_DIR}/Doxyfile.in
+        ${CMAKE_BINARY_DIR}/Doxyfile
+        @ONLY
+    )
+    add_custom_target(doc
+        COMMAND ${DOXYGEN_EXECUTABLE} ${CMAKE_BINARY_DIR}/Doxyfile
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+        COMMENT "Generating API documentation with Doxygen"
+        VERBATIM
+    )
+endif()
+
 # ── Regression tests ──────────────────────────────────────────────────────────
 # Run with: ctest --test-dir build --output-on-failure
 # Skip slow rtkrcv test: ctest --test-dir build -LE realtime
 enable_testing()
 
-set(_TESTDATA  ${CMAKE_SOURCE_DIR}/data)
+set(_TESTDATA  ${CMAKE_SOURCE_DIR}/tests/data/malib)
 set(_REFDATA   ${CMAKE_SOURCE_DIR}/tests/data/regression)
 set(_TESTCMAKE ${CMAKE_SOURCE_DIR}/tests/cmake)
 
 # ── Fixture: extract / clean test data archive ───────────────────────────────
+# Archive has ./data/ prefix internally; --strip-components=2 removes it.
 add_test(NAME regression_setup
-    COMMAND ${CMAKE_COMMAND} -E tar xzf ${_TESTDATA}/MALIB_OSS_data.tar.gz
-    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}   # archive has ./data/ prefix → extract from project root
+    COMMAND bash -c "tar xzf ${_TESTDATA}/MALIB_OSS_data.tar.gz --strip-components=2 -C ${_TESTDATA}"
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
 )
 set_tests_properties(regression_setup PROPERTIES
     FIXTURES_SETUP  regression_data

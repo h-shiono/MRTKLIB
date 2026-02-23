@@ -265,7 +265,7 @@ static void printusage(void)
 /* print version -------------------------------------------------------------*/
 static void printver(void)
 {
-    fprintf(stderr,"%s %s %s\n",PRGNAME,VER_MALIB,PATCH_LEVEL_MALIB);
+    fprintf(stderr,"%s %s\n",PRGNAME,MRTKLIB_VERSION_STRING);
     exit(0);
 }
 /* external stop signal ------------------------------------------------------*/
@@ -708,8 +708,8 @@ static void prstatus(vt_t *vt)
     dops(n,azel,0.0,dop);
     
     vt_printf(vt,"\n%s%-28s: %s%s\n",ESC_BOLD,"Parameter","Value",ESC_RESET);
-    sprintf(tmp,"%s version",SOFTNAME);
-    vt_printf(vt,"%-28s: %s %s\n",tmp,VER_MALIB,PATCH_LEVEL_MALIB);
+    sprintf(tmp,"%s version",MRTKLIB_SOFTNAME);
+    vt_printf(vt,"%-28s: %s\n",tmp,MRTKLIB_VERSION_STRING);
     vt_printf(vt,"%-28s: %d\n","rtk server thread",thread);
     vt_printf(vt,"%-28s: %s\n","rtk server state",svrstate[state]);
     vt_printf(vt,"%-28s: %d\n","processing cycle (ms)",cycle);
@@ -1321,7 +1321,7 @@ static void cmd_save(char **args, int narg, vt_t *vt)
     }
     if (!confwrite(vt,file)) return;
     time2str(utc2gpst(timeget()),s,0);
-    sprintf(comment,"%s options (%s, %s ver.%s %s)",PRGNAME,s,SOFTNAME,VER_MALIB,PATCH_LEVEL_MALIB);
+    sprintf(comment,"%s options (%s, %s ver.%s)",PRGNAME,s,MRTKLIB_SOFTNAME,MRTKLIB_VERSION_STRING);
     setsysopts(&prcopt,solopt,&filopt);
     if (!saveopts(file,"w",comment,rcvopts)||!saveopts(file,"a",NULL,sysopts)) {
         vt_printf(vt,"options save error: %s\n",file);
@@ -1358,7 +1358,7 @@ static void cmd_help(char **args, int narg, vt_t *vt)
     int i;
     
     if (narg<2) {
-        vt_printf(vt,"%s (%s ver.%s %s)\n",PRGNAME,SOFTNAME,VER_MALIB,PATCH_LEVEL_MALIB);
+        vt_printf(vt,"%s (%s ver.%s)\n",PRGNAME,MRTKLIB_SOFTNAME,MRTKLIB_VERSION_STRING);
         for (i=0;*helptxt[i];i++) vt_printf(vt,"%s\n",helptxt[i]);
     }
     else if (strstr(str,args[1])==str) {
@@ -1402,8 +1402,8 @@ static void *con_thread(void *arg)
     
     trace(NULL,3,"console_thread:\n");
     
-    vt_printf(con->vt,"\n%s** %s(%s ver.%s %s) console (h:help) **%s\n",ESC_BOLD,
-              PRGNAME,SOFTNAME,VER_MALIB,PATCH_LEVEL_MALIB,ESC_RESET);
+    vt_printf(con->vt,"\n%s** %s(%s ver.%s) console (h:help) **%s\n",ESC_BOLD,
+              PRGNAME,MRTKLIB_SOFTNAME,MRTKLIB_VERSION_STRING,ESC_RESET);
     
     if (!login(con->vt)) {
         vt_close(con->vt);

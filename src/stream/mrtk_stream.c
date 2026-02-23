@@ -22,9 +22,7 @@
 #include <string.h>
 #include <math.h>
 
-/* Local constants (duplicated from rtklib.h to avoid dependency) */
-#define VER_MALIB           "1.1.0"
-#define PATCH_LEVEL_MALIB   "feature/1.2.0"
+#include "mrtklib/mrtk_version.h"
 
 /* Forward declarations for functions in rtklib (resolved at link time) */
 #include <fcntl.h>
@@ -53,7 +51,7 @@
 #define MAXSTATMSG          32          /* max length of status message */
 #define DEFAULT_MEMBUF_SIZE 4096        /* default memory buffer size (bytes) */
 
-#define NTRIP_AGENT         "MALIB/" VER_MALIB
+#define NTRIP_AGENT         MRTKLIB_SOFTNAME "/" MRTKLIB_VERSION_STRING
 #define NTRIP_CLI_PORT      2101        /* default ntrip-client connection port */
 #define NTRIP_SVR_PORT      80          /* default ntrip-server connection port */
 #define NTRIP_MAXRSP        32768       /* max size of ntrip response */
@@ -447,7 +445,7 @@ static int openfile_(file_t *file, gtime_t time, char *msg)
             timeset(gpst2utc(file->time));
         }
         else {
-            sprintf(tagh,"TIMETAG MALIB %s",VER_MALIB);
+            sprintf(tagh,"TIMETAG %s %s",MRTKLIB_SOFTNAME,MRTKLIB_VERSION_STRING);
             memcpy(tagh+TIMETAGH_LEN-4,&file->tick_f,sizeof(file->tick_f));
             time_time=(uint32_t)file->time.time;
             time_sec=file->time.sec;
@@ -1675,7 +1673,7 @@ static void send_srctbl(ntripc_t *ntripc, int ver, socket_t sock)
         p+=sprintf(p,"Ntrip-Flags: \r\n");
     }
     time_str_http(tstr);
-    p+=sprintf(p,"Server: NTRIP %s/%s %s\r\n","MALIB",VER_MALIB,PATCH_LEVEL_MALIB);
+    p+=sprintf(p,"Server: NTRIP %s/%s\r\n",MRTKLIB_SOFTNAME,MRTKLIB_VERSION_STRING);
     p+=sprintf(p,"Date: %s\r\n",tstr);
     p+=sprintf(p,"Connection: close\r\n");
     p+=sprintf(p,"Content-Type: %s\r\n",
@@ -1696,8 +1694,7 @@ static void send_rsp_ok(int ver, socket_t sock)
         time_str_http(tstr);
         p+=sprintf(p,"HTTP/1.1 200 OK\r\n");
         p+=sprintf(p,"Ntrip-Version: Ntrip/2.0\r\n");
-        p+=sprintf(p,"Server: NTRIP %s/%s %s\r\n","MALIB",VER_MALIB,
-                   PATCH_LEVEL_MALIB);
+        p+=sprintf(p,"Server: NTRIP %s/%s\r\n",MRTKLIB_SOFTNAME,MRTKLIB_VERSION_STRING);
         p+=sprintf(p,"Date: %s\r\n",tstr);
         p+=sprintf(p,"Cache-Control: no-store, no-cache, max-age=0\r\n");
         p+=sprintf(p,"Pragma: no-cache\r\n");
@@ -1723,8 +1720,7 @@ static void send_rsp_err(ntripc_t *ntripc, int ver, int err, socket_t sock)
         p+=sprintf(p,"HTTP/1.1 %d %s\r\n",err,(err==404)?"Not Found":
                    "Unauthorized");
         p+=sprintf(p,"Ntrip-Version: Ntrip/2.0\r\n");
-        p+=sprintf(p,"Server: NTRIP %s/%s %s\r\n","MALIB",VER_MALIB,
-                   PATCH_LEVEL_MALIB);
+        p+=sprintf(p,"Server: NTRIP %s/%s\r\n",MRTKLIB_SOFTNAME,MRTKLIB_VERSION_STRING);
         p+=sprintf(p,"Date: %s\r\n",tstr);
         p+=sprintf(p,"Content-Type: text/html\r\n");
         p+=sprintf(p,"Connection: close\r\n\r\n");

@@ -74,16 +74,16 @@ cleanup() {
     fi
     rm -f ./rtkrcv.conf ./rtkrcv.conf.bak ./rtkrcv.nav
     # Files extracted by tar
-    rm -f data/2024235L.209.l6
-    rm -f data/MALIB_OSS_data_obsnav_240822-1100.*
-    rm -f data/MALIB_OSS_data_l6e_240822-1100.*
-    rm -f data/igs14*.atx
+    rm -f tests/data/malib/2024235L.209.l6
+    rm -f tests/data/malib/MALIB_OSS_data_obsnav_240822-1100.*
+    rm -f tests/data/malib/MALIB_OSS_data_l6e_240822-1100.*
+    rm -f tests/data/malib/igs14*.atx
 }
 trap cleanup EXIT
 
 # Extract test data
 echo "Extracting data..."
-tar -xzf data/MALIB_OSS_data.tar.gz
+tar -xzf tests/data/malib/MALIB_OSS_data.tar.gz --strip-components=2 -C tests/data/malib
 
 # Prepare config: copy and patch output path + playback speed
 cp bin/rtkrcv.conf .

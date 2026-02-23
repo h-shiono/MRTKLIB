@@ -656,8 +656,8 @@ static void outbsnx(const char *outfile, gtime_t ts, gtime_t te,
     outbsnxh(fp, ts, te, "MLB");
 
     outbsnxrefh(fp);
-    outbsnxrefb(fp, 0, "Receiver Code biases estimated by MALIB");
-    snprintf(buff, sizeof(buff), "%s(%s ver.%s)", PROGNAME, SOFTNAME, VER_MALIB);
+    outbsnxrefb(fp, 0, "Receiver Code biases estimated by MRTKLIB");
+    snprintf(buff, sizeof(buff), "%s(%s ver.%s)", PROGNAME, MRTKLIB_SOFTNAME, MRTKLIB_VERSION_STRING);
     outbsnxrefb(fp, 3, buff);
     outbsnxreff(fp);
 

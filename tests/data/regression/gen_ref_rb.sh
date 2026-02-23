@@ -4,11 +4,11 @@ set -euo pipefail
 # Generate Reference Receiver Code Biases using recvbias
 #
 # This script:
-#   1. Extracts test data from data/MALIB_OSS_data.tar.gz
+#   1. Extracts test data from tests/data/malib/MALIB_OSS_data.tar.gz
 #   2. Downloads IONEX TEC data from CODE (Univ. of Bern) if not already present
 #   3. Runs recvbias to generate reference receiver code biases
 #
-# The TEC file is downloaded to data/ and cleaned up on exit.
+# The TEC file is downloaded to tests/data/malib/ and cleaned up on exit.
 #
 # Usage:
 #   bash tests/data/regression/gen_ref_rb.sh            # without trace
@@ -66,7 +66,7 @@ EL_MASK=30
 #   Format:  IONEX 1.0
 #   .INX = IONEX TEC grid data (not .ION which is spherical harmonic coefficients)
 TEC_BASENAME="COD0OPSFIN_20242350000_01D_01H_GIM.INX"
-TEC_FILE="data/${TEC_BASENAME}"
+TEC_FILE="tests/data/malib/${TEC_BASENAME}"
 TEC_URL="http://ftp.aiub.unibe.ch/CODE/2024/${TEC_BASENAME}.gz"
 
 # Temporary files to clean up (populated as script runs)
@@ -78,17 +78,17 @@ cleanup() {
         rm -f "$f"
     done
     # Files extracted by tar and downloaded TEC file
-    rm -f data/2024235L.209.l6
-    rm -f data/MALIB_OSS_data_obsnav_240822-1100.*
-    rm -f data/MALIB_OSS_data_l6e_240822-1100.*
-    rm -f data/igs14*.atx
-    rm -f "data/${TEC_BASENAME}"
+    rm -f tests/data/malib/2024235L.209.l6
+    rm -f tests/data/malib/MALIB_OSS_data_obsnav_240822-1100.*
+    rm -f tests/data/malib/MALIB_OSS_data_l6e_240822-1100.*
+    rm -f tests/data/malib/igs14*.atx
+    rm -f "tests/data/malib/${TEC_BASENAME}"
 }
 trap cleanup EXIT
 
 # Extract test data
 echo "Extracting data..."
-tar -xzf data/MALIB_OSS_data.tar.gz
+tar -xzf tests/data/malib/MALIB_OSS_data.tar.gz --strip-components=2 -C tests/data/malib
 
 # Download IONEX TEC file if not present in extracted data
 if [[ ! -f "$TEC_FILE" ]]; then
@@ -112,9 +112,9 @@ else
 fi
 
 # Input files
-obs=data/MALIB_OSS_data_obsnav_240822-1100.obs
-nav=data/MALIB_OSS_data_obsnav_240822-1100.nav
-l6e=data/2024235L.209.l6
+obs=tests/data/malib/MALIB_OSS_data_obsnav_240822-1100.obs
+nav=tests/data/malib/MALIB_OSS_data_obsnav_240822-1100.nav
+l6e=tests/data/malib/2024235L.209.l6
 
 # Output directory
 output_dir=tests/data/regression

@@ -47,8 +47,7 @@
 
 #define COMMENTH    "%"                 /* comment line indicator for solution */
 
-#define SOFTNAME    "MALIB"             /* software name */
-#define VER_MALIB   "1.1.0"             /* MALIB version */
+#include "mrtklib/mrtk_version.h"
 
 #ifndef PROGNAME
 #define PROGNAME    "rnx2rtkp"          /* default program name */
@@ -158,7 +157,7 @@ static void outheader(FILE *fp, char **file, int n, const prcopt_t *popt,
     }
     if (sopt->outhead) {
         if (!*sopt->prog) {
-            fprintf(fp,"%s program   : %s(%s ver.%s)\n",COMMENTH,PROGNAME,SOFTNAME,VER_MALIB);
+            fprintf(fp,"%s program   : %s(%s ver.%s)\n",COMMENTH,PROGNAME,MRTKLIB_SOFTNAME,MRTKLIB_VERSION_STRING);
         }
         else {
             fprintf(fp,"%s program   : %s\n",COMMENTH,sopt->prog);

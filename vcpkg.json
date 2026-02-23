@@ -1,6 +1,6 @@
 {
-    "name": "qzsslib",
-    "version-string": "1.2.0",
+    "name": "mrtklib",
+    "version-string": "0.1.0",
     "dependencies": [
         "gtest",
         "toml11",

@@ -107,7 +107,7 @@ static void printhelp(void)
 /* print version -------------------------------------------------------------*/
 static void printver(void)
 {
-    fprintf(stderr,"%s(%s ver.%s %s)\n",PROGNAME,SOFTNAME,VER_MALIB,PATCH_LEVEL_MALIB);
+    fprintf(stderr,"%s(%s ver.%s)\n",PROGNAME,MRTKLIB_SOFTNAME,MRTKLIB_VERSION_STRING);
     exit(0);
 }
 /* rnx2rtkp main -------------------------------------------------------------*/
@@ -132,7 +132,7 @@ int main(int argc, char **argv)
     prcopt.refpos=1;
     prcopt.glomodear=0;
     solopt.timef=0;
-    sprintf(solopt.prog ,"%s(%s ver.%s %s)",PROGNAME,SOFTNAME,VER_MALIB,PATCH_LEVEL_MALIB);
+    sprintf(solopt.prog ,"%s(%s ver.%s)",PROGNAME,MRTKLIB_SOFTNAME,MRTKLIB_VERSION_STRING);
     sprintf(filopt.trace,"%s.trace",PROGNAME);
     
     /* load options from configuration file */
