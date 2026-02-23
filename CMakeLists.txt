@@ -344,3 +344,66 @@ set_tests_properties(rtkrcv_rt PROPERTIES
     TIMEOUT           300
     LABELS            "regression;realtime"
 )
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# MADOCALIB regression tests
+# ═══════════════════════════════════════════════════════════════════════════════
+# Data: MIZU station, 2025/04/01 Session A (00:00-00:59), L6E E1(.204)+E2(.206)
+# Source: upstream/madocalib/sample_data
+# Test data archive: tests/data/madocalib/madocalib_testdata.tar.gz
+set(_MDLDATA  ${CMAKE_SOURCE_DIR}/tests/data/madocalib)
+
+# ── Fixture: extract / clean madocalib test data archive ─────────────────────
+add_test(NAME madocalib_setup
+    COMMAND bash -c "tar xzf ${_MDLDATA}/madocalib_testdata.tar.gz -C ${_MDLDATA}"
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+set_tests_properties(madocalib_setup PROPERTIES
+    FIXTURES_SETUP  madocalib_data
+    TIMEOUT         30
+    LABELS          "regression;madocalib"
+)
+
+add_test(NAME madocalib_cleanup
+    COMMAND bash -c "rm -f \
+        ${_MDLDATA}/MIZU00JPN_R_20250910000_01D_30S_MO.obs \
+        ${_MDLDATA}/BRDM00DLR_S_20250910000_01D_MN.rnx \
+        ${_MDLDATA}/2025091A.204.l6 \
+        ${_MDLDATA}/2025091A.206.l6 \
+        ${_MDLDATA}/igs20.atx"
+)
+set_tests_properties(madocalib_cleanup PROPERTIES
+    FIXTURES_CLEANUP madocalib_data
+    LABELS           "regression;madocalib"
+)
+
+# ── rnx2rtkp MADOCA-PPP regression ──────────────────────────────────────────
+add_test(NAME madocalib_ppp
+    COMMAND $<TARGET_FILE:rnx2rtkp>
+        -k ${CMAKE_SOURCE_DIR}/conf/madocalib/rnx2rtkp.conf
+        -ts 2025/04/01 0:00:00 -te 2025/04/01 0:59:30 -ti 30
+        -o ${CMAKE_BINARY_DIR}/out_madocalib_ppp.pos
+        ${_MDLDATA}/MIZU00JPN_R_20250910000_01D_30S_MO.obs
+        ${_MDLDATA}/BRDM00DLR_S_20250910000_01D_MN.rnx
+        ${_MDLDATA}/2025091A.204.l6
+        ${_MDLDATA}/2025091A.206.l6
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+set_tests_properties(madocalib_ppp PROPERTIES
+    FIXTURES_REQUIRED madocalib_data
+    TIMEOUT           180
+    LABELS            "regression;madocalib;ppp"
+)
+
+add_test(NAME madocalib_ppp_check
+    COMMAND ${CMAKE_COMMAND}
+        -DOUTPUT=${CMAKE_BINARY_DIR}/out_madocalib_ppp.pos
+        -DREFERENCE=${_MDLDATA}/madocalib_MIZU_20250401-0000.pp.pos
+        -DTHRESHOLD=90
+        -P ${_TESTCMAKE}/compare_pos.cmake
+)
+set_tests_properties(madocalib_ppp_check PROPERTIES
+    DEPENDS           madocalib_ppp
+    FIXTURES_REQUIRED madocalib_data
+    LABELS            "regression;madocalib;ppp"
+)
