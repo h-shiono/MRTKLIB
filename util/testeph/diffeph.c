@@ -5,7 +5,8 @@
 *           2011/09/17  0.2 add comparison of 2 precise ephemeris
 *-----------------------------------------------------------------------------*/
 #include <stdio.h>
-#include "rtklib.h"
+#include "mrtklib/rtklib.h"
+#include "mrtklib/mrtk_context.h"
 
 static const char *usage[]={
 "Synopsys",
@@ -37,7 +38,7 @@ static void prusage(void)
 	for (i=0;usage[i];i++) fprintf(stderr,"%s\n",usage[i]);
 }
 /* update rtcm struct --------------------------------------------------------*/
-static void updatertcm(gtime_t time, rtcm_t *rtcm, nav_t *nav, FILE *fp)
+static void updatertcm(mrtk_ctx_t *ctx, gtime_t time, rtcm_t *rtcm, nav_t *nav, FILE *fp)
 {
     char s1[32],s2[32];
     int i;
@@ -45,7 +46,7 @@ static void updatertcm(gtime_t time, rtcm_t *rtcm, nav_t *nav, FILE *fp)
     while (input_rtcm3f(rtcm,fp)>=0) {
         time2str(time      ,s1,0);
         time2str(rtcm->time,s2,0);
-        trace(2,"rtcm.time=%s time=%s\n",s1,s2);
+        trace(ctx,2,"rtcm.time=%s time=%s\n",s1,s2);
         
         if (timediff(rtcm->time,time)>=5.0) break;
     }
@@ -132,7 +133,8 @@ int main(int argc, char **argv)
     int i,s,n=0,nx=0,sat=0,topt=0,eopt=0,mopt=0,trl=0,index=0;
     int eph1=EPHOPT_BRDC,eph2=EPHOPT_PREC;
     char *files[32],*ext;
-    
+    mrtk_ctx_t *ctx = mrtk_ctx_create();
+
     t0=epoch2time(ep0);
     
     init_rtcm(&rtcm);
@@ -147,6 +149,7 @@ int main(int argc, char **argv)
            if (sscanf(argv[++i],"%lf/%lf/%lf",ep0  ,ep0+1,ep0+2)<3||
                sscanf(argv[++i],"%lf:%lf:%lf",ep0+3,ep0+4,ep0+5)<1) {
                fprintf(stderr,"invalid time\n");
+               mrtk_ctx_destroy(ctx);
                return -1;
            }
        }
@@ -161,13 +164,14 @@ int main(int argc, char **argv)
        else if (!strcmp(argv[i],"-o" )) mopt=1;
        else if (!strncmp(argv[i],"-",1)) {
            prusage();
+           mrtk_ctx_destroy(ctx);
            return 0;
        }
        else files[n++]=argv[i];
     }
     if (trl>0) {
-       traceopen("diffeph.trace");
-       tracelevel(trl);
+       traceopen(ctx,"diffeph.trace");
+       tracelevel(ctx,trl);
     }
     t0=epoch2time(ep0);
     
@@ -191,12 +195,14 @@ int main(int argc, char **argv)
         else if (!strcmp(ext,".rtcm3")||!strcmp(ext,".log")) {
            if (!(fp=fopen(files[i],"rb"))) {
                fprintf(stderr,"file open error: %s\n",files[i]);
+               mrtk_ctx_destroy(ctx);
                return -1;
            }
         }
         else if (!strcmp(ext,".lex")) {
            if (!lexreadmsg(files[i],0,&lex)) {
                fprintf(stderr,"file read error: %s\n",files[i]);
+               mrtk_ctx_destroy(ctx);
                return -1;
            }
         }
@@ -218,7 +224,7 @@ int main(int argc, char **argv)
        
        /* update ephemeris in navigation data */
        if (fp) {
-           updatertcm(time,&rtcm,&nav,fp);
+           updatertcm(ctx,time,&rtcm,&nav,fp);
        }
        else if (lex.n>0) {
            index=updatelex(index,time,&lex,&nav);
@@ -231,6 +237,7 @@ int main(int argc, char **argv)
        }
     }
     if (fp) fclose(fp);
-    if (trl>0) traceclose();
+    if (trl>0) traceclose(ctx);
+    mrtk_ctx_destroy(ctx);
     return 0;
 }

@@ -40,14 +40,7 @@ extern "C" {
  * Version Information
  *===========================================================================*/
 
-/** @brief Major version number */
-#define MRTK_VERSION_MAJOR 1
-/** @brief Minor version number */
-#define MRTK_VERSION_MINOR 2
-/** @brief Patch version number */
-#define MRTK_VERSION_PATCH 0
-/** @brief Version string */
-#define MRTK_VERSION_STRING "1.2.0"
+#include "mrtklib/mrtk_version.h"
 
 /*============================================================================
  * Opaque Context

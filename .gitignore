@@ -13,15 +13,19 @@ __astcache
 # CMake build directory
 build/
 
-# Test data extracted from data/MALIB_OSS_data.tar.gz
+# Python virtual environments
+scripts/.venv/
+
+# Test data extracted from tests/data/malib/MALIB_OSS_data.tar.gz
 # (extracted by ctest fixture; cleaned up automatically, but guarded here)
-data/MALIB_OSS_data_*.sbf
-data/MALIB_OSS_data_*.sbf.tag
-data/MALIB_OSS_data_*.obs
-data/MALIB_OSS_data_*.nav
-data/MALIB_OSS_data_l6e_*.sbf
-data/2024235L.209.l6
-data/igs14_*.atx
+tests/data/malib/MALIB_OSS_data_*.sbf
+tests/data/malib/MALIB_OSS_data_*.sbf.tag
+tests/data/malib/MALIB_OSS_data_*.obs
+tests/data/malib/MALIB_OSS_data_*.nav
+tests/data/malib/MALIB_OSS_data_l6e_*.sbf
+tests/data/malib/2024235L.209.l6
+tests/data/malib/igs14_*.atx
+tests/data/malib/COD0OPSFIN_*.INX
 
 # rtkrcv writes a navigation cache at the working directory
 rtkrcv.nav

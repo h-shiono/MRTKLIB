@@ -33,25 +33,16 @@ extern "C" {
 
 #include <stdio.h>
 #include "mrtklib/mrtk_foundation.h"
+#include "mrtklib/mrtk_version.h"
 #include "mrtklib/mrtk_time.h"
 #include "mrtklib/mrtk_peph.h"
 #include "mrtklib/mrtk_rinex.h"
 
 /*============================================================================
- * Version / Software Information
+ * Copyright Information
  *===========================================================================*/
 
-#ifndef SOFTNAME
-#define SOFTNAME    "MALIB"
-#endif
-#ifndef VER_MALIB
-#define VER_MALIB   "1.1.0"
-#endif
-#ifndef PATCH_LEVEL_MALIB
-#define PATCH_LEVEL_MALIB "feature/1.2.0"
-#endif
-
-#define COPYRIGHT_MALIB \
+#define COPYRIGHT_MRTKLIB \
             "Copyright (C) 2007-2023 T.Takasu\nAll rights reserved." \
             "Copyright (C) 2023-2025, TOSHIBA ELECTRONIC TECHNOLOGIES CORPORATION. All Rights Reserved." \
             "Copyright (C) 2023-2025, Japan Aerospace Exploration Agency. All Rights Reserved."
@@ -502,7 +493,7 @@ typedef struct event_tag {  /* orbit event list type */
  * Console / Application Constants
  *===========================================================================*/
 
-#define LOGIN_PROMPT    "*** LCLCMBRT MONITOR CONSOLE (" SOFTNAME " ver." VER_MALIB ") ***"
+#define LOGIN_PROMPT    "*** LCLCMBRT MONITOR CONSOLE (" MRTKLIB_SOFTNAME " ver." MRTKLIB_VERSION_STRING ") ***"
 #define LOGIN_USER      "admin"         /* console login user */
 #define LOGIN_PASSWD    "root"          /* console login password */
 #define INACT_TIMEOUT   300             /* console inactive timeout (s) */

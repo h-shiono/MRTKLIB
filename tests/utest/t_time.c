@@ -4,7 +4,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <assert.h>
-#include "../../src/rtklib.h"
+#include "mrtklib/rtklib.h"
 
 #define TIME_64BIT 1
 
@@ -268,6 +268,7 @@ void utest10(void)
 {
     char s1[64],s2[64];
     gtime_t time1,time2;
+    volatile int j=0;
     int i;
     time1=timeget();
     for (i=0;i<2000000000;i++) j=1;

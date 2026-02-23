@@ -3,7 +3,7 @@
 *-----------------------------------------------------------------------------*/
 #include <stdio.h>
 #include <assert.h>
-#include "../../src/rtklib.h"
+#include "mrtklib/rtklib.h"
 
 static double a1[]={
   1585184.171,

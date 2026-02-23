@@ -1,0 +1,67 @@
+# Doxyfile.in — MRTKLIB Doxygen configuration template
+# Generated header is expanded by CMake's configure_file().
+
+#---------------------------------------------------------------------------
+# Project related
+#---------------------------------------------------------------------------
+PROJECT_NAME           = "MRTKLIB"
+PROJECT_NUMBER         = @MRTKLIB_VERSION_STRING@
+PROJECT_BRIEF          = "Modernized GNSS Positioning Library"
+OUTPUT_DIRECTORY       = @CMAKE_BINARY_DIR@/doc
+
+#---------------------------------------------------------------------------
+# Input
+#---------------------------------------------------------------------------
+INPUT                  = @CMAKE_SOURCE_DIR@/src \
+                         @CMAKE_SOURCE_DIR@/include
+FILE_PATTERNS          = *.c *.h *.h.in
+RECURSIVE              = YES
+EXCLUDE_PATTERNS       = */build/* */vcpkg/*
+
+#---------------------------------------------------------------------------
+# Source browsing
+#---------------------------------------------------------------------------
+SOURCE_BROWSER         = YES
+INLINE_SOURCES         = NO
+STRIP_CODE_COMMENTS    = NO
+REFERENCED_BY_RELATION = YES
+REFERENCES_RELATION    = YES
+
+#---------------------------------------------------------------------------
+# Extraction
+#---------------------------------------------------------------------------
+EXTRACT_ALL            = YES
+EXTRACT_STATIC         = YES
+EXTRACT_PRIVATE        = NO
+
+#---------------------------------------------------------------------------
+# Output formats
+#---------------------------------------------------------------------------
+GENERATE_HTML          = YES
+GENERATE_LATEX         = NO
+HTML_OUTPUT            = html
+
+#---------------------------------------------------------------------------
+# Graphs (requires Graphviz 'dot')
+#---------------------------------------------------------------------------
+HAVE_DOT               = YES
+CALL_GRAPH             = YES
+CALLER_GRAPH           = YES
+DOT_IMAGE_FORMAT       = svg
+INTERACTIVE_SVG        = YES
+DOT_MULTI_TARGETS      = YES
+DOT_GRAPH_MAX_NODES    = 100
+
+#---------------------------------------------------------------------------
+# Preprocessing
+#---------------------------------------------------------------------------
+ENABLE_PREPROCESSING   = YES
+MACRO_EXPANSION        = YES
+PREDEFINED             = ENAGLO ENAGAL ENAQZS ENACMP ENAIRN \
+                         NFREQ=5 NEXOBS=5 TRACE
+
+#---------------------------------------------------------------------------
+# Warnings
+#---------------------------------------------------------------------------
+WARN_IF_UNDOCUMENTED   = NO
+QUIET                  = YES

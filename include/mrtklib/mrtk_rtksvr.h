@@ -27,6 +27,7 @@ extern "C" {
 #endif
 
 #include "mrtklib/mrtk_foundation.h"
+#include "mrtklib/mrtk_context.h"
 #include "mrtklib/mrtk_time.h"
 #include "mrtklib/mrtk_obs.h"
 #include "mrtklib/mrtk_nav.h"
@@ -82,6 +83,7 @@ typedef struct {        /* RTK server type */
     char cmd_reset[MAXRCVCMD]; /* reset command */
     double bl_reset;    /* baseline length to reset (km) */
     rtk_lock_t lock;    /* lock flag */
+    mrtk_ctx_t *ctx;    /* runtime context */
 } rtksvr_t;
 
 /*============================================================================

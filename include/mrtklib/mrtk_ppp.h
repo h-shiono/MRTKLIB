@@ -27,6 +27,7 @@ extern "C" {
 #endif
 
 #include "mrtklib/mrtk_foundation.h"
+#include "mrtklib/mrtk_context.h"
 #include "mrtklib/mrtk_obs.h"
 #include "mrtklib/mrtk_nav.h"
 #include "mrtklib/mrtk_opt.h"
@@ -39,7 +40,8 @@ extern "C" {
  * @param[in]     n    Number of observation data
  * @param[in]     nav  Navigation data
  */
-void pppos(rtk_t *rtk, const obsd_t *obs, int n, const nav_t *nav);
+void pppos(mrtk_ctx_t *ctx, rtk_t *rtk, const obsd_t *obs, int n,
+           const nav_t *nav);
 
 /**
  * @brief Number of estimated states for PPP.

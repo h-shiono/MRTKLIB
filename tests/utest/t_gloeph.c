@@ -3,7 +3,7 @@
 *-----------------------------------------------------------------------------*/
 #include <stdio.h>
 #include <assert.h>
-#include "../../src/rtklib.h"
+#include "mrtklib/rtklib.h"
 
 static void dumpgeph(geph_t *geph, int n)
 {
@@ -25,8 +25,8 @@ static void dumpgeph(geph_t *geph, int n)
 /* readrnx() */
 void utest1(void)
 {
-    char file1[]="../data/rinex/brdd0910.09g";
-    char file2[]="../data/rinex/brdc0910.09g";
+    char file1[]="../data/rtklib/rinex/brdd0910.09g";
+    char file2[]="../data/rtklib/rinex/brdc0910.09g";
     nav_t nav={0};
     
     readrnx(file1,1,"",NULL,&nav,NULL);
@@ -40,8 +40,8 @@ void utest1(void)
 /* readsp3() */
 void utest2(void)
 {
-    char *file1="../data/sp3/igl15253.sp4";
-    char *file2="../data/sp3/igl15253.sp3";
+    char *file1="../data/rtklib/sp3/igl15253.sp4";
+    char *file2="../data/rtklib/sp3/igl15253.sp3";
     nav_t nav={0};
     double tow,*pos;
     int i,week,sat;
@@ -68,7 +68,7 @@ void utest2(void)
 void utest3(void)
 {
     gtime_t time;
-    char file[]="../data/rinex/brdc0910.09g";
+    char file[]="../data/rtklib/rinex/brdc0910.09g";
     nav_t nav={0};
     double ep[]={2009,4,1,0,0,0};
     double tspan=86400.0,tint=30.0,tow;
@@ -99,7 +99,7 @@ void utest3(void)
 void utest4(void)
 {
     gtime_t time;
-    char *file="../data/sp3/igl15253.sp3";
+    char *file="../data/rtklib/sp3/igl15253.sp3";
     nav_t nav={0};
     double ep[]={2009,4,1,0,0,0};
     double tspan=86400.0,tint=30.0,tow;
@@ -149,8 +149,8 @@ void utest5(void)
 void utest6(void)
 {
     FILE *fp;
-    char *file1="../data/rinex/brdc0910.09g";
-    char *file2="../data/sp3/igl15253.sp3";
+    char *file1="../data/rtklib/rinex/brdc0910.09g";
+    char *file2="../data/rtklib/sp3/igl15253.sp3";
     char *file3="../../data/igs05.atx";
 /*
     char *file4="../data/esa15253.sp3";

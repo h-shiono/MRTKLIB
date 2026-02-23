@@ -2,7 +2,7 @@
 * marge log and tag files
 *-----------------------------------------------------------------------------*/
 #include <stdio.h>
-#include "rtklib.h"
+#include "mrtklib/rtklib.h"
 
 #define HEADLEN			76
 

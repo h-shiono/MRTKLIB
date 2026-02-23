@@ -27,6 +27,7 @@ extern "C" {
 #endif
 
 #include "mrtklib/mrtk_foundation.h"
+#include "mrtklib/mrtk_context.h"
 #include "mrtklib/mrtk_time.h"
 #include "mrtklib/mrtk_nav.h"
 #include "mrtklib/mrtk_obs.h"
@@ -40,6 +41,7 @@ extern "C" {
 /**
  * @brief Compute receiver position, velocity, clock bias by single-point
  *        positioning with pseudorange and doppler observables.
+ * @param[in]    ctx   Runtime context (NULL = use global)
  * @param[in]    obs   Observation data
  * @param[in]    n     Number of observation data
  * @param[in]    nav   Navigation data
@@ -50,8 +52,9 @@ extern "C" {
  * @param[out]   msg   Error message for error exit
  * @return Status (1:ok, 0:error)
  */
-int pntpos(const obsd_t *obs, int n, const nav_t *nav, const prcopt_t *opt,
-           sol_t *sol, double *azel, ssat_t *ssat, char *msg);
+int pntpos(mrtk_ctx_t *ctx, const obsd_t *obs, int n, const nav_t *nav,
+           const prcopt_t *opt, sol_t *sol, double *azel, ssat_t *ssat,
+           char *msg);
 
 #ifdef __cplusplus
 }

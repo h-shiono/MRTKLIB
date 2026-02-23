@@ -6,7 +6,7 @@
 * version : $Revision:$ $Date:$
 * history : 2012/09/15 1.0  new
 *-----------------------------------------------------------------------------*/
-#include "rtklib.h"
+#include "mrtklib/rtklib.h"
 
 static const char rcsid[]="$Id:$";
 

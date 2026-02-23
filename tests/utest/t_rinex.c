@@ -3,7 +3,7 @@
 *-----------------------------------------------------------------------------*/
 #include <stdio.h>
 #include <assert.h>
-#include "../../src/rtklib.h"
+#include "mrtklib/rtklib.h"
 
 static void dumpobs(obs_t *obs)
 {
@@ -59,10 +59,10 @@ void utest1(void)
 {
     char file1[]="abc.00o";
     char file2[]="bcd.00n";
-    char file3[]="../data/rinex/07590920.05o";
-    char file4[]="../data/rinex/07590920.05n";
-    char file5[]="../data/rinex/30400920.05o";
-    char file6[]="../data/rinex/30400920.05n";
+    char file3[]="../data/rtklib/rinex/07590920.05o";
+    char file4[]="../data/rtklib/rinex/07590920.05n";
+    char file5[]="../data/rtklib/rinex/30400920.05o";
+    char file6[]="../data/rtklib/rinex/30400920.05n";
     obs_t obs={0};
     nav_t nav={0};
     sta_t sta={""};
@@ -98,8 +98,8 @@ void utest2(void)
 {
     gtime_t t0={0},ts,te;
     double ep1[]={2005,4,2,1,0,0},ep2[]={2005,4,2,2,0,0};
-    char file1[]="../data/rinex/07590920.05o";
-    char file2[]="../data/rinex/07590920.05n";
+    char file1[]="../data/rtklib/rinex/07590920.05o";
+    char file2[]="../data/rtklib/rinex/07590920.05n";
     int n;
     obs_t obs={0};
     nav_t nav={0};
@@ -120,31 +120,37 @@ void utest2(void)
     printf("%s utset2 : OK\n",__FILE__);
 }
 static rnxopt_t opt1={{0}};
-static rnxopt_t opt2= {
-    {0},{0},0.0,0.0,2.10,SYS_ALL,OBSTYPE_ALL,FREQTYPE_ALL,{{0}},
-    "STAID",
-    "RROG567890123456789012345678901",
-    "RUNBY67890123456789012345678901",
-    "MARKER789012345678901234567890123456789012345678901234567890123",
-    "MARKNO7890123456789012345678901",
-    "MARKTY7890123456789012345678901",
-    {"OBSERVER90123456789012345678901",
-     "AGENCY7890123456789012345678901"},
-    {"RCV1567890123456789012345678901",
-     "RCV2567890123456789012345678901",
-     "RCV3567890123456789012345678901"},
-    {"ANT1567890123456789012345678901",
-     "ANT2567890123456789012345678901",
-     "ANT3567890123456789012345678901"},
-    {12345678.123,99999999.999,100000000.000},
-    {123.0345,890123.9012,34567.0001},
-    {"COMMENT1 012345678901234567890123456789012345678901234567890123",
-     "COMMENT2 012345678901234567890123456789012345678901234567890123",
-     "COMMENT3 012345678901234567890123456789012345678901234567890123",
-     "COMMENT4 012345678901234567890123456789012345678901234567890123",
-     "COMMENT5 012345678901234567890123456789012345678901234567890123"},
-     "",{0},1,1,1,1,1,
-    {0},{0},{0}
+static rnxopt_t opt2 = {
+    .rnxver   = 210,
+    .navsys   = SYS_ALL,
+    .obstype  = OBSTYPE_ALL,
+    .freqtype = FREQTYPE_ALL,
+    .staid    = "STAID",
+    .prog     = "RROG567890123456789012345678901",
+    .runby    = "RUNBY67890123456789012345678901",
+    .marker   = "MARKER789012345678901234567890123456789012345678901234567890123",
+    .markerno = "MARKNO7890123456789012345678901",
+    .markertype = "MARKTY7890123456789012345678901",
+    .name     = {"OBSERVER90123456789012345678901",
+                 "AGENCY7890123456789012345678901"},
+    .rec      = {"RCV1567890123456789012345678901",
+                 "RCV2567890123456789012345678901",
+                 "RCV3567890123456789012345678901"},
+    .ant      = {"ANT1567890123456789012345678901",
+                 "ANT2567890123456789012345678901",
+                 "ANT3567890123456789012345678901"},
+    .apppos   = {12345678.123, 99999999.999, 100000000.000},
+    .antdel   = {123.0345, 890123.9012, 34567.0001},
+    .comment  = {"COMMENT1 012345678901234567890123456789012345678901234567890123",
+                 "COMMENT2 012345678901234567890123456789012345678901234567890123",
+                 "COMMENT3 012345678901234567890123456789012345678901234567890123",
+                 "COMMENT4 012345678901234567890123456789012345678901234567890123",
+                 "COMMENT5 012345678901234567890123456789012345678901234567890123"},
+    .outiono  = 1,
+    .outtime  = 1,
+    .outleaps = 1,
+    .autopos  = 1,
+    .phshift  = 1,
 };
 /* outrneobsh() */
 void utest3(void)
@@ -159,7 +165,7 @@ void utest3(void)
 /* outrneobsb() */
 void utest4(void)
 {
-    char file[]="../data/rinex/07590920.05o";
+    char file[]="../data/rtklib/rinex/07590920.05o";
     obs_t obs={0};
     int i,j;
     
@@ -176,15 +182,13 @@ void utest4(void)
 /* outrnxnavh() */
 void utest5(void)
 {
-    char file1[]="../data/rinex/07590920.05n";
+    char file1[]="../data/rtklib/rinex/07590920.05n";
     double ion[]={1E9,2E-4,3E8,4E3,-4E-3,-5E99,-6E-33,-9E-123};
     double utc[]={1E9,2E4,3E2,-9999};
     nav_t nav={0};
     int i;
     for (i=0;i<8;i++) nav.ion_gps[i]=ion[i];
     for (i=0;i<4;i++) nav.utc_gps[i]=utc[i];
-    nav.leaps=14;
-
     readrnx(file1,1,"",NULL,&nav,NULL);
 
     outrnxnavh(stdout,&opt1,&nav);
@@ -195,7 +199,7 @@ void utest5(void)
 /* outrnxnavb() */
 void utest6(void)
 {
-    char file[]="../data/rinex/07590920.05n";
+    char file[]="../data/rtklib/rinex/07590920.05n";
     nav_t nav={0};
     int i;
     readrnx(file,1,"",NULL,&nav,NULL);

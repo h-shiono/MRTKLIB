@@ -26,6 +26,7 @@ extern "C" {
 #endif
 
 #include "mrtklib/mrtk_foundation.h"
+#include "mrtklib/mrtk_context.h"
 #include "mrtklib/mrtk_time.h"
 #include "mrtklib/mrtk_sol.h"
 #include "mrtklib/mrtk_opt.h"
@@ -77,7 +78,8 @@ void rtkfree(rtk_t *rtk);
  * @param[in,out] nav  Navigation messages
  * @return Status (0: no solution, 1: valid solution)
  */
-int rtkpos(rtk_t *rtk, const obsd_t *obs, int nobs, nav_t *nav);
+int rtkpos(mrtk_ctx_t *ctx, rtk_t *rtk, const obsd_t *obs, int nobs,
+           nav_t *nav);
 
 /**
  * @brief Open solution status file and set output level.

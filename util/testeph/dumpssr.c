@@ -4,7 +4,8 @@
 * 2010/06/10 new
 *-----------------------------------------------------------------------------*/
 #include <stdio.h>
-#include "rtklib.h"
+#include "mrtklib/rtklib.h"
+#include "mrtklib/mrtk_context.h"
 
 /* print ssr messages --------------------------------------------------------*/
 static void printhead(int topt, int mopt)
@@ -95,7 +96,8 @@ int main(int argc, char **argv)
     FILE *fp;
     char *file="";
     int i,sat=0,topt=0,mopt=0,trl=0;
-    
+    mrtk_ctx_t *ctx = mrtk_ctx_create();
+
     for (i=0;i<argc;i++) {
         if      (!strcmp(argv[i],"-t")) topt =1;
         else if (!strcmp(argv[i],"-i")) mopt|=1;
@@ -106,6 +108,7 @@ int main(int argc, char **argv)
         else if (!strcmp(argv[i],"-x")&&i+1<argc) trl=atoi(argv[++i]);
         else if (!strcmp(argv[i],"-h")) {
             fprintf(stderr,"usage: %s\n",usage);
+            mrtk_ctx_destroy(ctx);
             return 0;
         }
         else file=argv[i];
@@ -114,18 +117,20 @@ int main(int argc, char **argv)
     
     if (!(fp=fopen(file,"rb"))) {
         fprintf(stderr,"file open error: %s\n",file);
+        mrtk_ctx_destroy(ctx);
         return -1;
     }
     if (trl>0) {
-        traceopen("dumpssr.trace");
-        tracelevel(trl);
+        traceopen(ctx,"dumpssr.trace");
+        tracelevel(ctx,trl);
     }
     printhead(topt,mopt);
     
     dumpssrmsg(fp,sat,topt,mopt);
     
     fclose(fp);
-    traceclose();
-    
+    traceclose(ctx);
+
+    mrtk_ctx_destroy(ctx);
     return 0;
 }

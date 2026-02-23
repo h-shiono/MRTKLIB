@@ -58,7 +58,7 @@ extern vt_t *vt_open(int sock, const char *dev)
     vt_t *vt;
     int i;
     
-    trace(3,"vt_open: sock=%d dev=%s\n",sock,dev);
+    trace(NULL,3,"vt_open: sock=%d dev=%s\n",sock,dev);
     
     if (!(vt=(vt_t *)malloc(sizeof(vt_t)))) {
         return NULL;
@@ -99,7 +99,7 @@ extern void vt_close(vt_t *vt)
 {
     int i;
     
-    trace(3,"vt_close:\n");
+    trace(NULL,3,"vt_close:\n");
     
     /* restore terminal mode */
     if (!vt->type) {

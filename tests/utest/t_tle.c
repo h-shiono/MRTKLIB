@@ -3,7 +3,7 @@
 *-----------------------------------------------------------------------------*/
 #include <stdio.h>
 #include <assert.h>
-#include "../../src/rtklib.h"
+#include "mrtklib/rtklib.h"
 
 #define OUT stdout
 
@@ -35,9 +35,9 @@ static void dumptle(FILE *fp, const tle_t *tle)
 /* tle_read() ----------------------------------------------------------------*/
 static void utest1(void)
 {
-    const char *file1="../data/tle/tle_sgp4.err";
-    const char *file2="../data/tle/tle_sgp4.txt";
-    const char *file3="../data/tle/tle_nav.txt";
+    const char *file1="../data/rtklib/tle/tle_sgp4.err";
+    const char *file2="../data/rtklib/tle/tle_sgp4.txt";
+    const char *file3="../data/rtklib/tle/tle_nav.txt";
     tle_t tle={0};
     int stat;
     
@@ -60,7 +60,7 @@ static void utest1(void)
 /* tle_pos() -----------------------------------------------------------------*/
 static void utest2(void)
 {
-    const char *file2="../data/tle/tle_sgp4.txt";
+    const char *file2="../data/rtklib/tle/tle_sgp4.txt";
     const double ep0[6]={1980,1,1};
     tle_t tle={0};
     gtime_t epoch;
@@ -89,9 +89,9 @@ static void utest2(void)
 /* tle_pos() accuracy --------------------------------------------------------*/
 static void utest3(void)
 {
-    const char *file1="../data/tle/brdc3050.12*";
-    const char *file2="../data/tle/TLE_GNSS_20121101.txt";
-    const char *file3="../data/tle/igs17127.erp";
+    const char *file1="../data/rtklib/tle/brdc3050.12*";
+    const char *file2="../data/rtklib/tle/TLE_GNSS_20121101.txt";
+    const char *file3="../data/rtklib/tle/igs17127.erp";
     const double ep[6]={2012,10,31,0,0,0};
     nav_t nav={0};
     erp_t erp={0};

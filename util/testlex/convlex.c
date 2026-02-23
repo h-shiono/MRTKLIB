@@ -4,7 +4,8 @@
 * history : 2010/08/24  1.0  new
 *           2011/07/01  1.1  add -h option
 *-----------------------------------------------------------------------------*/
-#include "rtklib.h"
+#include "mrtklib/rtklib.h"
+#include "mrtklib/mrtk_context.h"
 
 /* main ----------------------------------------------------------------------*/
 int main(int argc, char **argv)
