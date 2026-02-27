@@ -156,9 +156,7 @@ extern void tidedisp(gtime_t tutc, const double *rr, int opt, const erp_t *erp, 
 extern unsigned int tickget(void);
 extern char *code2obs(uint8_t code);
 extern int mcssr_sel_biascode(const int sys, const int code);
-extern int freq_idx2freq_num(int sys, int freq_idx);
-extern int freq_num2freq(int sys, int freq_num, int fcn);
-extern int freq_idx2ant_idx(int sys, int freq_idx);
+/* freq_idx2freq_num, freq_num2freq, freq_idx2ant_idx declared in mrtk_nav.h */
 extern int const_iono_corr(rtk_t *rtk, const obsd_t *obs, const nav_t *nav, const int n, const double *azel, const int *exc, const double *rr, const double *x, double *v, double *H, double *var);
 
 #define SQR(x)      ((x)*(x))

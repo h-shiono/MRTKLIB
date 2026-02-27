@@ -91,6 +91,21 @@ char *code2obs(uint8_t code);
 int code2idx(int sys, uint8_t code);
 
 /**
+ * @brief Extract frequency number from obs code.
+ * @param[in] code  Obs code (CODE_???)
+ * @return Frequency number (1,2,5,...) (0: error)
+ */
+int code2freq_num(uint8_t code);
+
+/**
+ * @brief Convert system and obs code to frequency index (obsdef-based).
+ * @param[in] sys   Satellite system (SYS_???)
+ * @param[in] code  Obs code (CODE_???)
+ * @return Frequency index (-1: error)
+ */
+int code2freq_idx(int sys, uint8_t code);
+
+/**
  * @brief Convert system and obs code to carrier frequency.
  * @param[in] sys   Satellite system (SYS_???)
  * @param[in] code  Obs code (CODE_???)

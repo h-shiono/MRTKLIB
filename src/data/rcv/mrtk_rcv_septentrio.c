@@ -194,7 +194,7 @@ static int sig2idx(int sat, int sig, const char *opt, uint8_t *code)
     
     if (sig<0||sig>SBF_MAXSIG||sig_tbl[sig][0]!=sys) return -1;
     *code=sig_tbl[sig][1];
-    idx=code2idx(sys,*code);
+    idx=code2freq_idx(sys,*code);
     
     /* resolve code priority in a freq-index */
     if (sys==SYS_GPS) {

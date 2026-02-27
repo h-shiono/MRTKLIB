@@ -182,7 +182,7 @@ static int sig2idx(int sys, char sig, int *code)
         default: return -1;
     }
     if (!(*code=codes[j][i])) return -1;
-    idx=code2idx(sys,(uint8_t)*code);
+    idx=code2freq_idx(sys,(uint8_t)*code);
     return idx<NFREQ?idx:-1;
 }
 /* check code priority and return freq-index ---------------------------------*/

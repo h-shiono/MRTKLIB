@@ -2098,7 +2098,7 @@ static void save_msm_obs(rtcm_t *rtcm, int sys, msm_h_t *h, const double *r,
         }
         /* signal to rinex obs type */
         code[i]=obs2code(sig[i]);
-        idx[i]=code2idx(sys,code[i]);
+        idx[i]=code2freq_idx(sys,code[i]);
         
         if (code[i]!=CODE_NONE) {
             if (q) q+=sprintf(q,"L%s%s",sig[i],i<h->nsig-1?",":"");

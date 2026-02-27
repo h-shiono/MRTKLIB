@@ -1048,7 +1048,7 @@ static uint8_t *decode_bnx_7f_05_obs(raw_t *raw, uint8_t *buff, int sat,
     
     /* get code priority */
     for (i=0;i<nobs;i++) {
-        idx[i]=code2idx(sys,codes[code[i]]);
+        idx[i]=code2freq_idx(sys,codes[code[i]]);
         pri[i]=getcodepri(sys,codes[code[i]],raw->opt);
     }
     for (i=0;i<NFREQ;i++) {

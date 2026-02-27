@@ -56,7 +56,8 @@
 #define SSR_VENDOR_RTCM 1               /* SSR vendor: RTCM */
 #define MAXAGESSRL6 60.0                /* max age of SSR L6 (s) */
 
-/* forward declarations (implemented in rtkcmn.c, resolved at link time) */
+/* forward declarations (implemented in rtkcmn.c/ppp_iono.c, resolved at link time) */
+extern int miono_get_corr(const double *rr, nav_t *nav);
 
 /* constants/macros ----------------------------------------------------------*/
 
@@ -1716,7 +1717,7 @@ static void signal_sel_ppp(obsd_t *pppobs, const nav_t *nav, const prcopt_t *opt
 
     for(i=0;i<ns;i++) {
         sys=satsys(pppobs->sat,NULL);
-        sigtype=0; /* 0:GPS=L1C/A-L2P, GLO=G1-G2, GAL=E1-E5a, QZS=L1C-L5, BDS=B1_2-B3 */
+        sigtype=0; /* 0(default,no-op with obsdef order):GPS=L1C/A-L2P, GLO=G1-G2, GAL=E1-E5a, QZS=L1C-L5, BDS=B1I-B3I */
         strcpy(sattype,nav->pcvs[pppobs->sat-1].type);
         for(j=strlen(sattype)-1;j>0;j--) {
             if(sattype[j]!=' ')break;
@@ -2199,6 +2200,7 @@ extern int rtkpos(mrtk_ctx_t *ctx, rtk_t *rtk, const obsd_t *obs, int n, nav_t *
     }
     /* precise point positioning */
     if (opt->mode>=PMODE_PPP_KINEMA) {
+        miono_get_corr(rtk->sol.rr,nav);
         memcpy(pppobs,obs,sizeof(obsd_t)*nu);
         signal_sel_ppp(pppobs,nav,opt,nu);
         trace(ctx,4,"obs=\n"); traceobs(ctx,4,pppobs,n);

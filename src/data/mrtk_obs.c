@@ -90,15 +90,15 @@ static char *obscodes[]={       /* observation code strings */
     "6E","7D","7P","7Z","8D", "8P","4A","4B","4X","6D", /* 60-69 */
     "6P",""                                             /* 70-   */
 };
-static char codepris[7][MAXFREQ][16]={  /* code priority for each freq-index */
+static char codepris[7][MAXFREQ][16]={  /* code priority (obsdef order) */
    /*    0         1          2          3         4         5     */
-    {"C"       ,"PYWCMNDLXS","QXI"     ,""       ,""       ,""      ,""}, /* GPS */
-    {"CP"      ,"PC"        ,"QXI"     ,""       ,""       ,""      ,""}, /* GLO */
-    {"CBX"     ,"QXI"       ,"QXI"     ,"CXB"    ,"QXI"    ,""      ,""}, /* GAL */
-    {"CELXS"   ,"LXS"       ,"QXI"     ,"SEZ"    ,""       ,""      ,""}, /* QZS */
-    {"C"       ,"IQX"       ,""        ,""       ,""       ,""      ,""}, /* SBS */
-    {"IQDPXSLZ","IQXDPZ"    ,"DPX"     ,"IQXDPZ" ,"DPX"    ,""      ,""}, /* BDS */
-    {"ABCX"    ,"ABCX"      ,""        ,""       ,""       ,""      ,""}  /* IRN */
+    {"C"       ,"PYWCMNDLXS","QXI"     ,""       ,""       ,""      ,""}, /* GPS: L1,L2,L5 */
+    {"CP"      ,"PC"        ,""        ,""       ,""       ,""      ,""}, /* GLO: G1,G2 */
+    {"CABXZ"   ,"QXI"       ,"QXI"     ,"BCX"    ,"QXI"    ,""      ,""}, /* GAL: E1,E5a,E5b,E6,E5ab */
+    {"LXSCE"   ,"QXI"       ,"LXS"     ,"SLX"    ,""       ,""      ,""}, /* QZS: L1,L5,L2,L6 */
+    {"C"       ,"IQX"       ,""        ,""       ,""       ,""      ,""}, /* SBS: L1,L5 */
+    {"IQX"     ,"IQX"       ,"DIQX"    ,"DPX"    ,"DPX"    ,"PXD"   ,""}, /* BDS: B1I,B3I,B2I,B1C,B2a,B2 */
+    {"ABCX"    ,"ABCX"      ,""        ,""       ,""       ,""      ,""}  /* IRN: L5,S */
 };
 
 /*============================================================================
@@ -309,6 +309,39 @@ extern int code2idx(int sys, uint8_t code)
     }
     return -1;
 }
+/* obs code to frequency number ------------------------------------------------
+* extract frequency number from obs code
+* args   : uint8_t code     I   obs code (CODE_???)
+* return : frequency number (1,2,5,...) (0: error)
+*-----------------------------------------------------------------------------*/
+extern int code2freq_num(uint8_t code)
+{
+    char str[2]={0};
+    char *obs=code2obs(code);
+    if (strlen(obs)<2) return 0;
+    str[0]=obs[0];
+    return atoi(str);
+}
+/* system and obs code to frequency index (obsdef-based) -----------------------
+* convert system and obs code to frequency index using obsdef tables
+* args   : int    sys       I   satellite system (SYS_???)
+*          uint8_t code     I   obs code (CODE_???)
+* return : frequency index (-1: error)
+*            freq-index    0        1        2        3        4
+*            -----------------------------------------------------
+*            GPS          L1       L2       L5        -        -
+*            GLONASS      G1       G2        -        -        -
+*            Galileo      E1      E5a      E5b       E6      E5a+b
+*            QZSS         L1       L5       L2       L6        -
+*            SBAS         L1       L5       -         -        -
+*            BDS         B1I      B3I    B2I/B2b     B1C      B2a
+*            NavIC        L5        S       -         -        -
+*-----------------------------------------------------------------------------*/
+extern int code2freq_idx(int sys, uint8_t code)
+{
+    int fn=code2freq_num(code);
+    return freq_num2freq_idx(sys,fn);
+}
 /* system and obs code to frequency --------------------------------------------
 * convert system and obs code to carrier frequency
 * args   : int    sys       I   satellite system (SYS_???)
@@ -318,18 +351,7 @@ extern int code2idx(int sys, uint8_t code)
 *-----------------------------------------------------------------------------*/
 extern double code2freq(int sys, uint8_t code, int fcn)
 {
-    double freq=0.0;
-
-    switch (sys) {
-        case SYS_GPS: (void)code2freq_GPS(code,&freq); break;
-        case SYS_GLO: (void)code2freq_GLO(code,fcn,&freq); break;
-        case SYS_GAL: (void)code2freq_GAL(code,&freq); break;
-        case SYS_QZS: (void)code2freq_QZS(code,&freq); break;
-        case SYS_SBS: (void)code2freq_SBS(code,&freq); break;
-        case SYS_CMP: (void)code2freq_BDS(code,&freq); break;
-        case SYS_IRN: (void)code2freq_IRN(code,&freq); break;
-    }
-    return freq;
+    return freq_num2freq(sys,code2freq_num(code),fcn);
 }
 /* satellite and obs code to frequency -----------------------------------------
 * convert satellite and obs code to carrier frequency
@@ -403,7 +425,7 @@ extern int getcodepri(int sys, uint8_t code, const char *opt)
         case SYS_IRN: i=6; optstr="-IL%2s"; break;
         default: return 0;
     }
-    if ((j=code2idx(sys,code))<0) return 0;
+    if ((j=code2freq_idx(sys,code))<0) return 0;
     obs=code2obs(code);
 
     /* parse code options */

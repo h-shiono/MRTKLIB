@@ -452,6 +452,55 @@ void satno2id(int sat, char *id);
  */
 double sat2freq(int sat, uint8_t code, const nav_t *nav);
 
+/**
+ * @brief Distinguish BDS-2 from BDS-3.
+ * @param[in]  sat  Satellite number
+ * @param[out] prn  PRN number (NULL: not output)
+ * @return Satellite system (SYS_CMP for BDS-3, SYS_BD2 for BDS-2)
+ */
+int satsys_bd2(int sat, int *prn);
+
+/**
+ * @brief Convert frequency index to frequency number using obsdef table.
+ * @param[in] sys       Satellite system (SYS_???)
+ * @param[in] freq_idx  Frequency index (0,1,2,...)
+ * @return Frequency number (1,2,5,...) (0: error)
+ */
+int freq_idx2freq_num(int sys, int freq_idx);
+
+/**
+ * @brief Convert frequency number to frequency index using obsdef table.
+ * @param[in] sys       Satellite system (SYS_???)
+ * @param[in] freq_num  Frequency number (1,2,5,...)
+ * @return Frequency index (0,1,2,...) (-1: error)
+ */
+int freq_num2freq_idx(int sys, int freq_num);
+
+/**
+ * @brief Convert frequency number to frequency in Hz.
+ * @param[in] sys       Satellite system (SYS_???)
+ * @param[in] freq_num  Frequency number (1,2,5,...)
+ * @param[in] fcn       GLONASS frequency channel number (-7..6)
+ * @return Frequency (Hz) (0.0: error)
+ */
+double freq_num2freq(int sys, int freq_num, int fcn);
+
+/**
+ * @brief Convert frequency number to antenna PCV index.
+ * @param[in] sys       Satellite system (SYS_???)
+ * @param[in] freq_num  Frequency number (1,2,5,...)
+ * @return Antenna PCV index (0..NFREQPCV-1) (NFREQPCV: error)
+ */
+int freq_num2ant_idx(int sys, int freq_num);
+
+/**
+ * @brief Convert frequency index to antenna PCV index.
+ * @param[in] sys       Satellite system (SYS_???)
+ * @param[in] freq_idx  Frequency index (0,1,2,...)
+ * @return Antenna PCV index (0..NFREQPCV-1) (NFREQPCV: error)
+ */
+int freq_idx2ant_idx(int sys, int freq_idx);
+
 /*============================================================================
  * Navigation Data I/O Functions
  *===========================================================================*/

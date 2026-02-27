@@ -140,13 +140,15 @@ def parse_pos(filepath):
     return data
 
 
-def compute_metrics(ref_data, test_data):
+def compute_metrics(ref_data, test_data, skip_epochs=0):
     """Compute ENU error metrics between matched epochs.
 
     Parameters
     ----------
     ref_data, test_data : dict
         Parsed .pos data from parse_pos().
+    skip_epochs : int
+        Number of initial epochs to skip (for convergence transient).
 
     Returns
     -------
@@ -155,6 +157,8 @@ def compute_metrics(ref_data, test_data):
         Returns None if no common epochs found.
     """
     common_keys = sorted(set(ref_data.keys()) & set(test_data.keys()))
+    if skip_epochs > 0:
+        common_keys = common_keys[skip_epochs:]
     if not common_keys:
         return None
 
@@ -280,6 +284,10 @@ def main():
         help="Maximum allowed 3D RMS error in metres (default: 0.005)"
     )
     parser.add_argument(
+        "--skip-epochs", type=int, default=0,
+        help="Number of initial epochs to skip for convergence transient"
+    )
+    parser.add_argument(
         "--plot", action="store_true",
         help="Generate comparison plot (compare_result.png)"
     )
@@ -289,6 +297,8 @@ def main():
     print(f"Reference : {args.ref}")
     print(f"Test      : {args.test}")
     print(f"Tolerance : {args.tolerance:.4f} m")
+    if args.skip_epochs > 0:
+        print(f"Skip      : {args.skip_epochs} initial epochs")
     print()
 
     import os
@@ -310,7 +320,7 @@ def main():
         return 1
 
     # Compute metrics
-    metrics = compute_metrics(ref_data, test_data)
+    metrics = compute_metrics(ref_data, test_data, skip_epochs=args.skip_epochs)
     if metrics is None:
         print("FAIL: No common epochs between reference and test",
               file=sys.stderr)

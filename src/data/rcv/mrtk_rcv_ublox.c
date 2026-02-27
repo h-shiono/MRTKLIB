@@ -241,7 +241,7 @@ static int ubx_sig(int sys, int sigid)
 /* signal index in obs data --------------------------------------------------*/
 static int sig_idx(int sys, uint8_t code)
 {
-    int idx=code2idx(sys,code),nex=NEXOBS;
+    int idx=code2freq_idx(sys,code),nex=NEXOBS;
     
     if (sys==SYS_GPS) {
         if (code==CODE_L2S) return (nex<1)?-1:NFREQ;   /* L2CM */

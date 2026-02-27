@@ -21,6 +21,8 @@
 #include "mrtklib/mrtk_rtkpos.h"
 #include "mrtklib/mrtk_const.h"
 #include "mrtklib/mrtk_context.h"
+#include "mrtklib/mrtk_coords.h"
+#include "mrtklib/mrtk_mat.h"
 
 #include <math.h>
 #include <stdio.h>
@@ -36,6 +38,7 @@ extern double timediff(gtime_t t1, gtime_t t2);
 extern gtime_t gpst2time(int week, double sec);
 extern void ecef2pos(const double *r, double *pos);
 extern void covenu(const double *pos, const double *P, double *Q);
+extern double sat2freq(int sat, uint8_t code, const nav_t *nav);
 
 #define IONO_REJ_STD     1.0 /* reject   STEC corr. std (m) */
 #define IONO_COV_RATIO   1.0 /* ratio of STEC corr. cov (m) */
@@ -50,6 +53,122 @@ extern void covenu(const double *pos, const double *P, double *Q);
 #define NC(opt)     (NSYS+1) /* BDS3 and BDS2 */
 #define NT(opt)     ((opt)->tropopt<TROPOPT_EST?0:((opt)->tropopt==TROPOPT_EST?1:3))
 #define II(s,opt)   (NP(opt)+NC(opt)+NT(opt)+(s)-1)
+
+/* standard deviation by STEC URA --------------------------------------------*/
+static double miono_std_stecura(int ura)
+{
+    /* ref [1] 6.3.2.3 (5) */
+    if (ura<= 0) return 5.4665;     /* STEC URA undefined/unknown */
+    if (ura>=63) return 5.4665;
+    return (pow(3.0,(ura>>3)&7)*(1.0+(ura&7)/4.0)-1.0)*1E-3;
+}
+
+/* L1 ionospheric delay ------------------------------------------------------*/
+static double miono_delay(const nav_t *nav, const int sat,
+                          const miono_area_t *a, const double *ll)
+{
+    const double *c=a->sat[sat-1].coef;
+    double freq,fact,stec,delay;
+
+    freq = sat2freq(sat, CODE_L1C, nav);
+
+    /* ref [1] 6.3.2.3 (5) */
+    fact = 40.31E16 / freq / freq;  /* TECU -> L1 ionospheric delay(m) */
+    stec = c[0];                    /* STEC poly.coef.{C00,C01,C10,C11,C02,C20} */
+    if(a->type >= 1) stec += c[1] *    (ll[0] - a->ref[0]) + c[2] *    (ll[1] - a->ref[1]);
+    if(a->type >= 2) stec += c[3] *    (ll[0] - a->ref[0])        *    (ll[1] - a->ref[1]);
+    if(a->type >= 3) stec += c[4] * SQR(ll[0] - a->ref[0]) + c[5] * SQR(ll[1] - a->ref[1]);
+
+    delay = fact * stec;
+    trace(NULL,5,"miono_delay: sat=%d,fact=%5.3f,stec=%8.3f,delay=%7.3f,coef=%7.2f,%7.2f,%7.2f,%7.2f,%8.3f,%8.3f\n",
+        sat,fact,stec,delay,c[0],c[1],c[2],c[3],c[4],c[5]);
+    return delay;
+}
+
+/* select MADOCA-PPP ionospheric correction area -----------------------------*/
+static miono_area_t *miono_sel_area(pppiono_t *pppiono, const double *rr,
+                                    const double *ll)
+{
+    const miono_region_t *re;
+    int i,j,k,min_i=-1,min_j=0;
+    double ref_ecef[3],ref_llh[3]={0},diff[3],dist,min_dist=1E5;
+
+    trace(NULL,2,"miono_sel_area: lat=%.2f,lon=%.2f\n", ll[0],ll[1]);
+
+    for (i = 0; i < MIONO_MAX_RID; i++) {
+        re = &pppiono->re[i];
+        if(!re->rvalid) continue;
+        trace(NULL,5,"miono_sel_area: region i=%d,ralert=%d\n",i,re->ralert);
+        if(re->ralert) continue;
+
+        for (j = 0; j < MIONO_MAX_ANUM; j++) {
+            if(!re->area[j].avalid) continue;
+            for(k = 0; k < 2; k++) ref_llh[k] = re->area[j].ref[k] * D2R; /* deg -> rad */
+            pos2ecef(ref_llh, ref_ecef);
+            for(k = 0; k < 3; k++) diff[k] = rr[k] - ref_ecef[k];
+            dist=norm(diff, 3) / 1E3;  /* m -> km */
+            trace(NULL,5,"miono_sel_area: area i=%d,j=%d,sid=%d,ref=%6.2f,%7.2f,dist=%10.3f,min_dist=%10.3f\n",
+                i,j,re->area[j].sid, re->area[j].ref[0], re->area[j].ref[1], dist, min_dist);
+            if(dist > min_dist) continue;
+
+            if(re->area[j].sid == 0) { /* rectangle */
+                if((ll[0] < (re->area[j].ref[0] - re->area[j].span[0])) ||
+                   (ll[0] > (re->area[j].ref[0] + re->area[j].span[0])) ||
+                   (ll[1] < (re->area[j].ref[1] - re->area[j].span[1])) ||
+                   (ll[1] > (re->area[j].ref[1] + re->area[j].span[1]))) continue;
+            }
+            else {                     /* circle */
+                if(dist > re->area[j].span[0]) continue;
+            }
+            trace(NULL,2,"miono_sel_area: closest RegionID=%d,AreaNo=%d,dist=%.3f\n", i, j, dist);
+            min_i = i; min_j = j; min_dist = dist;
+        }
+    }
+
+    if(min_i == -1) {
+        trace(NULL,2,"miono_sel_area: no corresponding area. lat=%.2f,lon=%.2f\n", ll[0],ll[1]);
+        return NULL;
+    }
+    pppiono->rid  = min_i;
+    pppiono->anum = min_j;
+    return &pppiono->re[min_i].area[min_j];
+}
+
+/* get MADOCA-PPP ionospheric correction data --------------------------------
+* get MADOCA-PPP ionospheric correction data using the user position
+* args   : double  *rr     I   user position (ECEF)
+*          nav_t   *nav    IO  navigation data (pppiono correction updated)
+* return : status (0: not updated, 1: updated)
+*-----------------------------------------------------------------------------*/
+extern int miono_get_corr(const double *rr, nav_t *nav)
+{
+    miono_area_t *area;
+    int i;
+    double pos[3],latlon[2];
+
+    if (!nav->pppiono || !nav->pppiono->valid) return 0;
+
+    trace(NULL,4,"miono_get_corr: rr=%.3f,%.3f,%.3f\n",rr[0],rr[1],rr[2]);
+
+    if((rr[0] == 0.0) && (rr[1] == 0.0) && (rr[2] == 0.0)) return 0;
+
+    ecef2pos(rr, pos);
+    latlon[0]=pos[0]*R2D;
+    latlon[1]=pos[1]*R2D;
+
+    if (!(area = miono_sel_area(nav->pppiono, rr, latlon))) return 0;
+
+    for(i = 0; i < MAXSAT; i++) {
+        if (!area->sat[i].t0.time) {
+            nav->pppiono->corr.t0[i].time = 0;
+            continue;
+        }
+        nav->pppiono->corr.t0[i]  = area->sat[i].t0;
+        nav->pppiono->corr.dly[i] = miono_delay(nav, i+1, area, latlon);
+        nav->pppiono->corr.std[i] = miono_std_stecura(area->sat[i].sqi);
+    }
+    return 1;
+}
 
 /* read stat correction data -------------------------------------------------
 * read ppp ionosphere correction data from stat file

@@ -118,7 +118,7 @@ static int snrmask(const obsd_t *obs, const double *azel, const prcopt_t *opt)
 static double prange(const obsd_t *obs, const nav_t *nav, const prcopt_t *opt,
                      double *var)
 {
-    double P1,P2,gamma,b1,b2;
+    double P1,P2,gamma,b1,b2,freq1,freq2;
     int sat,sys;
 
     sat=obs->sat;
@@ -129,6 +129,10 @@ static double prange(const obsd_t *obs, const nav_t *nav, const prcopt_t *opt,
 
     if (P1==0.0||(opt->ionoopt==IONOOPT_IFLC&&P2==0.0)) return 0.0;
 
+    freq1=sat2freq(sat,obs->code[0],nav);
+    freq2=sat2freq(sat,obs->code[1],nav);
+    gamma=SQR(freq1/freq2);
+
     /* P1-C1,P2-C2 DCB correction */
     if (sys==SYS_GPS||sys==SYS_GLO) {
         if (obs->code[0]==CODE_L1C) P1+=nav->cbias[sat-1][1]; /* C1->P1 */
@@ -136,31 +140,28 @@ static double prange(const obsd_t *obs, const nav_t *nav, const prcopt_t *opt,
     }
     if (opt->ionoopt==IONOOPT_IFLC) { /* dual-frequency */
 
-        if (sys==SYS_GPS||sys==SYS_QZS) { /* L1-L2,G1-G2 */
-            gamma=SQR(FREQ1/FREQ2);
+        if (P1==0.0||P2==0.0) return 0.0;
+
+        if (sys==SYS_GPS||sys==SYS_QZS) {
             return (P2-gamma*P1)/(1.0-gamma);
         }
-        else if (sys==SYS_GLO) { /* G1-G2 */
-            gamma=SQR(FREQ1_GLO/FREQ2_GLO);
+        else if (sys==SYS_GLO) {
             return (P2-gamma*P1)/(1.0-gamma);
         }
-        else if (sys==SYS_GAL) { /* E1-E5b */
-            gamma=SQR(FREQ1/FREQ7);
+        else if (sys==SYS_GAL) {
             if (getseleph(SYS_GAL)) { /* F/NAV */
                 P2-=gettgd(sat,nav,0)-gettgd(sat,nav,1); /* BGD_E5aE5b */
             }
             return (P2-gamma*P1)/(1.0-gamma);
         }
-        else if (sys==SYS_CMP) { /* B1-B2 */
-            gamma=SQR(((obs->code[0]==CODE_L2I)?FREQ1_CMP:FREQ1)/FREQ2_CMP);
+        else if (sys==SYS_CMP) {
             if      (obs->code[0]==CODE_L2I) b1=gettgd(sat,nav,0); /* TGD_B1I */
             else if (obs->code[0]==CODE_L1P) b1=gettgd(sat,nav,2); /* TGD_B1Cp */
             else b1=gettgd(sat,nav,2)+gettgd(sat,nav,4); /* TGD_B1Cp+ISC_B1Cd */
             b2=gettgd(sat,nav,1); /* TGD_B2I/B2bI (m) */
             return ((P2-gamma*P1)-(b2-gamma*b1))/(1.0-gamma);
         }
-        else if (sys==SYS_IRN) { /* L5-S */
-            gamma=SQR(FREQ5/FREQ9);
+        else if (sys==SYS_IRN) {
             return (P2-gamma*P1)/(1.0-gamma);
         }
     }
@@ -172,7 +173,6 @@ static double prange(const obsd_t *obs, const nav_t *nav, const prcopt_t *opt,
             return P1-b1;
         }
         else if (sys==SYS_GLO) { /* G1 */
-            gamma=SQR(FREQ1_GLO/FREQ2_GLO);
             b1=gettgd(sat,nav,0); /* -dtaun (m) */
             return P1-b1/(gamma-1.0);
         }
@@ -188,7 +188,6 @@ static double prange(const obsd_t *obs, const nav_t *nav, const prcopt_t *opt,
             return P1-b1;
         }
         else if (sys==SYS_IRN) { /* L5 */
-            gamma=SQR(FREQ9/FREQ5);
             b1=gettgd(sat,nav,0); /* TGD (m) */
             return P1-gamma*b1;
         }

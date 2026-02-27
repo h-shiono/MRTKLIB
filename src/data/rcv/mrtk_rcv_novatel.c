@@ -349,7 +349,7 @@ static int decode_track_stat(uint32_t stat, int *sys, int *code, int *track,
             trace(NULL,2,"oem4 unknown system: sys=%d\n",satsys);
             return -1;
     }
-    if (!(*code=sig2code(*sys,sigtype))||(idx=code2idx(*sys,*code))<0) {
+    if (!(*code=sig2code(*sys,sigtype))||(idx=code2freq_idx(*sys,*code))<0) {
         trace(NULL,2,"oem4 signal type error: sys=%d sigtype=%d\n",*sys,sigtype);
         return -1;
     }

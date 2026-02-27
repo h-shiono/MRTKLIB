@@ -879,7 +879,7 @@ static void set_index(int ver, int sys, const char *opt,
     for (i=n=0;*tobs[i];i++,n++) {
         ind->code[i]=obs2code(tobs[i]+1);
         ind->type[i]=(p=strchr(obscodes,tobs[i][0]))?(int)(p-obscodes):0;
-        ind->idx[i]=code2idx(sys,ind->code[i]);
+        ind->idx[i]=code2freq_idx(sys,ind->code[i]);
         ind->pri[i]=getcodepri(sys,ind->code[i],opt);
         ind->pos[i]=-1;
     }
