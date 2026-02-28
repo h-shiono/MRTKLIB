@@ -231,6 +231,8 @@ extern int const_iono_corr(rtk_t *rtk, const obsd_t *obs, const nav_t *nav,
     char *p,*tstr,satid[8];
     const int sys[NSYS]={SYS_GPS,SYS_GLO,SYS_GAL,SYS_QZS,0};
 
+    if (!nav->pppiono || !nav->pppiono->valid) return 0;
+
     if ((p=strstr(rtk->opt.pppopt,"-IONOCORR_THRE_H="))) {
         sscanf(p,"-IONOCORR_THRE_H=%lf",&thre[0]);
     }

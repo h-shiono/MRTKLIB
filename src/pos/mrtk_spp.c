@@ -48,6 +48,7 @@ static const double EFACT_SBS = 3.0;
 #define SYS_QZS     0x10
 #define SYS_CMP     0x20
 #define SYS_IRN     0x40
+#define SYS_BD2     0x100
 
 /*--- forward declarations for legacy functions resolved at link time -------*/
 
@@ -69,8 +70,8 @@ const double chisqr[100]={
 
 #define SQR(x)      ((x)*(x))
 
-#define NTO         5           /* number of time system offsets (GLO,GAL,QZS,BDS,IRN)*/
-#define NX          (4+NTO)     /* # of estimated parameters pos(3)+clk(1)+NTO */
+#define NT          7           /* # of estimated time system (gps,glo,gal,bds3,irn,qzs,bds2) */
+#define NX          (3+NT)      /* # of estimated parameters */
 #define MAXITR      10          /* max number of iteration for point pos */
 #define ERR_CBIAS   0.3         /* code bias error Std (m) */
 #define MIN_EL      (5.0*D2R)   /* min elevation for measurement error (rad) */
@@ -219,7 +220,7 @@ static int rescode(int iter, const obsd_t *obs, int n, const double *rs,
         vsat[i]=0; azel[i*2]=azel[1+i*2]=resp[i]=0.0;
         time=obs[i].time;
         sat=obs[i].sat;
-        if (!(sys=satsys(sat,NULL))) continue;
+        if (!(sys=satsys_bd2(sat,NULL))) continue;
 
         /* reject duplicated observation data */
         if (i<n-1&&i<MAXOBS-1&&sat==obs[i+1].sat) {
@@ -234,11 +235,8 @@ static int rescode(int iter, const obsd_t *obs, int n, const double *rs,
         if ((r=geodist(rs+i*6,rr,e))<=0.0) continue;
 
         if (iter>0) {
-            /* test minimum elevation */
-            if (satazel(pos,e,azel+i*2)<opt->elmin) continue;
-
             /* test elevation mask */
-            if (testelmask(azel+i*2,opt->elmaskopt)) continue;
+            if (satazel(pos,e,azel+i*2)<opt->elmin) continue;
 
             /* test SNR mask */
             if (!snrmask(obs+i,azel+i*2,opt)) continue;
@@ -270,9 +268,10 @@ static int rescode(int iter, const obsd_t *obs, int n, const double *rs,
         /* time system offset and receiver bias correction */
         if      (sys==SYS_GLO) {v[nv]-=x[4]; H[4+nv*NX]=1.0; mask[1]=1;}
         else if (sys==SYS_GAL) {v[nv]-=x[5]; H[5+nv*NX]=1.0; mask[2]=1;}
-        else if (sys==SYS_QZS) {v[nv]-=x[6]; H[6+nv*NX]=1.0; mask[3]=1;}
-        else if (sys==SYS_CMP) {v[nv]-=x[7]; H[7+nv*NX]=1.0; mask[4]=1;}
-        else if (sys==SYS_IRN) {v[nv]-=x[8]; H[8+nv*NX]=1.0; mask[5]=1;}
+        else if (sys==SYS_CMP) {v[nv]-=x[6]; H[6+nv*NX]=1.0; mask[3]=1;} /* BDS-3 */
+        else if (sys==SYS_IRN) {v[nv]-=x[7]; H[7+nv*NX]=1.0; mask[4]=1;}
+        else if (sys==SYS_QZS) {v[nv]-=x[8]; H[8+nv*NX]=1.0; mask[5]=1;}
+        else if (sys==SYS_BD2) {v[nv]-=x[9]; H[9+nv*NX]=1.0; mask[6]=1;} /* BDS-2 */
         else mask[0]=1;
 
         vsat[i]=1; resp[i]=v[nv]; (*ns)++;
@@ -284,7 +283,7 @@ static int rescode(int iter, const obsd_t *obs, int n, const double *rs,
               azel[i*2]*R2D,azel[1+i*2]*R2D,resp[i],sqrt(var[nv-1]));
     }
     /* constraint to avoid rank-deficient */
-    for (i=0;i<NX-3;i++) {
+    for (i=0;i<NT;i++) {
         if (mask[i]) continue;
         v[nv]=0.0;
         for (j=0;j<NX;j++) H[j+nv*NX]=j==i+3?1.0:0.0;
@@ -332,11 +331,11 @@ static int estpos(const obsd_t *obs, int n, const double *rs, const double *dts,
                   double *resp, char *msg)
 {
     double x[NX]={0},dx[NX],Q[NX*NX],*v,*H,*var,sig;
-    int i,j,k,info,stat,nv,ns;
+    int i,j,k,info,stat=1,nv,ns;
 
     trace(NULL,3,"estpos  : n=%d\n",n);
 
-    v=mat(n+NTO,1); H=mat(NX,n+NTO); var=mat(n+NTO,1);
+    v=mat(n+NT,1); H=mat(NX,n+NT); var=mat(n+NT,1);
 
     for (i=0;i<3;i++) x[i]=sol->rr[i];
 
@@ -368,11 +367,12 @@ static int estpos(const obsd_t *obs, int n, const double *rs, const double *dts,
             sol->type=0;
             sol->time=timeadd(obs[0].time,-x[3]/CLIGHT);
             sol->dtr[0]=x[3]/CLIGHT; /* receiver clock bias (s) */
-            sol->dtr[1]=x[4]/CLIGHT; /* GLO-GPS time offset (s) */
-            sol->dtr[2]=x[5]/CLIGHT; /* GAL-GPS time offset (s) */
-            sol->dtr[3]=x[6]/CLIGHT; /* BDS-GPS time offset (s) */
-            sol->dtr[4]=x[7]/CLIGHT; /* IRN-GPS time offset (s) */
-            sol->dtr[5]=x[8]/CLIGHT; /* IRN-GPS time system offset (s) */
+            sol->dtr[1]=x[4]/CLIGHT; /* GLO-GPS  time offset (s) */
+            sol->dtr[2]=x[5]/CLIGHT; /* GAL-GPS  time offset (s) */
+            sol->dtr[3]=x[6]/CLIGHT; /* BDS3-GPS time offset (s) */
+            sol->dtr[4]=x[7]/CLIGHT; /* IRN-GPS  time offset (s) */
+            sol->dtr[5]=x[8]/CLIGHT; /* QZS-GPS  time offset (s) */
+            sol->dtr[6]=x[9]/CLIGHT; /* BDS2-GPS time offset (s) */
             for (j=0;j<6;j++) sol->rr[j]=j<3?x[j]:0.0;
             for (j=0;j<3;j++) sol->qr[j]=(float)Q[j+j*NX];
             sol->qr[3]=(float)Q[1];    /* cov xy */
@@ -382,7 +382,7 @@ static int estpos(const obsd_t *obs, int n, const double *rs, const double *dts,
             sol->age=sol->ratio=0.0;
 
             /* validate solution */
-            if ((stat=valsol(azel,vsat,n,opt,v,nv,NX,msg))) {
+            if (!opt->posopt[4]||(stat=valsol(azel,vsat,n,opt,v,nv,NX,msg))) {
                 sol->stat=opt->sateph==EPHOPT_SBAS?SOLQ_SBAS:SOLQ_SINGLE;
             }
             free(v); free(H); free(var);
@@ -590,7 +590,8 @@ int pntpos(mrtk_ctx_t *ctx, const obsd_t *obs, int n, const nav_t *nav,
     rs=mat(6,n); dts=mat(2,n); var=mat(1,n); azel_=zeros(2,n); resp=mat(1,n);
 
     if (opt_.mode!=PMODE_SINGLE) { /* for precise positioning */
-        opt_.ionoopt=IONOOPT_BRDC;
+        if (opt_.nf>1) opt_.ionoopt=IONOOPT_IFLC;
+        else           opt_.ionoopt=IONOOPT_BRDC;
         opt_.tropopt=TROPOPT_SAAS;
     }
     /* satellite positons, velocities and clocks */

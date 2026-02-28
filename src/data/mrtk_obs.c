@@ -93,7 +93,7 @@ static char *obscodes[]={       /* observation code strings */
 static char codepris[7][MAXFREQ][16]={  /* code priority (obsdef order) */
    /*    0         1          2          3         4         5     */
     {"C"       ,"PYWCMNDLXS","QXI"     ,""       ,""       ,""      ,""}, /* GPS: L1,L2,L5 */
-    {"CP"      ,"PC"        ,""        ,""       ,""       ,""      ,""}, /* GLO: G1,G2 */
+    {"CP"      ,"CP"        ,""        ,""       ,""       ,""      ,""}, /* GLO: G1,G2 */
     {"CABXZ"   ,"QXI"       ,"QXI"     ,"BCX"    ,"QXI"    ,""      ,""}, /* GAL: E1,E5a,E5b,E6,E5ab */
     {"LXSCE"   ,"QXI"       ,"LXS"     ,"SLX"    ,""       ,""      ,""}, /* QZS: L1,L5,L2,L6 */
     {"C"       ,"IQX"       ,""        ,""       ,""       ,""      ,""}, /* SBS: L1,L5 */
@@ -364,7 +364,7 @@ extern double sat2freq(int sat, uint8_t code, const nav_t *nav)
 {
     int i,fcn=0,sys,prn;
 
-    sys=satsys(sat,&prn);
+    sys=satsys_bd2(sat,&prn);
 
     if (sys==SYS_GLO) {
         if (!nav) return 0.0;

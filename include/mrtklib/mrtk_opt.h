@@ -207,7 +207,7 @@ typedef struct prcopt_t {        /* processing options type */
     int16_t elmaskopt[360]; /* elevation mask pattern */
     char pppopt[256];   /* ppp option */
     char rtcmopt[256];  /* rtcm options */
-    int  pppsig[6];     /* signal selection [0]GPS IIR-M,[1]GPS IIF,[2]GPS IIIA,[3]QZS-1/2,[4]BDS-3,[5]GAL */
+    int  pppsig[5];     /* signal selection [0]GPS,[1]QZS,[2]GAL,[3]BDS2,[4]BDS3 */
     char staname[32];   /* station name */
     int  ppp_engine;    /* PPP engine selection (MRTK_PPP_ENGINE_xxx) */
     char *l6dpath[MIONO_MAX_PRN]; /* MADOCA-PPP L6D file paths */

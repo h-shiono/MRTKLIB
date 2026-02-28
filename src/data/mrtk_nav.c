@@ -676,15 +676,9 @@ int satexclude(int sat, double var, int svh, const struct prcopt_t *opt)
         if (opt->exsats[sat-1]==2) return 0; /* included satellite */
         if (!(sys&opt->navsys)) return 1; /* unselected sat sys */
     }
-    if (sys==SYS_QZS) svh&=0xEE; /* mask QZSS L1C/A,C/B health */
-
-    if (sys==SYS_GLO) {
-        if ((svh&9)||((svh>>1)&3)==2) { /* test Bn and extended SVH */
-            trace(NULL,3,"unhealthy GLO satellite: sat=%3d svh=%02X\n",sat,svh);
-            return 1;
-        }
-    }
-    else if (svh) {
+    if (sys==SYS_QZS) svh&= 0xFE; /* mask QZSS LEX health */
+    if (sys==SYS_CMP) svh&=~0x1D; /* mask BeiDou health by reserved bit */
+    if (svh) {
         trace(NULL,3,"unhealthy satellite: sat=%3d svh=%02X\n",sat,svh);
         return 1;
     }

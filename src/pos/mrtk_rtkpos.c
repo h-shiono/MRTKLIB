@@ -1723,22 +1723,22 @@ static void signal_sel_ppp(obsd_t *pppobs, const nav_t *nav, const prcopt_t *opt
             if(sattype[j]!=' ')break;
             sattype[j]='\0'; /* delete tail blank */
         }
-        if      (0==strcmp(sattype,"BLOCK IIR-M")) sigtype=opt->pppsig[0]; /* 1:L1C/A-L2C */
-        else if (0==strcmp(sattype,"BLOCK IIF"  )) sigtype=opt->pppsig[1]; /* 1:L1C/A-L2C, 2:L1C/A-L5 */
-        else if (0==strcmp(sattype,"BLOCK IIIA" )) sigtype=opt->pppsig[2];
-        else if (0==strcmp(sattype,"QZSS"       )) sigtype=opt->pppsig[3]; /* 1:L1C/A-L2C */
-        else if (0==strcmp(sattype,"QZSS-2G"    )) sigtype=opt->pppsig[3];
-        else if (0==strcmp(sattype,"QZSS-2I"    )) sigtype=opt->pppsig[3];
-        else if (0==strcmp(sattype,"QZSS-2A"    )) sigtype=opt->pppsig[3];
-        else if (0==strcmp(sattype,"BEIDOU-3G-CAST" )) sigtype=opt->pppsig[4]; /* 1:B1-B2a */
+        if      (0==strcmp(sattype,"BLOCK IIR-M")) sigtype=opt->pppsig[0]; /* GPS */
+        else if (0==strcmp(sattype,"BLOCK IIF"  )) sigtype=opt->pppsig[0];
+        else if (0==strcmp(sattype,"BLOCK IIIA" )) sigtype=opt->pppsig[0];
+        else if (0==strcmp(sattype,"QZSS"       )) sigtype=opt->pppsig[1]; /* QZS */
+        else if (0==strcmp(sattype,"QZSS-2G"    )) sigtype=opt->pppsig[1];
+        else if (0==strcmp(sattype,"QZSS-2I"    )) sigtype=opt->pppsig[1];
+        else if (0==strcmp(sattype,"QZSS-2A"    )) sigtype=opt->pppsig[1];
+        else if (0==strcmp(sattype,"BEIDOU-3G-CAST" )) sigtype=opt->pppsig[4]; /* BDS3 */
         else if (0==strcmp(sattype,"BEIDOU-3I"      )) sigtype=opt->pppsig[4];
         else if (0==strcmp(sattype,"BEIDOU-3M-CAST" )) sigtype=opt->pppsig[4];
         else if (0==strcmp(sattype,"BEIDOU-3M-SECM" )) sigtype=opt->pppsig[4];
         else if (0==strcmp(sattype,"BEIDOU-3SI-CAST")) sigtype=opt->pppsig[4];
         else if (0==strcmp(sattype,"BEIDOU-3SI-SECM")) sigtype=opt->pppsig[4];
         else if (0==strcmp(sattype,"BEIDOU-3SM-CAST")) sigtype=opt->pppsig[4];
-        else if (0==strcmp(sattype,"GALILEO-1"  )) sigtype=opt->pppsig[5];
-        else if (0==strcmp(sattype,"GALILEO-2"  )) sigtype=opt->pppsig[5];
+        else if (0==strcmp(sattype,"GALILEO-1"  )) sigtype=opt->pppsig[2]; /* GAL */
+        else if (0==strcmp(sattype,"GALILEO-2"  )) sigtype=opt->pppsig[2];
 
         switch (sys) {
         case SYS_GPS:
@@ -1747,13 +1747,14 @@ static void signal_sel_ppp(obsd_t *pppobs, const nav_t *nav, const prcopt_t *opt
                 signal_replace(pppobs,1,'2',"PYWCMND"); /* Note, codepries="PYWCMNDLXS" */
             } else if(sigtype==1){  /* L1C/A-L2C */
                 signal_replace(pppobs,1,'2',"LXS");
-            } else if(sigtype==2){  /* L1C/A-L5 */
-                signal_replace(pppobs,1,'5',"QXI");
+            } else if(sigtype==2){  /* L1/L2/L5 */
+                signal_replace(pppobs,1,'2',"PYWCMND"); /* L2 at index 1 */
+                signal_replace(pppobs,2,'5',"QXI");     /* L5 at index 2 */
             }
             break;
         case SYS_GLO:
             signal_replace(pppobs,0,'1',"CP");
-            signal_replace(pppobs,1,'2',"PC");
+            signal_replace(pppobs,1,'2',"CP");
             break;
         case SYS_GAL:
             if (sigtype == 0) { /* E1-E5a */

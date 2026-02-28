@@ -58,11 +58,11 @@ static char snrmask_[NFREQ][1024];
 #define POSOPT  "0:llh,1:xyz,2:single,3:posfile,4:rinexhead,5:rtcm,6:raw"
 #define TIDEOPT "0:off,1:on,2:otl"
 #define PHWOPT  "0:off,1:on,2:precise"
-#define SIGOPT1 "0:L1C/A-L2P,1:L1C/A-L2C"
-#define SIGOPT2 "0:L1C/A-L2P,1:L1C/A-L2C,2:L1C/A-L5"
-#define SIGOPT3 "0:L1C-L5,1:L1C/A-L2C,2:L1C/B-L5,10:L1C/AandB-L5"
-#define SIGOPT4 "0:B1-B3,1:B1C-B2a"
-#define SIGOPT5 "0:E1C-E5a,1:E1C-E5b"
+#define SIGOPT1 "0:L1/L2,1:L1/L5,2:L1/L2/L5"
+#define SIGOPT2 "0:L1/L5,1:L1/L2,2:L1/L5/L2"
+#define SIGOPT3 "0:E1/E5a,1:E1/E5b,2:E1/E6,3:E1/E5a/E5b/E6,4:E1/E5a/E6/E5b"
+#define SIGOPT4 "0:B1I/B3I,1:B1I/B2I,2:B1I/B3I/B2I"
+#define SIGOPT5 "0:B1I/B3I,1:B1I/B2a,2:B1I/B3I/B2a"
 #define SATCB   "0:auto,1:ssr,2:bia,3:dcb"
 #define SATPB   "0:auto,1:ssr,3:fcb"
 #define PPPENOPT "0:malib,1:madoca"
@@ -115,12 +115,12 @@ opt_t sysopts[]={
     {"pos2-niter",      0,  (void *)&prcopt_.niter,      ""     },
     {"pos2-baselen",    1,  (void *)&prcopt_.baseline[0],"m"    },
     {"pos2-basesig",    1,  (void *)&prcopt_.baseline[1],"m"    },
-    {"pos2-siggpsIIR-M",0,  (void *)&prcopt_.pppsig[0],  SIGOPT1},
-    {"pos2-siggpsIIF",  0,  (void *)&prcopt_.pppsig[1],  SIGOPT2},
-    {"pos2-siggpsIIIA", 0,  (void *)&prcopt_.pppsig[2],  SIGOPT2},
-    {"pos2-sigqzs1_2",  0,  (void *)&prcopt_.pppsig[3],  SIGOPT3},
-    {"pos2-sigbds3"   , 0,  (void *)&prcopt_.pppsig[4],  SIGOPT4},
-    {"pos2-siggal   ",  0,  (void *)&prcopt_.pppsig[5],  SIGOPT5},
+    {"pos2-siggps",     3,  (void *)&prcopt_.pppsig[0],  SIGOPT1},
+    {"pos2-sigqzs",     3,  (void *)&prcopt_.pppsig[1],  SIGOPT2},
+    {"pos2-siggal",     3,  (void *)&prcopt_.pppsig[2],  SIGOPT3},
+    {"pos2-sigbds2",    3,  (void *)&prcopt_.pppsig[3],  SIGOPT4},
+    {"pos2-sigbds3",    3,  (void *)&prcopt_.pppsig[4],  SIGOPT5},
+    {"pos2-ionocorr",   3,  (void *)&prcopt_.ionocorr,   SWTOPT },
     {"pos2-ign_chierr", 3,  (void *)&prcopt_.ign_chierr, SWTOPT },
     {"pos2-bds2bias"  , 3,  (void *)&prcopt_.bds2bias  , SWTOPT },
     {"pos2-pppsatcb"  , 0,  (void *)&prcopt_.pppsatcb  , SATCB  },
@@ -163,6 +163,8 @@ opt_t sysopts[]={
     {"stats-prntrop",   1,  (void *)&prcopt_.prn[2],     "m"    },
     {"stats-prnpos",    1,  (void *)&prcopt_.prn[5],     "m"    },
     {"stats-prndcb",    1,  (void *)&prcopt_.prn[6],     "m"    },
+    {"stats-prnifb",    1,  (void *)&prcopt_.prn[6],     "m"    },
+    {"stats-uraratio",  1,  (void *)&prcopt_.uraratio,   ""     },
     {"stats-clkstab",   1,  (void *)&prcopt_.sclkstab,   "s/s"  },
     
     {"ant1-postype",    3,  (void *)&antpostype_[0],     POSOPT },
