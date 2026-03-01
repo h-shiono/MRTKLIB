@@ -65,19 +65,20 @@ jobs:
       run: ctest --test-dir build --output-on-failure -LE realtime
       timeout-minutes: 10
 
-    - name: Accuracy analysis (PPP)
+    - name: Accuracy analysis (MADOCA PPP)
       run: |
-        OUTPUT_FILE="build/out_ppp.pos"
+        OUTPUT_FILE="build/out_madocalib_ppp.pos"
         if [ ! -f "$OUTPUT_FILE" ]; then
-          echo "❌ PPP output not found"; exit 1
+          echo "❌ MADOCA PPP output not found"; exit 1
         fi
 
         DATA_LINES=$(grep -v '^%' "$OUTPUT_FILE" | wc -l)
-        echo "PPP epochs: $DATA_LINES"
+        echo "MADOCA PPP epochs: $DATA_LINES"
 
-        REF_LAT=36.068742145
-        REF_LON=140.128346910
-        REF_HGT=112.5059
+        # MIZU station (Mizusawa, Iwate) reference coordinates
+        REF_LAT=39.135150512
+        REF_LON=141.132871411
+        REF_HGT=117.4272
 
         grep -v '^%' "$OUTPUT_FILE" | awk \
           -v ref_lat=$REF_LAT -v ref_lon=$REF_LON -v ref_hgt=$REF_HGT '
