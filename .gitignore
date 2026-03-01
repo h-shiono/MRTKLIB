@@ -41,5 +41,6 @@ __pycache__/
 tasks/
 
 # Reference repositories
+upstream/claslib/
 upstream/madocalib/
 upstream/MALIB/
