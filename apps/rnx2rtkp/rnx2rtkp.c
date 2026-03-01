@@ -1,8 +1,15 @@
 /*------------------------------------------------------------------------------
 * rnx2rtkp.c : read rinex obs/nav files and compute receiver positions
 *
-* Copyright (C) 2024 Japan Aerospace Exploration Agency. All Rights Reserved.
-* Copyright (C) 2007-2023 by T.TAKASU, All rights reserved.
+* Copyright (C) 2026 H.SHIONO (MRTKLIB Project)
+* Copyright (C) 2023-2025 Cabinet Office, Japan
+* Copyright (C) 2024-2025 Lighthouse Technology & Consulting Co. Ltd.
+* Copyright (C) 2023-2025 Japan Aerospace Exploration Agency
+* Copyright (C) 2023-2025 TOSHIBA ELECTRONIC TECHNOLOGIES CORPORATION
+* Copyright (C) 2014 T.SUZUKI
+* Copyright (C) 2007-2023 T.TAKASU
+*
+* SPDX-License-Identifier: BSD-2-Clause
 *
 * history : 2007/01/16  1.0 new
 *           2007/03/15  1.1 add library mode

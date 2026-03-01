@@ -1,8 +1,15 @@
 /*------------------------------------------------------------------------------
-* ppp_iono.c : ppp ionospheric correction functions
+* mrtk_ppp_iono.c : PPP ionospheric correction functions
 *
-*          Copyright (C) 2024-2025 Cabinet Office, Japan, All rights reserved.
-*          Copyright (C) 2024-2025 Lighthouse Technology & Consulting Co. Ltd., All rights reserved.
+* Copyright (C) 2026 H.SHIONO (MRTKLIB Project)
+* Copyright (C) 2023-2025 Cabinet Office, Japan
+* Copyright (C) 2024-2025 Lighthouse Technology & Consulting Co. Ltd.
+* Copyright (C) 2023-2025 Japan Aerospace Exploration Agency
+* Copyright (C) 2023-2025 TOSHIBA ELECTRONIC TECHNOLOGIES CORPORATION
+* Copyright (C) 2014 T.SUZUKI
+* Copyright (C) 2007-2023 T.TAKASU
+*
+* SPDX-License-Identifier: BSD-2-Clause
 *
 * references :
 *     [1]  CAO IS-QZSS-MDC-002, November, 2023

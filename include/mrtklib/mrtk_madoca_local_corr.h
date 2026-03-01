@@ -2,6 +2,8 @@
  * mrtk_madoca_local_corr.h : MADOCA local correction type definitions and functions
  *
  * Copyright (C) 2026 H.SHIONO (MRTKLIB Project)
+ * Copyright (C) 2023-2025 Cabinet Office, Japan
+ * Copyright (C) 2024-2025 Lighthouse Technology & Consulting Co. Ltd.
  * Copyright (C) 2023-2025 Japan Aerospace Exploration Agency
  * Copyright (C) 2023-2025 TOSHIBA ELECTRONIC TECHNOLOGIES CORPORATION
  * Copyright (C) 2014 T.SUZUKI

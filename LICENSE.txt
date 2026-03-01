@@ -7,6 +7,8 @@ as they comply with the license.
 --------------------------------------------------------------------------------
 
          Copyright (c) 2026, H. Shiono (MRTKLIB Project). All rights reserved.
+         Copyright (c) 2023-2025, Cabinet Office, Japan. All rights reserved.
+         Copyright (c) 2024-2025, Lighthouse Technology & Consulting Co. Ltd. All rights reserved.
          Copyright (c) 2023-2025, Japan Aerospace Exploration Agency. All Rights Reserved.
          Copyright (C) 2023-2025, TOSHIBA ELECTRONIC TECHNOLOGIES CORPORATION. All Rights Reserved.
          Copyright (c) 2014, T. Suzuki. All rights reserved.

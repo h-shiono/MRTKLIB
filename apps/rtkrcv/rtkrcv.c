@@ -1,8 +1,15 @@
 /*------------------------------------------------------------------------------
 * rtkrcv.c : rtk-gps/gnss receiver console ap
 *
-* Copyright (C) 2024-2025 Japan Aerospace Exploration Agency. All Rights Reserved.
-* Copyright (C) 2009-2021 by T.TAKASU, All rights reserved.
+* Copyright (C) 2026 H.SHIONO (MRTKLIB Project)
+* Copyright (C) 2023-2025 Cabinet Office, Japan
+* Copyright (C) 2024-2025 Lighthouse Technology & Consulting Co. Ltd.
+* Copyright (C) 2023-2025 Japan Aerospace Exploration Agency
+* Copyright (C) 2023-2025 TOSHIBA ELECTRONIC TECHNOLOGIES CORPORATION
+* Copyright (C) 2014 T.SUZUKI
+* Copyright (C) 2007-2023 T.TAKASU
+*
+* SPDX-License-Identifier: BSD-2-Clause
 *
 * notes   :
 *     current version does not support win32 without pthread library
