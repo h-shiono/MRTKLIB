@@ -25,11 +25,11 @@ MRTKLIB is not just another fork; it is a ground-up architectural redesign aimed
 
 The ultimate goal is to unify the fragmented QZSS augmentation ecosystem into a single, conflict-free library. Current integration status:
 
-| Component | Description | Status |
-|-----------|-------------|--------|
-| **MALIB** | MADOCA-PPP structural base (directory layout, threading, streams) | Integrated |
-| **MADOCALIB** | PPP/PPP-AR engine, L6E SSR decoder, L6D ionospheric decoder | Integrated |
-| **CLASLIB** | Centimeter Level Augmentation Service | Planned |
+| Component | Version | Description | Status |
+|-----------|---------|-------------|--------|
+| **MALIB** | feature/1.2.0 (`f006a34`) | MADOCA-PPP structural base (directory layout, threading, streams) | Integrated |
+| **MADOCALIB** | ver.2.0 (`8091004`) | PPP/PPP-AR engine, L6E SSR decoder, L6D ionospheric decoder | Integrated |
+| **CLASLIB** | — | Centimeter Level Augmentation Service | Planned |
 
 With the MADOCALIB integration complete, users can process L6E (orbit/clock/bias corrections) and L6D (ionospheric STEC corrections) streams seamlessly in both post-processing and real-time modes.
 
