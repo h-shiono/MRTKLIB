@@ -861,9 +861,25 @@ int clas_osr_zdres(const obsd_t *obs, int n, const double *rs,
                 osr[i].orb - osr[i].clk + osr[i].CPC[j];
         }
 
-        /* ISB correction: stubbed -- ISB = 0 */
-
-        /* L2C phase shift correction: stubbed -- skip */
+        /* ISB correction */
+        if (opt->isb == ISBOPT_TABLE) {
+            double isb_val[NFREQ][2] = {{0}};
+            chk_isb(satsys(sat, NULL), opt, &nav->stas[0], isb_val);
+            for (f = 0; f < nf; f++) meas[f]      -= isb_val[f][0]; /* phase */
+            for (f = 0; f < nf; f++) meas[f + nf] -= isb_val[f][1]; /* code */
+        }
+        /* L2C 1/4 cycle phase shift correction */
+        if (opt->phasshft == ISBOPT_TABLE && isL2C(obs_copy[i].code[1])) {
+            double ydif = 0.0;
+            int jj;
+            for (jj = 0; jj < nav->sfts.n; jj++) {
+                if (strcmp(nav->sfts.rectyp[jj], opt->rectype[0]) == 0) {
+                    ydif = nav->sfts.bias[jj];
+                    break;
+                }
+            }
+            meas[1] += ydif * lam[1];
+        }
 
         /* measurement phase and code (ENA_PPP_RTK path) */
         for (f = 0; f < nf; f++) {
@@ -887,7 +903,7 @@ int clas_osr_zdres(const obsd_t *obs, int n, const double *rs,
             for (j = 0; j < 2; j++) { /* phase and code */
                 for (f = 0; f < nf; f++) {
                     if (meas[nf * j + f] == 0.0) continue;
-                    /* ssat_t.code[] does not exist in MRTKLIB -- skip */
+                    if (j == 0) ssat[sat - 1].code[f] = obs_copy[i].code[f];
                     if (f > 0 && !(f & qj)) continue;
                     if (f == 1 && (satsys(sat, NULL) == SYS_GAL)) continue;
                     if (j == 0 && (osr[i].pbias[f] == CLAS_CSSRINVALID)) {

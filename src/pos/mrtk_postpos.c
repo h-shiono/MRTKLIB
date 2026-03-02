@@ -991,6 +991,7 @@ static void freeobsnav(obs_t *obs, nav_t *nav)
     free(nav->eph ); nav->eph =NULL; nav->n =nav->nmax =0;
     free(nav->geph); nav->geph=NULL; nav->ng=nav->ngmax=0;
     free(nav->seph); nav->seph=NULL; nav->ns=nav->nsmax=0;
+    free(nav->isb ); nav->isb =NULL; nav->ni=nav->nimax=0;
 }
 /* average of single position ------------------------------------------------*/
 static int avepos(mrtk_ctx_t *ctx, double *ra, int rcv, const obs_t *obs, const nav_t *nav,
@@ -1295,6 +1296,24 @@ static int execses(mrtk_ctx_t *ctx, gtime_t ts, gtime_t te, double ti, const prc
     if (clas_ctx&&*fopt->grid) {
         if (clas_read_grid_def(clas_ctx,fopt->grid)!=0) {
             trace(NULL,1,"clas grid file error: %s\n",fopt->grid);
+        }
+    }
+    /* read ISB correction table */
+    if (clas_ctx && popt_.isb == ISBOPT_TABLE && *fopt->isb) {
+        readisb(fopt->isb, &navs);
+        trace(NULL, 3, "execses: ISB table loaded ni=%d\n", navs.ni);
+    }
+    /* read L2C phase shift table */
+    if (clas_ctx && popt_.phasshft == ISBOPT_TABLE && *fopt->phacyc) {
+        readL2C(fopt->phacyc, &navs);
+        trace(NULL, 3, "execses: L2C table loaded n=%d\n", navs.sfts.n);
+    }
+    /* copy station info to nav and set ISB */
+    if (clas_ctx) {
+        memcpy(navs.stas, stas, sizeof(sta_t) * MAXRCV);
+        if (popt_.isb == ISBOPT_TABLE) {
+            setisb(&navs, popt_.rectype[0], popt_.rectype[1],
+                   &navs.stas[0], &navs.stas[1]);
         }
     }
     /* rover/reference fixed position */

@@ -219,6 +219,7 @@ typedef struct prcopt_t {        /* processing options type */
     int    floatcnt;       /* float counter for filter reset */
     int    poserrcnt;      /* pos error count to reset */
     int    phasshft;       /* phase shift correction (0:off,1:table) */
+    int    isb;            /* ISB correction mode (0:off, 1:table) */
     int    prnadpt;        /* adaptive process noise (0:off,1:on) */
     double maxinno_ext[5]; /* reject thresholds [0]:L1/L2 [1]:disp [2]:nondisp [3]:F&H [4]:Fix */
     double varholdamb;     /* hold-ambiguity variance (cycle^2) */

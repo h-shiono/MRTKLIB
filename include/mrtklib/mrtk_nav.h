@@ -340,6 +340,27 @@ typedef struct {        /* block type */
 } lclblock_t;
 
 /*============================================================================
+ * ISB (Inter-System Bias) Types
+ *===========================================================================*/
+
+#define ISBOPT_OFF     0                /* ISB option: correction off */
+#define ISBOPT_TABLE   1                /* ISB option: table file */
+#define MAXRECTYP      100              /* max number of receiver types */
+#define PHASE_CYCLE    (-0.25)          /* default L2C 1/4 cycle phase shift */
+
+typedef struct {        /* ISB data type */
+    char sta_name[20];                  /* station/receiver name */
+    char sta_name_base[20];             /* base station/receiver name */
+    double gsb[NSYS][NFREQ][2];         /* ISB [sys][freq][0:phase,1:code] (m) */
+} isb_t;
+
+typedef struct {        /* L2C phase shift table type */
+    int n;                              /* number of receiver types */
+    char rectyp[MAXRECTYP][MAXANT];     /* receiver type names */
+    double bias[MAXRECTYP];             /* phase shift bias (cycle) */
+} sft_t;
+
+/*============================================================================
  * Station Parameter Type
  *===========================================================================*/
 
@@ -359,6 +380,7 @@ typedef struct {        /* station parameter type */
     double hgt;         /* antenna height (m) */
     int glo_cp_align;   /* GLONASS code-phase alignment (0:no,1:yes) */
     double glo_cp_bias[4]; /* GLONASS code-phase biases {1C,1P,2C,2P} (m) */
+    double isb[NSYS][NFREQ][2]; /* ISB corrections [sys][freq][0:phase,1:code] (m) */
 } sta_t;
 
 /*============================================================================
@@ -410,6 +432,12 @@ typedef struct {        /* navigation data type */
     char fcbpath [MAXSTRPATH]; /* fcb file path */
     char pr_biapath [MAXSTRPATH]; /* previous bias sinex file path */
     char pr_fcbpath [MAXSTRPATH]; /* previous fcb file path */
+
+    /* ISB (Inter-System Bias) data */
+    isb_t *isb;             /* ISB data array */
+    int ni, nimax;          /* number of ISB data / allocated */
+    sft_t sfts;             /* L2C phase shift table */
+    sta_t stas[MAXRCV];     /* station info with ISB corrections */
 } nav_t;
 
 /*============================================================================

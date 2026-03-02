@@ -112,6 +112,7 @@ typedef struct {        /* satellite status type */
     double ph[2][NFREQ]; /* previous carrier-phase observable (cycle) */
     int discont[NFREQ]; /* SSR phase bias discontinuity counter */
     double ionc;        /* ionospheric delay by carrier phase (m) */
+    uint8_t code[NFREQ]; /* observation code indicator (CODE_???) */
 } ssat_t;
 
 /*============================================================================

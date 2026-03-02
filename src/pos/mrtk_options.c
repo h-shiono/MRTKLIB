@@ -159,7 +159,7 @@ opt_t sysopts[]={
     {"pos2-afgainpva",  1,  (void *)&prcopt_.afgainpva,  ""     },
     {"pos2-phasshft",   3,  (void *)&prcopt_.phasshft,   PSHFTOPT},
     {"pos2-rectype",    2,  (void *)prcopt_.rectype[1],  ""     },
-    {"pos2-isb",        3,  (void *)&prcopt_.posopt[10], SWTOPT },
+    {"pos2-isb",        3,  (void *)&prcopt_.isb,        SWTOPT },
 
     {"out-solformat",   3,  (void *)&solopt_.posf,       SOLOPT },
     {"out-outhead",     3,  (void *)&solopt_.outhead,    SWTOPT },

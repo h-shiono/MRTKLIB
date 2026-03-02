@@ -81,6 +81,7 @@ add_library(mrtklib STATIC
     src/clas/mrtk_clas.c
     src/clas/mrtk_clas_grid.c
     src/clas/mrtk_clas_osr.c
+    src/clas/mrtk_clas_isb.c
 
     # ── pos/ (測位アルゴリズム・オプション) ────────────────────────────────────
     src/pos/mrtk_spp.c
@@ -589,7 +590,7 @@ add_test(NAME claslib_ppp_rtk_check
     COMMAND ${Python3_EXECUTABLE} ${_COMPARE_NMEA}
         ${_CLSDATA}/ref_L6.nmea
         ${CMAKE_BINARY_DIR}/out_claslib_ppp_rtk.nmea
-        --tolerance 1.50 --skip-fixrate
+        --tolerance 0.15
 )
 set_tests_properties(claslib_ppp_rtk_check PROPERTIES
     DEPENDS           claslib_ppp_rtk

@@ -948,6 +948,54 @@ int cssr_gnss2sys(int gnss, int *prn0);
  */
 int cssr_sys2gnss(int sys, int *prn0);
 
+/*============================================================================
+ * ISB Functions (types defined in mrtk_nav.h)
+ *===========================================================================*/
+
+/**
+ * @brief Read ISB correction table from file.
+ * @param[in]     file  ISB table file path (wild-card * expanded)
+ * @param[in,out] nav   Navigation data (isb array populated)
+ * @return Status (1:ok, 0:error)
+ */
+int readisb(const char *file, nav_t *nav);
+
+/**
+ * @brief Read L2C 1/4 cycle phase shift table from file.
+ * @param[in]     file  L2C phase shift table file path
+ * @param[in,out] nav   Navigation data (sfts populated)
+ * @return Status (0:ok, -1:error)
+ */
+int readL2C(const char *file, nav_t *nav);
+
+/**
+ * @brief Set ISB corrections for rover and reference stations.
+ * @param[in]  nav       Navigation data (contains isb table)
+ * @param[in]  rectype0  Rover receiver type
+ * @param[in]  rectype1  Reference receiver type
+ * @param[out] sta0      Rover station (isb field populated)
+ * @param[out] sta1      Reference station (isb field populated, can be NULL)
+ */
+void setisb(const nav_t *nav, const char *rectype0, const char *rectype1,
+            sta_t *sta0, sta_t *sta1);
+
+/**
+ * @brief Get ISB correction values for a satellite system.
+ * @param[in]  sysno  Satellite system code (SYS_GPS, etc.)
+ * @param[in]  opt    Processing options
+ * @param[in]  sta    Station data with ISB values
+ * @param[out] y      ISB corrections [NFREQ][2] (0:phase, 1:code) (m)
+ */
+void chk_isb(int sysno, const prcopt_t *opt, const sta_t *sta,
+             double y[NFREQ][2]);
+
+/**
+ * @brief Check if observation code is L2C.
+ * @param[in] code  Observation code (CODE_???)
+ * @return 1 if L2C, 0 otherwise
+ */
+int isL2C(int code);
+
 #ifdef __cplusplus
 }
 #endif
