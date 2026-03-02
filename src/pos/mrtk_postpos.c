@@ -35,6 +35,7 @@
 #include "mrtklib/mrtk_madoca.h"
 #include "mrtklib/mrtk_madoca_local_corr.h"
 #include "mrtklib/mrtk_clas.h"
+#include "mrtklib/mrtk_rcvraw.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -940,18 +941,30 @@ static int readobsnav(gtime_t ts, gtime_t te, double ti, char **infile,
     nepoch=0;
     
     for (i=0;i<n;i++) {
+        const char *ext;
         if (checkbrk("")) return 0;
-        
+
         if (index[i]!=ind) {
             if (obs->n>nobs) rcv++;
-            ind=index[i]; nobs=obs->n; 
+            ind=index[i]; nobs=obs->n;
         }
-        /* read rinex obs and nav file */
-        if (readrnxt(infile[i],rcv,ts,te,ti,prcopt->rnxopt[rcv<=1?0:1],obs,nav,
-                     rcv<=2?sta+rcv-1:NULL)<0) {
-            checkbrk("error : insufficient memory");
-            trace(NULL,1,"insufficient memory\n");
-            return 0;
+        ext=strrchr(infile[i],'.');
+        if (ext&&!strcmp(ext,".bnx")) {
+            /* read binex file */
+            if (readbnxt(infile[i],rcv,ts,te,ti,prcopt->rnxopt[rcv<=1?0:1],obs,nav,
+                         rcv<=2?sta+rcv-1:NULL,prcopt)<0) {
+                checkbrk("error : insufficient memory");
+                trace(NULL,1,"insufficient memory\n");
+                return 0;
+            }
+        } else {
+            /* read rinex obs and nav file */
+            if (readrnxt(infile[i],rcv,ts,te,ti,prcopt->rnxopt[rcv<=1?0:1],obs,nav,
+                         rcv<=2?sta+rcv-1:NULL)<0) {
+                checkbrk("error : insufficient memory");
+                trace(NULL,1,"insufficient memory\n");
+                return 0;
+            }
         }
     }
     if (obs->n<=0) {

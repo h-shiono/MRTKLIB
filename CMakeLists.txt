@@ -598,10 +598,40 @@ set_tests_properties(claslib_ppp_rtk_check PROPERTIES
     LABELS            "regression;claslib;ppp-rtk"
 )
 
+# ── rnx2rtkp CLAS PPP-RTK regression (L6, BINEX obs) ─────────────────────────
+# Data: 2019/08/27 16:00-17:00, 0627239Q.bnx + sept_2019239.nav + 2019239Q.l6
+# Reference: ref_L6_bnx.nmea (upstream claslib output)
+add_test(NAME claslib_ppp_rtk_bnx
+    COMMAND $<TARGET_FILE:rnx2rtkp>
+        -k ${CMAKE_SOURCE_DIR}/conf/claslib/rnx2rtkp.conf
+        -ts 2019/08/27 16:00:00 -te 2019/08/27 16:59:59 -ti 1
+        -o ${CMAKE_BINARY_DIR}/out_claslib_ppp_rtk_bnx.nmea
+        ${_CLSDATA}/0627239Q.bnx
+        ${_CLSDATA}/sept_2019239.nav
+        ${_CLSDATA}/2019239Q.l6
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+set_tests_properties(claslib_ppp_rtk_bnx PROPERTIES
+    FIXTURES_REQUIRED claslib_data
+    TIMEOUT           300
+    LABELS            "regression;claslib;ppp-rtk"
+)
+
+add_test(NAME claslib_ppp_rtk_bnx_check
+    COMMAND ${Python3_EXECUTABLE} ${_COMPARE_NMEA}
+        ${_CLSDATA}/ref_L6_bnx.nmea
+        ${CMAKE_BINARY_DIR}/out_claslib_ppp_rtk_bnx.nmea
+        --tolerance 0.10
+)
+set_tests_properties(claslib_ppp_rtk_bnx_check PROPERTIES
+    DEPENDS           claslib_ppp_rtk_bnx
+    FIXTURES_REQUIRED claslib_data
+    LABELS            "regression;claslib;ppp-rtk"
+)
+
 # ── Not yet ported tests ─────────────────────────────────────────────────────
-# TODO: Add when BINEX post-processing reader (readbnxt) is ported:
-#   claslib_ppp_rtk_bnx     — ref_L6_bnx.nmea (needs readbnxt for .bnx obs)
-#   claslib_ppp_rtk_st12    — ref_ST12.nmea (needs readbnxt for .bnx obs)
+# TODO: Add when BINEX SubType 12 support is verified:
+#   claslib_ppp_rtk_st12    — ref_ST12.nmea (needs 0627349AB.bnx + sept_2019349.nav)
 # TODO: Add when VRS mode is ported:
 #   claslib_ppp_rtk_vrs      — ref_VRS.nmea (needs VRS mode + vrs2019239Q.obs)
 #   claslib_ppp_rtk_st12_vrs — ref_ST12_VRS.nmea (needs VRS + vrs2019349B.obs)
