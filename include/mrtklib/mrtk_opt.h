@@ -165,10 +165,13 @@ typedef struct prcopt_t {        /* processing options type */
                         /* (0:pos in prcopt,  1:average of single pos, */
                         /*  2:read from file, 3:rinex header, 4:rtcm pos) */
     double eratio[NFREQ]; /* code/phase error ratio */
-    double err[5];      /* measurement error factor */
+    double err[8];      /* measurement error factor */
                         /* [0]:reserved */
                         /* [1-3]:error factor a/b/c of phase (m) */
                         /* [4]:doppler frequency (hz) */
+                        /* [5]:iono variance factor (m) */
+                        /* [6]:trop variance factor (m) */
+                        /* [7]:reserved */
     double std[3];      /* initial-state std [0]bias,[1]iono [2]trop */
     double prn[7];      /* process-noise std [0]bias,[1]iono [2]trop [3]acch [4]accv [5]pos [6]ifb */
     double sclkstab;    /* satellite clock stability (sec/sec) */

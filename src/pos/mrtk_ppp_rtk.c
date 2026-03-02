@@ -42,6 +42,7 @@
  * Local Macros
  *===========================================================================*/
 #define SQR(x)      ((x)*(x))
+#define SQRT(x)     ((x)<=0.0||(x)!=(x)?0.0:sqrt(x))
 #define MIN(x,y)    ((x)<=(y)?(x):(y))
 
 #define MAXREF      2           /* max iterations searching reference sat */
@@ -243,7 +244,7 @@ static double sat_lambda(int sat, int f, const nav_t *nav)
 static double varerr(int sat, int sys, double el, int type,
                      const prcopt_t *opt)
 {
-    double a, b, fact = 1.0;
+    double a, b, c = 0.0, d = 0.0, fact = 1.0;
     double sinel = sin(el);
 
     (void)sat;
@@ -261,12 +262,10 @@ static double varerr(int sat, int sys, double el, int type,
         if (opt->ionoopt == IONOOPT_IFLC) fact *= 3.0;
         a = fact * opt->err[1];
         b = fact * opt->err[2];
-        /* Note: upstream adds iono (err[5]) and trop (err[6]) variance
-         * components when ionoopt==IONOOPT_EST or tropopt>=TROPOPT_EST.
-         * Not applicable here: ionoopt=EST_ADPT, tropopt=off, and
-         * err[] array is only size 5. Extend when needed. */
+        if (opt->ionoopt == IONOOPT_EST) c = opt->err[5];
+        if (opt->tropopt >= TROPOPT_EST) d = opt->err[6];
     }
-    return a * a + b * b / sinel / sinel;
+    return a * a + b * b / sinel / sinel + c * c + d * d;
 }
 
 /*============================================================================
@@ -1701,6 +1700,81 @@ static int resamb_LAMBDA(rtk_t *rtk, double *bias, double *xa)
     free(b); free(db); free(Qb); free(Qab); free(QQ);
 
     return nb; /* number of ambiguities */
+}
+
+/*============================================================================
+ * Public API: solution status output
+ *===========================================================================*/
+
+/**
+ * @brief Write PPP-RTK solution status to buffer.
+ *
+ * PPP-RTK uses a different state layout from standard PPP (no clock states,
+ * iono at NP, trop at NP+NI). This function outputs state information using
+ * the correct PPP-RTK indices (II_RTK, IT_RTK, IB_RTK).
+ *
+ * @param[in,out] rtk   RTK control/result struct
+ * @param[out]    buff  Output buffer
+ * @return Number of bytes written
+ */
+extern int ppprtk_outstat(rtk_t *rtk, char *buff)
+{
+    ssat_t *ssat;
+    double tow,pos[3],vel[3],acc[3],*x;
+    int i,j,week,nx=rtk->nx;
+    char id[32],*p=buff;
+
+    if (!rtk->sol.stat) return 0;
+
+    tow=time2gpst(rtk->sol.time,&week);
+    x=rtk->sol.stat==SOLQ_FIX?rtk->xa:rtk->x;
+
+    /* receiver position */
+    p+=sprintf(p,"$POS,%d,%.3f,%d,%.4f,%.4f,%.4f,%.4f,%.4f,%.4f\n",week,tow,
+               rtk->sol.stat,x[0],x[1],x[2],
+               SQRT(rtk->P[0]),SQRT(rtk->P[1+nx]),SQRT(rtk->P[2+2*nx]));
+
+    /* receiver velocity and acceleration */
+    if (rtk->opt.dynamics) {
+        ecef2pos(rtk->sol.rr,pos);
+        ecef2enu(pos,rtk->x+3,vel);
+        ecef2enu(pos,rtk->x+6,acc);
+        p+=sprintf(p,"$VELACC,%d,%.3f,%d,%.4f,%.4f,%.4f,%.5f,%.5f,%.5f,%.4f,%.4f,"
+                   "%.4f,%.5f,%.5f,%.5f\n",week,tow,rtk->sol.stat,vel[0],vel[1],
+                   vel[2],acc[0],acc[1],acc[2],0.0,0.0,0.0,0.0,0.0,0.0);
+    }
+    /* no clock states in PPP-RTK (absorbed by DD) */
+
+    /* tropospheric parameters */
+    if (rtk->opt.tropopt==TROPOPT_EST||rtk->opt.tropopt==TROPOPT_ESTG) {
+        i=IT_RTK(&rtk->opt);
+        if (i<nx) {
+            p+=sprintf(p,"$TROP,%d,%.3f,%d,%d,%.4f,%.4f\n",week,tow,rtk->sol.stat,
+                       1,x[i],SQRT(rtk->P[i+i*nx]));
+        }
+    }
+    if (rtk->opt.tropopt==TROPOPT_ESTG) {
+        i=IT_RTK(&rtk->opt);
+        if (i+2<nx) {
+            p+=sprintf(p,"$TRPG,%d,%.3f,%d,%d,%.5f,%.5f,%.5f,%.5f\n",week,tow,
+                       rtk->sol.stat,1,x[i+1],x[i+2],
+                       SQRT(rtk->P[(i+1)+(i+1)*nx]),SQRT(rtk->P[(i+2)+(i+2)*nx]));
+        }
+    }
+    /* ionosphere parameters */
+    if (rtk->opt.ionoopt==IONOOPT_EST||rtk->opt.ionoopt==IONOOPT_EST_ADPT) {
+        for (i=0;i<MAXSAT;i++) {
+            ssat=rtk->ssat+i;
+            if (!ssat->vs) continue;
+            j=II_RTK(i+1,&rtk->opt);
+            if (j>=nx||rtk->x[j]==0.0) continue;
+            satno2id(i+1,id);
+            p+=sprintf(p,"$ION,%d,%.3f,%d,%s,%.1f,%.1f,%.4f,%.4f\n",week,tow,
+                       rtk->sol.stat,id,ssat->azel[0]*R2D,ssat->azel[1]*R2D,
+                       x[j],SQRT(rtk->P[j+j*nx]));
+        }
+    }
+    return (int)(p-buff);
 }
 
 /*============================================================================

@@ -406,8 +406,7 @@ void clas_osr_compensatedisp(clas_corr_t *corr, const int *index,
                 /* map signal mode to frequency band index */
                 fqi = obsfreqs[corr->smode[isat][qi]] - 1;
                 fqj = obsfreqs[corr->smode[isat][qj]] - 1;
-                if (fqi < 0) fqi = 0;
-                if (fqj < 0) fqj = 0;
+                if (fqi < 0 || fqj < 0) continue;
                 fi = (lam[fqi] > 0.0 && lam[fqj] > 0.0) ?
                       lam[fqj] / lam[fqi] : 0.0;
 
@@ -441,8 +440,7 @@ void clas_osr_compensatedisp(clas_corr_t *corr, const int *index,
             qi = 0; qj = i;
             fqi = obsfreqs[corr->smode[isat][qi]] - 1;
             fqj = obsfreqs[corr->smode[isat][qj]] - 1;
-            if (fqi < 0) fqi = 0;
-            if (fqj < 0) fqj = 0;
+            if (fqi < 0 || fqj < 0) continue;
             fi = (lam[fqi] > 0.0 && lam[fqj] > 0.0) ?
                   lam[fqj] / lam[fqi] : 0.0;
 

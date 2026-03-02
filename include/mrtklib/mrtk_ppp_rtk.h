@@ -32,6 +32,14 @@ extern "C" {
 #include "mrtklib/mrtk_rtkpos.h"
 
 /**
+ * @brief Write PPP-RTK solution status to buffer.
+ * @param[in,out] rtk   RTK control/result struct
+ * @param[out]    buff  Output buffer
+ * @return Number of bytes written
+ */
+int ppprtk_outstat(rtk_t *rtk, char *buff);
+
+/**
  * @brief Compute number of estimated states for PPP-RTK.
  * @param[in] opt  Processing options
  * @return Total number of states (position + iono + trop + bias)

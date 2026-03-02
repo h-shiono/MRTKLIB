@@ -98,6 +98,7 @@
 *-----------------------------------------------------------------------------*/
 #include "mrtklib/mrtk_ppp.h"
 #include "mrtklib/mrtk_ppp_ar.h"
+#include "mrtklib/mrtk_ppp_rtk.h"
 #include "mrtklib/mrtk_mat.h"
 #include "mrtklib/mrtk_coords.h"
 #include "mrtklib/mrtk_atmos.h"
@@ -229,6 +230,11 @@ extern int pppoutstat(rtk_t *rtk, char *buff)
     char id[32],*p=buff;
 
     if (!rtk->sol.stat) return 0;
+
+    /* PPP-RTK uses different state layout (no clocks, different indices) */
+    if (rtk->opt.mode==PMODE_PPP_RTK) {
+        return ppprtk_outstat(rtk,buff);
+    }
 
     trace(NULL,3,"pppoutstat:\n");
 
