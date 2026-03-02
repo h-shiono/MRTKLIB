@@ -156,8 +156,9 @@ static double get_Twv(const double Ts, const double es)
  *         double *twv   O  wet zenith delay scaling factor
  *  return: 0=ok, 1=error
  *---------------------------------------------------------------------------*/
-static int get_stTv(gtime_t t, const double lat, const double hs,
-                    const double hg, double *tdv, double *twv)
+/* non-static: called from mrtk_clas_osr.c via extern declaration */
+int get_stTv(gtime_t t, const double lat, const double hs,
+             const double hg, double *tdv, double *twv)
 {
     double P0, T0, e0, beta0, lambda0, Hs, Ts, Ps, es, t0, tk, tc, ET, doy;
     const double g = 9.80665, Rd = 287.0537625; /* J/(kg.K) */

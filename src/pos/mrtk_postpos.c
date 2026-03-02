@@ -844,6 +844,8 @@ static void readpreceph(char **infile, int n, const prcopt_t *prcopt,
             clas_ctx=(clas_ctx_t *)calloc(1,sizeof(clas_ctx_t));
             if (clas_ctx) clas_ctx_init(clas_ctx);
         }
+        /* wire CLAS context into nav for PPP-RTK engine access */
+        navs.clas_ctx=clas_ctx;
     }
 
     for (i=0;i<n;i++) {

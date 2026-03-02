@@ -13,6 +13,7 @@
  *----------------------------------------------------------------------------*/
 #include "mrtklib/mrtk_rtkpos.h"
 #include "mrtklib/mrtk_ppp.h"
+#include "mrtklib/mrtk_ppp_rtk.h"
 #include "mrtklib/mrtk_mat.h"
 #include "mrtklib/mrtk_lambda.h"
 #include "mrtklib/mrtk_sys.h"
@@ -1680,8 +1681,16 @@ extern void rtkinit(rtk_t *rtk, const prcopt_t *opt)
     
     rtk->sol=sol0;
     for (i=0;i<6;i++) rtk->rb[i]=0.0;
-    rtk->nx=opt->mode<=PMODE_FIXED?NX(opt):pppnx(opt);
-    rtk->na=opt->mode<=PMODE_FIXED?NR(opt):pppnx(opt);
+    if (opt->mode==PMODE_PPP_RTK) {
+        rtk->nx=ppp_rtk_nx(opt);
+        rtk->na=ppp_rtk_nx(opt);
+    } else if (opt->mode<=PMODE_FIXED) {
+        rtk->nx=NX(opt);
+        rtk->na=NR(opt);
+    } else {
+        rtk->nx=pppnx(opt);
+        rtk->na=pppnx(opt);
+    }
     rtk->tt=0.0;
     rtk->x=zeros(rtk->nx,1);
     rtk->P=zeros(rtk->nx,rtk->nx);
@@ -2111,6 +2120,13 @@ extern int rtkpos(mrtk_ctx_t *ctx, rtk_t *rtk, const obsd_t *obs, int n, nav_t *
     /* suppress output of single solution */
     if (!opt->outsingle) {
         rtk->sol.stat=SOLQ_NONE;
+    }
+    /* PPP-RTK positioning (CLAS) */
+    if (opt->mode==PMODE_PPP_RTK) {
+        trace(ctx,4,"obs=\n"); traceobs(ctx,4,obs,n);
+        ppp_rtk_pos(rtk,obs,nu,nav);
+        outsolstat(rtk);
+        return 1;
     }
     /* precise point positioning */
     if (opt->mode>=PMODE_PPP_KINEMA) {

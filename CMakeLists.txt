@@ -80,12 +80,14 @@ add_library(mrtklib STATIC
     # ── clas/ (CLAS CSSR処理) ──────────────────────────────────────────────────
     src/clas/mrtk_clas.c
     src/clas/mrtk_clas_grid.c
+    src/clas/mrtk_clas_osr.c
 
     # ── pos/ (測位アルゴリズム・オプション) ────────────────────────────────────
     src/pos/mrtk_spp.c
     src/pos/mrtk_rtkpos.c
     src/pos/mrtk_ppp_ar.c
     src/pos/mrtk_ppp.c
+    src/pos/mrtk_ppp_rtk.c
     src/pos/mrtk_ppp_iono.c
     src/pos/mrtk_lambda.c
     src/pos/mrtk_postpos.c

@@ -47,6 +47,7 @@ extern "C" {
 #define PMODE_PPP_KINEMA 6          /* positioning mode: PPP-kinemaric */
 #define PMODE_PPP_STATIC 7          /* positioning mode: PPP-static */
 #define PMODE_PPP_FIXED  8          /* positioning mode: PPP-fixed */
+#define PMODE_PPP_RTK    9          /* positioning mode: PPP-RTK (CLAS) */
 
 /*============================================================================
  * Solution Format / Quality Constants

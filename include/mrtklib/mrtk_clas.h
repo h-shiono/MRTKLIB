@@ -36,6 +36,7 @@ extern "C" {
 #include "mrtklib/mrtk_time.h"
 #include "mrtklib/mrtk_nav.h"
 #include "mrtklib/mrtk_bits.h"
+#include "mrtklib/mrtk_rtkpos.h"  /* rtk_t, ssat_t, sol_t, prcopt_t (for OSR functions) */
 
 /*============================================================================
  * CLAS Version
@@ -767,6 +768,152 @@ int clas_trop_grid_data(clas_corr_t *corr, const int *index,
  * @param[in,out] ctx  CLAS context
  */
 void clas_init_oload(clas_ctx_t *ctx);
+
+/*============================================================================
+ * OSR (SSR→OSR) Conversion Context (mrtk_clas_osr.c)
+ *
+ * Replaces static variables from upstream cssr2osr.c with a context struct
+ * for thread safety and multi-instance support.
+ *===========================================================================*/
+
+/** SSR→OSR conversion persistent state */
+typedef struct {
+    /* zdres() persistent state (replaces statics in cssr2osr.c:zdres) */
+    double  pbias_ofst[MAXSAT * (NFREQ + NEXOBS)]; /* phase bias offset history */
+    double  cpctmp[MAXSAT * (NFREQ + NEXOBS)];     /* previous epoch CPC */
+    gtime_t pt0tmp[MAXSAT * (NFREQ + NEXOBS)];     /* previous epoch pbias time */
+
+    /* compensatedisp() persistent state */
+    gtime_t comp_t0[CLAS_CH_NUM][MAXSAT];          /* previous update time */
+    gtime_t comp_tm[CLAS_CH_NUM][MAXSAT];           /* prev-previous update time */
+    double  comp_b0[CLAS_CH_NUM][MAXSAT * (NFREQ + NEXOBS)]; /* previous pbias */
+    double  comp_bm[CLAS_CH_NUM][MAXSAT * (NFREQ + NEXOBS)]; /* prev-prev pbias */
+    double  comp_iono0[CLAS_CH_NUM][MAXSAT];        /* previous iono */
+    double  comp_ionom[CLAS_CH_NUM][MAXSAT];        /* prev-prev iono */
+    double  comp_coef[CLAS_CH_NUM][MAXSAT * (NFREQ + NEXOBS)]; /* linear coeff */
+    int     comp_slip[CLAS_CH_NUM][MAXSAT * NFREQ]; /* slip detection state */
+
+    int     initialized;
+} clas_osr_ctx_t;
+
+/*============================================================================
+ * OSR Conversion Functions (mrtk_clas_osr.c)
+ *===========================================================================*/
+
+/** Invalid CSSR bias value sentinel */
+#define CLAS_CSSRINVALID  (-10000)
+
+/** Maximum age for SSR bias corrections (seconds) */
+#define CLAS_MAXAGESSR_BIAS  120.0
+
+/** Maximum phase bias correction for SSR (meters) */
+#define CLAS_MAXPBCORSSR   20.0
+
+/**
+ * @brief Precise troposphere model for CLAS (MOPS standard + mapping function).
+ * @param[in] time  Observation time
+ * @param[in] pos   Receiver position {lat,lon,hgt} (rad,m)
+ * @param[in] azel  Azimuth/elevation {az,el} (rad)
+ * @param[in] zwd   Zenith wet delay from grid (m)
+ * @param[in] ztd   Zenith total delay from grid (m)
+ * @return Slant tropospheric delay (m), 0 on error
+ */
+double clas_osr_prectrop(gtime_t time, const double *pos, const double *azel,
+                         double zwd, double ztd);
+
+/**
+ * @brief Select frequency pair for multi-frequency processing.
+ * @param[in] sat  Satellite number
+ * @param[in] opt  Processing options
+ * @param[in] obs  Observation data
+ * @return Frequency pair bitmask (0=L1 only, 1=L2, 2=L5, 3=L2+L5)
+ */
+int clas_osr_selfreqpair(int sat, const prcopt_t *opt, const obsd_t *obs);
+
+/**
+ * @brief Compute zero-differenced phase/code residuals with CLAS corrections.
+ * @param[in]     obs    Observation data for epoch
+ * @param[in]     n      Number of observations
+ * @param[in]     rs     Satellite positions+velocities (6*n)
+ * @param[in]     dts    Satellite clock corrections (2*n)
+ * @param[in]     vare   Satellite position variances (n)
+ * @param[in]     svh    Satellite health flags (n)
+ * @param[in,out] nav    Navigation data
+ * @param[in,out] x      State vector (position extracted from [0:2])
+ * @param[out]    y      Residuals (n*nf*2)
+ * @param[out]    e      Line-of-sight vectors (3*n)
+ * @param[out]    azel   Azimuth/elevation (2*n)
+ * @param[in]     rtk    RTK control struct
+ * @param[in]     osrlog Enable OSR logging
+ * @param[in,out] osr_ctx OSR context for persistent state
+ * @param[in]     grid   Grid interpolation state
+ * @param[in]     corr   Merged correction snapshot
+ * @param[in,out] ssat   Satellite status array
+ * @param[in]     opt    Processing options
+ * @param[in,out] sol    Solution struct
+ * @param[out]    osr    OSR output per satellite
+ * @param[in]     ch     SSR channel (0 or 1)
+ * @return Number of valid measurements
+ */
+int clas_osr_zdres(const obsd_t *obs, int n, const double *rs, const double *dts,
+                   const double *vare, const int *svh, nav_t *nav,
+                   double *x, double *y, double *e, double *azel,
+                   rtk_t *rtk, int osrlog,
+                   clas_osr_ctx_t *osr_ctx, clas_grid_t *grid,
+                   clas_corr_t *corr, ssat_t *ssat,
+                   prcopt_t *opt, sol_t *sol, clas_osrd_t *osr, int ch);
+
+/**
+ * @brief Compensate time variation of signal bias and ionosphere delay.
+ * @param[in]     corr    Merged correction snapshot
+ * @param[in]     index   Grid point indices
+ * @param[in]     obs     Observation for this satellite
+ * @param[in]     sat     Satellite number
+ * @param[in]     iono    Ionosphere delay (m)
+ * @param[in]     pb      Phase biases per frequency
+ * @param[out]    compL   Compensation output per frequency
+ * @param[in,out] pbreset Phase bias reset flags
+ * @param[in]     opt     Processing options
+ * @param[in]     ssat    Satellite status
+ * @param[in]     ch      SSR channel
+ * @param[in,out] osr_ctx OSR context for persistent state
+ * @param[in]     nav     Navigation data (for wavelengths)
+ */
+void clas_osr_compensatedisp(clas_corr_t *corr, const int *index,
+                             const obsd_t *obs, int sat,
+                             double iono, const double *pb,
+                             double *compL, int *pbreset,
+                             const prcopt_t *opt, ssat_t ssat, int ch,
+                             clas_osr_ctx_t *osr_ctx, const nav_t *nav);
+
+/**
+ * @brief Assemble per-satellite ionosphere/bias/antenna corrections.
+ * @param[in]     obs     Observation for this satellite
+ * @param[in,out] nav     Navigation data
+ * @param[in]     pos     Receiver position {lat,lon,hgt} (rad,m)
+ * @param[in]     azel    Azimuth/elevation for this satellite
+ * @param[in]     opt     Processing options
+ * @param[in]     grid    Grid interpolation state
+ * @param[in]     corr    Merged correction snapshot
+ * @param[in]     ssat    Satellite status
+ * @param[out]    brk     Slip break flag
+ * @param[out]    osr     OSR output for this satellite
+ * @param[in,out] pbreset Phase bias reset flags
+ * @param[in]     ch      SSR channel
+ * @param[in,out] osr_ctx OSR context
+ * @return 1=ok, 0=error (stale bias, missing iono)
+ */
+int clas_osr_corrmeas(const obsd_t *obs, nav_t *nav, const double *pos,
+                      const double *azel, const prcopt_t *opt,
+                      clas_grid_t *grid, clas_corr_t *corr,
+                      ssat_t ssat, int *brk, clas_osrd_t *osr,
+                      int *pbreset, int ch, clas_osr_ctx_t *osr_ctx);
+
+/**
+ * @brief Initialize OSR conversion context.
+ * @param[out] ctx  OSR context to initialize
+ */
+void clas_osr_ctx_init(clas_osr_ctx_t *ctx);
 
 /*============================================================================
  * CSSR Helper Functions

@@ -978,6 +978,8 @@ extern int rtksvrstart(rtksvr_t *svr, int cycle, int buffsize, int *strs,
             if (svr->clas) clas_ctx_init(svr->clas);
         }
     }
+    /* wire CLAS context into nav for PPP-RTK engine access */
+    svr->nav.clas_ctx=svr->clas;
 
     /* open input streams */
     for (i=0;i<8;i++) {

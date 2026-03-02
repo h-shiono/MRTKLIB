@@ -403,6 +403,7 @@ typedef struct {        /* navigation data type */
     dgps_t dgps[MAXSAT]; /* DGPS corrections */
     ssr_t ssr[MAXSAT];  /* SSR corrections */
     pppiono_t *pppiono; /* PPP ionospheric corrections (MADOCA-PPP L6D) (heap) */
+    void *clas_ctx;     /* CLAS CSSR correction context (NULL if unused) */
     stat_t stat;        /* stat corrections */
     osb_t osb;          /* Observable-specific Signal Bias data */
     char biapath [MAXSTRPATH]; /* bias sinex file path */
