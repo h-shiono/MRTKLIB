@@ -63,6 +63,7 @@ extern "C" {
 #define STRFMT_NMEA  17                 /* stream format: NMEA 0183 */
 #define STRFMT_STAT  20                 /* stream format: stat */
 #define STRFMT_L6E   21                 /* stream format: L6E CSSR */
+#define STRFMT_CLAS  22                 /* stream format: CLAS L6 CSSR */
 
 /*============================================================================
  * Receiver Raw Data Control Type

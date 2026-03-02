@@ -34,6 +34,7 @@
 #include "mrtklib/mrtk_rtcm.h"
 #include "mrtklib/mrtk_madoca.h"
 #include "mrtklib/mrtk_madoca_local_corr.h"
+#include "mrtklib/mrtk_clas.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -105,6 +106,10 @@ static FILE *fp_qzssl6d[MIONO_MAX_PRN]; /* QZSS L6D data file pointer */
 static char stat_file[1024]=""; /* stat data file */
 static char cstat_file[1024]="";/* current stat data file */
 static FILE *fp_stat=NULL;      /* stat data file pointer */
+static clas_ctx_t *clas_ctx=NULL;                  /* CLAS decoder context */
+static FILE *fp_clas[CLAS_CH_NUM];                 /* CLAS L6 file pointers */
+static char clas_file[CLAS_CH_NUM][1024];          /* CLAS L6 data file */
+static char clas_path[CLAS_CH_NUM][1024];          /* CLAS L6 data path */
 
 /* show message and check break ----------------------------------------------*/
 static int checkbrk(const char *format, ...)
@@ -415,6 +420,42 @@ static void update_stat(gtime_t time)
     }
     trace(NULL,3, "update_stat: %s %s\n", time_str(time, 3), tstr);
 }
+/* update CLAS L6 corrections -----------------------------------------------*/
+static void update_clas(gtime_t time)
+{
+    int ch,ret;
+    char path[1024];
+
+    for (ch=0;ch<CLAS_CH_NUM;ch++) {
+        if (!*clas_file[ch]) continue;
+
+        /* open or swap CLAS L6 file */
+        reppath(clas_file[ch],path,time,"","");
+
+        if (strcmp(path,clas_path[ch])) {
+            strcpy(clas_path[ch],path);
+            if (fp_clas[ch]) fclose(fp_clas[ch]);
+            fp_clas[ch]=fopen(path,"rb");
+            if (fp_clas[ch]) {
+                trace(NULL,2,"clas l6 file open: %s\n",path);
+            }
+        }
+        if (!fp_clas[ch]) continue;
+
+        /* read CSSR until current observation time */
+        while (timediff(clas_ctx->l6buf[ch].time,time)<1E-3) {
+            ret=clas_input_cssrf(clas_ctx,fp_clas[ch],ch);
+            if (ret<-1) break; /* EOF */
+            if (ret==10) {
+                /* new CSSR message decoded: merge bank and update nav */
+                clas_bank_get_close(clas_ctx,clas_ctx->l6buf[ch].time,
+                                    clas_ctx->grid[ch].network,ch,
+                                    &clas_ctx->current[ch]);
+                clas_update_global(&navs,&clas_ctx->current[ch],ch);
+            }
+        }
+    }
+}
 /* input obs data, navigation messages and sbas correction -------------------*/
 static int inputobs(obsd_t *obs, int solq, const prcopt_t *popt)
 {
@@ -473,6 +514,10 @@ static int inputobs(obsd_t *obs, int solq, const prcopt_t *popt)
                     update_qzssl6d(obs[0].time, j, popt->pppopt);
                 }
             }
+        }
+        /* update CLAS L6 corrections */
+        if (clas_ctx) {
+            update_clas(obs[0].time);
         }
         /* update stat corrections */
         if (*stat_file) {
@@ -745,6 +790,9 @@ static void readpreceph(char **infile, int n, const prcopt_t *prcopt,
     for (i=0;i<MIONO_MAX_PRN;i++) {
         qzssl6d_file[i][0]=qzssl6d_path[i][0]='\0'; fp_qzssl6d[i]=NULL;
     }
+    for (i=0;i<CLAS_CH_NUM;i++) {
+        clas_file[i][0]=clas_path[i][0]='\0'; fp_clas[i]=NULL;
+    }
     stat_file[0]   =cstat_file[0]='\0'  ; fp_stat=NULL;
 
     for (i=0;i<n;i++) {
@@ -757,19 +805,26 @@ static void readpreceph(char **infile, int n, const prcopt_t *prcopt,
         }
     }
 
-    /* MADOCA-PPP L6 files: discriminate L6D (.200.l6/.201.l6) from L6E */
+    /* MADOCA-PPP L6 and CLAS L6 files: discriminate by PRN and -clas option */
     {
-        int nf_l6d=0;
+        int nf_l6d=0,nf_clas=0;
+        int clas_mode=strstr(prcopt->pppopt,"-clas")!=NULL;
 
         for (i=0;i<n;i++) {
             if ((ext=strrchr(infile[i],'.'))&&
                 (!strcmp(ext,".l6")||!strcmp(ext,".L6"))) {
 
-                /* L6D (PRN=200,201) */
+                /* L6D (PRN=200,201) — always detected */
                 if ((ext-infile[i]>=4) &&
                     (!strcmp(ext-4,".200.l6")||!strcmp(ext-4,".200.L6")||
                      !strcmp(ext-4,".201.l6")||!strcmp(ext-4,".201.L6"))) {
                     if (nf_l6d<MIONO_MAX_PRN) strcpy(qzssl6d_file[nf_l6d++],infile[i]);
+                }
+                /* CLAS (PRN=204,206) — only when -clas option specified */
+                else if (clas_mode&&(ext-infile[i]>=4) &&
+                    (!strcmp(ext-4,".204.l6")||!strcmp(ext-4,".204.L6")||
+                     !strcmp(ext-4,".206.l6")||!strcmp(ext-4,".206.L6"))) {
+                    if (nf_clas<CLAS_CH_NUM) strcpy(clas_file[nf_clas++],infile[i]);
                 }
                 else if (!*qzssl6e_file) { /* L6E (first match only) */
                     strcpy(qzssl6e_file,infile[i]);
@@ -782,6 +837,12 @@ static void readpreceph(char **infile, int n, const prcopt_t *prcopt,
         /* allocate pppiono if L6D files found */
         if (nf_l6d > 0 && !nav->pppiono) {
             nav->pppiono = (pppiono_t *)calloc(1, sizeof(pppiono_t));
+        }
+
+        /* initialize CLAS context if files found */
+        if (nf_clas>0&&!clas_ctx) {
+            clas_ctx=(clas_ctx_t *)calloc(1,sizeof(clas_ctx_t));
+            if (clas_ctx) clas_ctx_init(clas_ctx);
         }
     }
 
@@ -813,6 +874,16 @@ static void freepreceph(nav_t *nav, sbs_t *sbs)
     if (fp_rtcm) fclose(fp_rtcm);
     free_rtcm(&rtcm);
     free_rtcm(&l6e);
+
+    /* free CLAS context */
+    if (clas_ctx) {
+        for (i=0;i<CLAS_CH_NUM;i++) {
+            if (fp_clas[i]) { fclose(fp_clas[i]); fp_clas[i]=NULL; }
+        }
+        clas_ctx_free(clas_ctx);
+        free(clas_ctx);
+        clas_ctx=NULL;
+    }
 }
 /* read obs and nav data -----------------------------------------------------*/
 static int readobsnav(gtime_t ts, gtime_t te, double ti, char **infile,

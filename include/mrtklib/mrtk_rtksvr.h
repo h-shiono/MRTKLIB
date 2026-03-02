@@ -39,6 +39,7 @@ extern "C" {
 #include "mrtklib/mrtk_rtcm.h"
 #include "mrtklib/mrtk_rtkpos.h"
 #include "mrtklib/mrtk_stream.h"
+#include "mrtklib/mrtk_clas.h"
 
 /*============================================================================
  * RTK Server Type
@@ -86,6 +87,7 @@ typedef struct {        /* RTK server type */
     double bl_reset;    /* baseline length to reset (km) */
     rtk_lock_t lock;    /* lock flag */
     mrtk_ctx_t *ctx;    /* runtime context */
+    clas_ctx_t *clas;   /* CLAS CSSR decoder context (NULL if unused) */
 } rtksvr_t;
 
 /*============================================================================

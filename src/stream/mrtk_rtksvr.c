@@ -415,6 +415,17 @@ static int decoderaw(rtksvr_t *svr, int index)
         else if (svr->format[index]==STRFMT_L6E) {
             ret=input_qzssl6e(svr->rtcm+index,svr->buff[index][i]);
         }
+        else if (svr->format[index]==STRFMT_CLAS) {
+            if (svr->clas) {
+                ret=clas_input_cssr(svr->clas,svr->buff[index][i],0);
+                if (ret==10) {
+                    clas_bank_get_close(svr->clas,svr->clas->l6buf[0].time,
+                                        svr->clas->grid[0].network,0,
+                                        &svr->clas->current[0]);
+                    clas_update_global(&svr->nav,&svr->clas->current[0],0);
+                }
+            }
+        }
         else if (svr->format[index]==STRFMT_STAT) {
             /* decode stat */
             ret=input_stat(&svr->sstat,svr->buff[index][i],buff[index],&nbyte[index]);
@@ -794,8 +805,9 @@ extern int rtksvrinit(rtksvr_t *svr)
     for (i=0;i<3;i++) *svr->cmds_periodic[i]='\0';
     *svr->cmd_reset='\0';
     svr->bl_reset=10.0;
+    svr->clas=NULL;
     rtk_initlock(&svr->lock);
-    
+
     return 1;
 }
 /* free rtk server -------------------------------------------------------------
@@ -814,6 +826,11 @@ extern void rtksvrfree(rtksvr_t *svr)
         free(svr->obs[i][j].data);
     }
     rtkfree(&svr->rtk);
+    if (svr->clas) {
+        clas_ctx_free(svr->clas);
+        free(svr->clas);
+        svr->clas=NULL;
+    }
 }
 /* lock/unlock rtk server ------------------------------------------------------
 * lock/unlock rtk server
@@ -953,6 +970,14 @@ extern int rtksvrstart(rtksvr_t *svr, int cycle, int buffsize, int *strs,
 
     /* store global context for thread use */
     svr->ctx=g_mrtk_ctx;
+
+    /* initialize CLAS context if STRFMT_CLAS format is used */
+    for (i=0;i<3;i++) {
+        if (formats[i]==STRFMT_CLAS&&!svr->clas) {
+            svr->clas=(clas_ctx_t *)calloc(1,sizeof(clas_ctx_t));
+            if (svr->clas) clas_ctx_init(svr->clas);
+        }
+    }
 
     /* open input streams */
     for (i=0;i<8;i++) {
