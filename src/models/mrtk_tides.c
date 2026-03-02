@@ -136,7 +136,7 @@ static void tide_solid(const double *rsun, const double *rmoon,
 #endif /* !IERS_MODEL */
 
 /* displacement by ocean tide loading (ref [2] 7) ----------------------------*/
-static void tide_oload(gtime_t tut, const double *odisp, double *denu)
+extern void tide_oload(gtime_t tut, const double *odisp, double *denu)
 {
     const double args[][5]={
         {1.40519E-4, 2.0,-2.0, 0.0, 0.00},  /* M2 */

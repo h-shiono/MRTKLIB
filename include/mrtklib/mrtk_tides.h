@@ -59,6 +59,14 @@ extern "C" {
 void tidedisp(gtime_t tutc, const double *rr, int opt, const erp_t *erp,
               const double *odisp, double *dr);
 
+/**
+ * @brief Compute displacement by ocean tide loading (11 constituents).
+ * @param[in]  tut    Time in UT
+ * @param[in]  odisp  Ocean tide loading parameters (6*11 values)
+ * @param[out] denu   Displacement in ENU (m)
+ */
+void tide_oload(gtime_t tut, const double *odisp, double *denu);
+
 #ifdef __cplusplus
 }
 #endif

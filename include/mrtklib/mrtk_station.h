@@ -29,6 +29,7 @@ extern "C" {
 #endif
 
 #include <stdint.h>
+#include <stdio.h>
 
 /*============================================================================
  * Station Parameter I/O Functions
@@ -52,6 +53,14 @@ int readelmask(const char *file, int16_t *elmask);
  *                   (all 0 if search error)
  */
 void readpos(const char *file, const char *rcv, double *pos);
+
+/**
+ * @brief Read a single BLQ record (6 lines x 11 values).
+ * @param[in]  fp     Open file pointer
+ * @param[out] odisp  Ocean tide loading parameters (6*11 values)
+ * @return 1:ok, 0:format error or EOF
+ */
+int readblqrecord(FILE *fp, double *odisp);
 
 /**
  * @brief Read BLQ ocean tide loading parameters.

@@ -30,6 +30,7 @@
 #include "mrtklib/mrtk_mat.h"
 #include "mrtklib/mrtk_time.h"
 #include "mrtklib/mrtk_trace.h"
+#include "mrtklib/mrtk_station.h"
 
 /*============================================================================
  * Local Constants
@@ -795,4 +796,74 @@ extern void clas_init_oload(clas_ctx_t *ctx)
     for (i = 0; i < CLAS_MAX_NETWORK; i++) {
         ctx->oload[i].gridnum = 0;
     }
+}
+/* read blq ocean tide loading parameters for CLAS grid ----------------------
+* read blq ocean tide loading parameters for each grid point
+* args   : char       *file  I   BLQ ocean tide loading parameter file
+*          clas_ctx_t *ctx    IO  CLAS context (oload[] populated)
+* return : status (1:ok, 0:file open error)
+* notes  : file format: "net-gridno" header, 3 comment lines (last has lon/lat),
+*          then 6 lines x 11 values (standard BLQ record)
+*          ported from upstream claslib rtkcmn.c:readblqgrid()
+*----------------------------------------------------------------------------*/
+extern int readblqgrid(const char *file, clas_ctx_t *ctx)
+{
+    FILE *fp;
+    char buff[256], *str, *str2;
+    int net, gridno, i;
+
+    trace(NULL, 3, "readblqgrid: file=%s\n", file);
+
+    if (!(fp = fopen(file, "r"))) {
+        trace(NULL, 2, "blq grid file open error: file=%s\n", file);
+        return 0;
+    }
+    while (fgets(buff, sizeof(buff), fp)) {
+        if (!strncmp(buff, "$$", 2) || strlen(buff) < 2) continue;
+
+        /* parse "net-gridno" format (e.g., "1-1", "10-23") */
+        str = strtok(buff, "-");
+        if (!str) continue;
+        net = atoi(str);
+        str = strtok(NULL, "-");
+        if (!str) continue;
+        gridno = atoi(str);
+
+        if (net < 1 || net > CLAS_MAX_NETWORK ||
+            gridno < 1 || gridno > CLAS_MAX_GP) {
+            trace(NULL, 1, "readblqgrid: net/grid overflow [%d-%d]\n",
+                  net, gridno);
+            continue;
+        }
+
+        /* skip 3 comment/header lines; the 3rd contains lon/lat */
+        for (i = 0; i < 3; i++) {
+            if (!fgets(buff, sizeof(buff), fp)) break;
+        }
+        if (i < 3) break;
+
+        /* parse lon/lat from last comment line:
+         * "$$ 1-1, ... lon/lat: 125.3700 24.7500 0.000" */
+        str = strtok(buff, ":");
+        str = strtok(NULL, ":");
+        if (str) {
+            str2 = strtok(str, " ");
+            if (str2) ctx->oload[net - 1].pos[gridno - 1][0] = atof(str2);
+            str2 = strtok(NULL, " ");
+            if (str2) ctx->oload[net - 1].pos[gridno - 1][1] = atof(str2);
+        }
+
+        /* read 6-line BLQ record (11 constituents x 6 components) */
+        if (!readblqrecord(fp, ctx->oload[net - 1].odisp[gridno - 1])) {
+            trace(NULL, 1, "readblqgrid: format error at net=%d grid=%d\n",
+                  net, gridno);
+            fclose(fp);
+            return 0;
+        }
+        ctx->oload[net - 1].gridnum++;
+    }
+    fclose(fp);
+
+    trace(NULL, 3, "readblqgrid: loaded grid OTL data\n");
+    return 1;
 }

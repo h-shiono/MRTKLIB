@@ -261,6 +261,10 @@ static double varerr(int sat, int sys, double el, int type,
         if (opt->ionoopt == IONOOPT_IFLC) fact *= 3.0;
         a = fact * opt->err[1];
         b = fact * opt->err[2];
+        /* Note: upstream adds iono (err[5]) and trop (err[6]) variance
+         * components when ionoopt==IONOOPT_EST or tropopt>=TROPOPT_EST.
+         * Not applicable here: ionoopt=EST_ADPT, tropopt=off, and
+         * err[] array is only size 5. Extend when needed. */
     }
     return a * a + b * b / sinel / sinel;
 }

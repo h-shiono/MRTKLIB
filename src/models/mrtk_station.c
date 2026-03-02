@@ -43,7 +43,7 @@
  *===========================================================================*/
 
 /* read blq record -----------------------------------------------------------*/
-static int readblqrecord(FILE *fp, double *odisp)
+extern int readblqrecord(FILE *fp, double *odisp)
 {
     double v[11];
     char buff[256];

@@ -590,7 +590,7 @@ add_test(NAME claslib_ppp_rtk_check
     COMMAND ${Python3_EXECUTABLE} ${_COMPARE_NMEA}
         ${_CLSDATA}/ref_L6.nmea
         ${CMAKE_BINARY_DIR}/out_claslib_ppp_rtk.nmea
-        --tolerance 0.15
+        --tolerance 0.10
 )
 set_tests_properties(claslib_ppp_rtk_check PROPERTIES
     DEPENDS           claslib_ppp_rtk

@@ -782,6 +782,14 @@ int clas_trop_grid_data(clas_corr_t *corr, const int *index,
  */
 void clas_init_oload(clas_ctx_t *ctx);
 
+/**
+ * @brief Read BLQ ocean tide loading parameters for CLAS grid points.
+ * @param[in]     file  BLQ grid file
+ * @param[in,out] ctx   CLAS context (oload[] populated)
+ * @return 1:ok, 0:file open error
+ */
+int readblqgrid(const char *file, clas_ctx_t *ctx);
+
 /*============================================================================
  * OSR (SSR→OSR) Conversion Context (mrtk_clas_osr.c)
  *

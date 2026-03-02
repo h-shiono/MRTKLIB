@@ -641,6 +641,62 @@ int clas_osr_corrmeas(const obsd_t *obs, nav_t *nav, const double *pos,
 }
 
 /*============================================================================
+ * ocean_tide_clasgrid -- Grid-interpolated Ocean Tide Loading
+ *===========================================================================*/
+
+/**
+ * @brief Compute ocean tide loading displacement using CLAS grid interpolation.
+ *
+ * Evaluates tide_oload() at each surrounding grid point, then interpolates
+ * using bilinear (Gmat/Emat) or weighted average.
+ * Ported from upstream claslib ppp.c:ocean_tide_clasgrid().
+ *
+ * @param[in]  tut     Time in UT
+ * @param[in]  oload   Ocean loading data for the selected network
+ * @param[in]  index   Grid point indices (from clas_grid_t)
+ * @param[in]  nn      Number of grid points (1-4)
+ * @param[in]  E       ENU rotation matrix (3x3)
+ * @param[in]  Emat    Interpolation basis vector (4x1, can be NULL)
+ * @param[in]  Gmat    Interpolation matrix (4x4, can be NULL)
+ * @param[in]  weight  Interpolation weights (4x1)
+ * @param[out] dr      Displacement (ECEF, m) — accumulated
+ */
+static void ocean_tide_clasgrid(gtime_t tut, const clas_oload_t *oload,
+                                 const int *index, int nn,
+                                 const double *E, const double *Emat,
+                                 const double *Gmat, const double *weight,
+                                 double *dr)
+{
+    int i, j;
+    double drt[3], val[4], val_[4], denu_grid[4][3], denu[3] = {0};
+
+    /* compute OTL displacement at each surrounding grid point */
+    for (i = 0; i < nn && i < 4; i++) {
+        tide_oload(tut, oload->odisp[index[i]], denu_grid[i]);
+    }
+
+    if (nn == 4 && Gmat && Emat) {
+        /* bilinear interpolation using Gmat/Emat matrices */
+        for (i = 0; i < 3; i++) {
+            for (j = 0; j < nn; j++) val[j] = denu_grid[j][i];
+            matmul("NN", nn, 1, nn, 1.0, Gmat, val, 0.0, val_);
+            denu[i] = dot(Emat, val_, 4);
+        }
+    } else {
+        /* weighted average fallback */
+        for (i = 0; i < nn; i++) {
+            for (j = 0; j < 3; j++) denu[j] += denu_grid[i][j] * weight[i];
+        }
+    }
+
+    matmul("TN", 3, 1, 3, 1.0, E, denu, 0.0, drt);
+    for (i = 0; i < 3; i++) dr[i] += drt[i];
+
+    trace(NULL, 5, "ocean_tide_clasgrid: denu=%.4f %.4f %.4f\n",
+          denu[0], denu[1], denu[2]);
+}
+
+/*============================================================================
  * clas_osr_zdres -- Zero-Differenced Phase/Code Residuals
  *===========================================================================*/
 
@@ -736,10 +792,48 @@ int clas_osr_zdres(const obsd_t *obs, int n, const double *rs,
         return 0;
     }
 
-    /* earth tides correction */
+    /* earth tides correction
+     * upstream claslib uses switch/case semantics for tidecorr:
+     *   0: off
+     *   1: solid only
+     *   2: solid + station OTL + pole
+     *   3: solid + grid OTL + pole (CLAS grid interpolation)
+     * MRTKLIB's tidedisp() uses bitmask: 1=solid, 2=OTL, 4=pole
+     * We translate here to match upstream behavior. */
     if (opt->tidecorr) {
-        tidedisp(gpst2utc(obs_copy[0].time), rr, opt->tidecorr, &nav->erp,
-                 opt->odisp[0], disp);
+        if (opt->tidecorr == 3) {
+            /* solid + grid OTL + pole */
+            tidedisp(gpst2utc(obs_copy[0].time), rr, 5, &nav->erp,
+                     NULL, disp); /* bitmask 5 = solid(1) + pole(4) */
+
+            /* grid-interpolated ocean tide loading */
+            clas_ctx_t *ctx = (clas_ctx_t *)nav->clas_ctx;
+            if (ctx && grid->network > 0 &&
+                ctx->oload[grid->network - 1].gridnum > 0) {
+                gtime_t tut;
+                double erpv[5] = {0}, pos_[2], E_[9];
+                if (nav->erp.n > 0) {
+                    geterp(&nav->erp, utc2gpst(gpst2utc(obs_copy[0].time)),
+                           erpv);
+                }
+                tut = timeadd(gpst2utc(obs_copy[0].time), erpv[2]);
+                pos_[0] = asin(rr[2] / norm(rr, 3));
+                pos_[1] = atan2(rr[1], rr[0]);
+                xyz2enu(pos_, E_);
+                ocean_tide_clasgrid(tut,
+                    &ctx->oload[grid->network - 1],
+                    grid->index, grid->num,
+                    E_, grid->Emat, grid->Gmat, grid->weight, disp);
+            }
+        } else if (opt->tidecorr == 2) {
+            /* solid + station OTL + pole */
+            tidedisp(gpst2utc(obs_copy[0].time), rr, 7, &nav->erp,
+                     opt->odisp[0], disp); /* bitmask 7 = solid+OTL+pole */
+        } else {
+            /* tidecorr == 1: solid only */
+            tidedisp(gpst2utc(obs_copy[0].time), rr, 1, &nav->erp,
+                     NULL, disp);
+        }
         for (i = 0; i < 3; i++) rr[i] += disp[i];
         ecef2pos(rr, pos);
     }

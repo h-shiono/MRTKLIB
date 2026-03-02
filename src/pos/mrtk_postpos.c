@@ -1308,6 +1308,14 @@ static int execses(mrtk_ctx_t *ctx, gtime_t ts, gtime_t te, double ti, const prc
         readL2C(fopt->phacyc, &navs);
         trace(NULL, 3, "execses: L2C table loaded n=%d\n", navs.sfts.n);
     }
+    /* read grid BLQ file for CLAS grid OTL (tidecorr=3) */
+    if (clas_ctx && popt_.tidecorr == 3 && *fopt->blq) {
+        if (!readblqgrid(fopt->blq, clas_ctx)) {
+            trace(NULL, 1, "grid blq file error: %s\n", fopt->blq);
+        } else {
+            trace(NULL, 3, "execses: grid BLQ loaded from %s\n", fopt->blq);
+        }
+    }
     /* copy station info to nav and set ISB */
     if (clas_ctx) {
         memcpy(navs.stas, stas, sizeof(sta_t) * MAXRCV);
