@@ -2149,7 +2149,14 @@ extern int rtkpos(mrtk_ctx_t *ctx, rtk_t *rtk, const obsd_t *obs, int n, nav_t *
         clas_ctx_t *clas = (clas_ctx_t *)nav->clas_ctx;
         static clas_osrd_t osr_buf[MAXOBS];
         if (clas) {
-            clas_ssr2osr(rtk, obs, nu, nav, osr_buf, 0, clas);
+            int nobs = clas_ssr2osr(rtk, obs, nu, nav, osr_buf, 0, clas);
+            if (nobs > 0) {
+                /* set solution for outsol() output */
+                for (i = 0; i < 3; i++) rtk->sol.rr[i] = rtk->x[i];
+                rtk->sol.stat = SOLQ_PPP;
+                rtk->sol.time = obs[0].time;
+                rtk->sol.ns = (uint8_t)nobs;
+            }
         }
         outsolstat(rtk);
         return 1;

@@ -150,9 +150,15 @@ add_executable(ssr2obs
 )
 target_link_libraries(ssr2obs PRIVATE mrtklib)
 
+# ── ssr2osr ──────────────────────────────────────────────────────────────────
+add_executable(ssr2osr
+    apps/ssr2osr/ssr2osr.c
+)
+target_link_libraries(ssr2osr PRIVATE mrtklib)
+
 # ── Install ───────────────────────────────────────────────────────────────────
 # cmake --install build  →  copies binaries to bin/ (matches make install)
-install(TARGETS rnx2rtkp rtkrcv recvbias ssr2obs RUNTIME DESTINATION bin)
+install(TARGETS rnx2rtkp rtkrcv recvbias ssr2obs ssr2osr RUNTIME DESTINATION bin)
 
 # ── Utility tools (optional) ─────────────────────────────────────────────────
 # Build with: cmake --preset default -DBUILD_UTILS=ON
@@ -871,4 +877,42 @@ set_tests_properties(claslib_ssr2obs_vrs_rtk_check PROPERTIES
     DEPENDS           claslib_ssr2obs_vrs_rtk
     FIXTURES_REQUIRED claslib_data
     LABELS            "regression;claslib;vrs"
+)
+
+# ── ssr2osr regression: apply SSR corrections to real obs and verify output ──
+# Step 1: Run ssr2osr with real observations + L6 corrections
+add_test(NAME claslib_ssr2osr
+    COMMAND $<TARGET_FILE:ssr2osr>
+        -k ${CMAKE_SOURCE_DIR}/conf/claslib/ssr2osr.conf
+        -ts 2019/08/27 16:00:00 -te 2019/08/27 16:59:59 -ti 1
+        -o ${CMAKE_BINARY_DIR}/out_ssr2osr.nmea
+        ${_CLSDATA}/0627239Q.obs ${_CLSDATA}/sept_2019239.nav ${_CLSDATA}/2019239Q.l6
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+set_tests_properties(claslib_ssr2osr PROPERTIES
+    FIXTURES_REQUIRED claslib_data
+    TIMEOUT           300
+    LABELS            "regression;claslib"
+)
+
+# Step 2: Verify output is non-empty and positions match config
+add_test(NAME claslib_ssr2osr_check
+    COMMAND ${Python3_EXECUTABLE} -c "
+import sys
+lines=[l for l in open(sys.argv[1]) if l.startswith('$GPGGA') or l.startswith('$GNGGA')]
+assert len(lines)>=100, f'too few GGA sentences: {len(lines)}'
+for l in lines[:5]:
+    f=l.split(',')
+    lat=float(f[2][:2])+float(f[2][2:])/60.0
+    lon=float(f[4][:3])+float(f[4][3:])/60.0
+    assert abs(lat-36.1036)<0.01, f'lat {lat}'
+    assert abs(lon-140.0863)<0.01, f'lon {lon}'
+print(f'OK: {len(lines)} GGA sentences, position verified')
+"
+        ${CMAKE_BINARY_DIR}/out_ssr2osr.nmea
+)
+set_tests_properties(claslib_ssr2osr_check PROPERTIES
+    DEPENDS           claslib_ssr2osr
+    FIXTURES_REQUIRED claslib_data
+    LABELS            "regression;claslib"
 )

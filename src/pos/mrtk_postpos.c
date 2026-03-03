@@ -848,6 +848,7 @@ static void readpreceph(char **infile, int n, const prcopt_t *prcopt,
     {
         int nf_l6d=0,nf_clas=0;
         int clas_mode=(prcopt->mode==PMODE_PPP_RTK)||
+                      (prcopt->mode>=PMODE_SSR2OSR&&prcopt->mode<=PMODE_SSR2OSR_FIXED)||
                       strstr(prcopt->pppopt,"-clas")!=NULL;
 
         for (i=0;i<n;i++) {
