@@ -515,14 +515,14 @@ set_tests_properties(madocalib_pppar_ion_check PROPERTIES
 # Tests:
 #   claslib_ppp_rtk         PPP-RTK with L6 (RINEX obs, 2019/239)
 #   claslib_ppp_rtk_bnx     PPP-RTK with L6 (BINEX obs, 2019/239)
+#   claslib_ppp_rtk_2ch     PPP-RTK with 2-channel L6 (2025/157)
+#   claslib_vrs_rtk         VRS-RTK (2019/239)
 #   claslib_ppp_rtk_st12    PPP-RTK with SubType 12 (BINEX obs, 2019/349)
+#   claslib_ppp_rtk_l1cl5   PPP-RTK with L1C+L5 frequency (2025/022)
 #
-# Not yet ported (require VRS mode, dual-channel, or separate config):
-#   claslib_ppp_rtk_vrs         VRS-RTK (needs VRS mode)
-#   claslib_ppp_rtk_st12_vrs   VRS-RTK + SubType 12 (needs VRS mode)
-#   claslib_ppp_rtk_2ch         2-channel L6 (needs dual-channel support)
+# Not yet ported:
+#   claslib_ppp_rtk_st12_vrs   VRS-RTK + SubType 12
 #   claslib_ppp_rtk_2ch_vrs    2-channel VRS-RTK
-#   claslib_ppp_rtk_l1cl5      L1C+L5 frequency (needs separate config)
 set(_CLSDATA  ${CMAKE_SOURCE_DIR}/tests/data/claslib)
 set(_COMPARE_NMEA ${CMAKE_SOURCE_DIR}/scripts/tests/compare_nmea.py)
 
@@ -696,11 +696,68 @@ set_tests_properties(claslib_vrs_rtk_check PROPERTIES
     LABELS            "regression;claslib;vrs"
 )
 
+# ── rnx2rtkp CLAS PPP-RTK regression (SubType 12 BINEX) ─────────────────────
+# Data: 2019/12/15 01:00-02:00, 0627349AB.bnx + sept_2019349.nav + 2019349B.l6
+# Reference: ref_ST12.nmea (upstream claslib output)
+add_test(NAME claslib_ppp_rtk_st12
+    COMMAND $<TARGET_FILE:rnx2rtkp>
+        -k ${CMAKE_SOURCE_DIR}/conf/claslib/rnx2rtkp.conf
+        -ts 2019/12/15 01:00:00 -te 2019/12/15 01:59:59 -ti 1
+        -o ${CMAKE_BINARY_DIR}/out_claslib_ppp_rtk_st12.nmea
+        ${_CLSDATA}/0627349AB.bnx
+        ${_CLSDATA}/sept_2019349.nav
+        ${_CLSDATA}/2019349B.l6
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+set_tests_properties(claslib_ppp_rtk_st12 PROPERTIES
+    FIXTURES_REQUIRED claslib_data
+    TIMEOUT           300
+    LABELS            "regression;claslib;ppp-rtk"
+)
+
+add_test(NAME claslib_ppp_rtk_st12_check
+    COMMAND ${Python3_EXECUTABLE} ${_COMPARE_NMEA}
+        ${_CLSDATA}/ref_ST12.nmea
+        ${CMAKE_BINARY_DIR}/out_claslib_ppp_rtk_st12.nmea
+        --tolerance 0.15
+)
+set_tests_properties(claslib_ppp_rtk_st12_check PROPERTIES
+    DEPENDS           claslib_ppp_rtk_st12
+    FIXTURES_REQUIRED claslib_data
+    LABELS            "regression;claslib;ppp-rtk"
+)
+
+# ── rnx2rtkp CLAS PPP-RTK regression (L1C+L5 frequency) ─────────────────────
+# Data: 2025/01/22 16:00-17:00, 0627022Q.bnx + 2025022Q.l6 (no separate nav)
+# Reference: ref_L6_L1CL5.nmea (upstream claslib output)
+add_test(NAME claslib_ppp_rtk_l1cl5
+    COMMAND $<TARGET_FILE:rnx2rtkp>
+        -k ${CMAKE_SOURCE_DIR}/conf/claslib/rnx2rtkp_L1CL5.conf
+        -ts 2025/01/22 16:00:00 -te 2025/01/22 16:59:59 -ti 1
+        -o ${CMAKE_BINARY_DIR}/out_claslib_ppp_rtk_l1cl5.nmea
+        ${_CLSDATA}/0627022Q.bnx
+        ${_CLSDATA}/2025022Q.l6
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+set_tests_properties(claslib_ppp_rtk_l1cl5 PROPERTIES
+    FIXTURES_REQUIRED claslib_data
+    TIMEOUT           300
+    LABELS            "regression;claslib;ppp-rtk"
+)
+
+add_test(NAME claslib_ppp_rtk_l1cl5_check
+    COMMAND ${Python3_EXECUTABLE} ${_COMPARE_NMEA}
+        ${_CLSDATA}/ref_L6_L1CL5.nmea
+        ${CMAKE_BINARY_DIR}/out_claslib_ppp_rtk_l1cl5.nmea
+        --tolerance 0.12
+)
+set_tests_properties(claslib_ppp_rtk_l1cl5_check PROPERTIES
+    DEPENDS           claslib_ppp_rtk_l1cl5
+    FIXTURES_REQUIRED claslib_data
+    LABELS            "regression;claslib;ppp-rtk"
+)
+
 # ── Not yet ported tests ─────────────────────────────────────────────────────
-# TODO: Add when BINEX SubType 12 support is verified:
-#   claslib_ppp_rtk_st12    — ref_ST12.nmea (needs 0627349AB.bnx + sept_2019349.nav)
 # TODO: Add when more VRS tests are ready:
 #   claslib_ppp_rtk_st12_vrs — ref_ST12_VRS.nmea (needs VRS + vrs2019349B.obs)
 #   claslib_ppp_rtk_2ch_vrs  — ref_L6_2CH_VRS.nmea (needs VRS + dual .l6)
-# TODO: Add when L1C/L5 config is ported:
-#   claslib_ppp_rtk_l1cl5    — ref_L6_L1CL5.nmea (needs kinematic_L1CL5.conf)

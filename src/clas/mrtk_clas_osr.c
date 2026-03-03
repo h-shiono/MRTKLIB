@@ -296,10 +296,9 @@ int clas_osr_selfreqpair(int sat, const prcopt_t *opt, const obsd_t *obs)
 
     sys = satsys(sat, NULL);
 
-    /* upstream uses posopt[10] for GPS, posopt[12] for QZS.
-     * MRTKLIB posopt is only 6 elements -- default to L1+L2 if out of range */
-    optf = 0;
-    (void)sys; /* suppress unused warning if needed */
+    /* GPS: posopt[10], QZS: posopt[12], default: 0 (→ L1+L2) */
+    optf = (sys == SYS_GPS) ? opt->posopt[10] :
+           (sys == SYS_QZS) ? opt->posopt[12] : 0;
 
     /* For GAL: prefer L5 if available */
     if (sys & SYS_GAL) {
@@ -307,10 +306,7 @@ int clas_osr_selfreqpair(int sat, const prcopt_t *opt, const obsd_t *obs)
         return 0;
     }
 
-    if (NFREQ == 1 || optf == POSL1) {
-        return 0;
-    }
-
+    if (NFREQ == 1 || optf == POSL1) return 0;
     if (optf == POSL1L2L5) return 1 + 2;
     if (optf == POSL1L5)   return 2;
     if (optf == POSL1L5_L2 && obs->L[2] != 0.0 && obs->P[2] != 0.0) return 2;
