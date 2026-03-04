@@ -184,6 +184,12 @@ static struct {
     /* consecutive FLOAT epoch counter for filter reset (floatcnt mechanism) */
     int float_count;
 
+    /* consecutive position error counter for maxdiffp reset */
+    int cntdiffp;
+
+    /* flag: floatcnt just triggered a mass reset (suppress pbreset) */
+    int floatcnt_reset;
+
     int initialized;
 } prtk_ctx;
 
@@ -218,15 +224,33 @@ static uint8_t obs_code_for_freq(int sat, int f)
 
 /**
  * @brief Compute satellite-specific wavelength for frequency index.
+ *
+ * Uses direct obs code to frequency mapping, bypassing obsdef tables which
+ * may be rearranged by apply_pppsig() for MADOCA PPP signal selection.
+ *
  * @param[in] sat Satellite number
  * @param[in] f   Frequency index (0,1,2)
- * @param[in] nav Navigation data (for GLONASS freq number)
+ * @param[in] nav Navigation data (unused, kept for API compatibility)
  * @return Wavelength in meters, or 0.0 if invalid
  */
 static double sat_lambda(int sat, int f, const nav_t *nav)
 {
-    double freq = sat2freq(sat, obs_code_for_freq(sat, f), nav);
-    return freq > 0.0 ? CLIGHT / freq : 0.0;
+    uint8_t code = obs_code_for_freq(sat, f);
+    char *obs = code2obs(code);
+    double freq = 0.0;
+
+    if (!obs || strlen(obs) < 2) return 0.0;
+
+    switch (obs[0]) {
+    case '1': freq = FREQ1; break;
+    case '2': freq = FREQ2; break;
+    case '5': freq = FREQ5; break;
+    case '6': freq = FREQ6; break;
+    case '7': freq = FREQ7; break;
+    case '8': freq = FREQ8; break;
+    default: return 0.0;
+    }
+    return CLIGHT / freq;
 }
 
 /*============================================================================
@@ -614,6 +638,7 @@ static void udbias_ppp(rtk_t *rtk, double tt, const obsd_t *obs, int n,
     for (i = 0; i < MAXSAT; i++) {
         for (j = 0; j < rtk->opt.nf; j++) {
             rtk->ssat[i].slip[j] = 0;
+            rtk->ssat[i].pbreset[j] = 0;
         }
     }
 
@@ -689,10 +714,17 @@ static void udbias_ppp(rtk_t *rtk, double tt, const obsd_t *obs, int n,
             initx(rtk, (bias[i] - com_bias) / lami, SQR(rtk->opt.std[0]),
                   IB_RTK(obs[i].sat, f, &rtk->opt));
             rtk->ssat[isat - 1].lock[f] = -rtk->opt.minlock;
+            /* suppress pbreset after floatcnt mass reset: not an actual
+             * phase bias change, so compensatedisp should continue normally */
+            if (!prtk_ctx.floatcnt_reset) {
+                rtk->ssat[isat - 1].pbreset[f] = 1;
+            }
         }
 
         free(bias);
     }
+    /* clear floatcnt_reset flag after bias update */
+    prtk_ctx.floatcnt_reset = 0;
 }
 
 /*============================================================================
@@ -1236,8 +1268,12 @@ static int ddres(rtk_t *rtk, const nav_t *nav, double *x, double *pbslip,
                 sysi = rtk->ssat[sati - 1].sys;
                 sysj = rtk->ssat[satj - 1].sys;
                 if (!test_sys(sysj, m, rtk->opt.qzsmodear,
-                              rtk->ssat[satj - 1].code[f % nf])) continue;
-                if (!validobs(j, f, nf, y)) continue;
+                              rtk->ssat[satj - 1].code[f % nf])) {
+                    continue;
+                }
+                if (!validobs(j, f, nf, y)) {
+                    continue;
+                }
 
                 ff = f % nf;
                 lami = sat_lambda(sati, ff, nav);
@@ -1880,6 +1916,7 @@ extern void ppp_rtk_pos(rtk_t *rtk, const obsd_t *obs, int n, nav_t *nav)
             for (i = NP_RTK(opt); i < rtk->nx; i++) rtk->x[i] = 0.0;
         }
         prtk_ctx.float_count = 0;
+        prtk_ctx.floatcnt_reset = 1;
     }
 
     /* temporal update of states */
@@ -2164,6 +2201,28 @@ extern void ppp_rtk_pos(rtk_t *rtk, const obsd_t *obs, int n, nav_t *nav)
                     }
                 }
             }
+        }
+    }
+
+    /* reset all states due to large difference between PPP-RTK and SPP positions */
+    if (opt->maxdiffp > 0.0 && norm(rtk->x, 3) > 0.0 && norm(rtk->sol.rr, 3) > 0.0) {
+        double dist2 = SQR(rtk->x[0] - rtk->sol.rr[0]) +
+                        SQR(rtk->x[1] - rtk->sol.rr[1]) +
+                        SQR(rtk->x[2] - rtk->sol.rr[2]);
+        if (dist2 > SQR(opt->maxdiffp)) {
+            ++prtk_ctx.cntdiffp;
+            if (prtk_ctx.cntdiffp > opt->poserrcnt) {
+                trace(NULL, 2, "reset all states due to large pos error dist=%.2f\n",
+                      sqrt(dist2));
+                stat = SOLQ_NONE;
+                for (i = 0; i < 3; i++) {
+                    rtk->x[i] = rtk->sol.rr[i];
+                    rtk->P[i + i * rtk->nx] = (double)rtk->sol.qr[i];
+                }
+                prtk_ctx.cntdiffp = 0;
+            }
+        } else {
+            prtk_ctx.cntdiffp = 0;
         }
     }
 

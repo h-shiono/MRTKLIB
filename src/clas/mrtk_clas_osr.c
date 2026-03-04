@@ -875,7 +875,7 @@ int clas_osr_zdres(const obsd_t *obs, int n, const double *rs,
         /* ionosphere, satellite code/phase bias and phase windup corrected */
         if (!clas_osr_corrmeas(obs_copy + i, nav, pos, azel + i * 2, opt,
                                grid, corr, ssat[sat - 1], &brk, osr + i,
-                               ssat[sat - 1].discont, ch, osr_ctx)) {
+                               ssat[sat - 1].pbreset, ch, osr_ctx)) {
             continue;
         }
 
