@@ -156,9 +156,15 @@ add_executable(ssr2osr
 )
 target_link_libraries(ssr2osr PRIVATE mrtklib)
 
+# ── dumpcssr ─────────────────────────────────────────────────────────────────
+add_executable(dumpcssr
+    apps/dumpcssr/dumpcssr.c
+)
+target_link_libraries(dumpcssr PRIVATE mrtklib)
+
 # ── Install ───────────────────────────────────────────────────────────────────
 # cmake --install build  →  copies binaries to bin/ (matches make install)
-install(TARGETS rnx2rtkp rtkrcv recvbias ssr2obs ssr2osr RUNTIME DESTINATION bin)
+install(TARGETS rnx2rtkp rtkrcv recvbias ssr2obs ssr2osr dumpcssr RUNTIME DESTINATION bin)
 
 # ── Utility tools (optional) ─────────────────────────────────────────────────
 # Build with: cmake --preset default -DBUILD_UTILS=ON

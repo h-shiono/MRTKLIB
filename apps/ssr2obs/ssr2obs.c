@@ -72,11 +72,18 @@ static const char *usage[] = {
     "  -ti tint          time interval (s) [1]",
     "  -k  file          configuration file []",
     "  -o  file          output file [" OUT_FILE "]",
-    "  -r                output RINEX3 OBS",
+    "  -r                output RINEX3 OBS (default)",
+    "  -b                output RTCM3 MSM4 binary",
+    "  -c  file          also write OSR corrections CSV to file",
     "  -x                debug trace level (0: no trace) [0]",
     "  file ...          QZSS L6 message file (.l6/.L6) and RINEX NAV files",
     NULL
 };
+
+#define OSR_CSV_HDR \
+    "msg,tow,sys,prn,pbias0,pbias1,pbias2," \
+    "cbias0,cbias1,cbias2,trop,iono," \
+    "CPC0,CPC1,CPC2,PRC0,PRC1,PRC2,sis\n"
 
 static rnxopt_t rnx_opt = {0};
 
@@ -140,7 +147,7 @@ static FILE *open_osr(const char *file, nav_t *nav, int mode,
 {
     FILE *fp = NULL;
 
-    if (!(fp = fopen(file, "w"))) {
+    if (!(fp = fopen(file, mode == OSR_RTCM3 ? "wb" : "w"))) {
         fprintf(stderr, "Output file open error. %s\n", file);
         return NULL;
     }
@@ -173,6 +180,71 @@ static void write_osr(FILE *fp, int mode, const obs_t *obs, nav_t *nav)
             rnx_opt.tend = obs->data[0].time;
         }
     }
+}
+
+/* write OSR corrections as CSV (one row per satellite) ----------------------*/
+static void output_osr_csv(FILE *fp, gtime_t time, int sat,
+                            const clas_osrd_t *osr, int *first)
+{
+    int sys, prn, week;
+    double tow;
+
+    if (*first) { fprintf(fp, OSR_CSV_HDR); *first = 0; }
+    sys = satsys(sat, &prn);
+    tow = time2gpst(time, &week);
+    fprintf(fp, "OSRRES,%.1f,%d,%d,", tow, sys, prn);
+    fprintf(fp, "%.3f,%.3f,%.3f,", osr->pbias[0], osr->pbias[1], osr->pbias[2]);
+    fprintf(fp, "%.3f,%.3f,%.3f,", osr->cbias[0], osr->cbias[1], osr->cbias[2]);
+    fprintf(fp, "%.3f,%.3f,",       osr->trop, osr->iono);
+    fprintf(fp, "%.3f,%.3f,%.3f,", osr->CPC[0], osr->CPC[1], osr->CPC[2]);
+    fprintf(fp, "%.3f,%.3f,%.3f,", osr->PRC[0], osr->PRC[1], osr->PRC[2]);
+    fprintf(fp, "%.3f\n",           osr->sis);
+}
+
+/* write VRS observations as RTCM3 MSM4 per constellation -------------------*/
+static const int rtcm3_msm_types[] = {1074, 1084, 1094, 1114, 0};
+static const int rtcm3_msm_sys[]   = {SYS_GPS, SYS_GLO, SYS_GAL, SYS_QZS, 0};
+
+static void write_rtcm3(FILE *fp, const obs_t *obs, nav_t *nav,
+                        const prcopt_t *prcopt)
+{
+    rtcm_t *rtcm;
+    int i, j, k, sys, sync;
+
+    if (obs->n <= 0) return;
+    if (!(rtcm = (rtcm_t *)calloc(1, sizeof(rtcm_t)))) return;
+    if (!init_rtcm(rtcm)) { free(rtcm); return; }
+    rtcm->time = obs->data[0].time;
+    matcpy(rtcm->sta.pos, prcopt->ru, 3, 1);
+
+    /* station coordinates message (1005); sync=1 — MSM follows */
+    if (gen_rtcm3(rtcm, 1005, 0, 1))
+        fwrite(rtcm->buff, rtcm->nbyte, 1, fp);
+
+    /* MSM4 per constellation — copy filtered obs into init_rtcm's heap buffer */
+    for (k = 0; rtcm3_msm_sys[k]; k++) {
+        sys = rtcm3_msm_sys[k];
+        rtcm->obs.n = 0;
+        for (i = 0; i < obs->n && rtcm->obs.n < MAXOBS; i++) {
+            if (satsys(obs->data[i].sat, NULL) & sys)
+                rtcm->obs.data[rtcm->obs.n++] = obs->data[i];
+        }
+        if (rtcm->obs.n <= 0) continue;
+
+        /* sync=1 if any later constellation has data */
+        sync = 0;
+        for (j = k + 1; rtcm3_msm_sys[j] && !sync; j++) {
+            for (i = 0; i < obs->n; i++) {
+                if (satsys(obs->data[i].sat, NULL) & rtcm3_msm_sys[j]) {
+                    sync = 1; break;
+                }
+            }
+        }
+        if (gen_rtcm3(rtcm, rtcm3_msm_types[k], 0, sync))
+            fwrite(rtcm->buff, rtcm->nbyte, 1, fp);
+    }
+    free_rtcm(rtcm);
+    free(rtcm);
 }
 
 /* calculate actual geometric distance between receiver and satellites -------*/
@@ -229,7 +301,7 @@ static int actualdist(gtime_t time, obs_t *obs, nav_t *nav, const double *x)
 /* generate OSR (main processing loop) --------------------------------------*/
 static int gen_osr(gtime_t ts, gtime_t te, double ti, int mode,
                    prcopt_t *prcopt, filopt_t *fopt,
-                   char **infile, int n, const char *outfile)
+                   char **infile, int n, const char *outfile, FILE *fp_csv)
 {
     static rtk_t rtk = {0};
     static obsd_t data[MAXOBS] = {{0}};
@@ -240,8 +312,9 @@ static int gen_osr(gtime_t ts, gtime_t te, double ti, int mode,
     obs_t obs = {0};
     gtime_t time;
     char path[1024];
-    int i, ret, nt;
+    int i, j, ret, nt;
     int ch = 0;
+    int first_csv = 1;
 
     nt = ti <= 0.0 ? 0 : (int)((timediff(te, ts)) / ti) + 1;
 
@@ -376,7 +449,15 @@ static int gen_osr(gtime_t ts, gtime_t te, double ti, int mode,
         obs.n = clas_ssr2osr(&rtk, obs.data, obs.n, nav, osr, 0, clas);
 
         if (obs.n > 0) {
-            write_osr(fp_out, mode, &obs, nav);
+            if (mode == OSR_RTCM3)
+                write_rtcm3(fp_out, &obs, nav, prcopt);
+            else
+                write_osr(fp_out, mode, &obs, nav);
+            if (fp_csv) {
+                for (j = 0; j < obs.n; j++)
+                    output_osr_csv(fp_csv, obs.data[j].time,
+                                   obs.data[j].sat, &osr[j], &first_csv);
+            }
         }
     }
 
@@ -429,8 +510,9 @@ int main(int argc, char **argv)
     filopt_t filopt = {""};
     gtime_t ts = {0}, te = {0};
     double es[6] = {0}, ee[6] = {0}, ti = 1.0, pos[3] = {0};
-    char *conffile = "", *outfile = OUT_FILE;
+    char *conffile = "", *outfile = OUT_FILE, *csvfile = NULL;
     char *infile[MAXFILE];
+    FILE *fp_csv = NULL;
     int i, j, n = 0, stat, mode = OSR_RINEX;
 
     prcopt.mode = PMODE_SSR2OSR;
@@ -456,8 +538,10 @@ int main(int argc, char **argv)
         }
         else if (!strcmp(argv[i], "-k") && i + 1 < argc) conffile = argv[++i];
         else if (!strcmp(argv[i], "-o") && i + 1 < argc) outfile = argv[++i];
+        else if (!strcmp(argv[i], "-c") && i + 1 < argc) csvfile = argv[++i];
         else if (!strcmp(argv[i], "-x") && i + 1 < argc) solopt.trace = atoi(argv[++i]);
         else if (!strcmp(argv[i], "-r")) mode = OSR_RINEX;
+        else if (!strcmp(argv[i], "-b")) mode = OSR_RTCM3;
         else if (!strncmp(argv[i], "-", 1)) {
             for (j = 0; usage[j]; j++) fprintf(stderr, "%s\n", usage[j]);
             return 0;
@@ -478,9 +562,14 @@ int main(int argc, char **argv)
         traceopen(NULL, "ssr2obs.trace");
         tracelevel(NULL, solopt.trace);
     }
+    if (csvfile && !(fp_csv = fopen(csvfile, "w"))) {
+        fprintf(stderr, "CSV file open error. %s\n", csvfile);
+        return -1;
+    }
 
-    stat = gen_osr(ts, te, ti, mode, &prcopt, &filopt, infile, n, outfile);
+    stat = gen_osr(ts, te, ti, mode, &prcopt, &filopt, infile, n, outfile, fp_csv);
 
+    if (fp_csv) fclose(fp_csv);
     traceclose(NULL);
     return stat;
 }
