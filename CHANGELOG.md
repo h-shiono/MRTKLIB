@@ -5,6 +5,112 @@ All notable changes to MRTKLIB are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v0.3.0] - 2026-03-06
+
+CLASLIB integration — adds QZSS CLAS L6D augmentation (PPP-RTK and VRS-RTK)
+via [CLASLIB](https://github.com/JAXA-SNU/claslib) ver.0.8.2 (`9e714b9`).
+Includes the complete CSSR decoder, grid correction engine, PPP-RTK positioning,
+VRS double-differenced RTK, dual-channel L6 support, and SSR→OSR utilities.
+
+### Added
+
+- **CLAS CSSR decoder** (`mrtk_clas.c`) — Full ST1–ST12 Compact SSR message
+  decoder supporting IS-QZSS-L6-007 two-channel L6 input.
+- **CLAS grid correction engine** (`mrtk_clas_grid.c`) — Tropospheric and STEC
+  grid interpolation derived from GSILIB v1.0.3 algorithms.
+- **PPP-RTK positioning engine** (`mrtk_ppp_rtk.c`) — CLAS centimeter-level
+  augmentation using double-differenced carrier-phase OSR corrections.
+  Accuracy: **5.9 cm 3D RMS, 99.86% fix** (single-channel, DOY 239/2019).
+- **VRS DD-RTK positioning engine** (`mrtk_vrs.c`, ~2050 lines) — Virtual
+  Reference Station double-differenced RTK using CLAS OSR corrections.
+  Accuracy: **3.3 cm 3D RMS, 99.86% fix** (DOY 239/2019).
+- **Multi-L6E dual-channel support** — `nav->ssr_ch[SSR_CH_NUM][MAXSAT]` and
+  `_mcssr[SSR_CH_NUM]` decoder array support two independent L6 channels
+  (ST12 mode, IS-QZSS-L6-007). ST12 accuracy: **10.8 cm 3D RMS, 98.75% fix**.
+- **BINEX file reading** — `readbnxt()` enables post-processing from Septentrio
+  BINEX raw observation files.
+- **Per-system frequency selection** (`posopt[10–12]`) — Independent L1/L2/L5
+  signal selection for GPS, GLONASS, Galileo, and QZSS.
+- **`ssr2obs` utility** — Standalone tool converting CLAS L6 corrections to
+  RINEX3 VRS pseudo-observations; also outputs OSR CSV and RTCM3 MSM4 format.
+- **`ssr2osr` utility** — Post-processing OSR verification tool (SSR→OSR via
+  `postpos()` with `PMODE_SSR2OSR`).
+- **`dumpcssr` utility** — CSSR message dump tool for L6 stream inspection.
+- **`clas_ssr2osr()` wrapper** — Public API for SSR→OSR conversion callable
+  from within `rtkpos()`.
+- **23 new regression tests** — PPP-RTK (10), VRS-RTK (9), ssr2obs/ssr2osr (3),
+  BINEX (1); total test count raised from 30 to 53.
+- **NMEA comparison infrastructure** (`scripts/tests/compare_nmea.py`) —
+  GGA-based accuracy comparison for VRS-RTK regression testing.
+
+### Changed
+
+- **`rtkpos()` dispatch** — Added `PMODE_PPP_RTK`, `PMODE_VRS_RTK`, and
+  `PMODE_SSR2OSR` branches; CLAS context initialised in `postpos()`.
+- **`prcopt_t`** — Extended `err[5]→err[8]` (CLAS measurement noise model) and
+  `posopt[6]→posopt[13]` (per-system frequency and PPP-RTK knobs).
+- **`sat_lambda()` in PPP-RTK** — Switched from obsdef table lookup to direct
+  obs-code→frequency mapping, fixing QZS L2 wavelength (0 → correct value)
+  and raising fix rate from 97% → 99.86%.
+- **`clas_osr_zdres()`** — When `y==NULL` (VRS mode), writes OSR directly to
+  the caller's buffer without an intermediate `osrtmp` redirect.
+- **`tidedisp()` call** — Corrected bitmask routing (1=solid, 2=OTL, 4=pole)
+  for grid OTL displacement.
+- **Unified copyright headers** — All source files (lib + apps, ~112 files)
+  updated with full 9-party contributor lineage, SPDX identifier, and
+  Doxygen `@file` blocks separated from license comments.
+- **`LICENSE.txt`** — Added Mitsubishi Electric Corp. (2015–) and Geospatial
+  Information Authority of Japan (2014–) copyright lines.
+- **`README.md`** — CLASLIB marked Integrated (was Planned); License &
+  Attributions table added.
+
+### Fixed
+
+- **`set_ssr_ch_idx()` / `set_mcssr_ch()`** — Added `[0, SSR_CH_NUM)` bounds
+  guard to prevent out-of-bounds access on `nav->ssr_ch` and `_mcssr` arrays.
+- **`memset` sizeof targets** — `biaosb->spb` and `biaosb->vspb` now use
+  `sizeof` of their own member (previously used sibling member's size).
+- **SIS/IODE boundary detection** — `clas_osr_satcorr_update()` uses
+  `prev_orb_tow` to detect orbit-epoch advancement; removed incorrect
+  `orb_tow == clk_tow` requirement that broke ST12 (orbit always 5 s ahead
+  of clock in ST12 streams).
+- **`clas_mode` gate in `postpos()`** — `PMODE_SSR2OSR` included in CLAS
+  context initialisation check.
+- **`compensatedisp()` SSR crash** — Fixed null pointer dereference when SSR
+  corrections are not yet available.
+
+### Known Limitations
+
+- **Real-time CLAS**: `rtkrcv` supports a single CLAS stream (channel 0).
+  Real-time dual-L6 channel switching is not yet implemented.
+- **Real-time L6D**: Ionospheric STEC correction (L6D) is not available in
+  real-time mode. PPP-AR+iono requires post-processing (`rnx2rtkp`).
+- **Static mode**: PPP-RTK in static receiver mode is not yet validated
+  (test data unavailable).
+
+### Test Results
+
+All 53 tests pass:
+
+| Test Suite | Tests | Key Accuracy |
+|------------|-------|-------------|
+| Unit tests | 12 | — |
+| SPP regression | 2 | — |
+| Receiver bias | 2 | — |
+| rtkrcv real-time | 1 | — |
+| MADOCA PPP / PPP-AR / PPP-AR+iono | 10 | <0.5 cm / ~1.6 cm / ~3.8 cm 3D RMS |
+| CLAS PPP-RTK (single-ch / dual-ch / ST12 / L1CL5) | 10 | 5.9 cm / — / 10.8 cm / — |
+| CLAS VRS-RTK (single-ch / ST12 / dual-ch) | 9 | 3.3 cm / — / — |
+| ssr2obs / ssr2osr | 3 | — |
+| BINEX reading | 1 | — |
+| Fixtures (setup/cleanup/download) | 3 | — |
+
+### Upstream References
+
+- **CLASLIB**: [JAXA-SNU/claslib](https://github.com/JAXA-SNU/claslib) ver.0.8.2 (`9e714b9`)
+
+---
+
 ## [v0.2.0] - 2026-03-02
 
 MADOCALIB PPP engine integration — replaces the MALIB PPP engine with
@@ -107,5 +213,6 @@ Initial release — MALIB structural migration complete.
 - **MALIB integration** — Structural base from JAXA MALIB feature/1.2.0
   (directory layout, threading, stream I/O).
 
+[v0.3.0]: https://github.com/h-shiono/MRTKLIB/compare/v0.2.0...v0.3.0
 [v0.2.0]: https://github.com/h-shiono/MRTKLIB/compare/v0.1.0...v0.2.0
 [v0.1.0]: https://github.com/h-shiono/MRTKLIB/releases/tag/v0.1.0
