@@ -427,7 +427,7 @@ static double var_urassr(int ura)
     return SQR(std);
 }
 /* select ephemeris ----------------------------------------------------------*/
-static eph_t *seleph(gtime_t time, int sat, int iode, const nav_t *nav)
+eph_t *seleph(gtime_t time, int sat, int iode, const nav_t *nav)
 {
     double t,tmax,tmin;
     int i,j=-1,sys,sel;
@@ -541,8 +541,8 @@ static int ephclk(gtime_t time, gtime_t teph, int sat, const nav_t *nav,
     return 1;
 }
 /* satellite position and clock by broadcast ephemeris -----------------------*/
-static int ephpos(gtime_t time, gtime_t teph, int sat, const nav_t *nav,
-                  int iode, double *rs, double *dts, double *var, int *svh)
+int ephpos(gtime_t time, gtime_t teph, int sat, const nav_t *nav,
+           int iode, double *rs, double *dts, double *var, int *svh)
 {
     eph_t  *eph;
     geph_t *geph;

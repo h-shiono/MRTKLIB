@@ -33,6 +33,10 @@ extern "C" {
 #include "mrtklib/mrtk_foundation.h"
 #include "mrtklib/mrtk_time.h"
 
+/* forward declaration for nav_t (defined in mrtk_nav.h) */
+struct nav_s;
+typedef struct nav_s nav_t;
+
 /*============================================================================
  * Broadcast Ephemeris Types
  *===========================================================================*/
@@ -236,6 +240,32 @@ void set_ssr_ch_idx(int ch);
  * @return Current channel index
  */
 int get_ssr_ch_idx(void);
+
+/**
+ * @brief Select broadcast ephemeris by satellite and IODE.
+ * @param[in] time  Time for ephemeris selection
+ * @param[in] sat   Satellite number
+ * @param[in] iode  IODE (-1: any)
+ * @param[in] nav   Navigation data
+ * @return Pointer to selected ephemeris, NULL if not found
+ */
+eph_t *seleph(gtime_t time, int sat, int iode, const nav_t *nav);
+
+/**
+ * @brief Satellite position and clock by broadcast ephemeris.
+ * @param[in]  time  Transmission time
+ * @param[in]  teph  Time for ephemeris selection
+ * @param[in]  sat   Satellite number
+ * @param[in]  nav   Navigation data
+ * @param[in]  iode  IODE (-1: any)
+ * @param[out] rs    Satellite position/velocity {x,y,z,vx,vy,vz} (m,m/s)
+ * @param[out] dts   Satellite clock {bias,drift} (s,s/s)
+ * @param[out] var   Satellite position variance (m^2)
+ * @param[out] svh   Satellite health flag
+ * @return 1:ok, 0:error
+ */
+int ephpos(gtime_t time, gtime_t teph, int sat, const nav_t *nav,
+           int iode, double *rs, double *dts, double *var, int *svh);
 
 #ifdef __cplusplus
 }

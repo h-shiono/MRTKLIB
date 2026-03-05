@@ -231,7 +231,7 @@ opt_t sysopts[]={
     {"misc-rnxopt1",    2,  (void *)prcopt_.rnxopt[0],   ""     },
     {"misc-rnxopt2",    2,  (void *)prcopt_.rnxopt[1],   ""     },
     {"misc-pppopt",     2,  (void *)prcopt_.pppopt,      ""     },
-    {"misc-maxobsloss", 0,  (void *)&prcopt_.maxobsloss_s, "s"  },
+    {"misc-maxobsloss", 1,  (void *)&prcopt_.maxobsloss_s, "s"  },
     {"misc-floatcnt",   0,  (void *)&prcopt_.floatcnt,   "epoch"},
     {"misc-rtcmopt",    2,  (void *)&prcopt_.rtcmopt,    ""     },
     {"misc-l6mrg",      0,  (void *)&prcopt_.l6mrg,      ""     },

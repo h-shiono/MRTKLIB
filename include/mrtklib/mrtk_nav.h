@@ -387,7 +387,7 @@ typedef struct {        /* station parameter type */
  * Navigation Data Type (central aggregation)
  *===========================================================================*/
 
-typedef struct {        /* navigation data type */
+typedef struct nav_s {  /* navigation data type */
     int n,nmax;         /* number of broadcast ephemeris */
     int ng,ngmax;       /* number of glonass ephemeris */
     int ns,nsmax;       /* number of sbas ephemeris */

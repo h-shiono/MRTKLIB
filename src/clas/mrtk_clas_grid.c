@@ -567,7 +567,7 @@ static int stec_data(stec_t *stec, gtime_t time, int sat, double *iono,
             break;
         }
     }
-    if (flag == 0 || stec->data[k].flag == -1) {
+    if (flag == 0) {
         trace(NULL, 3, "search_data: no iono (no sat data) %s sat=%2d\n",
               time_str(time, 0), sat);
         return 0;
@@ -577,7 +577,6 @@ static int stec_data(stec_t *stec, gtime_t time, int sat, double *iono,
     if (fabs(tt) > MAXAGESSR_IONO) {
         trace(NULL, 2, "age of ssr iono error %s sat=%2d tt=%.0f\n",
               time_str(time, 0), sat, tt);
-        stec->data[k].flag = -1;
         return 0;
     }
     *iono    = stec->data[k].iono + stec->data[k].rate * tt;

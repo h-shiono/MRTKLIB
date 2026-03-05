@@ -106,6 +106,14 @@ extern void clas_bank_init(clas_ctx_t *ctx, int ch)
     bank->NextBias = 0;
     bank->NextTrop = 0;
     bank->use = 1;
+
+    /* initialize fastfix=1 for all networks (matches upstream init_fastfix_flag):
+     * fastfix=1 → tropless=0 → accept trop entries regardless of future timestamp.
+     * This allows clas_bank_get_close() to find trop data that may be timestamped
+     * slightly ahead of the current observation time. */
+    for (int i = 1; i < CLAS_MAX_NETWORK; i++) {
+        bank->fastfix[i] = 1;
+    }
 }
 
 /*============================================================================
