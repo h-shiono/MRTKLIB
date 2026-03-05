@@ -2,8 +2,20 @@
  * dumpcssr.c : dump decoded Compact SSR (CSSR) corrections to CSV
  *
  * Copyright (C) 2026 H.SHIONO (MRTKLIB Project)
+ * Copyright (C) 2023-2025 Cabinet Office, Japan
+ * Copyright (C) 2024-2025 Lighthouse Technology & Consulting Co. Ltd.
+ * Copyright (C) 2023-2025 Japan Aerospace Exploration Agency
+ * Copyright (C) 2023-2025 TOSHIBA ELECTRONIC TECHNOLOGIES CORPORATION
+ * Copyright (C) 2015- Mitsubishi Electric Corp.
+ * Copyright (C) 2014 Geospatial Information Authority of Japan
+ * Copyright (C) 2014 T.SUZUKI
+ * Copyright (C) 2007-2023 T.TAKASU
  *
  * SPDX-License-Identifier: BSD-2-Clause
+ *----------------------------------------------------------------------------*/
+/**
+ * @file dumpcssr.c
+ * @brief Dump decoded Compact SSR (CSSR) corrections to CSV.
  *
  * Notes:
  *   Reads a QZSS L6 binary file, decodes CSSR message bundles, and writes
@@ -14,13 +26,13 @@
  *
  * Usage:
  *   dumpcssr [options] l6file [navfile...]
- *     -ts y/m/d h:m:s   start time (GPST) []
- *     -te y/m/d h:m:s   end time   (GPST) []
- *     -k  file           configuration file []
+ *     -ts y/m/d h:m:s   start time (GPST)
+ *     -te y/m/d h:m:s   end time   (GPST)
+ *     -k  file           configuration file
  *     -o  file           output CSV file [stdout]
  *     -ch n              L6 channel 0 or 1 [0]
  *     -x  level          trace level [0]
- *----------------------------------------------------------------------------*/
+ */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

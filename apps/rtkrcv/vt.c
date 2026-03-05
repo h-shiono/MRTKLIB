@@ -6,15 +6,21 @@
 * Copyright (C) 2024-2025 Lighthouse Technology & Consulting Co. Ltd.
 * Copyright (C) 2023-2025 Japan Aerospace Exploration Agency
 * Copyright (C) 2023-2025 TOSHIBA ELECTRONIC TECHNOLOGIES CORPORATION
+* Copyright (C) 2015- Mitsubishi Electric Corp.
+* Copyright (C) 2014 Geospatial Information Authority of Japan
 * Copyright (C) 2014 T.SUZUKI
 * Copyright (C) 2007-2023 T.TAKASU
 *
 * SPDX-License-Identifier: BSD-2-Clause
-*
-* version : $Revision:$ $Date:$
-* history : 2015/01/11 1.0  separated from rtkrcv.c
-*           2016/09/19 1.1  change api vt_open()
 *-----------------------------------------------------------------------------*/
+/**
+ * @file vt.c
+ * @brief Virtual console for rtkrcv telnet interface.
+ *
+ * History:
+ *   2015/01/11  1.0  separated from rtkrcv.c
+ *   2016/09/19  1.1  change api vt_open()
+ */
 #define _POSIX_C_SOURCE 2
 #include <stdio.h>
 #include <stdlib.h>

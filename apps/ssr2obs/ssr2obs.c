@@ -2,10 +2,20 @@
  * ssr2obs.c : convert Compact SSR to RINEX3 OBS (VRS pseudo-observations)
  *
  * Copyright (C) 2026 H.SHIONO (MRTKLIB Project)
- * Copyright (C) 2007- T.TAKASU, All rights reserved.
- * Copyright (C) 2015- Mitsubishi Electric Corp., All rights reserved.
+ * Copyright (C) 2023-2025 Cabinet Office, Japan
+ * Copyright (C) 2024-2025 Lighthouse Technology & Consulting Co. Ltd.
+ * Copyright (C) 2023-2025 Japan Aerospace Exploration Agency
+ * Copyright (C) 2023-2025 TOSHIBA ELECTRONIC TECHNOLOGIES CORPORATION
+ * Copyright (C) 2015- Mitsubishi Electric Corp.
+ * Copyright (C) 2014 Geospatial Information Authority of Japan
+ * Copyright (C) 2014 T.SUZUKI
+ * Copyright (C) 2007- T.TAKASU
  *
  * SPDX-License-Identifier: BSD-2-Clause
+ *----------------------------------------------------------------------------*/
+/**
+ * @file ssr2obs.c
+ * @brief Convert Compact SSR to RINEX3 OBS (VRS pseudo-observations).
  *
  * Notes:
  *   Verbatim port of upstream claslib util/ssr2obs/ssr2obs.c.
@@ -14,7 +24,7 @@
  *
  * References:
  *   [1] upstream claslib util/ssr2obs/ssr2obs.c
- *----------------------------------------------------------------------------*/
+ */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
