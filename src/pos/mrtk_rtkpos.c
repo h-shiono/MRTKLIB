@@ -6,6 +6,8 @@
  * Copyright (C) 2024-2025 Lighthouse Technology & Consulting Co. Ltd.
  * Copyright (C) 2023-2025 Japan Aerospace Exploration Agency
  * Copyright (C) 2023-2025 TOSHIBA ELECTRONIC TECHNOLOGIES CORPORATION
+ * Copyright (C) 2015- Mitsubishi Electric Corp.
+ * Copyright (C) 2014 Geospatial Information Authority of Japan
  * Copyright (C) 2014 T.SUZUKI
  * Copyright (C) 2007-2023 T.TAKASU
  *
@@ -13,6 +15,8 @@
  *----------------------------------------------------------------------------*/
 #include "mrtklib/mrtk_rtkpos.h"
 #include "mrtklib/mrtk_ppp.h"
+#include "mrtklib/mrtk_ppp_rtk.h"
+#include "mrtklib/mrtk_vrs.h"
 #include "mrtklib/mrtk_mat.h"
 #include "mrtklib/mrtk_lambda.h"
 #include "mrtklib/mrtk_sys.h"
@@ -26,6 +30,7 @@
 #include "mrtklib/mrtk_madoca.h"
 #include "mrtklib/mrtk_bias_sinex.h"
 #include "mrtklib/mrtk_fcb.h"
+#include "mrtklib/mrtk_clas.h"
 
 #include <stdarg.h>
 #include <string.h>
@@ -87,7 +92,7 @@ extern int miono_get_corr(const double *rr, nav_t *nav);
 /* number of parameters (pos,ionos,tropos,hw-bias,phase-bias,real,estimated) */
 #define NF(opt)     ((opt)->ionoopt==IONOOPT_IFLC?1:(opt)->nf)
 #define NP(opt)     ((opt)->dynamics==0?3:9)
-#define NI(opt)     ((opt)->ionoopt!=IONOOPT_EST?0:MAXSAT)
+#define NI(opt)     (((opt)->ionoopt!=IONOOPT_EST&&(opt)->ionoopt!=IONOOPT_EST_ADPT)?0:MAXSAT)
 #define NT(opt)     ((opt)->tropopt<TROPOPT_EST?0:((opt)->tropopt<TROPOPT_ESTG?2:6))
 #define NL(opt)     ((opt)->glomodear!=2?0:NFREQGLO)
 #define NB(opt)     ((opt)->mode<=PMODE_DGPS?0:MAXSAT*NF(opt))
@@ -1680,13 +1685,22 @@ extern void rtkinit(rtk_t *rtk, const prcopt_t *opt)
     
     rtk->sol=sol0;
     for (i=0;i<6;i++) rtk->rb[i]=0.0;
-    rtk->nx=opt->mode<=PMODE_FIXED?NX(opt):pppnx(opt);
-    rtk->na=opt->mode<=PMODE_FIXED?NR(opt):pppnx(opt);
+    if (opt->mode==PMODE_PPP_RTK) {
+        rtk->nx=ppp_rtk_nx(opt);
+        rtk->na=ppp_rtk_na(opt);
+    } else if (opt->mode<=PMODE_FIXED||opt->mode==PMODE_VRS_RTK) {
+        rtk->nx=NX(opt);
+        rtk->na=NR(opt);
+    } else {
+        rtk->nx=pppnx(opt);
+        rtk->na=pppnx(opt);
+    }
     rtk->tt=0.0;
     rtk->x=zeros(rtk->nx,1);
     rtk->P=zeros(rtk->nx,rtk->nx);
     rtk->xa=zeros(rtk->na,1);
     rtk->Pa=zeros(rtk->na,rtk->na);
+    rtk->Q=zeros(rtk->nx,rtk->nx);
     rtk->nfix=rtk->neb=0;
     for (i=0;i<MAXSAT;i++) {
         rtk->ambc[i]=ambc0;
@@ -1708,6 +1722,7 @@ extern void rtkfree(rtk_t *rtk)
     rtk->nx=rtk->na=0;
     free(rtk->x ); rtk->x =NULL;
     free(rtk->P ); rtk->P =NULL;
+    free(rtk->Q ); rtk->Q =NULL;
     free(rtk->xa); rtk->xa=NULL;
     free(rtk->Pa); rtk->Pa=NULL;
 }
@@ -1721,13 +1736,13 @@ static void udsatcb(gtime_t gt,nav_t *nav,osb_t *biaosb, const prcopt_t *popt)
     
     /* check the vendor and apply specific settings */
     for(i=0;i<MAXSAT;i++){
-        if(nav->ssr[i].vendor == SSR_VENDOR_RTCM){
+        if(nav->ssr_ch[0][i].vendor == SSR_VENDOR_RTCM){
             if ((p=strstr(popt->rtcmopt,"-RTCM_CB_VALID="))&&
                 sscanf(p,"-RTCM_CB_VALID=%lf",&vp)==1) {
             }
             break;
         }
-        else if(nav->ssr[i].vendor == SSR_VENDOR_L6){
+        else if(nav->ssr_ch[0][i].vendor == SSR_VENDOR_L6){
             break;
         }
     }
@@ -1736,16 +1751,16 @@ static void udsatcb(gtime_t gt,nav_t *nav,osb_t *biaosb, const prcopt_t *popt)
     if(popt->pppsatcb==0 || popt->pppsatcb==1){
         for(i=0;i<MAXSAT;i++){
             sys=satsys(i+1,NULL);
-            if(timediff(gt,nav->ssr[i].t0[4])>vp) continue;
+            if(timediff(gt,nav->ssr_ch[0][i].t0[4])>vp) continue;
             for(j=0;j<MAXCODE;j++){
                 ssrcode = mcssr_sel_biascode(sys, j+1);
                 if(ssrcode==CODE_NONE) continue;
                 nav->osb.vscb[i][j] = 1;
-                nav->osb.scb[i][j]  = nav->ssr[i].cbias[ssrcode-1];
+                nav->osb.scb[i][j]  = nav->ssr_ch[0][i].cbias[ssrcode-1];
                 udcnt++;
             }
             if(0 < udcnt){
-                nav->osb.gt[0]=nav->ssr[i].t0[4];
+                nav->osb.gt[0]=nav->ssr_ch[0][i].t0[4];
             }
         }
     }
@@ -1818,7 +1833,7 @@ static void udsatpb(gtime_t gt,nav_t *nav, osb_t *fcbosb, const prcopt_t *popt)
     
     /* check the vendor and apply specific settings */
     for(i=0;i<MAXSAT;i++){
-        if(nav->ssr[i].vendor == SSR_VENDOR_RTCM){
+        if(nav->ssr_ch[0][i].vendor == SSR_VENDOR_RTCM){
             if ((p=strstr(popt->rtcmopt,"-RTCM_PB_VALID="))&&
                 sscanf(p,"-RTCM_PB_VALID=%lf",&vp)==1) {
             }
@@ -1830,19 +1845,19 @@ static void udsatpb(gtime_t gt,nav_t *nav, osb_t *fcbosb, const prcopt_t *popt)
     if(popt->pppsatpb==0 || popt->pppsatpb==1){
         for(i=0;i<MAXSAT;i++){
             sys=satsys(i+1,NULL);
-            if(timediff(gt,nav->ssr[i].t0[5])>vp) continue;
+            if(timediff(gt,nav->ssr_ch[0][i].t0[5])>vp) continue;
             for(j=0;j<MAXCODE;j++){
                 ssrcode = mcssr_sel_biascode(sys, j+1);
                 if(ssrcode==CODE_NONE) continue;
                 nav->osb.vspb[i][j] = 1;
-                nav->osb.spb[i][j]  = nav->ssr[i].pbias[ssrcode-1];
-                if(nav->ssr[i].vendor == SSR_VENDOR_RTCM){
+                nav->osb.spb[i][j]  = nav->ssr_ch[0][i].pbias[ssrcode-1];
+                if(nav->ssr_ch[0][i].vendor == SSR_VENDOR_RTCM){
                     nav->osb.spb[i][j]*=-1;
                 }
                 udcnt++;
             }
             if(0 < udcnt){
-                nav->osb.gt[0]=nav->ssr[i].t0[5];
+                nav->osb.gt[0]=nav->ssr_ch[0][i].t0[5];
             }
         }
     }
@@ -1933,10 +1948,17 @@ static void udstacb(gtime_t gt,nav_t *nav,osb_t *biaosb, const prcopt_t *popt)
 static void udbiass(gtime_t gt, prcopt_t *popt, nav_t *nav)
 {
     char path[1024];
-    osb_t biaosb;
-    osb_t fcbosb;
+    osb_t *biaosb=NULL,*fcbosb=NULL;
     int ret;
-    
+
+    /* heap-allocate osb_t (~700KB each) to avoid thread stack overflow */
+    biaosb=(osb_t *)calloc(1,sizeof(osb_t));
+    fcbosb=(osb_t *)calloc(1,sizeof(osb_t));
+    if (!biaosb||!fcbosb) {
+        free(biaosb); free(fcbosb);
+        return;
+    }
+
     /* update bia file data */
     if (strlen(nav->biapath)>0){
         reppath(nav->biapath,path,gt,"","");
@@ -1947,34 +1969,34 @@ static void udbiass(gtime_t gt, prcopt_t *popt, nav_t *nav)
             }
         }
         /* update satellite osb */
-        if((ret=udosb_sat(&biaosb, gt, 0)) == 0){
+        if((ret=udosb_sat(biaosb, gt, 0)) == 0){
             if(popt->maxbiasdt>0){
-                if((ret=udosb_sat(&biaosb, gt, 1)) != 0){
-                    if(timediff(gt,biaosb.gt[0])>popt->maxbiasdt) ret=0;
+                if((ret=udosb_sat(biaosb, gt, 1)) != 0){
+                    if(timediff(gt,biaosb->gt[0])>popt->maxbiasdt) ret=0;
                 }
             }
         }
         if(ret == 0){
-            memset(biaosb.scb,0x00,sizeof(biaosb.scb));
-            memset(biaosb.spb,0x00,sizeof(biaosb.scb));
-            memset(biaosb.vscb,0x00,sizeof(biaosb.vscb));
-            memset(biaosb.vspb,0x00,sizeof(biaosb.vscb));
+            memset(biaosb->scb,0x00,sizeof(biaosb->scb));
+            memset(biaosb->spb,0x00,sizeof(biaosb->spb));
+            memset(biaosb->vscb,0x00,sizeof(biaosb->vscb));
+            memset(biaosb->vspb,0x00,sizeof(biaosb->vspb));
         }
         trace(NULL,4, "update satellite osb: %s num=%d\n", time_str(gt,3),  ret);
-            
+
         /* update station osb */
-        if((ret=udosb_station(&biaosb, gt, 0, popt->staname)) == 0){ 
+        if((ret=udosb_station(biaosb, gt, 0, popt->staname)) == 0){
             if(popt->maxbiasdt>0){
-                if((ret=udosb_station(&biaosb, gt, 1, popt->staname)) != 0){
-                    if(timediff(gt,biaosb.gt[1])>popt->maxbiasdt) ret=0;
+                if((ret=udosb_station(biaosb, gt, 1, popt->staname)) != 0){
+                    if(timediff(gt,biaosb->gt[1])>popt->maxbiasdt) ret=0;
                 }
             }
         }
         if(ret==0){
-            memset(biaosb.rsyscb,0x00,sizeof(biaosb.rsyscb));
-            memset(biaosb.rsatcb,0x00,sizeof(biaosb.rsatcb));
-            memset(biaosb.vrsyscb,0x00,sizeof(biaosb.vrsyscb));
-            memset(biaosb.vrsatcb,0x00,sizeof(biaosb.vrsatcb));
+            memset(biaosb->rsyscb,0x00,sizeof(biaosb->rsyscb));
+            memset(biaosb->rsatcb,0x00,sizeof(biaosb->rsatcb));
+            memset(biaosb->vrsyscb,0x00,sizeof(biaosb->vrsyscb));
+            memset(biaosb->vrsatcb,0x00,sizeof(biaosb->vrsatcb));
         }
         trace(NULL,4, "update station osb: %s num=%d\n", time_str(gt,3),  ret);
     }
@@ -1988,24 +2010,27 @@ static void udbiass(gtime_t gt, prcopt_t *popt, nav_t *nav)
             }
         }
         /* update satellite fcb */
-        if((ret=udfcb_sat(&fcbosb, gt, 0)) == 0){ 
+        if((ret=udfcb_sat(fcbosb, gt, 0)) == 0){
             if(popt->maxbiasdt>0){
-                if((ret=udfcb_sat(&fcbosb, gt, 1)) != 0){
-                    if(timediff(gt,fcbosb.gt[0])>popt->maxbiasdt) ret=0;
+                if((ret=udfcb_sat(fcbosb, gt, 1)) != 0){
+                    if(timediff(gt,fcbosb->gt[0])>popt->maxbiasdt) ret=0;
                 }
             }
         }
         if(ret == 0){
-            memset(fcbosb.spb,0x00,sizeof(fcbosb.scb));
-            memset(fcbosb.vspb,0x00,sizeof(fcbosb.vscb));
+            memset(fcbosb->spb,0x00,sizeof(fcbosb->scb));
+            memset(fcbosb->vspb,0x00,sizeof(fcbosb->vscb));
         }
         trace(NULL,4, "update satellite fcb: %s num=%d\n", time_str(gt,3),  ret);
     }
 
     /* update satellite code bias and station codebias correction */
-    udsatcb(gt, nav, &biaosb, popt);
-    udsatpb(gt, nav, &fcbosb, popt);
-    udstacb(gt, nav, &biaosb, popt);
+    udsatcb(gt, nav, biaosb, popt);
+    udsatpb(gt, nav, fcbosb, popt);
+    udstacb(gt, nav, biaosb, popt);
+
+    free(biaosb);
+    free(fcbosb);
 }
 
 /* precise positioning ---------------------------------------------------------
@@ -2071,19 +2096,22 @@ extern int rtkpos(mrtk_ctx_t *ctx, rtk_t *rtk, const obsd_t *obs, int n, nav_t *
     prcopt_t *opt=&rtk->opt;
     sol_t solb={{0}};
     gtime_t time;
-    int i,nu,nr;
+    int i,nu,nr[2]={0};
     char msg[128]="";
     
     trace(ctx,3,"rtkpos  : time=%s n=%d\n",time_str(obs[0].time,3),n);
-        
+
     /* set base station position */
     if (opt->refpos<=POSOPT_RINEX&&opt->mode!=PMODE_SINGLE&&
         opt->mode!=PMODE_MOVEB) {
         for (i=0;i<6;i++) rtk->rb[i]=i<3?opt->rb[i]:0.0;
     }
     /* count rover/base station observations */
-    for (nu=0;nu   <n&&obs[nu   ].rcv==1;nu++) ;
-    for (nr=0;nu+nr<n&&obs[nu+nr].rcv==2;nr++) ;
+    for (nu=0;nu      <n&&obs[nu      ].rcv==1;nu++) ;
+    for (nr[0]=0;nu+nr[0]<n&&obs[nu+nr[0]].rcv==2;nr[0]++) ;
+    if (opt->l6mrg) {
+        for (nr[1]=0;nu+nr[0]+nr[1]<n&&obs[nu+nr[0]+nr[1]].rcv==3;nr[1]++) ;
+    }
     
     time=rtk->sol.time; /* previous epoch */
     
@@ -2091,13 +2119,19 @@ extern int rtkpos(mrtk_ctx_t *ctx, rtk_t *rtk, const obsd_t *obs, int n, nav_t *
     udbiass(obs[0].time, opt, nav);
     
     /* rover position by single point positioning */
-    if (!pntpos(ctx,obs,nu,nav,&rtk->opt,&rtk->sol,NULL,rtk->ssat,msg)) {
-        errmsg(rtk,"point pos error (%s)\n",msg);
+    {
+        prcopt_t sppopt=rtk->opt;
+        /* PPP-RTK/VRS: force broadcast ephemeris for SPP initial position */
+        if (sppopt.mode==PMODE_PPP_RTK||sppopt.mode==PMODE_VRS_RTK)
+            sppopt.sateph=EPHOPT_BRDC;
+        if (!pntpos(ctx,obs,nu,nav,&sppopt,&rtk->sol,NULL,rtk->ssat,msg)) {
+            errmsg(rtk,"point pos error (%s)\n",msg);
 
-        if (!rtk->opt.dynamics) {
-            trace(ctx,4,"obs=\n"); traceobs(ctx,4,obs,n);
-            outsolstat(rtk);
-            return 0;
+            if (!rtk->opt.dynamics) {
+                trace(ctx,4,"obs=\n"); traceobs(ctx,4,obs,n);
+                outsolstat(rtk);
+                return 0;
+            }
         }
     }
     if (time.time!=0) rtk->tt=timediff(rtk->sol.time,time);
@@ -2112,6 +2146,48 @@ extern int rtkpos(mrtk_ctx_t *ctx, rtk_t *rtk, const obsd_t *obs, int n, nav_t *
     if (!opt->outsingle) {
         rtk->sol.stat=SOLQ_NONE;
     }
+    /* SSR2OSR conversion mode (upstream compat: dispatched via rtkpos) */
+    if (opt->mode >= PMODE_SSR2OSR && opt->mode <= PMODE_SSR2OSR_FIXED) {
+        clas_ctx_t *clas = (clas_ctx_t *)nav->clas_ctx;
+        static clas_osrd_t osr_buf[MAXOBS];
+        if (clas) {
+            int nobs = clas_ssr2osr(rtk, obs, nu, nav, osr_buf, 0, clas);
+            if (nobs > 0) {
+                /* set solution for outsol() output */
+                for (i = 0; i < 3; i++) rtk->sol.rr[i] = rtk->x[i];
+                rtk->sol.stat = SOLQ_PPP;
+                rtk->sol.time = obs[0].time;
+                rtk->sol.ns = (uint8_t)nobs;
+            }
+        }
+        outsolstat(rtk);
+        return 1;
+    }
+    /* PPP-RTK positioning (CLAS) */
+    if (opt->mode==PMODE_PPP_RTK) {
+        trace(ctx,4,"obs=\n"); traceobs(ctx,4,obs,n);
+        ppp_rtk_pos(rtk,obs,nu,nav);
+        outsolstat(rtk);
+        return 1;
+    }
+    /* VRS-RTK positioning (CLAS) */
+    if (opt->mode==PMODE_VRS_RTK) {
+        static int floatcnt=0;
+        trace(ctx,4,"obs=\n"); traceobs(ctx,4,obs,n);
+        relposvrs(rtk,obs,nu,nr,nav);
+        if (opt->floatcnt>0&&rtk->sol.stat==SOLQ_FLOAT) {
+            if (++floatcnt>opt->floatcnt) {
+                trace(ctx,1,"float status continued than %d epoch: filter reset.\n",
+                      opt->floatcnt);
+                nav->filreset=1;
+                floatcnt=0;
+            }
+        } else {
+            floatcnt=0;
+        }
+        outsolstat(rtk);
+        return 1;
+    }
     /* precise point positioning */
     if (opt->mode>=PMODE_PPP_KINEMA) {
         miono_get_corr(rtk->sol.rr,nav);
@@ -2122,15 +2198,15 @@ extern int rtkpos(mrtk_ctx_t *ctx, rtk_t *rtk, const obsd_t *obs, int n, nav_t *
     }
     trace(ctx,4,"obs=\n"); traceobs(ctx,4,obs,n);
     /* check number of data of base station and age of differential */
-    if (nr==0) {
+    if (nr[0]==0) {
         errmsg(rtk,"no base station observation data for rtk\n");
         outsolstat(rtk);
         return 1;
     }
     if (opt->mode==PMODE_MOVEB) { /*  moving baseline */
-        
+
         /* estimate position/velocity of base station */
-        if (!pntpos(ctx,obs+nu,nr,nav,&rtk->opt,&solb,NULL,NULL,msg)) {
+        if (!pntpos(ctx,obs+nu,nr[0],nav,&rtk->opt,&solb,NULL,NULL,msg)) {
             errmsg(rtk,"base station position error (%s)\n",msg);
             return 0;
         }
@@ -2155,7 +2231,7 @@ extern int rtkpos(mrtk_ctx_t *ctx, rtk_t *rtk, const obsd_t *obs, int n, nav_t *
         }
     }
     /* relative positioning */
-    relpos(rtk,obs,nu,nr,nav);
+    relpos(rtk,obs,nu,nr[0],nav);
     outsolstat(rtk);
     
     return 1;

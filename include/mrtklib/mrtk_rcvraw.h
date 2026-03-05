@@ -6,6 +6,8 @@
  * Copyright (C) 2024-2025 Lighthouse Technology & Consulting Co. Ltd.
  * Copyright (C) 2023-2025 Japan Aerospace Exploration Agency
  * Copyright (C) 2023-2025 TOSHIBA ELECTRONIC TECHNOLOGIES CORPORATION
+ * Copyright (C) 2015- Mitsubishi Electric Corp.
+ * Copyright (C) 2014 Geospatial Information Authority of Japan
  * Copyright (C) 2014 T.SUZUKI
  * Copyright (C) 2007-2023 T.TAKASU
  *
@@ -36,6 +38,7 @@ extern "C" {
 #include "mrtklib/mrtk_nav.h"
 #include "mrtklib/mrtk_eph.h"
 #include "mrtklib/mrtk_rtcm.h"
+#include "mrtklib/mrtk_opt.h"
 
 #include <stdio.h>
 
@@ -63,6 +66,7 @@ extern "C" {
 #define STRFMT_NMEA  17                 /* stream format: NMEA 0183 */
 #define STRFMT_STAT  20                 /* stream format: stat */
 #define STRFMT_L6E   21                 /* stream format: L6E CSSR */
+#define STRFMT_CLAS  22                 /* stream format: CLAS L6 CSSR */
 
 /*============================================================================
  * Receiver Raw Data Control Type
@@ -192,6 +196,28 @@ int input_nvsf  (raw_t *raw, FILE *fp);
 int input_bnxf  (raw_t *raw, FILE *fp);
 int input_rt17f (raw_t *raw, FILE *fp);
 int input_sbff  (raw_t *raw, rtcm_t *rtcm, FILE *fp);
+
+/*============================================================================
+ * BINEX File Reading Functions
+ *===========================================================================*/
+
+/**
+ * @brief Read BINEX observation/navigation data from file(s).
+ * @param[in]     file  File path (supports wildcards)
+ * @param[in]     rcv   Receiver number (1:rover, 2:base)
+ * @param[in]     ts    Start time (ts.time==0: no limit)
+ * @param[in]     te    End time (te.time==0: no limit)
+ * @param[in]     tint  Time interval (0: all)
+ * @param[in]     opt   RINEX options string
+ * @param[in,out] obs   Observation data
+ * @param[in,out] nav   Navigation data
+ * @param[in,out] sta   Station information (NULL: not output)
+ * @param[in]     popt  Processing options (for navsys filtering)
+ * @return Status (-1:error, 0:no data, 1:ok)
+ */
+int readbnxt(const char *file, int rcv, gtime_t ts, gtime_t te,
+             double tint, const char *opt, obs_t *obs, nav_t *nav,
+             sta_t *sta, const prcopt_t *popt);
 
 /*============================================================================
  * Message Generation Functions

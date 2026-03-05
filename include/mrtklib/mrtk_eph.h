@@ -6,6 +6,8 @@
  * Copyright (C) 2024-2025 Lighthouse Technology & Consulting Co. Ltd.
  * Copyright (C) 2023-2025 Japan Aerospace Exploration Agency
  * Copyright (C) 2023-2025 TOSHIBA ELECTRONIC TECHNOLOGIES CORPORATION
+ * Copyright (C) 2015- Mitsubishi Electric Corp.
+ * Copyright (C) 2014 Geospatial Information Authority of Japan
  * Copyright (C) 2014 T.SUZUKI
  * Copyright (C) 2007-2023 T.TAKASU
  *
@@ -32,6 +34,10 @@ extern "C" {
 
 #include "mrtklib/mrtk_foundation.h"
 #include "mrtklib/mrtk_time.h"
+
+/* forward declaration for nav_t (defined in mrtk_nav.h) */
+struct nav_s;
+typedef struct nav_s nav_t;
 
 /*============================================================================
  * Broadcast Ephemeris Types
@@ -224,6 +230,44 @@ void setseleph(int sys, int sel);
  * @return Selected ephemeris (refer setseleph())
  */
 int getseleph(int sys);
+
+/**
+ * @brief Set SSR channel index for satpos_ssr() (multi-L6E).
+ * @param[in] ch  Channel index (0 or 1)
+ */
+void set_ssr_ch_idx(int ch);
+
+/**
+ * @brief Get current SSR channel index.
+ * @return Current channel index
+ */
+int get_ssr_ch_idx(void);
+
+/**
+ * @brief Select broadcast ephemeris by satellite and IODE.
+ * @param[in] time  Time for ephemeris selection
+ * @param[in] sat   Satellite number
+ * @param[in] iode  IODE (-1: any)
+ * @param[in] nav   Navigation data
+ * @return Pointer to selected ephemeris, NULL if not found
+ */
+eph_t *seleph(gtime_t time, int sat, int iode, const nav_t *nav);
+
+/**
+ * @brief Satellite position and clock by broadcast ephemeris.
+ * @param[in]  time  Transmission time
+ * @param[in]  teph  Time for ephemeris selection
+ * @param[in]  sat   Satellite number
+ * @param[in]  nav   Navigation data
+ * @param[in]  iode  IODE (-1: any)
+ * @param[out] rs    Satellite position/velocity {x,y,z,vx,vy,vz} (m,m/s)
+ * @param[out] dts   Satellite clock {bias,drift} (s,s/s)
+ * @param[out] var   Satellite position variance (m^2)
+ * @param[out] svh   Satellite health flag
+ * @return 1:ok, 0:error
+ */
+int ephpos(gtime_t time, gtime_t teph, int sat, const nav_t *nav,
+           int iode, double *rs, double *dts, double *var, int *svh);
 
 #ifdef __cplusplus
 }

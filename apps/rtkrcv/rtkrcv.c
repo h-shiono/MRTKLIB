@@ -6,52 +6,59 @@
 * Copyright (C) 2024-2025 Lighthouse Technology & Consulting Co. Ltd.
 * Copyright (C) 2023-2025 Japan Aerospace Exploration Agency
 * Copyright (C) 2023-2025 TOSHIBA ELECTRONIC TECHNOLOGIES CORPORATION
+* Copyright (C) 2015- Mitsubishi Electric Corp.
+* Copyright (C) 2014 Geospatial Information Authority of Japan
 * Copyright (C) 2014 T.SUZUKI
 * Copyright (C) 2007-2023 T.TAKASU
 *
 * SPDX-License-Identifier: BSD-2-Clause
-*
-* notes   :
-*     current version does not support win32 without pthread library
-*
-* history : 2009/12/13 1.0  new
-*           2010/07/18 1.1  add option -m
-*           2010/08/12 1.2  fix bug on ftp/http
-*           2011/01/22 1.3  add option misc-proxyaddr,misc-fswapmargin
-*           2011/08/19 1.4  fix bug on size of arg solopt arg for rtksvrstart()
-*           2012/11/03 1.5  fix bug on setting output format
-*           2013/06/30 1.6  add "nvs" option for inpstr*-format
-*           2014/02/10 1.7  fix bug on printing obs data
-*                           add print of status, glonass nav data
-*                           ignore SIGHUP
-*           2014/04/27 1.8  add "binex" option for inpstr*-format
-*           2014/08/10 1.9  fix cpu overload with abnormal telnet shutdown
-*           2014/08/26 1.10 support input format "rt17"
-*                           change file paths of solution status and debug trace
-*           2015/01/10 1.11 add line editting and command history
-*                           separate codes for virtual console to vt.c
-*           2015/05/22 1.12 fix bug on sp3 id in inpstr*-format options
-*           2015/07/31 1.13 accept 4:stat for outstr1-format or outstr2-format
-*                           add reading satellite dcb
-*           2015/12/14 1.14 add option -sta for station name (#339)
-*           2015/12/25 1.15 fix bug on -sta option (#339)
-*           2015/01/26 1.16 support septentrio
-*           2016/07/01 1.17 support CMR/CMR+
-*           2016/08/20 1.18 add output of patch level with version
-*           2016/09/05 1.19 support ntrip caster for output stream
-*           2016/09/19 1.20 support multiple remote console connections
-*                           add option -w
-*           2017/09/01 1.21 add command ssr
-*           2021/01/19 1.22 add option -v and -ver
-*                      1.23 update option string ISTOPT,OSTOPT,FMTOPT
-*           2024/02/01 1.24 branch from ver.2.4.3b35 for MALIB
-*                           add option -rst
-*           2024/08/02 1.25 add stat format option
-*                           fix bug confwrite() con_close()
-*           2024/09/26 1.26 update version info
-*           2024/12/20 1.27 add option -sta
-*           2025/02/06 1.28 support Bias-SINEX and FCB files correction
 *-----------------------------------------------------------------------------*/
+/**
+ * @file rtkrcv.c
+ * @brief RTK-GNSS receiver real-time positioning console application.
+ *
+ * Notes:
+ *   Current version does not support Win32 without pthread library.
+ *
+ * History:
+ *   2009/12/13 1.0  new
+ *   2010/07/18 1.1  add option -m
+ *   2010/08/12 1.2  fix bug on ftp/http
+ *   2011/01/22 1.3  add option misc-proxyaddr,misc-fswapmargin
+ *   2011/08/19 1.4  fix bug on size of arg solopt arg for rtksvrstart()
+ *   2012/11/03 1.5  fix bug on setting output format
+ *   2013/06/30 1.6  add "nvs" option for inpstr*-format
+ *   2014/02/10 1.7  fix bug on printing obs data
+ *                   add print of status, glonass nav data
+ *                   ignore SIGHUP
+ *   2014/04/27 1.8  add "binex" option for inpstr*-format
+ *   2014/08/10 1.9  fix cpu overload with abnormal telnet shutdown
+ *   2014/08/26 1.10 support input format "rt17"
+ *                   change file paths of solution status and debug trace
+ *   2015/01/10 1.11 add line editting and command history
+ *                   separate codes for virtual console to vt.c
+ *   2015/05/22 1.12 fix bug on sp3 id in inpstr*-format options
+ *   2015/07/31 1.13 accept 4:stat for outstr1-format or outstr2-format
+ *                   add reading satellite dcb
+ *   2015/12/14 1.14 add option -sta for station name (#339)
+ *   2015/12/25 1.15 fix bug on -sta option (#339)
+ *   2015/01/26 1.16 support septentrio
+ *   2016/07/01 1.17 support CMR/CMR+
+ *   2016/08/20 1.18 add output of patch level with version
+ *   2016/09/05 1.19 support ntrip caster for output stream
+ *   2016/09/19 1.20 support multiple remote console connections
+ *                   add option -w
+ *   2017/09/01 1.21 add command ssr
+ *   2021/01/19 1.22 add option -v and -ver
+ *              1.23 update option string ISTOPT,OSTOPT,FMTOPT
+ *   2024/02/01 1.24 branch from ver.2.4.3b35 for MALIB
+ *                   add option -rst
+ *   2024/08/02 1.25 add stat format option
+ *                   fix bug confwrite() con_close()
+ *   2024/09/26 1.26 update version info
+ *   2024/12/20 1.27 add option -sta
+ *   2025/02/06 1.28 support Bias-SINEX and FCB files correction
+ */
 #include <stdlib.h>
 #include <signal.h>
 #include <unistd.h>
@@ -1011,7 +1018,7 @@ static void prssr(vt_t *vt)
     rtksvrlock(&svr);
     time=svr.rtk.sol.time;
     for (i=0;i<MAXSAT;i++) {
-        ssr[i]=svr.nav.ssr[i];
+        ssr[i]=svr.nav.ssr_ch[0][i];
     }
     rtksvrunlock(&svr);
     

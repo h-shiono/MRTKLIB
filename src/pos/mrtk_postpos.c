@@ -6,6 +6,8 @@
  * Copyright (C) 2024-2025 Lighthouse Technology & Consulting Co. Ltd.
  * Copyright (C) 2023-2025 Japan Aerospace Exploration Agency
  * Copyright (C) 2023-2025 TOSHIBA ELECTRONIC TECHNOLOGIES CORPORATION
+ * Copyright (C) 2015- Mitsubishi Electric Corp.
+ * Copyright (C) 2014 Geospatial Information Authority of Japan
  * Copyright (C) 2014 T.SUZUKI
  * Copyright (C) 2007-2023 T.TAKASU
  *
@@ -34,6 +36,8 @@
 #include "mrtklib/mrtk_rtcm.h"
 #include "mrtklib/mrtk_madoca.h"
 #include "mrtklib/mrtk_madoca_local_corr.h"
+#include "mrtklib/mrtk_clas.h"
+#include "mrtklib/mrtk_rcvraw.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -105,6 +109,10 @@ static FILE *fp_qzssl6d[MIONO_MAX_PRN]; /* QZSS L6D data file pointer */
 static char stat_file[1024]=""; /* stat data file */
 static char cstat_file[1024]="";/* current stat data file */
 static FILE *fp_stat=NULL;      /* stat data file pointer */
+static clas_ctx_t *clas_ctx=NULL;                  /* CLAS decoder context */
+static FILE *fp_clas[CLAS_CH_NUM];                 /* CLAS L6 file pointers */
+static char clas_file[CLAS_CH_NUM][1024];          /* CLAS L6 data file */
+static char clas_path[CLAS_CH_NUM][1024];          /* CLAS L6 data path */
 
 /* show message and check break ----------------------------------------------*/
 static int checkbrk(const char *format, ...)
@@ -257,7 +265,7 @@ static void update_rtcm(gtime_t time)
             if (!rtcm.ssr[i].update||
                 rtcm.ssr[i].iod[0]!=rtcm.ssr[i].iod[1]||
                 timediff(time,rtcm.ssr[i].t0[0])<-1E-3) continue;
-            navs.ssr[i]=rtcm.ssr[i];
+            navs.ssr_ch[0][i]=rtcm.ssr[i];
             rtcm.ssr[i].update=0;
         }
         /* update iono/trop corrections */
@@ -299,7 +307,7 @@ static void update_qzssl6e(gtime_t time)
             if (!l6e.ssr[i].update ||
                 l6e.ssr[i].iod[0]!=l6e.ssr[i].iod[1]||
                 timediff(time,l6e.ssr[i].t0[0])<-1E-3) continue;
-            navs.ssr[i]=l6e.ssr[i];
+            navs.ssr_ch[0][i]=l6e.ssr[i];
             l6e.ssr[i].update=0;
         }
 
@@ -415,6 +423,80 @@ static void update_stat(gtime_t time)
     }
     trace(NULL,3, "update_stat: %s %s\n", time_str(time, 3), tstr);
 }
+/* update CLAS L6 corrections -----------------------------------------------*/
+static void update_clas(gtime_t time)
+{
+    int ch,ret;
+    char path[1024];
+
+    /* initialize GPS week reference from observation time (once) */
+    if (clas_ctx && clas_ctx->week_ref[0]==0 && time.time!=0) {
+        int i,week;
+        time2gpst(time,&week);
+        for (i=0;i<CSSR_REF_MAX;i++) {
+            clas_ctx->week_ref[i]=week;
+            clas_ctx->tow_ref[i]=-1;  /* mark as unset for rollover detection */
+        }
+        trace(NULL,2,"clas week_ref initialized: week=%d\n",week);
+    }
+
+    for (ch=0;ch<CLAS_CH_NUM;ch++) {
+        if (!*clas_file[ch]) continue;
+
+        /* open or swap CLAS L6 file */
+        reppath(clas_file[ch],path,time,"","");
+
+        if (strcmp(path,clas_path[ch])) {
+            strcpy(clas_path[ch],path);
+            if (fp_clas[ch]) fclose(fp_clas[ch]);
+            fp_clas[ch]=fopen(path,"rb");
+            if (fp_clas[ch]) {
+                trace(NULL,2,"clas l6 file open: %s\n",path);
+            }
+        }
+        if (!fp_clas[ch]) continue;
+
+        /* read CSSR until current observation time */
+        while (timediff(clas_ctx->l6buf[ch].time,time)<1E-3) {
+            ret=clas_input_cssrf(clas_ctx,fp_clas[ch],ch);
+            if (ret<-1) break; /* EOF */
+            if (ret==10) {
+                int net=clas_ctx->grid[ch].network;
+                if (net>0) {
+                    /* normal: merge bank for known network */
+                    if (clas_bank_get_close(clas_ctx,clas_ctx->l6buf[ch].time,
+                                           net,ch,&clas_ctx->current[ch])==0) {
+                        clas_update_global(&navs,&clas_ctx->current[ch],ch);
+                        clas_check_grid_status(clas_ctx,&clas_ctx->current[ch],ch);
+                    }
+                }
+            }
+        }
+        /* bootstrap: when network is unknown, scan all networks to
+         * populate grid_stat so clas_get_grid_index() can determine
+         * the correct network from the rover position.
+         * Uses a heap-allocated temporary corr to avoid corrupting
+         * current[ch] and stack overflow (clas_corr_t is ~352KB). */
+        if (clas_ctx->grid[ch].network<=0 && clas_ctx->bank[ch]->use) {
+            clas_corr_t *tmp_corr=(clas_corr_t *)calloc(1,sizeof(clas_corr_t));
+            int net;
+            if (tmp_corr) {
+                for (net=1;net<CLAS_MAX_NETWORK;net++) {
+                    if (clas_bank_get_close(clas_ctx,clas_ctx->l6buf[ch].time,
+                                           net,ch,tmp_corr)==0) {
+                        clas_check_grid_status(clas_ctx,tmp_corr,ch);
+                        /* apply global corrections (orbit/clock/bias) from any
+                         * successful network — these are shared across networks */
+                        clas_update_global(&navs,tmp_corr,ch);
+                    }
+                }
+                free(tmp_corr);
+            }
+            trace(NULL,3,"clas bootstrap: scanned %d networks for ch=%d\n",
+                  CLAS_MAX_NETWORK-1,ch);
+        }
+    }
+}
 /* input obs data, navigation messages and sbas correction -------------------*/
 static int inputobs(obsd_t *obs, int solq, const prcopt_t *popt)
 {
@@ -473,6 +555,10 @@ static int inputobs(obsd_t *obs, int solq, const prcopt_t *popt)
                     update_qzssl6d(obs[0].time, j, popt->pppopt);
                 }
             }
+        }
+        /* update CLAS L6 corrections */
+        if (clas_ctx) {
+            update_clas(obs[0].time);
         }
         /* update stat corrections */
         if (*stat_file) {
@@ -745,6 +831,9 @@ static void readpreceph(char **infile, int n, const prcopt_t *prcopt,
     for (i=0;i<MIONO_MAX_PRN;i++) {
         qzssl6d_file[i][0]=qzssl6d_path[i][0]='\0'; fp_qzssl6d[i]=NULL;
     }
+    for (i=0;i<CLAS_CH_NUM;i++) {
+        clas_file[i][0]=clas_path[i][0]='\0'; fp_clas[i]=NULL;
+    }
     stat_file[0]   =cstat_file[0]='\0'  ; fp_stat=NULL;
 
     for (i=0;i<n;i++) {
@@ -757,19 +846,26 @@ static void readpreceph(char **infile, int n, const prcopt_t *prcopt,
         }
     }
 
-    /* MADOCA-PPP L6 files: discriminate L6D (.200.l6/.201.l6) from L6E */
+    /* MADOCA-PPP L6 and CLAS L6 files: discriminate by PRN and mode */
     {
-        int nf_l6d=0;
+        int nf_l6d=0,nf_clas=0;
+        int clas_mode=(prcopt->mode==PMODE_PPP_RTK)||
+                      (prcopt->mode>=PMODE_SSR2OSR&&prcopt->mode<=PMODE_SSR2OSR_FIXED)||
+                      strstr(prcopt->pppopt,"-clas")!=NULL;
 
         for (i=0;i<n;i++) {
             if ((ext=strrchr(infile[i],'.'))&&
                 (!strcmp(ext,".l6")||!strcmp(ext,".L6"))) {
 
-                /* L6D (PRN=200,201) */
+                /* L6D (PRN=200,201) — always detected */
                 if ((ext-infile[i]>=4) &&
                     (!strcmp(ext-4,".200.l6")||!strcmp(ext-4,".200.L6")||
                      !strcmp(ext-4,".201.l6")||!strcmp(ext-4,".201.L6"))) {
                     if (nf_l6d<MIONO_MAX_PRN) strcpy(qzssl6d_file[nf_l6d++],infile[i]);
+                }
+                /* CLAS: all non-L6D .l6 files in PPP-RTK or -clas mode */
+                else if (clas_mode) {
+                    if (nf_clas<CLAS_CH_NUM) strcpy(clas_file[nf_clas++],infile[i]);
                 }
                 else if (!*qzssl6e_file) { /* L6E (first match only) */
                     strcpy(qzssl6e_file,infile[i]);
@@ -783,6 +879,14 @@ static void readpreceph(char **infile, int n, const prcopt_t *prcopt,
         if (nf_l6d > 0 && !nav->pppiono) {
             nav->pppiono = (pppiono_t *)calloc(1, sizeof(pppiono_t));
         }
+
+        /* initialize CLAS context if files found */
+        if (nf_clas>0&&!clas_ctx) {
+            clas_ctx=(clas_ctx_t *)calloc(1,sizeof(clas_ctx_t));
+            if (clas_ctx) clas_ctx_init(clas_ctx);
+        }
+        /* wire CLAS context into nav for PPP-RTK engine access */
+        navs.clas_ctx=clas_ctx;
     }
 
     for (i=0;i<n;i++) {
@@ -813,6 +917,16 @@ static void freepreceph(nav_t *nav, sbs_t *sbs)
     if (fp_rtcm) fclose(fp_rtcm);
     free_rtcm(&rtcm);
     free_rtcm(&l6e);
+
+    /* free CLAS context */
+    if (clas_ctx) {
+        for (i=0;i<CLAS_CH_NUM;i++) {
+            if (fp_clas[i]) { fclose(fp_clas[i]); fp_clas[i]=NULL; }
+        }
+        clas_ctx_free(clas_ctx);
+        free(clas_ctx);
+        clas_ctx=NULL;
+    }
 }
 /* read obs and nav data -----------------------------------------------------*/
 static int readobsnav(gtime_t ts, gtime_t te, double ti, char **infile,
@@ -830,18 +944,30 @@ static int readobsnav(gtime_t ts, gtime_t te, double ti, char **infile,
     nepoch=0;
     
     for (i=0;i<n;i++) {
+        const char *ext;
         if (checkbrk("")) return 0;
-        
+
         if (index[i]!=ind) {
             if (obs->n>nobs) rcv++;
-            ind=index[i]; nobs=obs->n; 
+            ind=index[i]; nobs=obs->n;
         }
-        /* read rinex obs and nav file */
-        if (readrnxt(infile[i],rcv,ts,te,ti,prcopt->rnxopt[rcv<=1?0:1],obs,nav,
-                     rcv<=2?sta+rcv-1:NULL)<0) {
-            checkbrk("error : insufficient memory");
-            trace(NULL,1,"insufficient memory\n");
-            return 0;
+        ext=strrchr(infile[i],'.');
+        if (ext&&!strcmp(ext,".bnx")) {
+            /* read binex file */
+            if (readbnxt(infile[i],rcv,ts,te,ti,prcopt->rnxopt[rcv<=1?0:1],obs,nav,
+                         rcv<=2?sta+rcv-1:NULL,prcopt)<0) {
+                checkbrk("error : insufficient memory");
+                trace(NULL,1,"insufficient memory\n");
+                return 0;
+            }
+        } else {
+            /* read rinex obs and nav file */
+            if (readrnxt(infile[i],rcv,ts,te,ti,prcopt->rnxopt[rcv<=1?0:1],obs,nav,
+                         rcv<=2?sta+rcv-1:NULL)<0) {
+                checkbrk("error : insufficient memory");
+                trace(NULL,1,"insufficient memory\n");
+                return 0;
+            }
         }
     }
     if (obs->n<=0) {
@@ -881,6 +1007,7 @@ static void freeobsnav(obs_t *obs, nav_t *nav)
     free(nav->eph ); nav->eph =NULL; nav->n =nav->nmax =0;
     free(nav->geph); nav->geph=NULL; nav->ng=nav->ngmax=0;
     free(nav->seph); nav->seph=NULL; nav->ns=nav->nsmax=0;
+    free(nav->isb ); nav->isb =NULL; nav->ni=nav->nimax=0;
 }
 /* average of single position ------------------------------------------------*/
 static int avepos(mrtk_ctx_t *ctx, double *ra, int rcv, const obs_t *obs, const nav_t *nav,
@@ -1180,6 +1307,38 @@ static int execses(mrtk_ctx_t *ctx, gtime_t ts, gtime_t te, double ti, const prc
     /* read ocean tide loading parameters */
     if (popt_.mode>PMODE_SINGLE&&*fopt->blq) {
         readotl(&popt_,fopt->blq,stas);
+    }
+    /* read CLAS grid definition file */
+    if (clas_ctx&&*fopt->grid) {
+        if (clas_read_grid_def(clas_ctx,fopt->grid)!=0) {
+            trace(NULL,1,"clas grid file error: %s\n",fopt->grid);
+        }
+    }
+    /* read ISB correction table */
+    if (clas_ctx && popt_.isb == ISBOPT_TABLE && *fopt->isb) {
+        readisb(fopt->isb, &navs);
+        trace(NULL, 3, "execses: ISB table loaded ni=%d\n", navs.ni);
+    }
+    /* read L2C phase shift table */
+    if (clas_ctx && popt_.phasshft == ISBOPT_TABLE && *fopt->phacyc) {
+        readL2C(fopt->phacyc, &navs);
+        trace(NULL, 3, "execses: L2C table loaded n=%d\n", navs.sfts.n);
+    }
+    /* read grid BLQ file for CLAS grid OTL (tidecorr=3) */
+    if (clas_ctx && popt_.tidecorr == 3 && *fopt->blq) {
+        if (!readblqgrid(fopt->blq, clas_ctx)) {
+            trace(NULL, 1, "grid blq file error: %s\n", fopt->blq);
+        } else {
+            trace(NULL, 3, "execses: grid BLQ loaded from %s\n", fopt->blq);
+        }
+    }
+    /* copy station info to nav and set ISB */
+    if (clas_ctx) {
+        memcpy(navs.stas, stas, sizeof(sta_t) * MAXRCV);
+        if (popt_.isb == ISBOPT_TABLE) {
+            setisb(&navs, popt_.rectype[0], popt_.rectype[1],
+                   &navs.stas[0], &navs.stas[1]);
+        }
     }
     /* rover/reference fixed position */
     if (popt_.mode==PMODE_FIXED) {

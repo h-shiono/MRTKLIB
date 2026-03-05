@@ -11,6 +11,8 @@ as they comply with the license.
          Copyright (c) 2024-2025, Lighthouse Technology & Consulting Co. Ltd. All rights reserved.
          Copyright (c) 2023-2025, Japan Aerospace Exploration Agency. All Rights Reserved.
          Copyright (C) 2023-2025, TOSHIBA ELECTRONIC TECHNOLOGIES CORPORATION. All Rights Reserved.
+         Copyright (c) 2015-, Mitsubishi Electric Corp. All rights reserved.
+         Copyright (c) 2014-, Geospatial Information Authority of Japan. All rights reserved.
          Copyright (c) 2014, T. Suzuki. All rights reserved.
          Copyright (c) 2007-2023, T. Takasu. All rights reserved.
 

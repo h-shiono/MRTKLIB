@@ -6,31 +6,38 @@
 * Copyright (C) 2024-2025 Lighthouse Technology & Consulting Co. Ltd.
 * Copyright (C) 2023-2025 Japan Aerospace Exploration Agency
 * Copyright (C) 2023-2025 TOSHIBA ELECTRONIC TECHNOLOGIES CORPORATION
+* Copyright (C) 2015- Mitsubishi Electric Corp.
+* Copyright (C) 2014 Geospatial Information Authority of Japan
 * Copyright (C) 2014 T.SUZUKI
 * Copyright (C) 2007-2023 T.TAKASU
 *
 * SPDX-License-Identifier: BSD-2-Clause
-*
-* history : 2007/01/16  1.0 new
-*           2007/03/15  1.1 add library mode
-*           2007/05/08  1.2 separate from postpos.c
-*           2009/01/20  1.3 support rtklib 2.2.0 api
-*           2009/12/12  1.4 support glonass
-*                           add option -h, -a, -l, -x
-*           2010/01/28  1.5 add option -k
-*           2010/08/12  1.6 add option -y implementation (2.4.0_p1)
-*           2014/01/27  1.7 fix bug on default output time format
-*           2015/05/15  1.8 -r or -l options for fixed or ppp-fixed mode
-*           2015/06/12  1.9 output patch level in header
-*           2016/09/07  1.10 add option -sys
-*           2021/01/07  1.11 add option -ver
-*           2023/01/12  1.12 fix bugs
-*           2024/02/01  1.13 branch from ver.2.4.3b35 for MALIB
-*                            add option -ign_chierr
-*           2024/08/02  1.14 change initial value of glomodear
-*           2024/09/26  1.15 update version info
-*           2024/12/20  1.16 add option -sta
 *-----------------------------------------------------------------------------*/
+/**
+ * @file rnx2rtkp.c
+ * @brief Post-processing positioning from RINEX OBS/NAV files.
+ *
+ * History:
+ *   2007/01/16  1.0 new
+ *   2007/03/15  1.1 add library mode
+ *   2007/05/08  1.2 separate from postpos.c
+ *   2009/01/20  1.3 support rtklib 2.2.0 api
+ *   2009/12/12  1.4 support glonass
+ *                   add option -h, -a, -l, -x
+ *   2010/01/28  1.5 add option -k
+ *   2010/08/12  1.6 add option -y implementation (2.4.0_p1)
+ *   2014/01/27  1.7 fix bug on default output time format
+ *   2015/05/15  1.8 -r or -l options for fixed or ppp-fixed mode
+ *   2015/06/12  1.9 output patch level in header
+ *   2016/09/07  1.10 add option -sys
+ *   2021/01/07  1.11 add option -ver
+ *   2023/01/12  1.12 fix bugs
+ *   2024/02/01  1.13 branch from ver.2.4.3b35 for MALIB
+ *                    add option -ign_chierr
+ *   2024/08/02  1.14 change initial value of glomodear
+ *   2024/09/26  1.15 update version info
+ *   2024/12/20  1.16 add option -sta
+ */
 #include <stdarg.h>
 #include "rtklib.h"
 #include "mrtklib/mrtklib.h"
@@ -206,6 +213,7 @@ int main(int argc, char **argv)
             pos2ecef(pos,prcopt.rb);
             matcpy(prcopt.ru,prcopt.rb,3,1);
         }
+        else if (!strcmp(argv[i],"-l6msg")&&i+1<argc) prcopt.l6mrg=atoi(argv[++i]);
         else if (!strcmp(argv[i],"-ign_chierr")) prcopt.ign_chierr = 1;
         else if (!strcmp(argv[i],"-sta")&&i+1<argc) strcpy(prcopt.staname,argv[++i]);
         else if (!strcmp(argv[i],"-y")&&i+1<argc) solopt.sstat=atoi(argv[++i]);

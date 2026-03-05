@@ -77,12 +77,19 @@ add_library(mrtklib STATIC
     src/madoca/mrtk_madoca_iono.c
     src/madoca/mrtk_madoca_local_corr.c
     src/madoca/mrtk_madoca_local_comb.c
+    # ── clas/ (CLAS CSSR処理) ──────────────────────────────────────────────────
+    src/clas/mrtk_clas.c
+    src/clas/mrtk_clas_grid.c
+    src/clas/mrtk_clas_osr.c
+    src/clas/mrtk_clas_isb.c
 
     # ── pos/ (測位アルゴリズム・オプション) ────────────────────────────────────
     src/pos/mrtk_spp.c
     src/pos/mrtk_rtkpos.c
     src/pos/mrtk_ppp_ar.c
     src/pos/mrtk_ppp.c
+    src/pos/mrtk_ppp_rtk.c
+    src/pos/mrtk_vrs.c
     src/pos/mrtk_ppp_iono.c
     src/pos/mrtk_lambda.c
     src/pos/mrtk_postpos.c
@@ -137,9 +144,27 @@ add_executable(recvbias
 target_compile_definitions(recvbias PRIVATE PROGNAME=\"recvbias\")
 target_link_libraries(recvbias PRIVATE mrtklib)
 
+# ── ssr2obs ──────────────────────────────────────────────────────────────────
+add_executable(ssr2obs
+    apps/ssr2obs/ssr2obs.c
+)
+target_link_libraries(ssr2obs PRIVATE mrtklib)
+
+# ── ssr2osr ──────────────────────────────────────────────────────────────────
+add_executable(ssr2osr
+    apps/ssr2osr/ssr2osr.c
+)
+target_link_libraries(ssr2osr PRIVATE mrtklib)
+
+# ── dumpcssr ─────────────────────────────────────────────────────────────────
+add_executable(dumpcssr
+    apps/dumpcssr/dumpcssr.c
+)
+target_link_libraries(dumpcssr PRIVATE mrtklib)
+
 # ── Install ───────────────────────────────────────────────────────────────────
 # cmake --install build  →  copies binaries to bin/ (matches make install)
-install(TARGETS rnx2rtkp rtkrcv recvbias RUNTIME DESTINATION bin)
+install(TARGETS rnx2rtkp rtkrcv recvbias ssr2obs ssr2osr dumpcssr RUNTIME DESTINATION bin)
 
 # ── Utility tools (optional) ─────────────────────────────────────────────────
 # Build with: cmake --preset default -DBUILD_UTILS=ON
@@ -497,3 +522,403 @@ set_tests_properties(madocalib_pppar_ion_check PROPERTIES
 #           -td 2025/04/01 -d
 #       WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
 #   )
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# CLASLIB PPP-RTK regression tests
+# ═══════════════════════════════════════════════════════════════════════════════
+# Data: 0627 station, 2019/08/27 Session Q (16:00-17:00) and 2019/12/15
+# Source: upstream/claslib/data
+# Test data archive: tests/data/claslib/claslib_testdata.tar.gz
+#
+# Tests (8/8 upstream claslib coverage):
+#   claslib_ppp_rtk         PPP-RTK with L6 (RINEX obs, 2019/239)
+#   claslib_ppp_rtk_bnx     PPP-RTK with L6 (BINEX obs, 2019/239)
+#   claslib_ppp_rtk_2ch     PPP-RTK with 2-channel L6 (2025/157)
+#   claslib_ppp_rtk_st12    PPP-RTK with SubType 12 (BINEX obs, 2019/349)
+#   claslib_ppp_rtk_l1cl5   PPP-RTK with L1C+L5 frequency (2025/022)
+#   claslib_vrs_rtk         VRS-RTK (2019/239)
+#   claslib_vrs_rtk_st12    VRS-RTK with SubType 12 (2019/349)
+#   claslib_vrs_rtk_2ch     VRS-RTK with 2-channel (2025/157)
+set(_CLSDATA  ${CMAKE_SOURCE_DIR}/tests/data/claslib)
+set(_COMPARE_NMEA ${CMAKE_SOURCE_DIR}/scripts/tests/compare_nmea.py)
+
+# ── Fixture: extract / clean claslib test data archive ────────────────────────
+add_test(NAME claslib_setup
+    COMMAND bash -c "tar xzf ${_CLSDATA}/claslib_testdata.tar.gz -C ${_CLSDATA}"
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+set_tests_properties(claslib_setup PROPERTIES
+    FIXTURES_SETUP  claslib_data
+    TIMEOUT         60
+    LABELS          "regression;claslib"
+)
+
+add_test(NAME claslib_cleanup
+    COMMAND bash -c "rm -f \
+        ${_CLSDATA}/0627239Q.obs \
+        ${_CLSDATA}/0627239Q.bnx \
+        ${_CLSDATA}/0627349AB.bnx \
+        ${_CLSDATA}/0627157U.bnx \
+        ${_CLSDATA}/0627022Q.bnx \
+        ${_CLSDATA}/sept_2019239.nav \
+        ${_CLSDATA}/sept_2019349.nav \
+        ${_CLSDATA}/0627157U.nav \
+        ${_CLSDATA}/2019239Q.l6 \
+        ${_CLSDATA}/2019349B.l6 \
+        ${_CLSDATA}/2025157U_ch1.l6 \
+        ${_CLSDATA}/2025157U_ch2.l6 \
+        ${_CLSDATA}/2025022Q.l6 \
+        ${_CLSDATA}/clas_grid.def \
+        ${_CLSDATA}/clas_grid.blq \
+        ${_CLSDATA}/igu00p01.erp \
+        ${_CLSDATA}/igs14_L5copy.atx \
+        ${_CLSDATA}/isb.tbl \
+        ${_CLSDATA}/l2csft.tbl \
+        ${_CLSDATA}/vrs2019239Q.obs \
+        ${_CLSDATA}/vrs2019349B.obs \
+        ${_CLSDATA}/2025157U_ch1.obs \
+        ${_CLSDATA}/2025157U_ch2.obs"
+)
+set_tests_properties(claslib_cleanup PROPERTIES
+    FIXTURES_CLEANUP claslib_data
+    LABELS           "regression;claslib"
+)
+
+# ── rnx2rtkp CLAS PPP-RTK regression (L6, RINEX obs) ─────────────────────────
+# Data: 2019/08/27 16:00-17:00, 0627239Q.obs + sept_2019239.nav + 2019239Q.l6
+# Reference: ref_L6.nmea (upstream claslib output)
+add_test(NAME claslib_ppp_rtk
+    COMMAND $<TARGET_FILE:rnx2rtkp>
+        -k ${CMAKE_SOURCE_DIR}/conf/claslib/rnx2rtkp.conf
+        -ts 2019/08/27 16:00:00 -te 2019/08/27 16:59:59 -ti 1
+        -o ${CMAKE_BINARY_DIR}/out_claslib_ppp_rtk.nmea
+        ${_CLSDATA}/0627239Q.obs
+        ${_CLSDATA}/sept_2019239.nav
+        ${_CLSDATA}/2019239Q.l6
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+set_tests_properties(claslib_ppp_rtk PROPERTIES
+    FIXTURES_REQUIRED claslib_data
+    TIMEOUT           300
+    LABELS            "regression;claslib;ppp-rtk"
+)
+
+add_test(NAME claslib_ppp_rtk_check
+    COMMAND ${Python3_EXECUTABLE} ${_COMPARE_NMEA}
+        ${_CLSDATA}/ref_L6.nmea
+        ${CMAKE_BINARY_DIR}/out_claslib_ppp_rtk.nmea
+        --tolerance 0.10
+)
+set_tests_properties(claslib_ppp_rtk_check PROPERTIES
+    DEPENDS           claslib_ppp_rtk
+    FIXTURES_REQUIRED claslib_data
+    LABELS            "regression;claslib;ppp-rtk"
+)
+
+# ── rnx2rtkp CLAS PPP-RTK regression (L6, BINEX obs) ─────────────────────────
+# Data: 2019/08/27 16:00-17:00, 0627239Q.bnx + sept_2019239.nav + 2019239Q.l6
+# Reference: ref_L6_bnx.nmea (upstream claslib output)
+add_test(NAME claslib_ppp_rtk_bnx
+    COMMAND $<TARGET_FILE:rnx2rtkp>
+        -k ${CMAKE_SOURCE_DIR}/conf/claslib/rnx2rtkp.conf
+        -ts 2019/08/27 16:00:00 -te 2019/08/27 16:59:59 -ti 1
+        -o ${CMAKE_BINARY_DIR}/out_claslib_ppp_rtk_bnx.nmea
+        ${_CLSDATA}/0627239Q.bnx
+        ${_CLSDATA}/sept_2019239.nav
+        ${_CLSDATA}/2019239Q.l6
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+set_tests_properties(claslib_ppp_rtk_bnx PROPERTIES
+    FIXTURES_REQUIRED claslib_data
+    TIMEOUT           300
+    LABELS            "regression;claslib;ppp-rtk"
+)
+
+add_test(NAME claslib_ppp_rtk_bnx_check
+    COMMAND ${Python3_EXECUTABLE} ${_COMPARE_NMEA}
+        ${_CLSDATA}/ref_L6_bnx.nmea
+        ${CMAKE_BINARY_DIR}/out_claslib_ppp_rtk_bnx.nmea
+        --tolerance 0.10
+)
+set_tests_properties(claslib_ppp_rtk_bnx_check PROPERTIES
+    DEPENDS           claslib_ppp_rtk_bnx
+    FIXTURES_REQUIRED claslib_data
+    LABELS            "regression;claslib;ppp-rtk"
+)
+
+# ── rnx2rtkp CLAS PPP-RTK regression (dual-channel L6) ────────────────────────
+# Data: 2025/06/06 20:00-21:00, 0627157U.bnx + 2025157U_ch1.l6 + ch2.l6
+# Reference: ref_L6_2CH.nmea (upstream claslib output with -l6msg 1)
+# Note: tolerance 0.20m due to wider accuracy gap on 2025 dataset (~15.6cm RMS)
+add_test(NAME claslib_ppp_rtk_2ch
+    COMMAND $<TARGET_FILE:rnx2rtkp>
+        -k ${CMAKE_SOURCE_DIR}/conf/claslib/rnx2rtkp.conf
+        -ts 2025/06/06 20:00:00 -te 2025/06/06 20:59:59 -ti 1
+        -l6msg 1
+        -o ${CMAKE_BINARY_DIR}/out_claslib_ppp_rtk_2ch.nmea
+        ${_CLSDATA}/0627157U.bnx
+        ${_CLSDATA}/0627157U.nav
+        ${_CLSDATA}/2025157U_ch1.l6
+        ${_CLSDATA}/2025157U_ch2.l6
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+set_tests_properties(claslib_ppp_rtk_2ch PROPERTIES
+    FIXTURES_REQUIRED claslib_data
+    TIMEOUT           300
+    LABELS            "regression;claslib;ppp-rtk"
+)
+
+add_test(NAME claslib_ppp_rtk_2ch_check
+    COMMAND ${Python3_EXECUTABLE} ${_COMPARE_NMEA}
+        ${_CLSDATA}/ref_L6_2CH.nmea
+        ${CMAKE_BINARY_DIR}/out_claslib_ppp_rtk_2ch.nmea
+        --tolerance 0.20
+        --skip-fixrate
+)
+set_tests_properties(claslib_ppp_rtk_2ch_check PROPERTIES
+    DEPENDS           claslib_ppp_rtk_2ch
+    FIXTURES_REQUIRED claslib_data
+    LABELS            "regression;claslib;ppp-rtk"
+)
+
+# ── rnx2rtkp CLAS VRS-RTK regression ──────────────────────────────────────────
+# Data: 2019/08/27 16:00-17:00, 0627239Q.obs + sept_2019239.nav + vrs2019239Q.obs
+# Reference: ref_VRS.nmea (upstream claslib output)
+add_test(NAME claslib_vrs_rtk
+    COMMAND $<TARGET_FILE:rnx2rtkp>
+        -k ${CMAKE_SOURCE_DIR}/conf/claslib/rnx2rtkp_vrs.conf
+        -ts 2019/08/27 16:00:00 -te 2019/08/27 16:59:59 -ti 1
+        -o ${CMAKE_BINARY_DIR}/out_claslib_vrs_rtk.nmea
+        ${_CLSDATA}/0627239Q.obs
+        ${_CLSDATA}/sept_2019239.nav
+        ${_CLSDATA}/vrs2019239Q.obs
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+set_tests_properties(claslib_vrs_rtk PROPERTIES
+    FIXTURES_REQUIRED claslib_data
+    TIMEOUT           300
+    LABELS            "regression;claslib;vrs"
+)
+
+add_test(NAME claslib_vrs_rtk_check
+    COMMAND ${Python3_EXECUTABLE} ${_COMPARE_NMEA}
+        ${_CLSDATA}/ref_VRS.nmea
+        ${CMAKE_BINARY_DIR}/out_claslib_vrs_rtk.nmea
+        --tolerance 0.10
+)
+set_tests_properties(claslib_vrs_rtk_check PROPERTIES
+    DEPENDS           claslib_vrs_rtk
+    FIXTURES_REQUIRED claslib_data
+    LABELS            "regression;claslib;vrs"
+)
+
+# ── rnx2rtkp CLAS PPP-RTK regression (SubType 12 BINEX) ─────────────────────
+# Data: 2019/12/15 01:00-02:00, 0627349AB.bnx + sept_2019349.nav + 2019349B.l6
+# Reference: ref_ST12.nmea (upstream claslib output)
+add_test(NAME claslib_ppp_rtk_st12
+    COMMAND $<TARGET_FILE:rnx2rtkp>
+        -k ${CMAKE_SOURCE_DIR}/conf/claslib/rnx2rtkp.conf
+        -ts 2019/12/15 01:00:00 -te 2019/12/15 01:59:59 -ti 1
+        -o ${CMAKE_BINARY_DIR}/out_claslib_ppp_rtk_st12.nmea
+        ${_CLSDATA}/0627349AB.bnx
+        ${_CLSDATA}/sept_2019349.nav
+        ${_CLSDATA}/2019349B.l6
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+set_tests_properties(claslib_ppp_rtk_st12 PROPERTIES
+    FIXTURES_REQUIRED claslib_data
+    TIMEOUT           300
+    LABELS            "regression;claslib;ppp-rtk"
+)
+
+add_test(NAME claslib_ppp_rtk_st12_check
+    COMMAND ${Python3_EXECUTABLE} ${_COMPARE_NMEA}
+        ${_CLSDATA}/ref_ST12.nmea
+        ${CMAKE_BINARY_DIR}/out_claslib_ppp_rtk_st12.nmea
+        --tolerance 0.15
+)
+set_tests_properties(claslib_ppp_rtk_st12_check PROPERTIES
+    DEPENDS           claslib_ppp_rtk_st12
+    FIXTURES_REQUIRED claslib_data
+    LABELS            "regression;claslib;ppp-rtk"
+)
+
+# ── rnx2rtkp CLAS PPP-RTK regression (L1C+L5 frequency) ─────────────────────
+# Data: 2025/01/22 16:00-17:00, 0627022Q.bnx + 2025022Q.l6 (no separate nav)
+# Reference: ref_L6_L1CL5.nmea (upstream claslib output)
+add_test(NAME claslib_ppp_rtk_l1cl5
+    COMMAND $<TARGET_FILE:rnx2rtkp>
+        -k ${CMAKE_SOURCE_DIR}/conf/claslib/rnx2rtkp_L1CL5.conf
+        -ts 2025/01/22 16:00:00 -te 2025/01/22 16:59:59 -ti 1
+        -o ${CMAKE_BINARY_DIR}/out_claslib_ppp_rtk_l1cl5.nmea
+        ${_CLSDATA}/0627022Q.bnx
+        ${_CLSDATA}/2025022Q.l6
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+set_tests_properties(claslib_ppp_rtk_l1cl5 PROPERTIES
+    FIXTURES_REQUIRED claslib_data
+    TIMEOUT           300
+    LABELS            "regression;claslib;ppp-rtk"
+)
+
+add_test(NAME claslib_ppp_rtk_l1cl5_check
+    COMMAND ${Python3_EXECUTABLE} ${_COMPARE_NMEA}
+        ${_CLSDATA}/ref_L6_L1CL5.nmea
+        ${CMAKE_BINARY_DIR}/out_claslib_ppp_rtk_l1cl5.nmea
+        --tolerance 0.12
+)
+set_tests_properties(claslib_ppp_rtk_l1cl5_check PROPERTIES
+    DEPENDS           claslib_ppp_rtk_l1cl5
+    FIXTURES_REQUIRED claslib_data
+    LABELS            "regression;claslib;ppp-rtk"
+)
+
+# ── rnx2rtkp CLAS VRS-RTK regression (SubType 12 BINEX) ─────────────────────
+# Data: 2019/12/15 01:00-02:00, 0627349AB.bnx + sept_2019349.nav + vrs2019349B.obs
+# Reference: ref_ST12_VRS.nmea (upstream claslib output)
+add_test(NAME claslib_vrs_rtk_st12
+    COMMAND $<TARGET_FILE:rnx2rtkp>
+        -k ${CMAKE_SOURCE_DIR}/conf/claslib/rnx2rtkp_vrs.conf
+        -ts 2019/12/15 01:00:00 -te 2019/12/15 01:59:59 -ti 1
+        -o ${CMAKE_BINARY_DIR}/out_claslib_vrs_rtk_st12.nmea
+        ${_CLSDATA}/0627349AB.bnx
+        ${_CLSDATA}/sept_2019349.nav
+        ${_CLSDATA}/vrs2019349B.obs
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+set_tests_properties(claslib_vrs_rtk_st12 PROPERTIES
+    FIXTURES_REQUIRED claslib_data
+    TIMEOUT           300
+    LABELS            "regression;claslib;vrs"
+)
+
+add_test(NAME claslib_vrs_rtk_st12_check
+    COMMAND ${Python3_EXECUTABLE} ${_COMPARE_NMEA}
+        ${_CLSDATA}/ref_ST12_VRS.nmea
+        ${CMAKE_BINARY_DIR}/out_claslib_vrs_rtk_st12.nmea
+        --tolerance 0.10
+)
+set_tests_properties(claslib_vrs_rtk_st12_check PROPERTIES
+    DEPENDS           claslib_vrs_rtk_st12
+    FIXTURES_REQUIRED claslib_data
+    LABELS            "regression;claslib;vrs"
+)
+
+# ── rnx2rtkp CLAS VRS-RTK regression (dual-channel) ─────────────────────────
+# Data: 2025/06/06 20:00-21:00, 0627157U.bnx + ch1.obs + ch2.obs (VRS)
+# Reference: ref_L6_2CH_VRS.nmea (upstream claslib output)
+# Note: No separate .nav — nav embedded in BINEX; no .l6 — VRS obs replace L6
+add_test(NAME claslib_vrs_rtk_2ch
+    COMMAND $<TARGET_FILE:rnx2rtkp>
+        -k ${CMAKE_SOURCE_DIR}/conf/claslib/rnx2rtkp_vrs.conf
+        -ts 2025/06/06 20:00:00 -te 2025/06/06 20:59:59 -ti 1
+        -l6msg 1
+        -o ${CMAKE_BINARY_DIR}/out_claslib_vrs_rtk_2ch.nmea
+        ${_CLSDATA}/0627157U.bnx
+        ${_CLSDATA}/2025157U_ch1.obs
+        ${_CLSDATA}/2025157U_ch2.obs
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+set_tests_properties(claslib_vrs_rtk_2ch PROPERTIES
+    FIXTURES_REQUIRED claslib_data
+    TIMEOUT           300
+    LABELS            "regression;claslib;vrs"
+)
+
+add_test(NAME claslib_vrs_rtk_2ch_check
+    COMMAND ${Python3_EXECUTABLE} ${_COMPARE_NMEA}
+        ${_CLSDATA}/ref_L6_2CH_VRS.nmea
+        ${CMAKE_BINARY_DIR}/out_claslib_vrs_rtk_2ch.nmea
+        --tolerance 0.20
+        --skip-fixrate
+)
+set_tests_properties(claslib_vrs_rtk_2ch_check PROPERTIES
+    DEPENDS           claslib_vrs_rtk_2ch
+    FIXTURES_REQUIRED claslib_data
+    LABELS            "regression;claslib;vrs"
+)
+
+# ── ssr2obs regression: generate VRS and verify via VRS-RTK pipeline ─────────
+# Step 1: Generate VRS observations from SSR corrections using ssr2obs
+add_test(NAME claslib_ssr2obs
+    COMMAND $<TARGET_FILE:ssr2obs>
+        -k ${CMAKE_SOURCE_DIR}/conf/claslib/ssr2obs.conf
+        -ts 2019/08/27 16:00:00 -te 2019/08/27 16:59:59 -ti 1
+        -r -o ${CMAKE_BINARY_DIR}/out_ssr2obs_vrs2019239Q.obs
+        ${_CLSDATA}/sept_2019239.nav ${_CLSDATA}/2019239Q.l6
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+set_tests_properties(claslib_ssr2obs PROPERTIES
+    FIXTURES_REQUIRED claslib_data
+    TIMEOUT           300
+    LABELS            "regression;claslib;vrs"
+)
+
+# Step 2: Feed ssr2obs output into VRS-RTK and compare against reference
+add_test(NAME claslib_ssr2obs_vrs_rtk
+    COMMAND $<TARGET_FILE:rnx2rtkp>
+        -k ${CMAKE_SOURCE_DIR}/conf/claslib/rnx2rtkp_vrs.conf
+        -ts 2019/08/27 16:00:00 -te 2019/08/27 16:59:59 -ti 1
+        -o ${CMAKE_BINARY_DIR}/out_ssr2obs_vrs_rtk.nmea
+        ${_CLSDATA}/0627239Q.obs
+        ${_CLSDATA}/sept_2019239.nav
+        ${CMAKE_BINARY_DIR}/out_ssr2obs_vrs2019239Q.obs
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+set_tests_properties(claslib_ssr2obs_vrs_rtk PROPERTIES
+    DEPENDS           claslib_ssr2obs
+    FIXTURES_REQUIRED claslib_data
+    TIMEOUT           300
+    LABELS            "regression;claslib;vrs"
+)
+
+add_test(NAME claslib_ssr2obs_vrs_rtk_check
+    COMMAND ${Python3_EXECUTABLE} ${_COMPARE_NMEA}
+        ${_CLSDATA}/ref_VRS.nmea
+        ${CMAKE_BINARY_DIR}/out_ssr2obs_vrs_rtk.nmea
+        --tolerance 0.20
+        --skip-fixrate
+)
+set_tests_properties(claslib_ssr2obs_vrs_rtk_check PROPERTIES
+    DEPENDS           claslib_ssr2obs_vrs_rtk
+    FIXTURES_REQUIRED claslib_data
+    LABELS            "regression;claslib;vrs"
+)
+
+# ── ssr2osr regression: apply SSR corrections to real obs and verify output ──
+# Step 1: Run ssr2osr with real observations + L6 corrections
+add_test(NAME claslib_ssr2osr
+    COMMAND $<TARGET_FILE:ssr2osr>
+        -k ${CMAKE_SOURCE_DIR}/conf/claslib/ssr2osr.conf
+        -ts 2019/08/27 16:00:00 -te 2019/08/27 16:59:59 -ti 1
+        -o ${CMAKE_BINARY_DIR}/out_ssr2osr.nmea
+        ${_CLSDATA}/0627239Q.obs ${_CLSDATA}/sept_2019239.nav ${_CLSDATA}/2019239Q.l6
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+set_tests_properties(claslib_ssr2osr PROPERTIES
+    FIXTURES_REQUIRED claslib_data
+    TIMEOUT           300
+    LABELS            "regression;claslib"
+)
+
+# Step 2: Verify output is non-empty and positions match config
+add_test(NAME claslib_ssr2osr_check
+    COMMAND ${Python3_EXECUTABLE} -c "
+import sys
+lines=[l for l in open(sys.argv[1]) if l.startswith('$GPGGA') or l.startswith('$GNGGA')]
+assert len(lines)>=100, f'too few GGA sentences: {len(lines)}'
+for l in lines[:5]:
+    f=l.split(',')
+    lat=float(f[2][:2])+float(f[2][2:])/60.0
+    lon=float(f[4][:3])+float(f[4][3:])/60.0
+    assert abs(lat-36.1036)<0.01, f'lat {lat}'
+    assert abs(lon-140.0863)<0.01, f'lon {lon}'
+print(f'OK: {len(lines)} GGA sentences, position verified')
+"
+        ${CMAKE_BINARY_DIR}/out_ssr2osr.nmea
+)
+set_tests_properties(claslib_ssr2osr_check PROPERTIES
+    DEPENDS           claslib_ssr2osr
+    FIXTURES_REQUIRED claslib_data
+    LABELS            "regression;claslib"
+)

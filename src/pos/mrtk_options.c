@@ -6,6 +6,8 @@
  * Copyright (C) 2024-2025 Lighthouse Technology & Consulting Co. Ltd.
  * Copyright (C) 2023-2025 Japan Aerospace Exploration Agency
  * Copyright (C) 2023-2025 TOSHIBA ELECTRONIC TECHNOLOGIES CORPORATION
+ * Copyright (C) 2015- Mitsubishi Electric Corp.
+ * Copyright (C) 2014 Geospatial Information Authority of Japan
  * Copyright (C) 2014 T.SUZUKI
  * Copyright (C) 2007-2023 T.TAKASU
  *
@@ -40,10 +42,11 @@ static char snrmask_[NFREQ][1024];
 
 /* system options table ------------------------------------------------------*/
 #define SWTOPT  "0:off,1:on"
-#define MODOPT  "0:single,1:dgps,2:kinematic,3:static,4:movingbase,5:fixed,6:ppp-kine,7:ppp-static,8:ppp-fixed"
+#define MODOPT  "0:single,1:dgps,2:kinematic,3:static,4:movingbase,5:fixed,6:ppp-kine,7:ppp-static,8:ppp-fixed,9:ppp-rtk,10:ssr2osr,11:ssr2osr-fixed,12:vrs-rtk"
 #define FRQOPT  "1:l1,2:l1+2,3:l1+2+3,4:l1+2+3+4,5:l1+2+3+4+5"
+#define FRQOPT2 "1:l1,2:l1+l2,3:l1+l5,4:l1+l2+l5,5:l1+l5(l2)"
 #define TYPOPT  "0:forward,1:backward,2:combined"
-#define IONOPT  "0:off,1:brdc,2:sbas,3:dual-freq,4:est-stec,5:ionex-tec,6:qzs-brdc"
+#define IONOPT  "0:off,1:brdc,2:sbas,3:dual-freq,4:est-stec,5:ionex-tec,6:qzs-brdc,9:est-adaptive"
 #define TRPOPT  "0:off,1:saas,2:sbas,3:est-ztd,4:est-ztdgrad"
 #define EPHOPT  "0:brdc,1:precise,2:brdc+sbas,3:brdc+ssrapc,4:brdc+ssrcom"
 #define NAVOPT  "1:gps+2:sbas+4:glo+8:gal+16:qzs+32:bds+64:navic"
@@ -58,13 +61,16 @@ static char snrmask_[NFREQ][1024];
 #define STSOPT  "0:off,1:state,2:residual"
 #define ARMOPT  "0:off,1:continuous,2:instantaneous,3:fix-and-hold"
 #define POSOPT  "0:llh,1:xyz,2:single,3:posfile,4:rinexhead,5:rtcm,6:raw"
-#define TIDEOPT "0:off,1:on,2:otl"
+#define TIDEOPT "0:off,1:on,2:otl,3:solid+otl-clasgrid+pole"
 #define PHWOPT  "0:off,1:on,2:precise"
 #define SIGOPT1 "0:L1/L2,1:L1/L5,2:L1/L2/L5"
 #define SIGOPT2 "0:L1/L5,1:L1/L2,2:L1/L5/L2"
 #define SIGOPT3 "0:E1/E5a,1:E1/E5b,2:E1/E6,3:E1/E5a/E5b/E6,4:E1/E5a/E6/E5b"
 #define SIGOPT4 "0:B1I/B3I,1:B1I/B2I,2:B1I/B3I/B2I"
 #define SIGOPT5 "0:B1I/B3I,1:B1I/B2a,2:B1I/B3I/B2a"
+#define COMOPT  "0:off,1:ssr,2:meas"
+#define ARALPHAOPT "0:0.1%,1:0.5%,2:1%,3:5%,4:10%,5:20%"
+#define PSHFTOPT "0:off,1:table"
 #define SATCB   "0:auto,1:ssr,2:bia,3:dcb"
 #define SATPB   "0:auto,1:ssr,3:fcb"
 opt_t sysopts[]={
@@ -87,10 +93,22 @@ opt_t sysopts[]={
     {"pos1-posopt3",    3,  (void *)&prcopt_.posopt[2],  PHWOPT },
     {"pos1-posopt4",    3,  (void *)&prcopt_.posopt[3],  SWTOPT },
     {"pos1-posopt5",    3,  (void *)&prcopt_.posopt[4],  SWTOPT },
-    {"pos1-posopt6",    3,  (void *)&prcopt_.posopt[5],  SWTOPT },
+    {"pos1-posopt6",    3,  (void *)&prcopt_.posopt[5],  COMOPT },
     {"pos1-exclsats",   2,  (void *)exsats_,             "prn ..."},
     {"pos1-navsys",     0,  (void *)&prcopt_.navsys,     NAVOPT },
-    
+    {"pos1-posopt7",    3,  (void *)&prcopt_.posopt[6],  SWTOPT }, /* partial AR */
+    {"pos1-posopt8",    3,  (void *)&prcopt_.posopt[7],  SWTOPT }, /* shapiro time delay */
+    {"pos1-posopt9",    3,  (void *)&prcopt_.posopt[8],  SWTOPT }, /* exclude QZS as refsat */
+    {"pos1-posopt10",   3,  (void *)&prcopt_.posopt[9],  SWTOPT }, /* don't adjust phase bias */
+    {"pos1-posopt11",   3,  (void *)&prcopt_.posopt[10], FRQOPT2}, /* gps freq (l1+l2/l1+l5) */
+    {"pos1-posopt12",   3,  (void *)&prcopt_.posopt[11], SWTOPT }, /* reserved */
+    {"pos1-posopt13",   3,  (void *)&prcopt_.posopt[12], FRQOPT2}, /* qzs freq (l1+l2/l1+l5) */
+    {"pos1-gridsel",    0,  (void *)&prcopt_.gridsel,    "m"    },
+    {"pos1-rectype",    2,  (void *)prcopt_.rectype[0],  ""     },
+    {"pos1-rux",        1,  (void *)&prcopt_.ru[0],      ""     },
+    {"pos1-ruy",        1,  (void *)&prcopt_.ru[1],      ""     },
+    {"pos1-ruz",        1,  (void *)&prcopt_.ru[2],      ""     },
+
     {"pos2-armode",     3,  (void *)&prcopt_.modear,     ARMOPT },
     {"pos2-gloarmode",  3,  (void *)&prcopt_.glomodear,  GAROPT },
     {"pos2-bdsarmode",  3,  (void *)&prcopt_.bdsmodear,  SWTOPT },
@@ -127,7 +145,27 @@ opt_t sysopts[]={
     {"pos2-uncorrbias", 0,  (void *)&prcopt_.unbias,     ""     },
     {"pos2-maxbiasdt",  0,  (void *)&prcopt_.maxbiasdt,  "s"    },
     {"pos2-sattmode"  , 0,  (void *)&prcopt_.sattmode  , ""     },
-    
+    {"pos2-qzsarmode",  3,  (void *)&prcopt_.qzsmodear,  SWTOPT },
+    {"pos2-aralpha",    3,  (void *)&prcopt_.alphaar,    ARALPHAOPT},
+    {"pos2-arminamb",   0,  (void *)&prcopt_.minamb,     ""     },
+    {"pos2-armaxdelsat", 0, (void *)&prcopt_.armaxdelsat, ""     },
+    {"pos2-varholdamb", 1,  (void *)&prcopt_.varholdamb, "cyc^2"},
+    {"pos2-rejionno1",  1,  (void *)&prcopt_.maxinno_ext[0], "sigma"},
+    {"pos2-rejionno2",  1,  (void *)&prcopt_.maxinno_ext[1], "sigma"},
+    {"pos2-rejionno3",  1,  (void *)&prcopt_.maxinno_ext[2], "sigma"},
+    {"pos2-rejionno4",  1,  (void *)&prcopt_.maxinno_ext[3], ""    },
+    {"pos2-rejionno5",  1,  (void *)&prcopt_.maxinno_ext[4], ""    },
+    {"pos2-rejdiffpse", 1,  (void *)&prcopt_.maxdiffp,   "m"    },
+    {"pos2-poserrcnt",  0,  (void *)&prcopt_.poserrcnt,  "cnt"  },
+    {"pos2-forgetion",  1,  (void *)&prcopt_.forgetion,  ""     },
+    {"pos2-afgainion",  1,  (void *)&prcopt_.afgainion,  ""     },
+    {"pos2-prnadpt",    3,  (void *)&prcopt_.prnadpt,    SWTOPT },
+    {"pos2-forgetpva",  1,  (void *)&prcopt_.forgetpva,  ""     },
+    {"pos2-afgainpva",  1,  (void *)&prcopt_.afgainpva,  ""     },
+    {"pos2-phasshft",   3,  (void *)&prcopt_.phasshft,   PSHFTOPT},
+    {"pos2-rectype",    2,  (void *)prcopt_.rectype[1],  ""     },
+    {"pos2-isb",        3,  (void *)&prcopt_.isb,        SWTOPT },
+
     {"out-solformat",   3,  (void *)&solopt_.posf,       SOLOPT },
     {"out-outhead",     3,  (void *)&solopt_.outhead,    SWTOPT },
     {"out-outopt",      3,  (void *)&solopt_.outopt,     SWTOPT },
@@ -165,6 +203,10 @@ opt_t sysopts[]={
     {"stats-prndcb",    1,  (void *)&prcopt_.prn[6],     "m"    }, /* alias for prnifb (legacy name) */
     {"stats-uraratio",  1,  (void *)&prcopt_.uraratio,   ""     },
     {"stats-clkstab",   1,  (void *)&prcopt_.sclkstab,   "s/s"  },
+    {"stats-prnionomax",1,  (void *)&prcopt_.prnionomax, "m"    },
+    {"stats-prnposith", 1,  (void *)&prcopt_.stats_prnposith, "m"},
+    {"stats-prnpositv", 1,  (void *)&prcopt_.stats_prnpositv, "m"},
+    {"stats-tconstiono",1,  (void *)&prcopt_.stats_tconstiono,"s"},
     
     {"ant1-postype",    3,  (void *)&antpostype_[0],     POSOPT },
     {"ant1-pos1",       1,  (void *)&antpos_[0][0],      "deg|m"},
@@ -191,8 +233,12 @@ opt_t sysopts[]={
     {"misc-rnxopt1",    2,  (void *)prcopt_.rnxopt[0],   ""     },
     {"misc-rnxopt2",    2,  (void *)prcopt_.rnxopt[1],   ""     },
     {"misc-pppopt",     2,  (void *)prcopt_.pppopt,      ""     },
+    {"misc-maxobsloss", 1,  (void *)&prcopt_.maxobsloss_s, "s"  },
+    {"misc-floatcnt",   0,  (void *)&prcopt_.floatcnt,   "epoch"},
     {"misc-rtcmopt",    2,  (void *)&prcopt_.rtcmopt,    ""     },
-    
+    {"misc-l6mrg",      0,  (void *)&prcopt_.l6mrg,      ""     },
+    {"misc-regularly",  0,  (void *)&prcopt_.regularly,  ""     },
+
     {"file-satantfile", 2,  (void *)&filopt_.satantp,    ""     },
     {"file-rcvantfile", 2,  (void *)&filopt_.rcvantp,    ""     },
     {"file-staposfile", 2,  (void *)&filopt_.stapos,     ""     },
@@ -208,7 +254,10 @@ opt_t sysopts[]={
     {"file-tracefile",  2,  (void *)&filopt_.trace,      ""     },
     {"file-fcbfile",    2,  (void *)&filopt_.fcb,        ""     },
     {"file-biafile",    2,  (void *)&filopt_.bia,        ""     },
-    
+    {"file-cssrgridfile",2, (void *)&filopt_.grid,       ""     },
+    {"file-isbfile",    2,  (void *)&filopt_.isb,        ""     },
+    {"file-phacycfile", 2,  (void *)&filopt_.phacyc,     ""     },
+
     {"",0,NULL,""} /* terminator */
 };
 /* discard space characters at tail ------------------------------------------*/
@@ -243,8 +292,8 @@ static int str2enum(const char *str, const char *comment, int *val)
     
     for (p=comment;;p++) {
        if (!(p=strstr(p,str))) break;
-       if (*(p-1)!=':') continue;
-       for (p-=2;'0'<=*p&&*p<='9';p--) ;
+       if (p<=comment||*(p-1)!=':') continue;
+       for (p-=2;p>=comment&&'0'<=*p&&*p<='9';p--) ;
        return sscanf(p+1,"%d",val)==1;
     }
     sprintf(s,"%.30s:",str);

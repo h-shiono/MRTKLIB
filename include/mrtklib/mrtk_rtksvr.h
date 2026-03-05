@@ -6,6 +6,8 @@
  * Copyright (C) 2024-2025 Lighthouse Technology & Consulting Co. Ltd.
  * Copyright (C) 2023-2025 Japan Aerospace Exploration Agency
  * Copyright (C) 2023-2025 TOSHIBA ELECTRONIC TECHNOLOGIES CORPORATION
+ * Copyright (C) 2015- Mitsubishi Electric Corp.
+ * Copyright (C) 2014 Geospatial Information Authority of Japan
  * Copyright (C) 2014 T.SUZUKI
  * Copyright (C) 2007-2023 T.TAKASU
  *
@@ -39,6 +41,7 @@ extern "C" {
 #include "mrtklib/mrtk_rtcm.h"
 #include "mrtklib/mrtk_rtkpos.h"
 #include "mrtklib/mrtk_stream.h"
+#include "mrtklib/mrtk_clas.h"
 
 /*============================================================================
  * RTK Server Type
@@ -86,6 +89,7 @@ typedef struct {        /* RTK server type */
     double bl_reset;    /* baseline length to reset (km) */
     rtk_lock_t lock;    /* lock flag */
     mrtk_ctx_t *ctx;    /* runtime context */
+    clas_ctx_t *clas;   /* CLAS CSSR decoder context (NULL if unused) */
 } rtksvr_t;
 
 /*============================================================================

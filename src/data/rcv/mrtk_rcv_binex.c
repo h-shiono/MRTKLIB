@@ -6,6 +6,8 @@
  * Copyright (C) 2024-2025 Lighthouse Technology & Consulting Co. Ltd.
  * Copyright (C) 2023-2025 Japan Aerospace Exploration Agency
  * Copyright (C) 2023-2025 TOSHIBA ELECTRONIC TECHNOLOGIES CORPORATION
+ * Copyright (C) 2015- Mitsubishi Electric Corp.
+ * Copyright (C) 2014 Geospatial Information Authority of Japan
  * Copyright (C) 2014 T.SUZUKI
  * Copyright (C) 2007-2023 T.TAKASU
  *
@@ -21,6 +23,7 @@
 #include "mrtklib/mrtk_mat.h"
 #include "mrtklib/mrtk_coords.h"
 #include "mrtklib/mrtk_sys.h"
+#include "mrtklib/mrtk_opt.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -1314,9 +1317,9 @@ extern int input_bnxf(raw_t *raw, FILE *fp)
 {
     uint32_t len;
     int i,data,len_h,len_c;
-    
+
     trace(NULL,4,"input_bnxf\n");
-    
+
     if (raw->nbyte==0) {
         for (i=0;;i++) {
             if ((data=fgetc(fp))==EOF) return -2;
@@ -1325,23 +1328,296 @@ extern int input_bnxf(raw_t *raw, FILE *fp)
         }
     }
     if (fread(raw->buff+2,1,4,fp)<4) return -2;
-    
+
     len_h=getbnxi(raw->buff+2,&len);
-    
+
     raw->len=len+len_h+2;
-    
+
     if (raw->len-1>4096) {
         trace(NULL,2,"BINEX length error: len=%d\n",raw->len-1);
         raw->nbyte=0;
         return -1;
     }
     len_c=(raw->len-1<128)?1:2;
-    
+
     if (fread(raw->buff+6,1,raw->len+len_c-6,fp)<(size_t)(raw->len+len_c-6)) {
         return -2;
     }
     raw->nbyte=0;
-    
+
     /* decode BINEX message */
     return decode_bnx(raw);
+}
+
+/*============================================================================
+ * BINEX file reading functions (post-processing)
+ *
+ * Ported from upstream claslib/src/rcv/binex.c lines 1305-1601.
+ *===========================================================================*/
+
+#define NINCOBS 262144  /* incremental number of obs data */
+
+/* set string without padding ------------------------------------------------*/
+static void setstr_bnx(char *dst, const char *src, int n)
+{
+    char *p=dst;
+    const char *q=src;
+    while (*q&&q<src+n) *p++=*q++;
+    *p--='\0';
+    while (p>=dst&&*p==' ') *p--='\0';
+}
+/* save cycle-slip flags -----------------------------------------------------*/
+static void saveslips(unsigned char slips[][NFREQ], obsd_t *data)
+{
+    int i;
+    for (i=0;i<NFREQ;i++) {
+        if (data->LLI[i]&1) slips[data->sat-1][i]|=1;
+    }
+}
+/* restore cycle-slip flags --------------------------------------------------*/
+static void restslips(unsigned char slips[][NFREQ], obsd_t *data)
+{
+    int i;
+    for (i=0;i<NFREQ;i++) {
+        if (slips[data->sat-1][i]&1) data->LLI[i]|=1;
+        slips[data->sat-1][i]=0;
+    }
+}
+/* add observation data ------------------------------------------------------*/
+static int addobsdata(obs_t *obs, const obsd_t *data)
+{
+    obsd_t *obs_data;
+
+    if (obs->nmax<=obs->n) {
+        if (obs->nmax<=0) obs->nmax=NINCOBS; else obs->nmax*=2;
+        if (!(obs_data=(obsd_t *)realloc(obs->data,sizeof(obsd_t)*obs->nmax))) {
+            trace(NULL,1,"addobsdata: memalloc error n=%dx%d\n",
+                  (int)sizeof(obsd_t),obs->nmax);
+            free(obs->data); obs->data=NULL; obs->n=obs->nmax=0;
+            return -1;
+        }
+        obs->data=obs_data;
+    }
+    obs->data[obs->n++]=*data;
+    return 1;
+}
+/* add ephemeris data --------------------------------------------------------*/
+static int add_eph(nav_t *nav, const eph_t *eph)
+{
+    eph_t *nav_eph;
+
+    if (nav->nmax<=nav->n) {
+        nav->nmax+=1024;
+        if (!(nav_eph=(eph_t *)realloc(nav->eph,sizeof(eph_t)*nav->nmax))) {
+            trace(NULL,1,"add_eph: memalloc error n=%d\n",nav->nmax);
+            free(nav->eph); nav->eph=NULL; nav->n=nav->nmax=0;
+            return 0;
+        }
+        nav->eph=nav_eph;
+    }
+    nav->eph[nav->n++]=*eph;
+    return 1;
+}
+/* add GLONASS ephemeris data ------------------------------------------------*/
+static int add_geph(nav_t *nav, const geph_t *geph)
+{
+    geph_t *nav_geph;
+
+    if (nav->ngmax<=nav->ng) {
+        nav->ngmax+=1024;
+        if (!(nav_geph=(geph_t *)realloc(nav->geph,sizeof(geph_t)*nav->ngmax))) {
+            trace(NULL,1,"add_geph: memalloc error n=%d\n",nav->ngmax);
+            free(nav->geph); nav->geph=NULL; nav->ng=nav->ngmax=0;
+            return 0;
+        }
+        nav->geph=nav_geph;
+    }
+    nav->geph[nav->ng++]=*geph;
+    return 1;
+}
+/* add SBAS ephemeris data ---------------------------------------------------*/
+static int add_seph(nav_t *nav, const seph_t *seph)
+{
+    seph_t *nav_seph;
+
+    if (nav->nsmax<=nav->ns) {
+        nav->nsmax+=1024;
+        if (!(nav_seph=(seph_t *)realloc(nav->seph,sizeof(seph_t)*nav->nsmax))) {
+            trace(NULL,1,"add_seph: memalloc error n=%d\n",nav->nsmax);
+            free(nav->seph); nav->seph=NULL; nav->ns=nav->nsmax=0;
+            return 0;
+        }
+        nav->seph=nav_seph;
+    }
+    nav->seph[nav->ns++]=*seph;
+    return 1;
+}
+/* read BINEX file pointer ---------------------------------------------------*/
+static int readbnxfp(FILE *fp, gtime_t ts, gtime_t te, double tint,
+                     const char *opt, int flag, int index, char *type,
+                     obs_t *obs, nav_t *nav, sta_t *sta, const prcopt_t *popt)
+{
+    unsigned char slips[MAXSAT][NFREQ]={{0}};
+    int stat,data,dec_type,sys,sat,prn,mask,i;
+    uint32_t len;
+    int len_h,len_c;
+    static raw_t raw;
+
+    memset(&raw,'\0',sizeof(raw));
+    init_raw(&raw,STRFMT_BINEX);
+    strcpy(raw.opt,opt);
+    mask=popt->navsys;
+
+    while (1) {
+        if ((data=fgetc(fp))==EOF) break;
+        if (!sync_bnx(raw.buff,(unsigned char)data)) continue;
+
+        if (fread(raw.buff+2,1,4,fp)<4) break;
+
+        len_h=getbnxi(raw.buff+2,&len);
+        raw.len=len+len_h+2;
+
+        if (raw.len-1>4096) {
+            trace(NULL,2,"binex length error: len=%d\n",raw.len-1);
+            raw.nbyte=0;
+            continue;
+        }
+        len_c=(raw.len-1<128)?1:2;
+
+        if (raw.len+len_c-6<1) {
+            trace(NULL,2,"binex length error: len=%d\n",raw.len-1);
+            raw.nbyte=0;
+            continue;
+        }
+        if (fread(raw.buff+6,1,raw.len+len_c-6,fp)<(size_t)(raw.len+len_c-6)) {
+            break;
+        }
+        raw.nbyte=0;
+
+        if ((dec_type=decode_bnx(&raw))>=1) {
+            switch (dec_type) {
+                case 1: /* observation data */
+                    for (i=0;i<raw.obs.n;i++) {
+                        saveslips(slips,raw.obs.data+i);
+                    }
+                    if (raw.obs.n>0&&!screent(raw.obs.data[0].time,ts,te,tint))
+                        continue;
+
+                    for (i=0;i<raw.obs.n;i++) {
+                        restslips(slips,raw.obs.data+i);
+                        raw.obs.data[i].rcv=(unsigned char)index;
+
+                        if (!(satsys(raw.obs.data[i].sat,NULL)&mask)) continue;
+
+                        if ((stat=addobsdata(obs,raw.obs.data+i))<0) break;
+                    }
+                    break;
+                case 2: /* ephemeris data */
+                    sat=raw.ephsat;
+                    sys=satsys(sat,&prn);
+
+                    if (!(sys&mask)) break;
+
+                    switch (sys) {
+                        case SYS_GLO:
+                            stat=add_geph(nav,&raw.nav.geph[prn-1]);
+                            break;
+                        case SYS_SBS:
+                            stat=add_seph(nav,&raw.nav.seph[prn-MINPRNSBS]);
+                            break;
+                        default:
+                            stat=add_eph(nav,&raw.nav.eph[sat-1]);
+                            break;
+                    }
+                    if (!stat) { free_raw(&raw); return 0; }
+                    break;
+            }
+        }
+    }
+    free_raw(&raw);
+    return 1;
+}
+/* read BINEX file -----------------------------------------------------------*/
+static int readbnxfile(const char *file, gtime_t ts, gtime_t te, double tint,
+                       const char *opt, int flag, int index, char *type,
+                       obs_t *obs, nav_t *nav, sta_t *sta, const prcopt_t *popt)
+{
+    FILE *fp;
+    int cstat,stat;
+    char tmpfile[1024];
+
+    trace(NULL,3,"readbnxfile: file=%s flag=%d index=%d\n",file,flag,index);
+
+    if (sta) {
+        *sta->name='\0'; *sta->marker='\0'; *sta->antdes='\0';
+        *sta->antsno='\0'; *sta->rectype='\0'; *sta->recver='\0';
+        *sta->recsno='\0';
+        sta->antsetup=sta->itrf=sta->deltype=0;
+        sta->hgt=0.0;
+    }
+    /* uncompress file */
+    if ((cstat=rtk_uncompress(file,tmpfile))<0) {
+        trace(NULL,2,"binex file uncompact error: %s\n",file);
+        return 0;
+    }
+    if (!(fp=fopen(cstat?tmpfile:file,"rb"))) {
+        trace(NULL,2,"binex file open error: %s\n",cstat?tmpfile:file);
+        return 0;
+    }
+    stat=readbnxfp(fp,ts,te,tint,opt,flag,index,type,obs,nav,sta,popt);
+
+    fclose(fp);
+    if (cstat) remove(tmpfile);
+
+    return stat;
+}
+/* read BINEX observation/navigation data --------------------------------------
+* read BINEX obs/nav data from file
+* args   : char   *file     I   BINEX file name
+*          int     rcv      I   receiver number (1:rover, 2:base)
+*          gtime_t ts       I   start time (ts.time==0: from beginning)
+*          gtime_t te       I   end time   (te.time==0: to end)
+*          double  tint     I   observation interval (0: all)
+*          char   *opt      I   decode options
+*          obs_t  *obs      IO  observation data
+*          nav_t  *nav      IO  navigation data
+*          sta_t  *sta      IO  station info (NULL: not output)
+*          prcopt_t *popt   I   processing options (for navsys mask)
+* return : status (1:ok, 0:no data, -1:error)
+*-----------------------------------------------------------------------------*/
+extern int readbnxt(const char *file, int rcv, gtime_t ts, gtime_t te,
+                    double tint, const char *opt, obs_t *obs, nav_t *nav,
+                    sta_t *sta, const prcopt_t *popt)
+{
+    int i,n,stat=0;
+    const char *p;
+    char type=' ',*files[MAXEXFILE]={0};
+
+    trace(NULL,3,"readbnxt: file=%s rcv=%d\n",file,rcv);
+
+    if (!*file) {
+        return readbnxfp(stdin,ts,te,tint,opt,0,1,&type,obs,nav,sta,popt);
+    }
+    for (i=0;i<MAXEXFILE;i++) {
+        if (!(files[i]=(char *)malloc(1024))) {
+            for (i--;i>=0;i--) free(files[i]);
+            return -1;
+        }
+    }
+    /* expand wild-card */
+    if ((n=expath(file,files,MAXEXFILE))<=0) {
+        for (i=0;i<MAXEXFILE;i++) free(files[i]);
+        return 0;
+    }
+    for (i=0;i<n&&stat>=0;i++) {
+        stat=readbnxfile(files[i],ts,te,tint,opt,0,rcv,&type,obs,nav,sta,popt);
+    }
+    /* if station name empty, set 4-char name from file head */
+    if (sta) {
+        if (!(p=strrchr(file,FILEPATHSEP))) p=file-1;
+        if (!*sta->name) setstr_bnx(sta->name,p+1,4);
+    }
+    for (i=0;i<MAXEXFILE;i++) free(files[i]);
+
+    return stat;
 }

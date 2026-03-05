@@ -6,6 +6,8 @@
  * Copyright (C) 2024-2025 Lighthouse Technology & Consulting Co. Ltd.
  * Copyright (C) 2023-2025 Japan Aerospace Exploration Agency
  * Copyright (C) 2023-2025 TOSHIBA ELECTRONIC TECHNOLOGIES CORPORATION
+ * Copyright (C) 2015- Mitsubishi Electric Corp.
+ * Copyright (C) 2014 Geospatial Information Authority of Japan
  * Copyright (C) 2014 T.SUZUKI
  * Copyright (C) 2007-2023 T.TAKASU
  *
@@ -47,6 +49,10 @@ extern "C" {
 #define PMODE_PPP_KINEMA 6          /* positioning mode: PPP-kinemaric */
 #define PMODE_PPP_STATIC 7          /* positioning mode: PPP-static */
 #define PMODE_PPP_FIXED  8          /* positioning mode: PPP-fixed */
+#define PMODE_PPP_RTK    9          /* positioning mode: PPP-RTK (CLAS) */
+#define PMODE_SSR2OSR   10          /* conversion mode: SSR2OSR */
+#define PMODE_SSR2OSR_FIXED 11      /* conversion mode: SSR2OSR-fixed */
+#define PMODE_VRS_RTK   12          /* positioning mode: VRS-RTK (CLAS) */
 
 /*============================================================================
  * Solution Format / Quality Constants
@@ -89,6 +95,7 @@ extern "C" {
 #define IONOOPT_TEC  5              /* ionosphere option: IONEX TEC model */
 #define IONOOPT_QZS  6              /* ionosphere option: QZSS broadcast model */
 #define IONOOPT_STEC 8              /* ionosphere option: SLANT TEC model */
+#define IONOOPT_EST_ADPT 9          /* ionosphere option: adaptive estimation */
 
 #define TROPOPT_OFF  0              /* troposphere option: correction off */
 #define TROPOPT_SAAS 1              /* troposphere option: Saastamoinen model */
@@ -130,6 +137,18 @@ extern "C" {
 #define POSOPT_RTCM   4             /* pos option: rtcm/raw station pos */
 
 /*============================================================================
+ * Extended Receiver Error Model Type
+ *===========================================================================*/
+
+typedef struct {        /* extended receiver error model */
+    int ena[4];         /* model enabled */
+    double cerr[4][NFREQ*2]; /* code errors (m) */
+    double perr[4][NFREQ*2]; /* carrier-phase errors (m) */
+    double gpsglob[NFREQ]; /* gps-glonass h/w bias (m) */
+    double gloicb [NFREQ]; /* glonass interchannel bias (m/fn) */
+} exterr_t;
+
+/*============================================================================
  * Processing Options Type
  *===========================================================================*/
 
@@ -163,10 +182,13 @@ typedef struct prcopt_t {        /* processing options type */
                         /* (0:pos in prcopt,  1:average of single pos, */
                         /*  2:read from file, 3:rinex header, 4:rtcm pos) */
     double eratio[NFREQ]; /* code/phase error ratio */
-    double err[5];      /* measurement error factor */
+    double err[8];      /* measurement error factor */
                         /* [0]:reserved */
                         /* [1-3]:error factor a/b/c of phase (m) */
                         /* [4]:doppler frequency (hz) */
+                        /* [5]:iono variance factor (m) */
+                        /* [6]:trop variance factor (m) */
+                        /* [7]:reserved */
     double std[3];      /* initial-state std [0]bias,[1]iono [2]trop */
     double prn[7];      /* process-noise std [0]bias,[1]iono [2]trop [3]acch [4]accv [5]pos [6]ifb */
     double sclkstab;    /* satellite clock stability (sec/sec) */
@@ -195,9 +217,10 @@ typedef struct prcopt_t {        /* processing options type */
     int  initrst;       /* initialize by restart */
     int  outsingle;     /* output single by dgps/float/fix/ppp outage */
     char rnxopt[2][256]; /* rinex options {rover,base} */
-    int  posopt[6];     /* positioning options */
+    int  posopt[13];    /* positioning options */
     int  syncsol;       /* solution sync mode (0:off,1:on) */
     double odisp[2][6*11]; /* ocean tide loading parameters {rov,base} */
+    exterr_t exterr;    /* extended receiver error model */
     int  freqopt;       /* disable L2-AR */
     int16_t elmaskopt[360]; /* elevation mask pattern */
     char pppopt[256];   /* ppp option */
@@ -207,6 +230,39 @@ typedef struct prcopt_t {        /* processing options type */
     char *l6dpath[MIONO_MAX_PRN]; /* MADOCA-PPP L6D file paths */
     int  ionocorr;      /* MADOCA-PPP ionospheric correction (0:off,1:on) */
     double uraratio;    /* ratio for external URA in PPP variance */
+
+    /* PPP-RTK specific (CLAS) options — appended for ABI stability */
+    int    gridsel;        /* grid select threshold (m), 0=auto */
+    int    alphaar;        /* AR significance index (0:0.1%..5:20%) */
+    int    qzsmodear;      /* QZSS AR mode (0:off,1:on) */
+    int    minamb;         /* min ambiguities for PAR */
+    int    armaxdelsat;    /* max excluded sats for PAR */
+    int    floatcnt;       /* float counter for filter reset */
+    int    poserrcnt;      /* pos error count to reset */
+    int    phasshft;       /* phase shift correction (0:off,1:table) */
+    int    isb;            /* ISB correction mode (0:off, 1:table) */
+    int    prnadpt;        /* adaptive process noise (0:off,1:on) */
+    double maxinno_ext[5]; /* reject thresholds [0]:L1/L2 [1]:disp [2]:nondisp [3]:F&H [4]:Fix */
+    double varholdamb;     /* hold-ambiguity variance (cycle^2) */
+    double maxdiffp;       /* max pseudorange diff for reset (m) */
+    double maxobsloss_s;   /* max obs gap to reset states (s) */
+    double forgetion;      /* forgetting factor iono (0-1) */
+    double afgainion;      /* adaptive gain iono */
+    double forgetpva;      /* forgetting factor PVA (0-1) */
+    double afgainpva;      /* adaptive gain PVA */
+    double prnionomax;     /* max process noise for adaptive iono (m) */
+    double stats_prnposith; /* process noise std pos h (m) */
+    double stats_prnpositv; /* process noise std pos v (m) */
+    double stats_tconstiono; /* time constant of iono variation (s) */
+    char   rectype[2][MAXANT]; /* receiver types {rover,ref} */
+    int    l6mrg;           /* L6 2-channel mode (0:single,1:dual-priority,2:dual-balanced) */
+    int    regularly;       /* filter reset cycle (s) (0:off) */
+
+    /* VRS-RTK specific options */
+    double maxpdopar;       /* maximum PDOP for AR (0:no limit) */
+    double maxpdophold;     /* maximum PDOP to hold ambiguity (0:no limit) */
+    int    refdop;          /* reference DOP (0:conventional, 1:single-diff) */
+    double beta;            /* ionosphere time constant for Gauss-Markov (s) */
 } prcopt_t;
 
 /*============================================================================
@@ -255,6 +311,9 @@ typedef struct {        /* file options type */
     char trace  [MAXSTRPATH]; /* debug trace file */
     char bia    [MAXSTRPATH]; /* bias sinex data file */
     char fcb    [MAXSTRPATH]; /* fcb data file */
+    char grid   [MAXSTRPATH]; /* CLAS grid definition file */
+    char isb    [MAXSTRPATH]; /* ISB correction table file */
+    char phacyc [MAXSTRPATH]; /* phase cycle shift table file */
 } filopt_t;
 
 /*============================================================================

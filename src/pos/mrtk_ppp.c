@@ -6,6 +6,8 @@
 * Copyright (C) 2024-2025 Lighthouse Technology & Consulting Co. Ltd.
 * Copyright (C) 2023-2025 Japan Aerospace Exploration Agency
 * Copyright (C) 2023-2025 TOSHIBA ELECTRONIC TECHNOLOGIES CORPORATION
+* Copyright (C) 2015- Mitsubishi Electric Corp.
+* Copyright (C) 2014 Geospatial Information Authority of Japan
 * Copyright (C) 2014 T.SUZUKI
 * Copyright (C) 2007-2023 T.TAKASU
 *
@@ -98,6 +100,7 @@
 *-----------------------------------------------------------------------------*/
 #include "mrtklib/mrtk_ppp.h"
 #include "mrtklib/mrtk_ppp_ar.h"
+#include "mrtklib/mrtk_ppp_rtk.h"
 #include "mrtklib/mrtk_mat.h"
 #include "mrtklib/mrtk_coords.h"
 #include "mrtklib/mrtk_atmos.h"
@@ -229,6 +232,11 @@ extern int pppoutstat(rtk_t *rtk, char *buff)
     char id[32],*p=buff;
 
     if (!rtk->sol.stat) return 0;
+
+    /* PPP-RTK uses different state layout (no clocks, different indices) */
+    if (rtk->opt.mode==PMODE_PPP_RTK) {
+        return ppprtk_outstat(rtk,buff);
+    }
 
     trace(NULL,3,"pppoutstat:\n");
 
@@ -495,13 +503,13 @@ static int corr_meas(const obsd_t *obs, const nav_t *nav, const double *azel,
 
         /* for backward compatible to IS-QZSS-MDC-003 */
         if (sys==SYS_GPS && ssrcode==CODE_L5Q) {
-            if (nav->ssr[obs->sat-1].pbias[ssrcode-1]==0.0&&
-                nav->ssr[obs->sat-1].cbias[ssrcode-1]==0.0) ssrcode=CODE_L5X;
+            if (nav->ssr_ch[0][obs->sat-1].pbias[ssrcode-1]==0.0&&
+                nav->ssr_ch[0][obs->sat-1].cbias[ssrcode-1]==0.0) ssrcode=CODE_L5X;
         }
 
         if(ssrcode != CODE_NONE) {
-            if(nav->ssr[obs->sat-1].pbias[ssrcode-1]!=0.0) pb=nav->ssr[obs->sat-1].pbias[ssrcode-1];
-            if(nav->ssr[obs->sat-1].cbias[ssrcode-1]!=0.0) cb=nav->ssr[obs->sat-1].cbias[ssrcode-1];
+            if(nav->ssr_ch[0][obs->sat-1].pbias[ssrcode-1]!=0.0) pb=nav->ssr_ch[0][obs->sat-1].pbias[ssrcode-1];
+            if(nav->ssr_ch[0][obs->sat-1].cbias[ssrcode-1]!=0.0) cb=nav->ssr_ch[0][obs->sat-1].cbias[ssrcode-1];
         }
         if(cb!=0.0) {
             P[i]+=cb;
@@ -509,7 +517,7 @@ static int corr_meas(const obsd_t *obs, const nav_t *nav, const double *azel,
                 tstr,satid,code2obs(obs->code[i]),code2obs(ssrcode),cb);
         }
         else {
-            if (!nav->ssr[obs->sat-1].vcbias[ssrcode-1]) {
+            if (!nav->ssr_ch[0][obs->sat-1].vcbias[ssrcode-1]) {
                 P[i]=0.0;
                 trace(NULL,tl>0?3:4,"corr_meas: %s cbias dose not exist. %s obscode=C%s ssrcode=C%s cbias=%7.3f\n",
                     tstr,satid,code2obs(obs->code[i]),code2obs(ssrcode),cb);
@@ -527,7 +535,7 @@ static int corr_meas(const obsd_t *obs, const nav_t *nav, const double *azel,
                 tstr,satid,code2obs(obs->code[i]),code2obs(ssrcode),pb);
         }
         else if (sys!=SYS_GLO) {
-            if (!nav->ssr[obs->sat-1].vpbias[ssrcode-1]) {
+            if (!nav->ssr_ch[0][obs->sat-1].vpbias[ssrcode-1]) {
                 L[i]=0.0;
                 trace(NULL,tl>0?3:4,"corr_meas: %s pbias dose not exist. %s obscode=C%s ssrcode=C%s pbias=%7.3f\n",
                     tstr,satid,code2obs(obs->code[i]),code2obs(ssrcode),pb);
@@ -642,7 +650,7 @@ static void detslp_ssr(rtk_t *rtk, const obsd_t *obs, int n, const nav_t *nav)
     }
 
     for (i=0;i<n&&i<MAXOBS;i++) {
-        if (!nav->ssr[obs[i].sat-1].t0[5].time) continue;
+        if (!nav->ssr_ch[0][obs[i].sat-1].t0[5].time) continue;
 
         sys=satsys(obs[i].sat, NULL);
 
@@ -650,10 +658,10 @@ static void detslp_ssr(rtk_t *rtk, const obsd_t *obs, int n, const nav_t *nav)
         for (j=0;j<rtk->opt.nf&&j<NFREQ;j++) {
             ssrcode = mcssr_sel_biascode(sys, obs[i].code[j]);
             if (ssrcode == CODE_NONE) continue;
-            if (nav->ssr[obs[i].sat-1].pbias[ssrcode-1]==0.0) continue;
+            if (nav->ssr_ch[0][obs[i].sat-1].pbias[ssrcode-1]==0.0) continue;
 
             discont0=rtk->ssat[obs[i].sat-1].discont[j];
-            discont1=nav->ssr[obs[i].sat-1].discnt[ssrcode-1];
+            discont1=nav->ssr_ch[0][obs[i].sat-1].discnt[ssrcode-1];
             rtk->ssat[obs[i].sat-1].discont[j]=discont1;
 
             if (discont0!=discont1) {

@@ -6,6 +6,8 @@
  * Copyright (C) 2024-2025 Lighthouse Technology & Consulting Co. Ltd.
  * Copyright (C) 2023-2025 Japan Aerospace Exploration Agency
  * Copyright (C) 2023-2025 TOSHIBA ELECTRONIC TECHNOLOGIES CORPORATION
+ * Copyright (C) 2015- Mitsubishi Electric Corp.
+ * Copyright (C) 2014 Geospatial Information Authority of Japan
  * Copyright (C) 2014 T.SUZUKI
  * Copyright (C) 2007-2023 T.TAKASU
  *
@@ -340,6 +342,27 @@ typedef struct {        /* block type */
 } lclblock_t;
 
 /*============================================================================
+ * ISB (Inter-System Bias) Types
+ *===========================================================================*/
+
+#define ISBOPT_OFF     0                /* ISB option: correction off */
+#define ISBOPT_TABLE   1                /* ISB option: table file */
+#define MAXRECTYP      100              /* max number of receiver types */
+#define PHASE_CYCLE    (-0.25)          /* default L2C 1/4 cycle phase shift */
+
+typedef struct {        /* ISB data type */
+    char sta_name[20];                  /* station/receiver name */
+    char sta_name_base[20];             /* base station/receiver name */
+    double gsb[NSYS][NFREQ][2];         /* ISB [sys][freq][0:phase,1:code] (m) */
+} isb_t;
+
+typedef struct {        /* L2C phase shift table type */
+    int n;                              /* number of receiver types */
+    char rectyp[MAXRECTYP][MAXANT];     /* receiver type names */
+    double bias[MAXRECTYP];             /* phase shift bias (cycle) */
+} sft_t;
+
+/*============================================================================
  * Station Parameter Type
  *===========================================================================*/
 
@@ -359,13 +382,14 @@ typedef struct {        /* station parameter type */
     double hgt;         /* antenna height (m) */
     int glo_cp_align;   /* GLONASS code-phase alignment (0:no,1:yes) */
     double glo_cp_bias[4]; /* GLONASS code-phase biases {1C,1P,2C,2P} (m) */
+    double isb[NSYS][NFREQ][2]; /* ISB corrections [sys][freq][0:phase,1:code] (m) */
 } sta_t;
 
 /*============================================================================
  * Navigation Data Type (central aggregation)
  *===========================================================================*/
 
-typedef struct {        /* navigation data type */
+typedef struct nav_s {  /* navigation data type */
     int n,nmax;         /* number of broadcast ephemeris */
     int ng,ngmax;       /* number of glonass ephemeris */
     int ns,nsmax;       /* number of sbas ephemeris */
@@ -401,14 +425,24 @@ typedef struct {        /* navigation data type */
     sbssat_t sbssat;    /* SBAS satellite corrections */
     sbsion_t sbsion[MAXBAND+1]; /* SBAS ionosphere corrections */
     dgps_t dgps[MAXSAT]; /* DGPS corrections */
-    ssr_t ssr[MAXSAT];  /* SSR corrections */
+    ssr_t ssr_ch[SSR_CH_NUM][MAXSAT]; /* SSR corrections (per channel) */
+    int facility[SSR_CH_NUM]; /* L6 facility ID per channel */
+    int filreset;       /* filter reset flag (facility change) */
+    int invtrop;        /* inverse troposphere flag (0:estimate, 1:SSR trop valid) */
     pppiono_t *pppiono; /* PPP ionospheric corrections (MADOCA-PPP L6D) (heap) */
+    void *clas_ctx;     /* CLAS CSSR correction context (NULL if unused) */
     stat_t stat;        /* stat corrections */
     osb_t osb;          /* Observable-specific Signal Bias data */
     char biapath [MAXSTRPATH]; /* bias sinex file path */
     char fcbpath [MAXSTRPATH]; /* fcb file path */
     char pr_biapath [MAXSTRPATH]; /* previous bias sinex file path */
     char pr_fcbpath [MAXSTRPATH]; /* previous fcb file path */
+
+    /* ISB (Inter-System Bias) data */
+    isb_t *isb;             /* ISB data array */
+    int ni, nimax;          /* number of ISB data / allocated */
+    sft_t sfts;             /* L2C phase shift table */
+    sta_t stas[MAXRCV];     /* station info with ISB corrections */
 } nav_t;
 
 /*============================================================================

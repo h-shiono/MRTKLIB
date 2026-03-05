@@ -6,6 +6,8 @@
  * Copyright (C) 2024-2025 Lighthouse Technology & Consulting Co. Ltd.
  * Copyright (C) 2023-2025 Japan Aerospace Exploration Agency
  * Copyright (C) 2023-2025 TOSHIBA ELECTRONIC TECHNOLOGIES CORPORATION
+ * Copyright (C) 2015- Mitsubishi Electric Corp.
+ * Copyright (C) 2014 Geospatial Information Authority of Japan
  * Copyright (C) 2014 T.SUZUKI
  * Copyright (C) 2007-2023 T.TAKASU
  *
@@ -136,7 +138,7 @@ static void tide_solid(const double *rsun, const double *rmoon,
 #endif /* !IERS_MODEL */
 
 /* displacement by ocean tide loading (ref [2] 7) ----------------------------*/
-static void tide_oload(gtime_t tut, const double *odisp, double *denu)
+extern void tide_oload(gtime_t tut, const double *odisp, double *denu)
 {
     const double args[][5]={
         {1.40519E-4, 2.0,-2.0, 0.0, 0.00},  /* M2 */

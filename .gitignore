@@ -27,6 +27,26 @@ tests/data/malib/2024235L.209.l6
 tests/data/malib/igs14_*.atx
 tests/data/malib/COD0OPSFIN_*.INX
 
+# Test data extracted from tests/data/claslib/claslib_testdata.tar.gz
+# (extracted by ctest fixture; cleaned up automatically, but guarded here)
+tests/data/claslib/0627*.obs
+tests/data/claslib/0627*.bnx
+tests/data/claslib/sept_*.nav
+tests/data/claslib/0627*.nav
+tests/data/claslib/20192*.l6
+tests/data/claslib/20193*.l6
+tests/data/claslib/2025*.l6
+tests/data/claslib/clas_grid.*
+tests/data/claslib/igs14_L5copy.atx
+tests/data/claslib/igu00p01.erp
+tests/data/claslib/isb.tbl
+tests/data/claslib/l2csft.tbl
+tests/data/claslib/vrs*.obs
+tests/data/claslib/2025157U_ch*.obs
+
+# CTest temporary files
+Testing/
+
 # rtkrcv writes a navigation cache at the working directory
 rtkrcv.nav
 
@@ -41,5 +61,6 @@ __pycache__/
 tasks/
 
 # Reference repositories
+upstream/claslib/
 upstream/madocalib/
 upstream/MALIB/

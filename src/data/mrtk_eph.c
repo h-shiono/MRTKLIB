@@ -6,6 +6,8 @@
  * Copyright (C) 2024-2025 Lighthouse Technology & Consulting Co. Ltd.
  * Copyright (C) 2023-2025 Japan Aerospace Exploration Agency
  * Copyright (C) 2023-2025 TOSHIBA ELECTRONIC TECHNOLOGIES CORPORATION
+ * Copyright (C) 2015- Mitsubishi Electric Corp.
+ * Copyright (C) 2014 Geospatial Information Authority of Japan
  * Copyright (C) 2014 T.SUZUKI
  * Copyright (C) 2007-2023 T.TAKASU
  *
@@ -427,7 +429,7 @@ static double var_urassr(int ura)
     return SQR(std);
 }
 /* select ephemeris ----------------------------------------------------------*/
-static eph_t *seleph(gtime_t time, int sat, int iode, const nav_t *nav)
+eph_t *seleph(gtime_t time, int sat, int iode, const nav_t *nav)
 {
     double t,tmax,tmin;
     int i,j=-1,sys,sel;
@@ -541,8 +543,8 @@ static int ephclk(gtime_t time, gtime_t teph, int sat, const nav_t *nav,
     return 1;
 }
 /* satellite position and clock by broadcast ephemeris -----------------------*/
-static int ephpos(gtime_t time, gtime_t teph, int sat, const nav_t *nav,
-                  int iode, double *rs, double *dts, double *var, int *svh)
+int ephpos(gtime_t time, gtime_t teph, int sat, const nav_t *nav,
+           int iode, double *rs, double *dts, double *var, int *svh)
 {
     eph_t  *eph;
     geph_t *geph;
@@ -613,6 +615,11 @@ static int satpos_sbas(gtime_t time, gtime_t teph, int sat, const nav_t *nav,
     *svh=-1;
     return 0;
 }
+/* SSR channel index for satpos_ssr (multi-L6E) -----------------------------*/
+static int _ssr_ch_idx = 0;
+extern void set_ssr_ch_idx(int ch) { if (ch >= 0 && ch < SSR_CH_NUM) _ssr_ch_idx = ch; }
+extern int  get_ssr_ch_idx(void)   { return _ssr_ch_idx; }
+
 /* satellite position and clock with ssr correction --------------------------*/
 static int satpos_ssr(gtime_t time, gtime_t teph, int sat, const nav_t *nav,
                       int opt, double *rs, double *dts, double *var, int *svh)
@@ -624,7 +631,7 @@ static int satpos_ssr(gtime_t time, gtime_t teph, int sat, const nav_t *nav,
 
     trace(NULL,4,"satpos_ssr: time=%s sat=%2d\n",time_str(time,3),sat);
 
-    ssr=nav->ssr+sat-1;
+    ssr=nav->ssr_ch[_ssr_ch_idx]+sat-1;
 
     if (!ssr->t0[0].time) {
         trace(NULL,2,"no ssr orbit correction: %s sat=%2d\n",time_str(time,0),sat);

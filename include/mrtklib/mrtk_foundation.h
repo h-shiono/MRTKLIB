@@ -6,6 +6,8 @@
  * Copyright (C) 2024-2025 Lighthouse Technology & Consulting Co. Ltd.
  * Copyright (C) 2023-2025 Japan Aerospace Exploration Agency
  * Copyright (C) 2023-2025 TOSHIBA ELECTRONIC TECHNOLOGIES CORPORATION
+ * Copyright (C) 2015- Mitsubishi Electric Corp.
+ * Copyright (C) 2014 Geospatial Information Authority of Japan
  * Copyright (C) 2014 T.SUZUKI
  * Copyright (C) 2007-2023 T.TAKASU
  *
@@ -156,6 +158,7 @@ extern "C" {
 #define DTTOL       0.025               /* tolerance of time difference (s) */
 #endif
 #define MAXEXFILE   1024                /* max number of expanded files */
+#define SSR_CH_NUM  2                   /* number of SSR input channels */
 #define MAXBAND     10                  /* max SBAS band of IGP */
 #define MAXNIGP     201                 /* max number of IGP in SBAS band */
 #define MAXNGEO     4                   /* max number of GEO satellites */

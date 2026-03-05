@@ -29,7 +29,7 @@ The ultimate goal is to unify the fragmented QZSS augmentation ecosystem into a 
 |-----------|---------|-------------|--------|
 | **MALIB** | feature/1.2.0 (`f006a34`) | MADOCA-PPP structural base (directory layout, threading, streams) | Integrated |
 | **MADOCALIB** | ver.2.0 (`8091004`) | PPP/PPP-AR engine, L6E SSR decoder, L6D ionospheric decoder | Integrated |
-| **CLASLIB** | — | Centimeter Level Augmentation Service | Planned |
+| **CLASLIB** | ver.0.8.2 (`9e714b9`) | Centimeter Level Augmentation Service (PPP-RTK, VRS-RTK, CSSR decoder) | Integrated |
 
 With the MADOCALIB integration complete, users can process L6E (orbit/clock/bias corrections) and L6D (ionospheric STEC corrections) streams seamlessly in both post-processing and real-time modes.
 
@@ -98,6 +98,17 @@ Documentation will be generated in `build/doc/html/index.html`.
 ## 📄 License & Attributions
 MRTKLIB is distributed under the BSD 2-Clause License.
 
-This project stands on the shoulders of giants.
+This project stands on the shoulders of giants:
+
+| Contributor | Role |
+|-------------|------|
+| **T. Takasu** | RTKLIB — the foundational GNSS positioning library |
+| **T. Suzuki** | RTKLIB — u-blox receiver decoder |
+| **Geospatial Information Authority of Japan** | GSILIB v1.0.3 — CLAS grid correction algorithms |
+| **Mitsubishi Electric Corp.** | CLASLIB — CLAS PPP-RTK / VRS-RTK engine |
+| **Japan Aerospace Exploration Agency** | MALIB — MADOCA-PPP structural base |
+| **TOSHIBA ELECTRONIC TECHNOLOGIES** | MALIB + MADOCALIB — MADOCA-PPP engine and L6E/L6D decoder |
+| **Cabinet Office, Japan** | MADOCALIB — PPP/PPP-AR positioning algorithms |
+| **Lighthouse Technology & Consulting** | MADOCALIB — system integration and L6E/L6D decoder |
 
 For detailed licensing information, please refer to [LICENSE.txt](LICENSE.txt).
