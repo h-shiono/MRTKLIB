@@ -23,7 +23,7 @@
  *   - Static variables from upstream moved to clas_osr_ctx_t for thread safety.
  *   - Uses nav->ssr_ch[0][sat-1] (channel 0 by default).
  *   - nav->lam[sat-1] replaced by local lam[] computed from sat2freq().
- *   - Several upstream functions stubbed (ISB, SIS, IODE adjust, etc.).
+ *   - Several upstream functions stubbed (ISB, L2C, etc.).
  *----------------------------------------------------------------------------*/
 #include <math.h>
 #include <stdlib.h>
@@ -46,6 +46,7 @@
 #include "mrtklib/mrtk_antenna.h"
 #include "mrtklib/mrtk_tides.h"
 #include "mrtklib/mrtk_ppp_rtk.h"
+#include "mrtklib/mrtk_eph.h"
 
 /*============================================================================
  * Local Macros
@@ -228,7 +229,16 @@ static int count_nsig(const int smode[MAXCODE])
  */
 void clas_osr_ctx_init(clas_osr_ctx_t *ctx)
 {
+    int ch, i;
     memset(ctx, 0, sizeof(clas_osr_ctx_t));
+    for (ch = 0; ch < CLAS_CH_NUM; ch++) {
+        for (i = 0; i < MAXSAT; i++) {
+            ctx->satcorr[ch][i].currtow      = -1;
+            ctx->satcorr[ch][i].prevtow      = -1;
+            ctx->satcorr[ch][i].previode     = -1;
+            ctx->satcorr[ch][i].prev_orb_tow = -1;
+        }
+    }
     ctx->initialized = 1;
 }
 
@@ -598,11 +608,8 @@ int clas_osr_corrmeas(const obsd_t *obs, nav_t *nav, const double *pos,
           "dt=%.1f\n",
           time2gpst(nav->ssr_ch[ch][sat - 1].t0[5], NULL),
           time2gpst(nav->ssr_ch[ch][sat - 1].t0[4], NULL), dt);
-    if ((!opt->posopt[4] && fabs(dt) > 0.0) ||
-        (opt->posopt[4] && (dt > 0.0 || dt < -30.0))) {
-        /* Note: upstream uses posopt[9]; MRTKLIB posopt only has 6 elements.
-         * We map this to posopt[4] as a placeholder.  If the check is not
-         * needed, set posopt[4]=0 (default). */
+    if ((!opt->posopt[9] && fabs(dt) > 0.0) ||
+        (opt->posopt[9] && (dt > 0.0 || dt < -30.0))) {
         trace(NULL, 2,
               "inconsist correction (pbias-cbias): time=%s sat=%2d dt=%.2f\n",
               time_str(obs->time, 0), sat, dt);
@@ -691,6 +698,254 @@ static void ocean_tide_clasgrid(gtime_t tut, const clas_oload_t *oload,
 }
 
 /*============================================================================
+ * SIS/IODE Adjustment Functions
+ *
+ * Ported from upstream claslib ephemeris.c: satpos_ssr_sis(), adjust_cpc(),
+ * adjust_prc(), adjust_r_dts(). Removes SIS discontinuity at SSR correction
+ * boundaries to prevent phase/code jumps that cause FLOAT epochs.
+ *===========================================================================*/
+
+/* SSR correction age/magnitude limits (matching mrtk_eph.c) */
+#define MAXAGESSR_SIS      60.0         /* max age of ssr orbit/clock (s) */
+#define MAXECORSSR_SIS     10.0         /* max orbit correction (m) */
+#define MAXCCORSSR_SIS     (1E-6*CLIGHT) /* max clock correction (m) */
+
+/**
+ * @brief Update per-satellite SIS correction state for IODE adjustment.
+ *
+ * Tracks orbit/clock corrections and detects 5-second/25-second SSR boundary
+ * transitions. Computes currsis = SIS discontinuity for adjust_cpc/adjust_prc.
+ *
+ * Ported from upstream satpos_ssr_sis() in ephemeris.c.
+ */
+int clas_osr_satcorr_update(gtime_t time, gtime_t teph, int sat,
+                             const prcopt_t *opt, const nav_t *nav, int ch,
+                             clas_osr_ctx_t *ctx)
+{
+    const ssr_t *ssr;
+    double t1, t2, t3, deph[3], dclk, dorb[3], orbit;
+    double rs[6], dts[2], var, sig[3], nsig[3];
+    double er[3], ea[3], ec[3], rc[3];
+    double tow = time2gpst(teph, NULL);
+    int i, svh;
+    clas_satcorr_t *sc;
+
+    double orb_tow;
+    ssr = nav->ssr_ch[ch] + sat - 1;
+    sc = &ctx->satcorr[ch][sat - 1];
+
+    if (!ssr->t0[0].time) return 0;  /* no orbit data -- silent */
+    if (!ssr->t0[1].time) return 0;  /* no clock data -- silent */
+
+    t1 = timediff(time, ssr->t0[0]);
+    t2 = timediff(time, ssr->t0[1]);
+    t3 = timediff(time, ssr->t0[2]);
+
+    if (fabs(t1) > MAXAGESSR_SIS || fabs(t2) > MAXAGESSR_SIS) return 0;
+
+    if (ssr->udi[0] >= 1.0) t1 -= ssr->udi[0] / 2.0;
+    if (ssr->udi[1] >= 1.0) t2 -= ssr->udi[1] / 2.0;
+
+    for (i = 0; i < 3; i++) deph[i] = ssr->deph[i] + ssr->ddeph[i] * t1;
+    dclk = ssr->dclk[0] + ssr->dclk[1] * t2 + ssr->dclk[2] * t2 * t2;
+
+    if (ssr->iod[0] == ssr->iod[2] && ssr->t0[2].time &&
+        fabs(t3) < 10.0) {
+        dclk += ssr->hrclk;
+    }
+    if (norm(deph, 3) > MAXECORSSR_SIS || fabs(dclk) > MAXCCORSSR_SIS) return 0;
+
+    /* broadcast ephemeris position */
+    if (!ephpos(time, teph, sat, nav, ssr->iode, rs, dts, &var, &svh)) return 0;
+
+    /* radial-along-cross directions in ECEF */
+    if (!normv3(rs + 3, ea)) return 0;
+    cross3(rs, rs + 3, rc);
+    if (!normv3(rc, ec)) return 0;
+    cross3(ea, ec, er);
+
+    /* orbit correction in radial-along-cross frame */
+    for (i = 0; i < 3; i++) {
+        dorb[i] = -(er[i] * deph[0] + ea[i] * deph[1] + ec[i] * deph[2]);
+    }
+
+    /* project orbit correction along line-of-sight */
+    if (norm(ctx->saved_rr, 3) <= 0.0) return 0;
+    for (i = 0; i < 3; i++) sig[i] = rs[i] - ctx->saved_rr[i];
+    if (!normv3(sig, nsig)) return 0;
+    orbit = dot(nsig, dorb, 3);
+
+    sc->orb = orbit;
+    sc->clk = dclk;
+    sc->tow = tow;
+
+    trace(NULL, 4, "satcorr_update: tow=%.1f sat=%2d clk_tow=%.1f clk=%.6f "
+          "orb_tow=%.1f orb=%.6f prev_tow=%.1f\n",
+          tow, sat, time2gpst(ssr->t0[1], NULL), dclk,
+          time2gpst(ssr->t0[0], NULL), orbit, sc->prevtow);
+
+    /* skip SIS tracking if posopt[9] (don't adjust phase bias) is set */
+    if (opt->posopt[9]) return 1;
+
+    orb_tow = time2gpst(ssr->t0[0], NULL);
+
+    /* detect 25s boundary: clk_tow - orb_tow == 25 (orbit is 25s older than clock) */
+    if (sc->prevtow != time2gpst(ssr->t0[1], NULL) &&
+        timediff(ssr->t0[0], ssr->t0[1]) < 0.0 &&
+        timediff(ssr->t0[1], ssr->t0[0]) == 25.0) {
+        sc->prevtow  = time2gpst(ssr->t0[1], NULL);
+        sc->prevsis  = -dclk + orbit;
+        sc->previode = ssr->iode;
+        trace(NULL, 4, "prevsis: tow=%.1f clk_tow=%.1f orb_tow=%.1f sat=%2d "
+              "iode=%3d prevsis=%f clk=%f orb=%f\n",
+              tow, sc->prevtow, orb_tow, sat,
+              sc->previode, sc->prevsis, -dclk, orbit);
+    }
+
+    /* detect orbit-update boundary: orbit epoch has advanced since prevsis was saved.
+     *
+     * In canonical CLAS data the orbit and clock update simultaneously (orb==clk).
+     * In some datasets (e.g. ST12) the orbit epoch always leads the clock by 5s, so
+     * orb==clk never happens.  We therefore trigger on orbit-epoch advancement rather
+     * than requiring orb_tow == clk_tow.  prev_orb_tow tracks the last seen orbit
+     * epoch; when it changes we have crossed a 30s correction boundary.
+     */
+    if (sc->prevtow != -1 &&
+        sc->prev_orb_tow != -1 &&
+        orb_tow != sc->prev_orb_tow &&   /* orbit epoch just advanced */
+        sc->currtow != orb_tow) {         /* not yet computed for this orbit epoch */
+        sc->currsis = (-dclk + orbit) - sc->prevsis;
+        sc->currtow = orb_tow;
+        trace(NULL, 4, "currsis: tow=%.1f orb_tow=%.1f clk_tow=%.1f sat=%2d "
+              "currsis=%f clk=%f orb=%f\n",
+              tow, orb_tow, time2gpst(ssr->t0[1], NULL), sat,
+              sc->currsis, -dclk, orbit);
+        /* reset prevtow so the 25s boundary can fire fresh next cycle */
+        sc->prevtow = -1;
+    }
+    sc->prev_orb_tow = orb_tow;
+    return 1;
+}
+
+/**
+ * @brief Adjust carrier-phase correction for SIS discontinuity.
+ *
+ * When phase bias TOW differs from current SIS TOW by exactly 30s,
+ * subtracts the SIS discontinuity from CPC to maintain phase continuity.
+ */
+static double clas_osr_adjust_cpc(gtime_t teph, int sat, const ssr_t *ssr,
+                                   int sig, double cpc, double *sis, int *flag,
+                                   int ch, clas_osr_ctx_t *ctx)
+{
+    double before = cpc;
+    clas_satcorr_t *sc = &ctx->satcorr[ch][sat - 1];
+    *flag = 0;
+
+    if (time2gpst(ssr->t0[5], NULL) != sc->currtow) {
+        /* handle week rollover for 30s check */
+        if (sc->currtow < time2gpst(ssr->t0[5], NULL) &&
+            (sc->currtow + 3600 * 24 * 7) - time2gpst(ssr->t0[5], NULL) != 30.0) {
+            return cpc;
+        }
+        if (sc->currtow - time2gpst(ssr->t0[5], NULL) != 30.0) {
+            return cpc;
+        }
+        if (ssr->iode != sc->previode) {
+            trace(NULL, 4, "adjust_cpc: IODE diff tow=%.1f sat=%2d orb_tow=%.1f "
+                  "%3d sis_tow=%.1f %3d\n",
+                  time2gpst(teph, NULL), sat, time2gpst(ssr->t0[0], NULL),
+                  ssr->iode, sc->prevtow, sc->previode);
+            *flag = 1;
+        }
+        *sis = sc->currsis;
+        cpc -= *sis;
+        trace(NULL, 4, "adjust_cpc: tow=%.1f sat=%2d pb_tow=%.1f sis_tow=%.1f "
+              "sig=%d sis=%f cpc=%.6f-->%.6f\n",
+              time2gpst(teph, NULL), sat, time2gpst(ssr->t0[5], NULL),
+              sc->currtow, sig, *sis, before, cpc);
+    }
+    return cpc;
+}
+
+/**
+ * @brief Adjust pseudorange correction for SIS discontinuity.
+ *
+ * Same logic as adjust_cpc but applied to PRC.
+ */
+static double clas_osr_adjust_prc(gtime_t teph, int sat, const ssr_t *ssr,
+                                   int sig, double prc, double *sis, int *flag,
+                                   int ch, clas_osr_ctx_t *ctx)
+{
+    double before = prc;
+    clas_satcorr_t *sc = &ctx->satcorr[ch][sat - 1];
+    *flag = 0;
+
+    if (time2gpst(ssr->t0[5], NULL) != sc->currtow) {
+        if (sc->currtow < time2gpst(ssr->t0[5], NULL) &&
+            (sc->currtow + 3600 * 24 * 7) - time2gpst(ssr->t0[5], NULL) != 30.0) {
+            return prc;
+        }
+        if (sc->currtow - time2gpst(ssr->t0[5], NULL) != 30.0) {
+            return prc;
+        }
+        if (ssr->iode != sc->previode) {
+            *flag = 1;
+        }
+        *sis = sc->currsis;
+        prc -= *sis;
+        trace(NULL, 4, "adjust_prc: tow=%.1f sat=%2d pb_tow=%.1f sis_tow=%.1f "
+              "sig=%d sis=%f prc=%.6f-->%.6f\n",
+              time2gpst(teph, NULL), sat, time2gpst(ssr->t0[5], NULL),
+              sc->currtow, sig, *sis, before, prc);
+    }
+    return prc;
+}
+
+/**
+ * @brief Recompute geometric range and clock on IODE change.
+ *
+ * When IODE changes at an SSR boundary, the broadcast ephemeris has changed.
+ * This recomputes the geometric range using the previous IODE's ephemeris
+ * to maintain consistency.
+ */
+static void clas_osr_adjust_r_dts(double *retr, double *retdts, gtime_t teph,
+                                   int sat, nav_t *nav, const double *rr,
+                                   gtime_t dts_time, int ch, clas_osr_ctx_t *ctx)
+{
+    double rs[6] = {0}, dts[2] = {0}, e[3], var;
+    double er[3], ea[3], ec[3], rc[3];
+    int sys = satsys(sat, NULL), svh0, i;
+    const ssr_t *ssr = nav->ssr_ch[ch] + sat - 1;
+    clas_satcorr_t *sc = &ctx->satcorr[ch][sat - 1];
+    eph_t *eph;
+
+    if (sys == SYS_GPS || sys == SYS_GAL || sys == SYS_QZS || sys == SYS_CMP) {
+        eph = seleph(dts_time, sat, sc->previode, nav);
+        if (eph) {
+            double dt = eph2clk(dts_time, eph);
+            dts_time = timeadd(dts_time, -dt);
+        }
+    }
+
+    if (ephpos(dts_time, teph, sat, nav, sc->previode, rs, dts, &var, &svh0)) {
+        if (!normv3(rs + 3, ea)) return;
+        cross3(rs, rs + 3, rc);
+        if (!normv3(rc, ec)) return;
+        cross3(ea, ec, er);
+
+        /* satellite antenna offset correction */
+        for (i = 0; i < 3; i++) {
+            rs[i] += -(er[i] * ssr->deph[0] + ea[i] * ssr->deph[1] +
+                       ec[i] * ssr->deph[2]);
+        }
+        *retr = geodist(rs, rr, e);
+    }
+    *retdts = dts[0] + ssr->dclk[0] / CLIGHT;
+    trace(NULL, 2, "adjust_r_dts: tow=%.1f sat=%d r=%.8f dts=%.8f\n",
+          time2gpst(teph, NULL), sat, *retr, *retdts);
+}
+
+/*============================================================================
  * clas_osr_zdres -- Zero-Differenced Phase/Code Residuals
  *===========================================================================*/
 
@@ -706,7 +961,7 @@ static void ocean_tide_clasgrid(gtime_t tut, const clas_oload_t *oload,
  *   - pbias_ofst comes from osr_ctx->pbias_ofst.
  *   - Uses nav->ssr_ch[0][sat-1] (channel 0 by default).
  *   - nav->lam[sat-1] -> local lam[] via sat_wavelengths().
- *   - Stubbed functions: getorbitclock, adjust_cpc/prc/r_dts, ISB, L2C.
+ *   - Stubbed functions: ISB, L2C.
  *
  * @param[in]     obs      Observation data for epoch
  * @param[in]     n        Number of observations
@@ -749,6 +1004,8 @@ int clas_osr_zdres(const obsd_t *obs, int n, const double *rs,
     clas_osrd_t osrtmp[MAXOBS];
     double dcpc;
     double tow;
+    double tmp_r, tmp_dts;
+    int iodeflag;
     int prn;
 
     /* use local osr array only when y is provided (PPP-RTK residual mode);
@@ -882,6 +1139,8 @@ int clas_osr_zdres(const obsd_t *obs, int n, const double *rs,
         /* frequency pair selection */
         qj = clas_osr_selfreqpair(sat, opt, obs_copy + i);
         nftmp = nf;
+        tmp_r = -1.0;
+        tmp_dts = 0.0;
 
         for (j = 0; j < nf; j++) {
             f = j;
@@ -906,20 +1165,50 @@ int clas_osr_zdres(const obsd_t *obs, int n, const double *rs,
                              osr[i].pbias[j] + osr[i].wupL[f] +
                              osr[i].compL[j];
 
-            /* IODE adjustment: stubbed -- pass through unchanged */
+            /* SIS/IODE adjustment */
+            iodeflag = 0;
+            if (!opt->posopt[9]) {
+                osr[i].CPC[j] = clas_osr_adjust_cpc(obs_copy[i].time, sat,
+                    &nav->ssr_ch[ch][sat - 1], f, osr[i].CPC[j],
+                    &osr[i].sis, &iodeflag, ch, osr_ctx);
+                osr[i].PRC[j] = clas_osr_adjust_prc(obs_copy[i].time, sat,
+                    &nav->ssr_ch[ch][sat - 1], f, osr[i].PRC[j],
+                    &osr[i].sis, &iodeflag, ch, osr_ctx);
+            }
 
-            /* compute model values */
-            modl[j]          = r - CLIGHT * dts[i * 2] + osr[i].CPC[j];
-            modl[nftmp + j]  = r - CLIGHT * dts[i * 2] + osr[i].PRC[j];
+            /* compute model values, adjusting r/dts on IODE change */
+            if (iodeflag) {
+                if (tmp_r < 0.0) {
+                    gtime_t dtsat = timeadd(obs_copy[i].time,
+                                            -obs_copy[i].P[0] / CLIGHT);
+                    tmp_r = r;
+                    clas_osr_adjust_r_dts(&tmp_r, &tmp_dts, obs_copy[i].time,
+                                           sat, nav, rr, dtsat, ch, osr_ctx);
+                }
+                modl[j]         = tmp_r - CLIGHT * tmp_dts + osr[i].CPC[j];
+                modl[nftmp + j] = tmp_r - CLIGHT * tmp_dts + osr[i].PRC[j];
+                osr[i].CPC[j] += tmp_r - CLIGHT * tmp_dts -
+                                  (r - CLIGHT * dts[i * 2]);
+                osr[i].PRC[j] += tmp_r - CLIGHT * tmp_dts -
+                                  (r - CLIGHT * dts[i * 2]);
+            } else {
+                modl[j]         = r - CLIGHT * dts[i * 2] + osr[i].CPC[j];
+                modl[nftmp + j] = r - CLIGHT * dts[i * 2] + osr[i].PRC[j];
+            }
 
             osr[i].p[j] = modl[nftmp + j];
             osr[i].c[j] = modl[j];
 
             /* repair cycle slip of pbias */
             tow = time2gpst(obs_copy[i].time, NULL);
-            /* getorbitclock: stubbed -- set orb/clk to 0 */
-            osr[i].orb = 0.0;
-            osr[i].clk = 0.0;
+            /* getorbitclock from satcorr state */
+            if (tow == osr_ctx->satcorr[ch][sat - 1].tow) {
+                osr[i].orb = osr_ctx->satcorr[ch][sat - 1].orb;
+                osr[i].clk = osr_ctx->satcorr[ch][sat - 1].clk;
+            } else {
+                osr[i].orb = 0.0;
+                osr[i].clk = 0.0;
+            }
 
             /* cycle slip detection on phase bias update */
             if (fabs(timediff(nav->ssr_ch[ch][sat - 1].t0[5],
@@ -1127,7 +1416,7 @@ int clas_ssr2osr(rtk_t *rtk, obsd_t *obs, int n, nav_t *nav,
 
     /* fetch corrections from bank */
     if (grid->network > 0 && grid->network != corr->network) {
-        if (clas_bank_get_close(clas, clas->l6buf[ch].time,
+        if (clas_bank_get_close(clas, obs[0].time,
                                 grid->network, ch, corr) != 0) {
             trace(NULL, 2, "clas_ssr2osr: bank lookup failed\n");
             free(rs); free(dts); free(var); free(e); free(azel);

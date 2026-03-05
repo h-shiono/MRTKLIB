@@ -799,6 +799,19 @@ int readblqgrid(const char *file, clas_ctx_t *ctx);
  * for thread safety and multi-instance support.
  *===========================================================================*/
 
+/** Per-satellite SSR correction state for SIS/IODE adjustment */
+typedef struct {
+    double currtow;       /* orbit TOW of last computed SIS discontinuity (s) */
+    double currsis;       /* current SIS discontinuity (m) */
+    double prevtow;       /* clock TOW when prevsis was saved (s) */
+    double prevsis;       /* SIS value saved at 25s boundary */
+    int    previode;      /* IODE when prevsis was saved */
+    double prev_orb_tow;  /* orbit epoch of previous call (for orbit-update detection) */
+    double tow;           /* last computed TOW */
+    double orb;           /* orbit correction along line-of-sight (m) */
+    double clk;           /* clock correction (m) */
+} clas_satcorr_t;
+
 /** SSR→OSR conversion persistent state */
 typedef struct {
     /* zdres() persistent state (replaces statics in cssr2osr.c:zdres) */
@@ -815,6 +828,10 @@ typedef struct {
     double  comp_ionom[CLAS_CH_NUM][MAXSAT];        /* prev-prev iono */
     double  comp_coef[CLAS_CH_NUM][MAXSAT * (NFREQ + NEXOBS)]; /* linear coeff */
     int     comp_slip[CLAS_CH_NUM][MAXSAT * NFREQ]; /* slip detection state */
+
+    /* SIS/IODE adjustment state (replaces static satcorr[] in upstream) */
+    clas_satcorr_t satcorr[CLAS_CH_NUM][MAXSAT];
+    double  saved_rr[3];   /* saved receiver position for SIS computation */
 
     int     initialized;
 } clas_osr_ctx_t;
@@ -878,6 +895,21 @@ int clas_osr_selfreqpair(int sat, const prcopt_t *opt, const obsd_t *obs);
  * @param[in]     ch     SSR channel (0 or 1)
  * @return Number of valid measurements
  */
+/**
+ * @brief Update per-satellite SIS correction state for IODE adjustment.
+ * @param[in]     time  Observation time
+ * @param[in]     teph  Time for ephemeris selection
+ * @param[in]     sat   Satellite number
+ * @param[in]     opt   Processing options
+ * @param[in]     nav   Navigation data
+ * @param[in]     ch    SSR channel index
+ * @param[in,out] ctx   OSR context (satcorr state updated)
+ * @return 1:ok, 0:error
+ */
+int clas_osr_satcorr_update(gtime_t time, gtime_t teph, int sat,
+                             const prcopt_t *opt, const nav_t *nav, int ch,
+                             clas_osr_ctx_t *ctx);
+
 int clas_osr_zdres(const obsd_t *obs, int n, const double *rs, const double *dts,
                    const double *vare, const int *svh, nav_t *nav,
                    double *x, double *y, double *e, double *azel,

@@ -211,7 +211,7 @@ static uint8_t obs_code_for_freq(int sat, int f)
         return (sys == SYS_CMP) ? CODE_L2I : CODE_L1C;
     case 1:
         if (sys == SYS_GPS) return CODE_L2W;
-        if (sys == SYS_QZS) return CODE_L2S;
+        if (sys == SYS_QZS) return CODE_L5Q; /* obsdef: QZS slot1 = L5 */
         if (sys == SYS_GAL) return CODE_L5Q;
         if (sys == SYS_CMP) return CODE_L7I;
         return CODE_L2W;
@@ -1900,7 +1900,7 @@ extern void ppp_rtk_pos(rtk_t *rtk, const obsd_t *obs, int n, nav_t *nav)
     for (i = 0; i < MAXSAT; i++) rtk->ssat[i].fix[0] = 0;
 
     /* reset all states if time gap exceeds threshold */
-    if (rtk->tt > MAXOBSLOSS_DEFAULT) {
+    if (rtk->tt > (opt->maxobsloss_s > 0.0 ? opt->maxobsloss_s : MAXOBSLOSS_DEFAULT)) {
         for (i = 0; i < rtk->nx; i++) rtk->x[i] = 0.0;
     }
 
@@ -1974,6 +1974,13 @@ extern void ppp_rtk_pos(rtk_t *rtk, const obsd_t *obs, int n, nav_t *nav)
     /* satellite positions and clocks (uses ssr_ch[0], merged if l6mrg) */
     set_ssr_ch_idx(0);
     satposs(obs[0].time, obs, n, nav, rtk->opt.sateph, rs, dts, var, svh);
+
+    /* save receiver position and update SIS correction state per satellite */
+    for (i = 0; i < 3; i++) prtk_ctx.osr_ctx.saved_rr[i] = rtk->x[i];
+    for (i = 0; i < MAXSAT; i++) {
+        clas_osr_satcorr_update(obs[0].time, obs[0].time, i + 1,
+                                 &rtk->opt, nav, 0, &prtk_ctx.osr_ctx);
+    }
 
     xp = mat(rtk->nx, 1);
     Pp = zeros(rtk->nx, rtk->nx);
