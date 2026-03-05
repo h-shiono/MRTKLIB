@@ -617,7 +617,7 @@ static int satpos_sbas(gtime_t time, gtime_t teph, int sat, const nav_t *nav,
 }
 /* SSR channel index for satpos_ssr (multi-L6E) -----------------------------*/
 static int _ssr_ch_idx = 0;
-extern void set_ssr_ch_idx(int ch) { _ssr_ch_idx = ch; }
+extern void set_ssr_ch_idx(int ch) { if (ch >= 0 && ch < SSR_CH_NUM) _ssr_ch_idx = ch; }
 extern int  get_ssr_ch_idx(void)   { return _ssr_ch_idx; }
 
 /* satellite position and clock with ssr correction --------------------------*/

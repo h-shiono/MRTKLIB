@@ -794,7 +794,7 @@ extern int decode_qzss_l6emsg(rtcm_t *rtcm)
 }
 
 /* set/get MADOCA-PPP CSSR channel index -------------------------------------*/
-extern void set_mcssr_ch(int ch) { _mcssr_ch = ch; }
+extern void set_mcssr_ch(int ch) { if (ch >= 0 && ch < SSR_CH_NUM) _mcssr_ch = ch; }
 extern int  get_mcssr_ch(void)   { return _mcssr_ch; }
 
 /* initialize MADOCA-PPP CSSR control ----------------------------------------

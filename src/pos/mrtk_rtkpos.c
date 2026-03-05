@@ -1978,9 +1978,9 @@ static void udbiass(gtime_t gt, prcopt_t *popt, nav_t *nav)
         }
         if(ret == 0){
             memset(biaosb->scb,0x00,sizeof(biaosb->scb));
-            memset(biaosb->spb,0x00,sizeof(biaosb->scb));
+            memset(biaosb->spb,0x00,sizeof(biaosb->spb));
             memset(biaosb->vscb,0x00,sizeof(biaosb->vscb));
-            memset(biaosb->vspb,0x00,sizeof(biaosb->vscb));
+            memset(biaosb->vspb,0x00,sizeof(biaosb->vspb));
         }
         trace(NULL,4, "update satellite osb: %s num=%d\n", time_str(gt,3),  ret);
 
