@@ -8,7 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [v0.3.0] - 2026-03-06
 
 CLASLIB integration — adds QZSS CLAS L6D augmentation (PPP-RTK and VRS-RTK)
-via [CLASLIB](https://github.com/JAXA-SNU/claslib) ver.0.8.2 (`9e714b9`).
+via [CLASLIB](https://github.com/QZSS-Strategy-Office/claslib) ver.0.8.2 (`9e714b9`).
 Includes the complete CSSR decoder, grid correction engine, PPP-RTK positioning,
 VRS double-differenced RTK, dual-channel L6 support, and SSR→OSR utilities.
 
@@ -107,7 +107,7 @@ All 53 tests pass:
 
 ### Upstream References
 
-- **CLASLIB**: [JAXA-SNU/claslib](https://github.com/JAXA-SNU/claslib) ver.0.8.2 (`9e714b9`)
+- **CLASLIB**: [claslib](https://github.com/QZSS-Strategy-Office/claslib) ver.0.8.2 (`9e714b9`)
 
 ---
 
@@ -194,7 +194,7 @@ All 30 tests pass (12 unit + 18 regression):
 ### Upstream References
 
 - **MALIB**: [JAXA-SNU/MALIB](https://github.com/JAXA-SNU/MALIB) feature/1.2.0 (`f006a34`)
-- **MADOCALIB**: [QZSS-Strategy-Office/madocalib](https://github.com/QZSS-Strategy-Office/madocalib) ver.2.0 (`8091004`)
+- **MADOCALIB**: [madocalib](https://github.com/QZSS-Strategy-Office/madocalib) ver.2.0 (`8091004`)
 
 ## [v0.1.0] - 2026-02-23
 
