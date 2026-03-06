@@ -53,7 +53,14 @@ Options
 -------
     --tolerance FLOAT   Tolerance for criterion A in metres (default 0.030)
     --skip-epochs INT   Skip N initial epochs (convergence transient)
+    --use-2d            Evaluate pass/fail on 2D horizontal error (default: 3D)
     --plot              Generate ENU error time-series plot
+
+Note on PPP vertical accuracy
+------------------------------
+PPP Up errors are dominated by tropospheric delay model residuals and are
+typically 3–5× larger than horizontal errors.  Use --use-2d for tests where
+the purpose is to validate horizontal positioning performance.
 """
 
 import argparse
@@ -332,6 +339,8 @@ def compute_abs_metrics(true_xyz, test_data, skip_epochs=0):
     en = np.array(enu_errors)
     n = len(e3)
 
+    horiz = np.sqrt(en[:, 0] ** 2 + en[:, 1] ** 2)
+
     return {
         "n": n,
         "errors_3d": e3,
@@ -339,14 +348,22 @@ def compute_abs_metrics(true_xyz, test_data, skip_epochs=0):
         "q_list": q_list,
         "true_lat": true_lat,
         "true_lon": true_lon,
+        # ENU components
+        "rms_e":    float(np.sqrt(np.mean(en[:, 0] ** 2))),
+        "rms_n":    float(np.sqrt(np.mean(en[:, 1] ** 2))),
+        "rms_u":    float(np.sqrt(np.mean(en[:, 2] ** 2))),
+        # 2D horizontal
+        "mean_2d":  float(np.mean(horiz)),
+        "rms_2d":   float(np.sqrt(np.mean(horiz ** 2))),
+        "p68_2d":   float(np.percentile(horiz, 68)),
+        "p95_2d":   float(np.percentile(horiz, 95)),
+        "max_2d":   float(np.max(horiz)),
+        # 3D
         "mean_3d":  float(np.mean(e3)),
         "rms_3d":   float(np.sqrt(np.mean(e3 ** 2))),
         "p68_3d":   float(np.percentile(e3, 68)),
         "p95_3d":   float(np.percentile(e3, 95)),
         "max_3d":   float(np.max(e3)),
-        "rms_e":    float(np.sqrt(np.mean(en[:, 0] ** 2))),
-        "rms_n":    float(np.sqrt(np.mean(en[:, 1] ** 2))),
-        "rms_u":    float(np.sqrt(np.mean(en[:, 2] ** 2))),
         "fix_rate": sum(1 for q in q_list if q in (1, 6)) / n * 100.0,
     }
 
@@ -437,6 +454,8 @@ def main():  # noqa: D103
                    help="Tolerance for criterion A in metres (default 0.030)")
     p.add_argument("--skip-epochs", type=int, default=0,
                    help="Initial epochs to discard")
+    p.add_argument("--use-2d", action="store_true",
+                   help="Evaluate pass/fail on 2D horizontal error (default: 3D)")
     p.add_argument("--plot", action="store_true",
                    help="Generate ENU error time-series plot")
     p.add_argument("test", help="RTKLIB .pos file to evaluate")
@@ -491,8 +510,9 @@ def main():  # noqa: D103
         print(f"FAIL: test file not found: {args.test}", file=sys.stderr)
         return 1
 
+    metric_label = "2D horizontal" if args.use_2d else "3D"
     print(f"Test      : {args.test}")
-    print(f"Tolerance : {args.tolerance*100:.1f} cm")
+    print(f"Tolerance : {args.tolerance*100:.1f} cm  (evaluated on {metric_label} error)")
     if args.skip_epochs:
         print(f"Skip      : {args.skip_epochs} initial epochs")
     print()
@@ -517,6 +537,13 @@ def main():  # noqa: D103
     print(f"    North : {m['rms_n']*100:8.3f} cm")
     print(f"    Up    : {m['rms_u']*100:8.3f} cm")
     print()
+    print("  2D horizontal error distribution:")
+    print(f"    Bias  : {m['mean_2d']*100:8.3f} cm  (mean)")
+    print(f"    RMS   : {m['rms_2d']*100:8.3f} cm")
+    print(f"    1σ    : {m['p68_2d']*100:8.3f} cm  (68th percentile)")
+    print(f"    95%   : {m['p95_2d']*100:8.3f} cm  (95th percentile)")
+    print(f"    Max   : {m['max_2d']*100:8.3f} cm")
+    print()
     print("  3D error distribution (vs geodetic truth):")
     print(f"    Bias  : {m['mean_3d']*100:8.3f} cm  (mean)")
     print(f"    RMS   : {m['rms_3d']*100:8.3f} cm")
@@ -535,8 +562,12 @@ def main():  # noqa: D103
     # Each metric (1σ, 95%) passes when:
     #   A. metric < tolerance        (meets the required accuracy target)  OR
     #   B. metric < ref_precision    (at least as good as the truth itself)
-    ok_1s = _criterion("1σ  ", m["p68_3d"], args.tolerance, ref_precision)
-    ok_95 = _criterion("95% ", m["p95_3d"], args.tolerance, ref_precision)
+    if args.use_2d:
+        ok_1s = _criterion("1σ  (2D)", m["p68_2d"], args.tolerance, ref_precision)
+        ok_95 = _criterion("95% (2D)", m["p95_2d"], args.tolerance, ref_precision)
+    else:
+        ok_1s = _criterion("1σ  (3D)", m["p68_3d"], args.tolerance, ref_precision)
+        ok_95 = _criterion("95% (3D)", m["p95_3d"], args.tolerance, ref_precision)
 
     passed = ok_1s and ok_95
     print()
