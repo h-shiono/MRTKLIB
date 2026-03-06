@@ -1,0 +1,16 @@
+line-length = 100
+target-version = "py312"
+
+[lint]
+select = ["E", "F", "W", "I", "D"]
+
+# main() in CLI scripts doesn't need a separate docstring (module docstring suffices).
+# One-time migration tools (apply_headers) are also excluded.
+[lint.per-file-ignores]
+"scripts/apply_headers.py"     = ["D103"]
+"scripts/tests/compare_pos.py" = ["D103"]
+"scripts/tests/check_pos_scatter.py" = ["D103"]
+"scripts/tests/compare_nmea.py"      = ["D103"]
+
+[lint.pydocstyle]
+convention = "google"

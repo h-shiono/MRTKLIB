@@ -15,7 +15,6 @@ import sys
 
 import numpy as np
 
-
 # WGS84 constants
 _WGS84_A = 6378137.0            # semi-major axis [m]
 _WGS84_F = 1.0 / 298.257223563  # flattening
@@ -32,7 +31,7 @@ def blh2xyz(lat_deg, lon_deg, h):
     h : float
         Ellipsoidal height in metres.
 
-    Returns
+    Returns:
     -------
     numpy.ndarray
         ECEF coordinates [X, Y, Z] in metres.
@@ -61,7 +60,7 @@ def xyz2enu(dx, lat_deg, lon_deg):
     lat_deg, lon_deg : float
         Reference point latitude and longitude in degrees.
 
-    Returns
+    Returns:
     -------
     numpy.ndarray
         ENU error [East, North, Up] in metres.
@@ -105,7 +104,7 @@ def parse_pos(filepath):
     filepath : str
         Path to the .pos file.
 
-    Returns
+    Returns:
     -------
     dict
         Mapping from time-key string to (lat, lon, height, Q) tuple.
@@ -150,7 +149,7 @@ def compute_metrics(ref_data, test_data, skip_epochs=0):
     skip_epochs : int
         Number of initial epochs to skip (for convergence transient).
 
-    Returns
+    Returns:
     -------
     dict
         Metrics including ENU errors, 3D errors, RMS, fix rates, etc.

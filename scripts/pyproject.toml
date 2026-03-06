@@ -8,12 +8,3 @@ dependencies = [
     "matplotlib",
 ]
 
-[tool.ruff]
-line-length = 100
-target-version = "py312"
-
-[tool.ruff.lint]
-select = ["E", "F", "W", "I", "D"]
-
-[tool.ruff.lint.pydocstyle]
-convention = "google"

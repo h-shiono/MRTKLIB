@@ -15,7 +15,6 @@ import sys
 
 import numpy as np
 
-
 # WGS84 constants
 _WGS84_A = 6378137.0            # semi-major axis [m]
 _WGS84_F = 1.0 / 298.257223563  # flattening
@@ -63,7 +62,7 @@ def _nmea_to_deg(val_str, hemi):
     hemi : str
         Hemisphere indicator ('N', 'S', 'E', 'W').
 
-    Returns
+    Returns:
     -------
     float
         Decimal degrees (negative for S/W).
@@ -90,7 +89,7 @@ def parse_nmea(filepath):
     filepath : str
         Path to the NMEA file.
 
-    Returns
+    Returns:
     -------
     dict
         Mapping from time key (HHMMSS.ss string) to (lat_deg, lon_deg, alt, quality).
@@ -144,7 +143,7 @@ def compute_metrics(ref_data, test_data, skip_epochs=0):
     skip_epochs : int
         Number of initial epochs to skip (for convergence transient).
 
-    Returns
+    Returns:
     -------
     dict or None
         Metrics including ENU errors, 3D errors, RMS, fix rates, etc.

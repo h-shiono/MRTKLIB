@@ -40,7 +40,6 @@ Options
 """
 
 import argparse
-import math
 import os
 import sys
 
@@ -48,11 +47,14 @@ import numpy as np
 
 # Import shared geometry and reference-parsing helpers from compare_pos_abs.py
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from compare_pos_abs import (   # noqa: E402
-    blh2xyz, xyz2blh, xyz2enu,
-    parse_sinex, sinex_propagate,
-    parse_f5,
+from compare_pos_abs import (  # noqa: E402
     _criterion,
+    blh2xyz,
+    parse_f5,
+    parse_sinex,
+    sinex_propagate,
+    xyz2blh,
+    xyz2enu,
 )
 
 

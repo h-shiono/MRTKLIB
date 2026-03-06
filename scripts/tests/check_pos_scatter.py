@@ -34,7 +34,6 @@ import sys
 
 import numpy as np
 
-
 # ---------------------------------------------------------------------------
 # WGS84 constants
 # ---------------------------------------------------------------------------
@@ -63,7 +62,10 @@ def xyz2blh(x, y, z):
         N   = _A / math.sqrt(1.0 - _E2 * math.sin(lat) ** 2)
         lat = math.atan2(z + _E2 * N * math.sin(lat), p)
     N = _A / math.sqrt(1.0 - _E2 * math.sin(lat) ** 2)
-    h = p / math.cos(lat) - N if abs(math.cos(lat)) > 1e-10 else abs(z) / math.sin(lat) - N * (1.0 - _E2)
+    if abs(math.cos(lat)) > 1e-10:
+        h = p / math.cos(lat) - N
+    else:
+        h = abs(z) / math.sin(lat) - N * (1.0 - _E2)
     return math.degrees(lat), math.degrees(lon), h
 
 
@@ -292,7 +294,7 @@ def main():
     if args.skip_epochs:
         print(f"Skip      : {args.skip_epochs} initial epochs")
     if args.fix_only:
-        print(f"Fix-only  : yes")
+        print("Fix-only  : yes")
     print()
 
     # ── Parse ────────────────────────────────────────────────────────────────
