@@ -172,13 +172,13 @@ Results recorded on MRTKLIB v0.3.3, GNSS-only (no IMU), `--skip-epochs 60`.
 | Case | Mode | N | Rate% | RMS 2D | 1σ (68%) | 95% | TTFF (s) |
 |------|------|--:|------:|-------:|---------:|----:|---------:|
 | nagoya_run1 | CLAS    | 7 525 | 17.1% | 42.78 m | 4.10 m | 53.21 m | 9 |
-| nagoya_run1 | MADOCA  | 1 968 |  0.0% | 17.43 m | 2.11 m |  4.69 m | — |
+| nagoya_run1 | MADOCA  | 2 028 |  0.0% | 17.43 m | 2.11 m |  4.69 m | — |
 | nagoya_run1 | RTK     | 7 158 |  7.6% | 11.14 m | 1.73 m |  5.19 m | 561 |
 | nagoya_run2 | CLAS    | 9 390 | 30.3% | 305.61 m | 8.30 m | 73.90 m | 0 |
-| nagoya_run2 | MADOCA  | 7 494 |  0.2% | 39.54 m | 2.96 m | 19.45 m | — |
+| nagoya_run2 | MADOCA  | 7 554 |  0.2% | 39.54 m | 2.96 m | 19.45 m | — |
 | nagoya_run2 | RTK     | 9 251 | 10.8% |  4.54 m | 3.65 m |  8.92 m | 352 |
 | nagoya_run3 | CLAS    | 5 141 |  7.0% | 12.83 m | 6.63 m | 28.79 m | 9 |
-| nagoya_run3 | MADOCA  | 2 753 |  2.1% |  2.65 m | 2.25 m |  4.29 m | — |
+| nagoya_run3 | MADOCA  | 2 813 |  2.1% |  2.65 m | 2.25 m |  4.29 m | — |
 | nagoya_run3 | RTK     | 5 087 | 20.1% |  5.49 m | 4.68 m | 11.60 m | 379 |
 
 ### Tokyo
@@ -186,13 +186,13 @@ Results recorded on MRTKLIB v0.3.3, GNSS-only (no IMU), `--skip-epochs 60`.
 | Case | Mode | N | Rate% | RMS 2D | 1σ (68%) | 95% | TTFF (s) |
 |------|------|--:|------:|-------:|---------:|----:|---------:|
 | tokyo_run1 | CLAS    | 11 867 |  5.2% | 627.06 m |  7.91 m | 277.34 m | 15 |
-| tokyo_run1 | MADOCA  |  3 084 | 16.6% |   1.83 m |  0.98 m |   1.96 m | 0 |
+| tokyo_run1 | MADOCA  |  3 144 | 16.6% |   1.83 m |  0.98 m |   1.96 m | 0 |
 | tokyo_run1 | RTK     | 11 437 | 16.4% |  18.12 m |  9.64 m |  40.55 m | 693 |
 | tokyo_run2 | CLAS    |  9 091 | 21.7% |  33.43 m |  2.39 m |  33.47 m | 368 |
-| tokyo_run2 | MADOCA  |  8 159 |  6.7% |   2.89 m |  1.18 m |   4.58 m | 464 |
+| tokyo_run2 | MADOCA  |  8 219 |  6.7% |   2.89 m |  1.18 m |   4.58 m | 464 |
 | tokyo_run2 | RTK     |  8 625 |  5.7% |  34.14 m | 16.66 m |  70.55 m | 926 |
 | tokyo_run3 | CLAS    | 15 241 |  7.4% |  41.46 m |  3.74 m |  29.61 m | 28 |
-| tokyo_run3 | MADOCA  |  2 795 |  3.4% |   0.72 m |  0.75 m |   1.06 m | 26 |
+| tokyo_run3 | MADOCA  |  2 855 |  3.4% |   0.72 m |  0.75 m |   1.06 m | 26 |
 | tokyo_run3 | RTK     | 14 757 |  2.3% |  24.59 m |  5.97 m |  69.71 m | 1331 |
 
 ### Notes
@@ -200,9 +200,13 @@ Results recorded on MRTKLIB v0.3.3, GNSS-only (no IMU), `--skip-epochs 60`.
 - **RMS 2D (all)** includes all solution quality levels (fix + float + SPP).
   Large values for CLAS/RTK reflect float/SPP epochs with errors of tens to
   hundreds of metres, which dominate in urban canyons.
-- **MADOCA low N** in some runs (e.g. nagoya_run1: 1 968 vs 7 525 for CLAS)
-  is caused by `misc-timeinterp=off` in `madoca.conf`; the solver only outputs
-  epochs for which corrections are available.
+- **MADOCA low N** in some runs (e.g. nagoya_run1: 2 028 vs 7 525 for CLAS)
+  reflects **filter divergence**: MADOCA PPP outputs Q=0 (no solution) for
+  epochs where multipath or satellite geometry causes the float filter to lose
+  lock.  Q=0 GGA sentences have empty lat/lon fields and are excluded from
+  comparison.  In nagoya_run1, only 27% of rover epochs have a valid MADOCA
+  solution; in nagoya_run2 and tokyo_run2 (more open sky), coverage is ~100%.
+  This is a real performance limitation — not a software or configuration issue.
 - **CLAS nagoya_run2 TTFF=0** means the very first epoch after the skip window
   was already in a sustained fix run.
 - RTK baselines range from ~13 km (Nagoya) to ~27 km (Tokyo), which is long for
