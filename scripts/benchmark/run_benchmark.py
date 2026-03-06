@@ -220,35 +220,39 @@ def print_summary(rows: list[dict]) -> None:
 
         use_threshold = not math.isnan(m.get("threshold_2d", float("nan")))
 
-        # FIX row (Q=4)
-        fix_rate = f"{m['fix_rate']:.1f}%"
-        fix_ttff = _fmt_s(m["conv_time_s"])
-        print(_row(r["case_id"], r["mode"], "FIX",
-                   m["n_fix"], fix_rate,
-                   _fmt_m(m["rms_2d_fix"]), _fmt_m(m["p68_2d_fix"]),
-                   _fmt_m(m["p95_2d_fix"]), fix_ttff,
-                   first=True))
-
-        # FF row (Q=4 or Q=5)
-        ff_rate = f"{m['ff_rate']:.1f}%"
-        print(_row(r["case_id"], r["mode"], "FF",
-                   m["n_ff"], ff_rate,
-                   _fmt_m(m["rms_2d_ff"]), _fmt_m(m["p68_2d_ff"]),
-                   _fmt_m(m["p95_2d_ff"]), "—",
-                   first=False))
-
-        # ALL row
-        all_rate = f"{m['thr_rate']:.1f}%" if use_threshold else "—"
-        all_ttff = _fmt_s(m["conv_thr_s"]) if use_threshold else "—"
-        print(_row(r["case_id"], r["mode"], "ALL",
-                   m["n_matched"], all_rate,
-                   _fmt_m(m["rms_2d_all"]), _fmt_m(m["p68_2d_all"]),
-                   _fmt_m(m["p95_2d_all"]), all_ttff,
-                   first=False))
+        if use_threshold:
+            # PPP mode (MADOCA): single row; no integer fix, all output is PPP float
+            ppp_rate = f"{m['thr_rate']:.1f}%"
+            ppp_ttff = _fmt_s(m["conv_thr_s"])
+            print(_row(r["case_id"], r["mode"], "PPP",
+                       m["n_matched"], ppp_rate,
+                       _fmt_m(m["rms_2d_all"]), _fmt_m(m["p68_2d_all"]),
+                       _fmt_m(m["p95_2d_all"]), ppp_ttff,
+                       first=True))
+        else:
+            # AR modes (CLAS / RTK): three rows
+            # FIX row (Q=4)
+            print(_row(r["case_id"], r["mode"], "FIX",
+                       m["n_fix"], f"{m['fix_rate']:.1f}%",
+                       _fmt_m(m["rms_2d_fix"]), _fmt_m(m["p68_2d_fix"]),
+                       _fmt_m(m["p95_2d_fix"]), _fmt_s(m["conv_time_s"]),
+                       first=True))
+            # FF row (Q=3,4,5 — fix + float, excludes SPP)
+            print(_row(r["case_id"], r["mode"], "FF",
+                       m["n_ff"], f"{m['ff_rate']:.1f}%",
+                       _fmt_m(m["rms_2d_ff"]), _fmt_m(m["p68_2d_ff"]),
+                       _fmt_m(m["p95_2d_ff"]), "—",
+                       first=False))
+            # ALL row (every epoch including SPP)
+            print(_row(r["case_id"], r["mode"], "ALL",
+                       m["n_matched"], "—",
+                       _fmt_m(m["rms_2d_all"]), _fmt_m(m["p68_2d_all"]),
+                       _fmt_m(m["p95_2d_all"]), "—",
+                       first=False))
 
     print(_SEP)
-    print("  Tiers: FIX=Q=4 only | FF=Q=3(PPP)+Q=4(fix)+Q=5(float) excl SPP | ALL=every epoch")
-    print("  Rate%: FIX/FF row=epoch fraction; ALL row=<30cm rate (madoca) or —")
+    print("  CLAS/RTK tiers: FIX=Q=4 | FF=Q=3+4+5 (excl SPP) | ALL=every epoch")
+    print("  MADOCA tier:    PPP=all valid PPP-float epochs (Q=3); Rate%=<30cm fraction")
 
 
 # ---------------------------------------------------------------------------

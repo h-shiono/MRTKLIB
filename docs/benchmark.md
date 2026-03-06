@@ -161,22 +161,23 @@ Results recorded on MRTKLIB v0.3.3, GNSS-only (no IMU), `--skip-epochs 60`.
 
 ### Solution Quality Tiers
 
-Each case/mode is broken down into three tiers:
+CLAS and RTK produce integer-fix solutions and are broken down into three tiers.
+MADOCA-PPP never produces an integer fix and is reported as a single **PPP** tier.
 
-| Tier | GGA quality flags | Description |
-|------|-------------------|-------------|
-| **FIX** | Q=4 | Integer ambiguity fix (CLAS / RTK) |
-| **FF** | Q=3, 4, 5 | Fix + float + PPP float; excludes SPP (Q=1) |
-| **ALL** | any | Every matched epoch including SPP fallback |
+| Tier | Modes | GGA quality | Description |
+|------|-------|-------------|-------------|
+| **FIX** | CLAS, RTK | Q=4 | Integer ambiguity fix epochs only |
+| **FF** | CLAS, RTK | Q=3, 4, 5 | Fix + float; excludes SPP fallback (Q=1) |
+| **ALL** | CLAS, RTK | any | Every matched epoch including SPP |
+| **PPP** | MADOCA | Q=3 | All valid PPP-float epochs (Q=0 already filtered) |
 
 **Rate% column:**
-- FIX row: Q=4 fix rate (CLAS / RTK); always 0% for MADOCA
-- FF row: fraction of non-SPP epochs
-- ALL row (MADOCA only): fraction of epochs with 2D error < 30 cm
+- FIX / FF rows: fraction of that tier among all matched epochs
+- PPP row: fraction of epochs with 2D horizontal error < 30 cm
 
 **TTFF column:**
-- CLAS / RTK: first epoch of a ≥30-consecutive Q=4 run, relative to first matched epoch (shown on FIX row)
-- MADOCA: first epoch of a ≥30-consecutive sub-30 cm run (shown on ALL row)
+- CLAS / RTK: first epoch of a ≥30-consecutive Q=4 run (shown on FIX row)
+- MADOCA: first epoch of a ≥30-consecutive sub-30 cm run (shown on PPP row)
 
 ### Nagoya
 
@@ -185,27 +186,21 @@ Each case/mode is broken down into three tiers:
 | nagoya_run1 | CLAS   | FIX |  1 285 | 17.1% |   1.24 m | 0.40 m |  0.45 m |   9 |
 |             |        | FF  |  1 831 | 24.3% |   2.86 m | 0.44 m |  7.84 m |   — |
 |             |        | ALL |  7 525 |     — |  42.78 m | 4.10 m | 53.21 m |   — |
-| nagoya_run1 | MADOCA | FIX |      0 |  0.0% |      nan |    nan |     nan |   — |
-|             |        | FF  |  1 968 |100.0% |  17.43 m | 2.11 m |  4.69 m |   — |
-|             |        | ALL |  1 968 |  0.0% |  17.43 m | 2.11 m |  4.69 m |   — |
+| nagoya_run1 | MADOCA | PPP |  1 968 |  0.0% |  17.43 m | 2.11 m |  4.69 m |   — |
 | nagoya_run1 | RTK    | FIX |    543 |  7.6% |  11.09 m | 2.24 m |  8.09 m | 561 |
 |             |        | FF  |  7 158 |100.0% |  11.14 m | 1.73 m |  5.19 m |   — |
 |             |        | ALL |  7 158 |     — |  11.14 m | 1.73 m |  5.19 m |   — |
 | nagoya_run2 | CLAS   | FIX |  2 849 | 30.3% |   1.17 m | 0.72 m |  0.98 m |   0 |
 |             |        | FF  |  6 002 | 63.9% |  15.90 m | 1.21 m | 36.59 m |   — |
 |             |        | ALL |  9 390 |     — | 305.61 m | 8.30 m | 73.90 m |   — |
-| nagoya_run2 | MADOCA | FIX |      0 |  0.0% |      nan |    nan |     nan |   — |
-|             |        | FF  |  7 494 |100.0% |  39.54 m | 2.96 m | 19.45 m |   — |
-|             |        | ALL |  7 494 |  0.2% |  39.54 m | 2.96 m | 19.45 m |   — |
+| nagoya_run2 | MADOCA | PPP |  7 494 |  0.2% |  39.54 m | 2.96 m | 19.45 m |   — |
 | nagoya_run2 | RTK    | FIX |    999 | 10.8% |   6.76 m | 5.07 m |  8.93 m | 352 |
 |             |        | FF  |  9 251 |100.0% |   4.54 m | 3.65 m |  8.92 m |   — |
 |             |        | ALL |  9 251 |     — |   4.54 m | 3.65 m |  8.92 m |   — |
 | nagoya_run3 | CLAS   | FIX |    360 |  7.0% |   0.45 m | 0.35 m |  1.06 m |   9 |
 |             |        | FF  |  1 970 | 38.3% |  12.15 m | 2.63 m | 38.24 m |   — |
 |             |        | ALL |  5 141 |     — |  12.83 m | 6.63 m | 28.79 m |   — |
-| nagoya_run3 | MADOCA | FIX |      0 |  0.0% |      nan |    nan |     nan |   — |
-|             |        | FF  |  2 753 |100.0% |   2.65 m | 2.25 m |  4.29 m |   — |
-|             |        | ALL |  2 753 |  2.1% |   2.65 m | 2.25 m |  4.29 m |   — |
+| nagoya_run3 | MADOCA | PPP |  2 753 |  2.1% |   2.65 m | 2.25 m |  4.29 m |   — |
 | nagoya_run3 | RTK    | FIX |  1 020 | 20.1% |   4.44 m | 3.81 m |  8.13 m | 379 |
 |             |        | FF  |  5 087 |100.0% |   5.49 m | 4.68 m | 11.60 m |   — |
 |             |        | ALL |  5 087 |     — |   5.49 m | 4.68 m | 11.60 m |   — |
@@ -217,27 +212,21 @@ Each case/mode is broken down into three tiers:
 | tokyo_run1 | CLAS   | FIX |    612 |  5.2% |   0.87 m |  0.24 m |  2.48 m |  15 |
 |            |        | FF  |  9 235 | 77.8% | 119.24 m |  3.46 m | 25.55 m |   — |
 |            |        | ALL | 11 867 |     — | 627.06 m |  7.91 m |277.34 m |   — |
-| tokyo_run1 | MADOCA | FIX |      0 |  0.0% |      nan |     nan |     nan |   — |
-|            |        | FF  |  3 084 |100.0% |   1.83 m |  0.98 m |  1.96 m |   — |
-|            |        | ALL |  3 084 | 16.6% |   1.83 m |  0.98 m |  1.96 m |   0 |
+| tokyo_run1 | MADOCA | PPP |  3 084 | 16.6% |   1.83 m |  0.98 m |  1.96 m |   0 |
 | tokyo_run1 | RTK    | FIX |  1 870 | 16.4% |   9.47 m |  6.35 m | 12.49 m | 693 |
 |            |        | FF  | 11 437 |100.0% |  18.12 m |  9.64 m | 40.55 m |   — |
 |            |        | ALL | 11 437 |     — |  18.12 m |  9.64 m | 40.55 m |   — |
 | tokyo_run2 | CLAS   | FIX |  1 972 | 21.7% |   0.59 m |  0.12 m |  1.04 m | 368 |
 |            |        | FF  |  6 841 | 75.3% |  22.99 m |  1.19 m | 14.92 m |   — |
 |            |        | ALL |  9 091 |     — |  33.43 m |  2.39 m | 33.47 m |   — |
-| tokyo_run2 | MADOCA | FIX |      0 |  0.0% |      nan |     nan |     nan |   — |
-|            |        | FF  |  8 159 |100.0% |   2.89 m |  1.18 m |  4.58 m |   — |
-|            |        | ALL |  8 159 |  6.7% |   2.89 m |  1.18 m |  4.58 m | 464 |
+| tokyo_run2 | MADOCA | PPP |  8 159 |  6.7% |   2.89 m |  1.18 m |  4.58 m | 464 |
 | tokyo_run2 | RTK    | FIX |    494 |  5.7% |  28.45 m |  9.83 m | 62.92 m | 926 |
 |            |        | FF  |  8 625 |100.0% |  34.14 m | 16.66 m | 70.55 m |   — |
 |            |        | ALL |  8 625 |     — |  34.14 m | 16.66 m | 70.55 m |   — |
 | tokyo_run3 | CLAS   | FIX |  1 129 |  7.4% |   0.80 m |  0.08 m |  1.83 m |  28 |
 |            |        | FF  |  2 629 | 17.2% |   3.76 m |  0.63 m |  2.43 m |   — |
 |            |        | ALL | 15 241 |     — |  41.46 m |  3.74 m | 29.61 m |   — |
-| tokyo_run3 | MADOCA | FIX |      0 |  0.0% |      nan |     nan |     nan |   — |
-|            |        | FF  |  2 795 |100.0% |   0.72 m |  0.75 m |  1.06 m |   — |
-|            |        | ALL |  2 795 |  3.4% |   0.72 m |  0.75 m |  1.06 m |  26 |
+| tokyo_run3 | MADOCA | PPP |  2 795 |  3.4% |   0.72 m |  0.75 m |  1.06 m |  26 |
 | tokyo_run3 | RTK    | FIX |    341 |  2.3% |  26.57 m |  2.73 m | 88.33 m |1331 |
 |            |        | FF  | 14 757 |100.0% |  24.59 m |  5.97 m | 69.71 m |   — |
 |            |        | ALL | 14 757 |     — |  24.59 m |  5.97 m | 69.71 m |   — |
@@ -246,21 +235,17 @@ Each case/mode is broken down into three tiers:
 
 - **CLAS FIX accuracy** (Q=4 only): RMS 2D is **0.4–1.2 m** across all runs —
   consistent PPP-RTK performance under urban multipath.
-- **CLAS FF vs ALL gap**: the large ALL RMS (12–627 m) reflects SPP fallback
+- **CLAS FF vs ALL gap**: the large ALL RMS (13–627 m) reflects SPP fallback
   epochs (Q=1) that dominate in dense canyons.  FF tier (24–78%) excludes these.
-- **MADOCA FF = ALL**: MADOCA outputs only Q=3 (PPP float) or Q=0 (no solution);
-  Q=0 epochs are already filtered, so FF ≡ ALL for MADOCA.
-- **RTK FF = ALL**: RTK output is Q=4 (fix) or Q=5 (float) only — no SPP
-  fallback — so FF always equals ALL.
+- **RTK FF = ALL**: RTK outputs Q=4 (fix) or Q=5 (float) only — no SPP fallback
+  — so FF always equals ALL.
 - **RTK FIX quality**: large FIX RMS in some runs (e.g. tokyo_run2: 28.5 m)
   indicates wrongly-fixed integer solutions at 13–27 km baselines.  Long-baseline
   RTK integer AR is unreliable without ionospheric modelling.
-- **MADOCA low N** in some runs (e.g. nagoya_run1: 1 968 vs 7 525 for CLAS)
-  reflects **filter divergence**: MADOCA PPP outputs Q=0 (no solution) for
-  epochs where multipath or satellite geometry causes the float filter to lose
-  lock.  Q=0 GGA sentences have empty lat/lon fields and are excluded from
-  comparison.  In nagoya_run1, only 27% of rover epochs have a valid MADOCA
-  solution; in nagoya_run2 and tokyo_run2 (more open sky), coverage is ~100%.
+- **MADOCA PPP N**: outputs Q=3 (PPP float) or Q=0 (no solution); Q=0 is
+  filtered, so N reflects epochs where the filter produced a solution.  In
+  nagoya_run1, only 27% of rover epochs have a valid solution (heavy urban
+  multipath).  In nagoya_run2 and tokyo_run2 (more open sky), coverage is ~100%.
   This is a real performance limitation — not a software or configuration issue.
 - **CLAS nagoya_run2 TTFF=0** means the very first epoch after the skip window
   was already in a sustained fix run.
