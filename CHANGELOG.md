@@ -5,6 +5,42 @@ All notable changes to MRTKLIB are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v0.3.1] - 2026-03-06
+
+Patch release — MADOCALIB PPP-AR regression test quality improvement.
+No functional changes.
+
+### Changed
+
+- **MADOCALIB PPP-AR reference data** — Replaced `pppar` and `pppar_ion`
+  reference `.pos` files with outputs from upstream MADOCALIB built with
+  `-DLAPACK` (Accelerate framework). The previous LU-solver reference caused
+  artificial 1.5–3.8 cm offsets unrelated to porting correctness.
+- **Test tolerances tightened** (when `LAPACK_FOUND` is true):
+  - `madocalib_pppar_check`: 0.020 m → **0.008 m**
+  - `madocalib_pppar_ion_check`: 0.040 m → **0.005 m**
+  - Fallback to original thresholds when LAPACK is unavailable (internal LU vs LAPACK reference diverges ~1.5–3.8 cm)
+
+### Background
+
+Investigation confirmed that upstream MADOCALIB already supports LAPACK via
+`#ifdef LAPACK` in `rtkcmn.c`. Building upstream with `-DLAPACK -framework
+Accelerate` reveals the true implementation difference: MRTKLIB vs upstream
+LAPACK is **0.41 cm** (pppar) and **0.25 cm** (pppar_ion), confirming the
+porting is correct. The 1.5–3.8 cm difference seen in v0.3.0 was entirely
+attributable to LU vs LAPACK numerical divergence within the upstream itself.
+
+### Test Results
+
+All 53 tests pass. Tolerances when built with LAPACK (tight) vs without (wide):
+
+| Test | 3D RMS | Tolerance (LAPACK) | Tolerance (no LAPACK) |
+|------|--------|-------------------|----------------------|
+| madocalib_pppar | 0.41 cm | 0.008 m (~50% margin) | 0.020 m |
+| madocalib_pppar_ion | 0.25 cm | 0.005 m (~50% margin) | 0.040 m |
+
+---
+
 ## [v0.3.0] - 2026-03-06
 
 CLASLIB integration — adds QZSS CLAS L6D augmentation (PPP-RTK and VRS-RTK)
@@ -213,6 +249,7 @@ Initial release — MALIB structural migration complete.
 - **MALIB integration** — Structural base from JAXA MALIB feature/1.2.0
   (directory layout, threading, stream I/O).
 
+[v0.3.1]: https://github.com/h-shiono/MRTKLIB/compare/v0.3.0...v0.3.1
 [v0.3.0]: https://github.com/h-shiono/MRTKLIB/compare/v0.2.0...v0.3.0
 [v0.2.0]: https://github.com/h-shiono/MRTKLIB/compare/v0.1.0...v0.2.0
 [v0.1.0]: https://github.com/h-shiono/MRTKLIB/releases/tag/v0.1.0

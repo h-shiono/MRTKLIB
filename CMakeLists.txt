@@ -437,11 +437,22 @@ set_tests_properties(madocalib_pppar PROPERTIES
     LABELS            "regression;madocalib;pppar"
 )
 
+# The reference .pos files were generated with upstream MADOCALIB built with LAPACK.
+# Without LAPACK, MRTKLIB falls back to the internal LU solver (same as upstream default),
+# which diverges ~1.5–3.8 cm from the LAPACK reference. Use wider tolerances in that case.
+if(LAPACK_FOUND)
+    set(_PPPAR_TOL     0.008)
+    set(_PPPAR_ION_TOL 0.005)
+else()
+    set(_PPPAR_TOL     0.020)
+    set(_PPPAR_ION_TOL 0.040)
+endif()
+
 add_test(NAME madocalib_pppar_check
     COMMAND ${Python3_EXECUTABLE} ${_COMPARE_POS}
         ${_MDLDATA}/madocalib_MIZU_20250401-0000.pppar.pos
         ${CMAKE_BINARY_DIR}/out_madocalib_pppar.pos
-        --tolerance 0.02
+        --tolerance ${_PPPAR_TOL}
 )
 set_tests_properties(madocalib_pppar_check PROPERTIES
     DEPENDS           madocalib_pppar
@@ -504,7 +515,7 @@ add_test(NAME madocalib_pppar_ion_check
     COMMAND ${Python3_EXECUTABLE} ${_COMPARE_POS}
         ${_MDLDATA}/madocalib_MIZU_20250401-0000.pppar_ion.pos
         ${CMAKE_BINARY_DIR}/out_madocalib_pppar_ion.pos
-        --tolerance 0.04
+        --tolerance ${_PPPAR_ION_TOL}
 )
 set_tests_properties(madocalib_pppar_ion_check PROPERTIES
     DEPENDS           madocalib_pppar_ion
