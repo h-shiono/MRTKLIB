@@ -2,7 +2,8 @@
 
 This benchmark evaluates MRTKLIB's kinematic (vehicle-mounted) positioning
 performance using the open-data [PPC2024 (Precise Positioning Challenge)][ppc]
-dataset from Chiba Institute of Technology.  It covers six urban driving runs
+dataset collected for the contest organised by the Institute of Navigation Japan
+(測位航法学会).  It covers six urban driving runs
 (Nagoya × 3, Tokyo × 3) and supports two positioning modes:
 
 | Mode | Engine | Correction |
@@ -318,15 +319,17 @@ Key differences from the standard test configurations:
 
 ## Acknowledgements
 
-The PPC-Dataset is kindly provided as open data by:
+The PPC-Dataset was collected for the **Precise Positioning Challenge 2024
+(高精度測位チャレンジ2024)** organised by the Institute of Navigation Japan
+(測位航法学会), and is kindly made available as open data by:
 
 > **Taro Suzuki**, Chiba Institute of Technology
 > *PPC-Dataset — GNSS/IMU driving data for precise positioning research*
 > <https://github.com/taroz/PPC-Dataset>
 
-We gratefully acknowledge Prof. Suzuki for making this dataset publicly
-available.  Please cite the PPC2024 materials when publishing results derived
-from this dataset.
+We gratefully acknowledge the Institute of Navigation Japan for organising PPC2024
+and Prof. Suzuki for making the dataset publicly available.  Please cite the
+PPC2024 materials when publishing results derived from this dataset.
 
 ---
 
