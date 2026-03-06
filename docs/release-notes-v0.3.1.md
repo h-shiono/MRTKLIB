@@ -31,8 +31,14 @@ making the comparison fair and the tolerances much tighter.
 
 ### Test Tolerances Tightened
 
-| CTest Name | Old tolerance | New tolerance | Actual RMS |
-|------------|--------------|--------------|------------|
+The new tolerances apply when MRTKLIB is built with LAPACK support
+(`LAPACK_FOUND` is true, the default on macOS/Linux with Accelerate/OpenBLAS).
+Without LAPACK, the tests fall back to the original v0.3.0 tolerances
+(0.020 m / 0.040 m) because the internal LU solver diverges from the
+LAPACK-generated reference by the same ~1.5–3.8 cm.
+
+| CTest Name | Old tolerance | New tolerance (LAPACK) | Actual RMS |
+|------------|--------------|----------------------|------------|
 | `madocalib_pppar_check` | 0.020 m | **0.008 m** | 0.41 cm |
 | `madocalib_pppar_ion_check` | 0.040 m | **0.005 m** | 0.25 cm |
 

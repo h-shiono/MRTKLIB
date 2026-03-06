@@ -16,9 +16,10 @@ No functional changes.
   reference `.pos` files with outputs from upstream MADOCALIB built with
   `-DLAPACK` (Accelerate framework). The previous LU-solver reference caused
   artificial 1.5–3.8 cm offsets unrelated to porting correctness.
-- **Test tolerances tightened**:
+- **Test tolerances tightened** (when `LAPACK_FOUND` is true):
   - `madocalib_pppar_check`: 0.020 m → **0.008 m**
   - `madocalib_pppar_ion_check`: 0.040 m → **0.005 m**
+  - Fallback to original thresholds when LAPACK is unavailable (internal LU vs LAPACK reference diverges ~1.5–3.8 cm)
 
 ### Background
 
@@ -31,12 +32,12 @@ attributable to LU vs LAPACK numerical divergence within the upstream itself.
 
 ### Test Results
 
-All 53 tests pass with tightened tolerances:
+All 53 tests pass. Tolerances when built with LAPACK (tight) vs without (wide):
 
-| Test | 3D RMS (MRTKLIB vs upstream LAPACK) | Tolerance | Margin |
-|------|-------------------------------------|-----------|--------|
-| madocalib_pppar | 0.41 cm | 0.008 m | ~50% |
-| madocalib_pppar_ion | 0.25 cm | 0.005 m | ~50% |
+| Test | 3D RMS | Tolerance (LAPACK) | Tolerance (no LAPACK) |
+|------|--------|-------------------|----------------------|
+| madocalib_pppar | 0.41 cm | 0.008 m (~50% margin) | 0.020 m |
+| madocalib_pppar_ion | 0.25 cm | 0.005 m (~50% margin) | 0.040 m |
 
 ---
 
