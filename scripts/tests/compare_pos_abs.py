@@ -516,9 +516,14 @@ def main():  # noqa: D103
     # Each metric (1σ, 95%) passes when:
     #   A. metric < tolerance        (meets the required accuracy target)  OR
     #   B. metric < ref_precision    (at least as good as the truth itself)
+    #
+    # ref_precision is always a 3D quantity (SINEX σ3D or F5 3D scatter).
+    # When evaluating 2D horizontal metrics, scale it to horizontal precision
+    # assuming isotropic errors: σ_2D = σ_3D * sqrt(2/3).
     if args.use_2d:
-        ok_1s = _criterion("1σ  (2D)", m["p68_2d"], args.tolerance, ref_precision)
-        ok_95 = _criterion("95% (2D)", m["p95_2d"], args.tolerance, ref_precision)
+        ref_prec_2d = ref_precision * math.sqrt(2.0 / 3.0)
+        ok_1s = _criterion("1σ  (2D)", m["p68_2d"], args.tolerance, ref_prec_2d)
+        ok_95 = _criterion("95% (2D)", m["p95_2d"], args.tolerance, ref_prec_2d)
     else:
         ok_1s = _criterion("1σ  (3D)", m["p68_3d"], args.tolerance, ref_precision)
         ok_95 = _criterion("95% (3D)", m["p95_3d"], args.tolerance, ref_precision)

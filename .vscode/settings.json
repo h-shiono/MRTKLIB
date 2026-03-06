@@ -1,5 +1,4 @@
 {
-  "python.defaultInterpreterPath": "${workspaceFolder}/scripts/.venv/bin/python",
   "[python]": {
     "editor.defaultFormatter": "charliermarsh.ruff",
     "editor.formatOnSave": true,

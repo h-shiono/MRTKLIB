@@ -40,6 +40,7 @@ Options
 """
 
 import argparse
+import math
 import os
 import sys
 
@@ -62,16 +63,15 @@ def parse_nmea(filepath):
         filepath: Path to NMEA file.
 
     Returns:
-        Tuple (data, geoid_ok) where:
-          data     — dict mapping time-key (HHMMSS.ss string) to
-                     (lat_deg, lon_deg, h_ell, quality).
-                     h_ell is the ellipsoidal height in metres.
+        Tuple (rows, geoid_ok) where:
+          rows     — list of (lat_deg, lon_deg, h_ell, quality) tuples in
+                     file order.  h_ell is the ellipsoidal height in metres.
           geoid_ok — True if geoid separation was successfully read from
                      at least one sentence; False if field[11] was absent
                      or zero for all sentences (Up comparison unreliable).
     """
-    data = {}
     geoid_ok = False
+    rows = []
     with open(filepath) as fh:
         for raw in fh:
             line = raw.strip()
@@ -85,7 +85,6 @@ def parse_nmea(filepath):
             if fields[0] not in ("$GPGGA", "$GNGGA"):
                 continue
             try:
-                time_key = fields[1]
                 quality = int(fields[6])
                 if quality == 0 or not fields[2] or not fields[4]:
                     continue
@@ -101,17 +100,16 @@ def parse_nmea(filepath):
                         pass
                 if geoid_sep != 0.0:
                     geoid_ok = True
-                h_ell = alt_msl + geoid_sep
-                data[time_key] = (lat, lon, h_ell, quality)
+                rows.append((lat, lon, alt_msl + geoid_sep, quality))
             except (ValueError, IndexError):
                 continue
-    return data, geoid_ok
+    return rows, geoid_ok
 
 
 # ---------------------------------------------------------------------------
 # Absolute accuracy metrics  (horizontal + 3D)
 # ---------------------------------------------------------------------------
-def compute_abs_metrics(true_xyz, test_data, skip_epochs=0):
+def compute_abs_metrics(true_xyz, rows, skip_epochs=0):
     """Compute per-epoch position errors against a fixed true coordinate.
 
     Uses the ellipsoidal height recovered from GGA fields 9+11 directly.
@@ -120,20 +118,21 @@ def compute_abs_metrics(true_xyz, test_data, skip_epochs=0):
 
     Args:
         true_xyz: np.array([X, Y, Z]) — true ECEF coordinate in metres.
-        test_data: dict from parse_nmea() — values are (lat, lon, h_ell, q).
+        rows: list of (lat, lon, h_ell, q) tuples from parse_nmea(), in
+            file order. Storing epochs as a list avoids silent overwrites
+            when HHMMSS.ss timestamps repeat across midnight boundaries.
         skip_epochs: initial epochs to discard.
 
     Returns:
         dict of statistics, or None if no usable epochs.
     """
     true_lat, true_lon, _true_h = xyz2blh(*true_xyz)
-    epochs = sorted(test_data.keys())[skip_epochs:]
-    if not epochs:
+    rows = rows[skip_epochs:]
+    if not rows:
         return None
 
     enu_errors, q_list = [], []
-    for key in epochs:
-        lat, lon, h_ell, q = test_data[key]
+    for lat, lon, h_ell, q in rows:
         test_xyz = blh2xyz(lat, lon, h_ell)
         dx = test_xyz - true_xyz
         enu = xyz2enu(dx, true_lat, true_lon)
@@ -297,8 +296,16 @@ def main():  # noqa: D103
         print("FAIL: no GGA data in test file", file=sys.stderr)
         return 1
     if not geoid_ok:
+        if args.use_3d:
+            print("FAIL: --use-3d requested but GGA field[11] (geoid separation) is absent",
+                  file=sys.stderr)
+            print("      or zero in all epochs. Ellipsoidal height cannot be recovered.",
+                  file=sys.stderr)
+            print("      Re-run without --use-3d to evaluate 2D horizontal accuracy only.",
+                  file=sys.stderr)
+            return 1
         print("WARNING: GGA field[11] (geoid separation) absent or zero in all epochs.")
-        print("         Up errors may be unreliable; consider using 2D pass/fail only.")
+        print("         Up errors may be unreliable; 2D horizontal pass/fail is used.")
 
     # ── Compute metrics ──────────────────────────────────────────────────────
     m = compute_abs_metrics(true_xyz, test_data, args.skip_epochs)
@@ -335,12 +342,16 @@ def main():  # noqa: D103
         plot_results(m, ref_label)
 
     # ── Pass / Fail ──────────────────────────────────────────────────────────
+    # ref_precision is always a 3D quantity (SINEX σ3D or F5 3D scatter).
+    # When evaluating 2D horizontal metrics, scale to horizontal precision
+    # assuming isotropic errors: σ_2D = σ_3D * sqrt(2/3).
     if args.use_3d:
         ok_1s = _criterion("1σ  (3D)", m["p68_3d"], args.tolerance, ref_precision)
         ok_95 = _criterion("95% (3D)", m["p95_3d"], args.tolerance, ref_precision)
     else:
-        ok_1s = _criterion("1σ  (2D)", m["p68_2d"], args.tolerance, ref_precision)
-        ok_95 = _criterion("95% (2D)", m["p95_2d"], args.tolerance, ref_precision)
+        ref_prec_2d = ref_precision * math.sqrt(2.0 / 3.0)
+        ok_1s = _criterion("1σ  (2D)", m["p68_2d"], args.tolerance, ref_prec_2d)
+        ok_95 = _criterion("95% (2D)", m["p95_2d"], args.tolerance, ref_prec_2d)
 
     passed = ok_1s and ok_95
     print()
