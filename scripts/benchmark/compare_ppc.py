@@ -119,7 +119,13 @@ def parse_nmea(nmea_path: str) -> list[tuple[float, float, float, float, int]]:
                     except ValueError:
                         pass
                 h_ell = alt_msl + geoid_sep
-                rows.append((utc_sod, lat, lon, h_ell, quality))
+                n_sv = 0
+                if len(fields) > 7 and fields[7]:
+                    try:
+                        n_sv = int(fields[7])
+                    except ValueError:
+                        pass
+                rows.append((utc_sod, lat, lon, h_ell, quality, n_sv))
             except (ValueError, IndexError):
                 continue
     rows.sort(key=lambda r: r[0])
@@ -193,12 +199,14 @@ def compute_metrics(
     # for ENU projection (per-epoch projection is more accurate for moving platform)
     enu_errors = []
     q_list = []
+    sv_list = []
     abs_tows = []
 
     for ref_row, nrow in pairs:
         r_lat, r_lon, r_h = ref_row[1], ref_row[2], ref_row[3]
         n_lat, n_lon, n_h = nrow[1], nrow[2], nrow[3]
         q = nrow[4]
+        n_sv = nrow[5] if len(nrow) > 5 else 0
 
         true_xyz = blh2xyz(r_lat, r_lon, r_h)
         test_xyz = blh2xyz(n_lat, n_lon, n_h)
@@ -206,9 +214,11 @@ def compute_metrics(
         enu = xyz2enu(dx, r_lat, r_lon)
         enu_errors.append(enu)
         q_list.append(q)
+        sv_list.append(n_sv)
         abs_tows.append(ref_row[0])  # utc_sod for convergence calculation
 
     en = np.array(enu_errors)
+    sv = np.array(sv_list, dtype=float)
     n = len(en)
 
     horiz = np.sqrt(en[:, 0] ** 2 + en[:, 1] ** 2)
@@ -216,6 +226,9 @@ def compute_metrics(
 
     fix_mask = np.array([q == 4 for q in q_list])
     n_fix = int(fix_mask.sum())
+
+    # Mean satellite count per tier
+    mean_sv_fix = float(np.mean(sv[fix_mask])) if n_fix > 0 else math.nan
 
     # Fix-only subset (Q=4)
     if n_fix > 0:
@@ -232,6 +245,8 @@ def compute_metrics(
     # Excludes Q=1 (SPP fallback) and Q=2 (DGPS).
     ff_mask = np.array([q in (3, 4, 5) for q in q_list])
     n_ff = int(ff_mask.sum())
+    mean_sv_ff = float(np.mean(sv[ff_mask])) if n_ff > 0 else math.nan
+    mean_sv_all = float(np.mean(sv))
     if n_ff > 0:
         h_ff = horiz[ff_mask]
         e_ff = e3d[ff_mask]
@@ -283,6 +298,7 @@ def compute_metrics(
         # Q=4 fix
         "n_fix": n_fix,
         "fix_rate": n_fix / n * 100.0,
+        "mean_sv_fix": mean_sv_fix,
         "rms_2d_fix": rms_2d_fix,
         "rms_3d_fix": rms_3d_fix,
         "p68_2d_fix": p68_2d_fix,
@@ -291,11 +307,13 @@ def compute_metrics(
         # Q=4 or Q=5 (fix + float)
         "n_ff": n_ff,
         "ff_rate": n_ff / n * 100.0,
+        "mean_sv_ff": mean_sv_ff,
         "rms_2d_ff": rms_2d_ff,
         "rms_3d_ff": rms_3d_ff,
         "p68_2d_ff": p68_2d_ff,
         "p95_2d_ff": p95_2d_ff,
         # All epochs
+        "mean_sv_all": mean_sv_all,
         "rms_2d_all": float(np.sqrt(np.mean(horiz**2))),
         "rms_3d_all": float(np.sqrt(np.mean(e3d**2))),
         "p68_2d_all": float(np.percentile(horiz, 68)),

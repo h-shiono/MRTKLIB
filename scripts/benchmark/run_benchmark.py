@@ -153,7 +153,7 @@ def _run_rnx2rtkp(
 #  Three rows per case/mode: FIX (Q=4), FF (Q=4|Q=5), ALL (every epoch)
 #  Columns: Case  Mode  Tier  N  Rate%  RMS_2D  1σ  95%  TTFF_s
 _HDR = (
-    f"{'Case':<20} {'Mode':<7} {'Tier':<5} {'N':>6} {'Rate%':>7} "
+    f"{'Case':<20} {'Mode':<7} {'Tier':<5} {'N':>6} {'nSV':>5} {'Rate%':>7} "
     f"{'RMS_2D':>10} {'1σ':>10} {'95%':>10} {'TTFF_s':>8}"
 )
 _SEP = "-" * len(_HDR)
@@ -170,7 +170,12 @@ def _fmt_s(v: float) -> str:
     return "—" if math.isnan(v) else f"{v:.0f}"
 
 
-def _row(case_id: str, mode: str, tier: str, n: int, rate: str,
+def _fmt_sv(v: float) -> str:
+    """Format mean satellite count with 1 decimal place, or '—'."""
+    return "—" if math.isnan(v) else f"{v:.1f}"
+
+
+def _row(case_id: str, mode: str, tier: str, n: int, n_sv: str, rate: str,
          rms2: str, p68: str, p95: str, ttff: str,
          first: bool = True) -> str:
     """Format one tier row."""
@@ -179,7 +184,7 @@ def _row(case_id: str, mode: str, tier: str, n: int, rate: str,
     else:
         prefix = _BLANK_CASE_MODE
     return (
-        f"{prefix} {tier:<5} {n:>6} {rate:>7} "
+        f"{prefix} {tier:<5} {n:>6} {n_sv:>5} {rate:>7} "
         f"{rms2:>10} {p68:>10} {p95:>10} {ttff:>8}"
     )
 
@@ -225,7 +230,7 @@ def print_summary(rows: list[dict]) -> None:
             ppp_rate = f"{m['thr_rate']:.1f}%"
             ppp_ttff = _fmt_s(m["conv_thr_s"])
             print(_row(r["case_id"], r["mode"], "PPP",
-                       m["n_matched"], ppp_rate,
+                       m["n_matched"], _fmt_sv(m["mean_sv_all"]), ppp_rate,
                        _fmt_m(m["rms_2d_all"]), _fmt_m(m["p68_2d_all"]),
                        _fmt_m(m["p95_2d_all"]), ppp_ttff,
                        first=True))
@@ -233,19 +238,19 @@ def print_summary(rows: list[dict]) -> None:
             # AR modes (CLAS / RTK): three rows
             # FIX row (Q=4)
             print(_row(r["case_id"], r["mode"], "FIX",
-                       m["n_fix"], f"{m['fix_rate']:.1f}%",
+                       m["n_fix"], _fmt_sv(m["mean_sv_fix"]), f"{m['fix_rate']:.1f}%",
                        _fmt_m(m["rms_2d_fix"]), _fmt_m(m["p68_2d_fix"]),
                        _fmt_m(m["p95_2d_fix"]), _fmt_s(m["conv_time_s"]),
                        first=True))
             # FF row (Q=3,4,5 — fix + float, excludes SPP)
             print(_row(r["case_id"], r["mode"], "FF",
-                       m["n_ff"], f"{m['ff_rate']:.1f}%",
+                       m["n_ff"], _fmt_sv(m["mean_sv_ff"]), f"{m['ff_rate']:.1f}%",
                        _fmt_m(m["rms_2d_ff"]), _fmt_m(m["p68_2d_ff"]),
                        _fmt_m(m["p95_2d_ff"]), "—",
                        first=False))
             # ALL row (every epoch including SPP)
             print(_row(r["case_id"], r["mode"], "ALL",
-                       m["n_matched"], "—",
+                       m["n_matched"], _fmt_sv(m["mean_sv_all"]), "—",
                        _fmt_m(m["rms_2d_all"]), _fmt_m(m["p68_2d_all"]),
                        _fmt_m(m["p95_2d_all"]), "—",
                        first=False))
