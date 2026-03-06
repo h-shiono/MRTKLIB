@@ -63,10 +63,9 @@ def parse_nmea(filepath):
         filepath: Path to NMEA file.
 
     Returns:
-        Tuple (data, geoid_ok) where:
-          data     — dict mapping time-key (HHMMSS.ss string) to
-                     (lat_deg, lon_deg, h_ell, quality).
-                     h_ell is the ellipsoidal height in metres.
+        Tuple (rows, geoid_ok) where:
+          rows     — list of (lat_deg, lon_deg, h_ell, quality) tuples in
+                     file order.  h_ell is the ellipsoidal height in metres.
           geoid_ok — True if geoid separation was successfully read from
                      at least one sentence; False if field[11] was absent
                      or zero for all sentences (Up comparison unreliable).
@@ -297,8 +296,16 @@ def main():  # noqa: D103
         print("FAIL: no GGA data in test file", file=sys.stderr)
         return 1
     if not geoid_ok:
+        if args.use_3d:
+            print("FAIL: --use-3d requested but GGA field[11] (geoid separation) is absent",
+                  file=sys.stderr)
+            print("      or zero in all epochs. Ellipsoidal height cannot be recovered.",
+                  file=sys.stderr)
+            print("      Re-run without --use-3d to evaluate 2D horizontal accuracy only.",
+                  file=sys.stderr)
+            return 1
         print("WARNING: GGA field[11] (geoid separation) absent or zero in all epochs.")
-        print("         Up errors may be unreliable; consider using 2D pass/fail only.")
+        print("         Up errors may be unreliable; 2D horizontal pass/fail is used.")
 
     # ── Compute metrics ──────────────────────────────────────────────────────
     m = compute_abs_metrics(true_xyz, test_data, args.skip_epochs)
