@@ -44,32 +44,10 @@ import os
 import sys
 
 import numpy as np
+from _geo import blh2xyz, nmea_to_deg, xyz2blh, xyz2enu  # noqa: E402
 
-# Import shared geometry and reference-parsing helpers from compare_pos_abs.py
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from compare_pos_abs import (  # noqa: E402
-    _criterion,
-    blh2xyz,
-    parse_f5,
-    parse_sinex,
-    sinex_propagate,
-    xyz2blh,
-    xyz2enu,
-)
-
-
-# ---------------------------------------------------------------------------
-# NMEA GGA parser  (adapted from compare_nmea.py)
-# ---------------------------------------------------------------------------
-def _nmea_to_deg(val_str, hemi):
-    """Convert NMEA DDmm.mmmm / DDDmm.mmmm to decimal degrees."""
-    val = float(val_str)
-    deg = int(val / 100)
-    minutes = val - deg * 100
-    result = deg + minutes / 60.0
-    if hemi in ("S", "W"):
-        result = -result
-    return result
+from compare_pos_abs import _criterion, parse_f5, parse_sinex, sinex_propagate  # noqa: E402
 
 
 def parse_nmea(filepath):
@@ -111,8 +89,8 @@ def parse_nmea(filepath):
                 quality = int(fields[6])
                 if quality == 0 or not fields[2] or not fields[4]:
                     continue
-                lat = _nmea_to_deg(fields[2], fields[3])
-                lon = _nmea_to_deg(fields[4], fields[5])
+                lat = nmea_to_deg(fields[2], fields[3])
+                lon = nmea_to_deg(fields[4], fields[5])
                 alt_msl = float(fields[9])
                 # Recover ellipsoidal height: h_ell = MSL + geoid_separation
                 geoid_sep = 0.0

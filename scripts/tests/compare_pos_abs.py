@@ -70,53 +70,7 @@ import sys
 from datetime import datetime, timedelta
 
 import numpy as np
-
-# ---------------------------------------------------------------------------
-# WGS84 / GRS80 constants  (numerically identical for both datums)
-# ---------------------------------------------------------------------------
-_A = 6378137.0
-_F = 1.0 / 298.257223563
-_E2 = _F * (2.0 - _F)
-
-
-def blh2xyz(lat_deg, lon_deg, h):
-    """Convert geodetic (lat, lon, h) to ECEF [X, Y, Z]."""
-    lat = math.radians(lat_deg)
-    lon = math.radians(lon_deg)
-    N = _A / math.sqrt(1.0 - _E2 * math.sin(lat) ** 2)
-    x = (N + h) * math.cos(lat) * math.cos(lon)
-    y = (N + h) * math.cos(lat) * math.sin(lon)
-    z = (N * (1.0 - _E2) + h) * math.sin(lat)
-    return np.array([x, y, z])
-
-
-def xyz2blh(x, y, z):
-    """Convert ECEF [X, Y, Z] to geodetic (lat_deg, lon_deg, h)."""
-    lon = math.degrees(math.atan2(y, x))
-    p = math.sqrt(x * x + y * y)
-    lat = math.atan2(z, p * (1.0 - _E2))
-    for _ in range(10):
-        N = _A / math.sqrt(1.0 - _E2 * math.sin(lat) ** 2)
-        lat_new = math.atan2(z + _E2 * N * math.sin(lat), p)
-        if abs(lat_new - lat) < 1e-12:
-            break
-        lat = lat_new
-    N = _A / math.sqrt(1.0 - _E2 * math.sin(lat) ** 2)
-    cl = math.cos(lat)
-    h = p / cl - N if abs(cl) > 1e-9 else abs(z) / math.sin(lat) - N * (1.0 - _E2)
-    return math.degrees(lat), lon, h
-
-
-def xyz2enu(dx, lat_deg, lon_deg):
-    """Convert ECEF difference vector to local ENU at (lat_deg, lon_deg)."""
-    lat = math.radians(lat_deg)
-    lon = math.radians(lon_deg)
-    sl, cl = math.sin(lat), math.cos(lat)
-    sp, cp = math.sin(lon), math.cos(lon)
-    e = -sp * dx[0] + cp * dx[1]
-    n = -sl * cp * dx[0] - sl * sp * dx[1] + cl * dx[2]
-    u = cl * cp * dx[0] + cl * sp * dx[1] + sl * dx[2]
-    return np.array([e, n, u])
+from _geo import blh2xyz, xyz2blh, xyz2enu  # noqa: E402
 
 
 # ---------------------------------------------------------------------------

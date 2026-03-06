@@ -28,59 +28,11 @@ Options
 """
 
 import argparse
-import math
 import os
 import sys
 
 import numpy as np
-
-# ---------------------------------------------------------------------------
-# WGS84 constants
-# ---------------------------------------------------------------------------
-_A  = 6378137.0
-_F  = 1.0 / 298.257223563
-_E2 = _F * (2.0 - _F)
-
-
-def blh2xyz(lat_deg, lon_deg, h):
-    """Convert geodetic (lat, lon, h) to ECEF [X, Y, Z]."""
-    lat = math.radians(lat_deg)
-    lon = math.radians(lon_deg)
-    N = _A / math.sqrt(1.0 - _E2 * math.sin(lat) ** 2)
-    x = (N + h) * math.cos(lat) * math.cos(lon)
-    y = (N + h) * math.cos(lat) * math.sin(lon)
-    z = (N * (1.0 - _E2) + h) * math.sin(lat)
-    return np.array([x, y, z])
-
-
-def xyz2blh(x, y, z):
-    """Convert ECEF to geodetic (lat_deg, lon_deg, h)."""
-    lon = math.atan2(y, x)
-    p   = math.sqrt(x * x + y * y)
-    lat = math.atan2(z, p * (1.0 - _E2))
-    for _ in range(10):
-        N   = _A / math.sqrt(1.0 - _E2 * math.sin(lat) ** 2)
-        lat = math.atan2(z + _E2 * N * math.sin(lat), p)
-    N = _A / math.sqrt(1.0 - _E2 * math.sin(lat) ** 2)
-    if abs(math.cos(lat)) > 1e-10:
-        h = p / math.cos(lat) - N
-    else:
-        h = abs(z) / math.sin(lat) - N * (1.0 - _E2)
-    return math.degrees(lat), math.degrees(lon), h
-
-
-def xyz2enu(dx, lat_deg, lon_deg):
-    """Convert ECEF difference to local ENU at reference point."""
-    lat = math.radians(lat_deg)
-    lon = math.radians(lon_deg)
-    e = -math.sin(lon) * dx[0] + math.cos(lon) * dx[1]
-    n = (-math.sin(lat) * math.cos(lon) * dx[0]
-         - math.sin(lat) * math.sin(lon) * dx[1]
-         + math.cos(lat) * dx[2])
-    u = (math.cos(lat) * math.cos(lon) * dx[0]
-         + math.cos(lat) * math.sin(lon) * dx[1]
-         + math.sin(lat) * dx[2])
-    return np.array([e, n, u])
+from _geo import blh2xyz, nmea_to_deg, xyz2blh, xyz2enu  # noqa: E402
 
 
 # ---------------------------------------------------------------------------
@@ -117,16 +69,6 @@ def parse_pos(filepath, fix_only=False):
     return rows
 
 
-def _nmea_to_deg(val_str, hemi):
-    val = float(val_str)
-    deg = int(val / 100)
-    minutes = val - deg * 100
-    result = deg + minutes / 60.0
-    if hemi in ("S", "W"):
-        result = -result
-    return result
-
-
 def parse_nmea(filepath, fix_only=False):
     """Parse NMEA GGA sentences.
 
@@ -154,8 +96,8 @@ def parse_nmea(filepath, fix_only=False):
                     continue
                 if fix_only and q not in (1, 4):
                     continue
-                lat = _nmea_to_deg(fields[2], fields[3])
-                lon = _nmea_to_deg(fields[4], fields[5])
+                lat = nmea_to_deg(fields[2], fields[3])
+                lon = nmea_to_deg(fields[4], fields[5])
                 alt_msl = float(fields[9])
                 geoid_sep = 0.0
                 if len(fields) > 11 and fields[11]:

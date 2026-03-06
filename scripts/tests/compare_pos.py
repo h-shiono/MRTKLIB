@@ -10,73 +10,10 @@ Usage:
     python compare_pos.py ref.pos test.pos --tolerance 0.005 --plot
 """
 import argparse
-import math
 import sys
 
 import numpy as np
-
-# WGS84 constants
-_WGS84_A = 6378137.0            # semi-major axis [m]
-_WGS84_F = 1.0 / 298.257223563  # flattening
-_WGS84_E2 = _WGS84_F * (2.0 - _WGS84_F)  # first eccentricity squared
-
-
-def blh2xyz(lat_deg, lon_deg, h):
-    """Convert geodetic (lat, lon, height) to ECEF (X, Y, Z).
-
-    Parameters
-    ----------
-    lat_deg, lon_deg : float
-        Latitude and longitude in degrees.
-    h : float
-        Ellipsoidal height in metres.
-
-    Returns:
-    -------
-    numpy.ndarray
-        ECEF coordinates [X, Y, Z] in metres.
-    """
-    lat = math.radians(lat_deg)
-    lon = math.radians(lon_deg)
-    sinlat = math.sin(lat)
-    coslat = math.cos(lat)
-    sinlon = math.sin(lon)
-    coslon = math.cos(lon)
-
-    N = _WGS84_A / math.sqrt(1.0 - _WGS84_E2 * sinlat * sinlat)
-    x = (N + h) * coslat * coslon
-    y = (N + h) * coslat * sinlon
-    z = (N * (1.0 - _WGS84_E2) + h) * sinlat
-    return np.array([x, y, z])
-
-
-def xyz2enu(dx, lat_deg, lon_deg):
-    """Convert ECEF difference vector to local ENU at a reference point.
-
-    Parameters
-    ----------
-    dx : numpy.ndarray
-        ECEF difference vector [dX, dY, dZ] in metres.
-    lat_deg, lon_deg : float
-        Reference point latitude and longitude in degrees.
-
-    Returns:
-    -------
-    numpy.ndarray
-        ENU error [East, North, Up] in metres.
-    """
-    lat = math.radians(lat_deg)
-    lon = math.radians(lon_deg)
-    sinlat = math.sin(lat)
-    coslat = math.cos(lat)
-    sinlon = math.sin(lon)
-    coslon = math.cos(lon)
-
-    # Rotation matrix ECEF -> ENU
-    e = -sinlon * dx[0] + coslon * dx[1]
-    n = -sinlat * coslon * dx[0] - sinlat * sinlon * dx[1] + coslat * dx[2]
-    u = coslat * coslon * dx[0] + coslat * sinlon * dx[1] + sinlat * dx[2]
-    return np.array([e, n, u])
+from _geo import blh2xyz, xyz2enu  # noqa: E402
 
 
 def _parse_gpst_key(fields):
