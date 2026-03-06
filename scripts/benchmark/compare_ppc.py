@@ -228,6 +228,20 @@ def compute_metrics(
     else:
         rms_2d_fix = rms_3d_fix = p68_2d_fix = p95_2d_fix = math.nan
 
+    # Fix+Float subset: Q=4 (fix), Q=5 (RTK float), Q=3 (PPP float/MADOCA)
+    # Excludes Q=1 (SPP fallback) and Q=2 (DGPS).
+    ff_mask = np.array([q in (3, 4, 5) for q in q_list])
+    n_ff = int(ff_mask.sum())
+    if n_ff > 0:
+        h_ff = horiz[ff_mask]
+        e_ff = e3d[ff_mask]
+        rms_2d_ff = float(np.sqrt(np.mean(h_ff**2)))
+        rms_3d_ff = float(np.sqrt(np.mean(e_ff**2)))
+        p68_2d_ff = float(np.percentile(h_ff, 68))
+        p95_2d_ff = float(np.percentile(h_ff, 95))
+    else:
+        rms_2d_ff = rms_3d_ff = p68_2d_ff = p95_2d_ff = math.nan
+
     # Q=4-based convergence: first run of ≥30 consecutive Q=4 epochs
     conv_time_s = math.nan
     run = 0
@@ -266,11 +280,21 @@ def compute_metrics(
 
     return {
         "n_matched": n,
+        # Q=4 fix
         "n_fix": n_fix,
         "fix_rate": n_fix / n * 100.0,
-        "enu_errors": en,
-        "q_list": q_list,
-        "abs_tows": abs_tows,
+        "rms_2d_fix": rms_2d_fix,
+        "rms_3d_fix": rms_3d_fix,
+        "p68_2d_fix": p68_2d_fix,
+        "p95_2d_fix": p95_2d_fix,
+        "conv_time_s": conv_time_s,
+        # Q=4 or Q=5 (fix + float)
+        "n_ff": n_ff,
+        "ff_rate": n_ff / n * 100.0,
+        "rms_2d_ff": rms_2d_ff,
+        "rms_3d_ff": rms_3d_ff,
+        "p68_2d_ff": p68_2d_ff,
+        "p95_2d_ff": p95_2d_ff,
         # All epochs
         "rms_2d_all": float(np.sqrt(np.mean(horiz**2))),
         "rms_3d_all": float(np.sqrt(np.mean(e3d**2))),
@@ -280,13 +304,10 @@ def compute_metrics(
         "rms_e": float(np.sqrt(np.mean(en[:, 0] ** 2))),
         "rms_n": float(np.sqrt(np.mean(en[:, 1] ** 2))),
         "rms_u": float(np.sqrt(np.mean(en[:, 2] ** 2))),
-        # Q=4 only
-        "rms_2d_fix": rms_2d_fix,
-        "rms_3d_fix": rms_3d_fix,
-        "p68_2d_fix": p68_2d_fix,
-        "p95_2d_fix": p95_2d_fix,
-        # Q=4 convergence
-        "conv_time_s": conv_time_s,
+        # Raw arrays (for plotting)
+        "enu_errors": en,
+        "q_list": q_list,
+        "abs_tows": abs_tows,
         # Threshold-based (for PPP modes)
         "threshold_2d": threshold_2d,
         "thr_rate": thr_rate,

@@ -150,11 +150,14 @@ def _run_rnx2rtkp(
 # ---------------------------------------------------------------------------
 # Summary table
 # ---------------------------------------------------------------------------
+#  Three rows per case/mode: FIX (Q=4), FF (Q=4|Q=5), ALL (every epoch)
+#  Columns: Case  Mode  Tier  N  Rate%  RMS_2D  1σ  95%  TTFF_s
 _HDR = (
-    f"{'Case':<20} {'Mode':<7} {'N':>6} {'Rate%':>7} "
+    f"{'Case':<20} {'Mode':<7} {'Tier':<5} {'N':>6} {'Rate%':>7} "
     f"{'RMS_2D':>10} {'1σ':>10} {'95%':>10} {'TTFF_s':>8}"
 )
 _SEP = "-" * len(_HDR)
+_BLANK_CASE_MODE = " " * (20 + 1 + 7 + 1)  # pad for case+mode when repeated
 
 
 def _fmt_m(v: float) -> str:
@@ -163,16 +166,40 @@ def _fmt_m(v: float) -> str:
 
 
 def _fmt_s(v: float) -> str:
-    """Format seconds as integer, or 'nan'."""
-    return "nan" if math.isnan(v) else f"{v:.0f}"
+    """Format seconds as integer, or '—'."""
+    return "—" if math.isnan(v) else f"{v:.0f}"
+
+
+def _row(case_id: str, mode: str, tier: str, n: int, rate: str,
+         rms2: str, p68: str, p95: str, ttff: str,
+         first: bool = True) -> str:
+    """Format one tier row."""
+    if first:
+        prefix = f"{case_id:<20} {mode:<7}"
+    else:
+        prefix = _BLANK_CASE_MODE
+    return (
+        f"{prefix} {tier:<5} {n:>6} {rate:>7} "
+        f"{rms2:>10} {p68:>10} {p95:>10} {ttff:>8}"
+    )
 
 
 def print_summary(rows: list[dict]) -> None:
-    """Print a fixed-width summary table.
+    """Print a fixed-width summary table (3 tier rows per case/mode).
 
-    Rate% column meaning:
-      - clas / rtk : Q=4 fix rate
-      - madoca     : fraction of epochs with 2D error < 30 cm
+    Tiers:
+      FIX  — Q=4 integer-fix epochs only
+      FF   — Q=4 or Q=5 (fix + float), excludes SPP blunders
+      ALL  — every matched epoch (fix + float + SPP)
+
+    Rate% column:
+      FIX row : Q=4 fix rate (clas/rtk); 0% for madoca
+      FF  row : Q=4|Q=5 rate
+      ALL row : <30cm threshold rate for madoca; — for clas/rtk
+
+    TTFF column:
+      FIX row : first ≥30-consecutive-Q=4 run (clas/rtk)
+      ALL row : first ≥30-consecutive-<30cm run (madoca)
 
     Args:
         rows: List of result dicts from the benchmark loop.
@@ -180,37 +207,48 @@ def print_summary(rows: list[dict]) -> None:
     print()
     print(_SEP)
     print(_HDR)
-    print("  (Rate%: Q=4 fix rate for clas/rtk; <30cm rate for madoca)")
     print(_SEP)
-    for r in rows:
+    for i, r in enumerate(rows):
         m = r["metrics"]
-        n = m["n_matched"] if m else 0
-        if m:
-            use_threshold = not math.isnan(m.get("threshold_2d", float("nan")))
-            if use_threshold:
-                rate = f"{m['thr_rate']:.1f}%"
-                conv = _fmt_s(m["conv_thr_s"])
-            else:
-                rate = f"{m['fix_rate']:.1f}%"
-                conv = _fmt_s(m["conv_time_s"])
-            rms2 = _fmt_m(m["rms_2d_all"])
-            p68 = _fmt_m(m["p68_2d_all"])
-            p95 = _fmt_m(m["p95_2d_all"])
-        else:
-            rate = rms2 = p68 = p95 = conv = "--"
+        if i > 0 and rows[i - 1]["case_id"] != r["case_id"]:
+            print()  # blank line between cases
 
-        if r["status"] == "skip":
-            status_tag = " [skipped]"
-        elif r["status"] == "fail":
-            status_tag = " [FAILED]"
-        else:
-            status_tag = ""
-        print(
-            f"{r['case_id']:<20} {r['mode']:<7} {n:>6} {rate:>7} "
-            f"{rms2:>10} {p68:>10} {p95:>10} {conv:>8}"
-            f"{status_tag}"
-        )
+        if m is None:
+            tag = " [FAILED]" if r["status"] == "fail" else " [skipped]"
+            print(f"{r['case_id']:<20} {r['mode']:<7} {'—':<5} {'—':>6}{tag}")
+            continue
+
+        use_threshold = not math.isnan(m.get("threshold_2d", float("nan")))
+
+        # FIX row (Q=4)
+        fix_rate = f"{m['fix_rate']:.1f}%"
+        fix_ttff = _fmt_s(m["conv_time_s"])
+        print(_row(r["case_id"], r["mode"], "FIX",
+                   m["n_fix"], fix_rate,
+                   _fmt_m(m["rms_2d_fix"]), _fmt_m(m["p68_2d_fix"]),
+                   _fmt_m(m["p95_2d_fix"]), fix_ttff,
+                   first=True))
+
+        # FF row (Q=4 or Q=5)
+        ff_rate = f"{m['ff_rate']:.1f}%"
+        print(_row(r["case_id"], r["mode"], "FF",
+                   m["n_ff"], ff_rate,
+                   _fmt_m(m["rms_2d_ff"]), _fmt_m(m["p68_2d_ff"]),
+                   _fmt_m(m["p95_2d_ff"]), "—",
+                   first=False))
+
+        # ALL row
+        all_rate = f"{m['thr_rate']:.1f}%" if use_threshold else "—"
+        all_ttff = _fmt_s(m["conv_thr_s"]) if use_threshold else "—"
+        print(_row(r["case_id"], r["mode"], "ALL",
+                   m["n_matched"], all_rate,
+                   _fmt_m(m["rms_2d_all"]), _fmt_m(m["p68_2d_all"]),
+                   _fmt_m(m["p95_2d_all"]), all_ttff,
+                   first=False))
+
     print(_SEP)
+    print("  Tiers: FIX=Q=4 only | FF=Q=3(PPP)+Q=4(fix)+Q=5(float) excl SPP | ALL=every epoch")
+    print("  Rate%: FIX/FF row=epoch fraction; ALL row=<30cm rate (madoca) or —")
 
 
 # ---------------------------------------------------------------------------
@@ -378,18 +416,18 @@ def run_benchmark(args: argparse.Namespace) -> int:
                                  "metrics": None, "status": "fail"})
                 continue
 
-            # Progress line: show appropriate rate / convergence for the mode
+            # Progress line
             if not math.isnan(threshold):
                 rate_str = f"<{threshold*100:.0f}cm={m['thr_rate']:.1f}%"
                 conv_str = _fmt_s(m["conv_thr_s"])
             else:
-                rate_str = f"Fix={m['fix_rate']:.1f}%"
+                rate_str = f"Fix={m['fix_rate']:.1f}%  FF={m['ff_rate']:.1f}%"
                 conv_str = _fmt_s(m["conv_time_s"])
             print(
                 f"  N={m['n_matched']}  {rate_str}  "
-                f"RMS_2D={m['rms_2d_all']:.3f}m  "
-                f"1σ={_fmt_m(m['p68_2d_all'])}  "
-                f"95%={_fmt_m(m['p95_2d_all'])}  "
+                f"RMS(fix)={_fmt_m(m['rms_2d_fix'])}  "
+                f"RMS(ff)={_fmt_m(m['rms_2d_ff'])}  "
+                f"RMS(all)={m['rms_2d_all']:.3f}m  "
                 f"TTFF={conv_str}s"
             )
             results.append({"case_id": case["id"], "mode": mode,
