@@ -220,16 +220,22 @@ PASS if: metric < tolerance   OR   metric < ref_precision
 
 A test passes when **both** 1σ and 95% criteria pass.
 
-### NMEA height caveat
+### NMEA height recovery
 
-NMEA GGA altitude is **orthometric** (above geoid), while SINEX/F5 give
-**ellipsoidal** height.  The Up error therefore includes the geoid undulation
-at the test site (≈ 30–50 m in Japan), making 3D accuracy unreliable for
-absolute comparison.
+NMEA GGA contains two height fields:
 
-**Default**: pass/fail is evaluated on **2D horizontal** error only.
-Use `--use-3d` to force 3D evaluation.  3D statistics are always printed for
-reference.
+| Field | Index | Content |
+|-------|-------|---------|
+| MSL altitude | 9 | Orthometric height above geoid [m] |
+| Geoid separation | 11 | Undulation N from embedded geoid model [m] |
+
+Ellipsoidal height is recovered as `h_ell = field[9] + field[11]`.
+MRTKLIB's `outnmea_gga()` always populates both fields via `geoidh()`, so
+**3D comparison is fully valid** for MRTKLIB-generated GGA files.
+
+If field[11] is absent or zero (some third-party receivers omit it), the
+script emits a warning and 2D horizontal comparison is more reliable in that
+case.  Use `--use-3d` to evaluate pass/fail on 3D error (default: 2D horizontal).
 
 ### Tier 2 CTest entries
 

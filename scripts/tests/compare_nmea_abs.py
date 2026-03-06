@@ -8,16 +8,21 @@ reference-parsing and pass/fail logic with compare_pos_abs.py.
 Reference derivation and pass/fail criteria are identical to compare_pos_abs.py.
 See that script's docstring for details.
 
-Height note
------------
-NMEA GGA altitude is height above the geoid (orthometric height), while SINEX
-and GSI F5 provide ellipsoidal (GRS80/ITRF) height.  The resulting Up-error
-includes the geoid undulation at the test site (≈ 30–50 m in Japan), which
-makes 3D accuracy unreliable for absolute comparison.
+Height recovery from GGA
+------------------------
+NMEA GGA contains two height fields:
+  Field 9  — MSL altitude (orthometric height above geoid)  [metres]
+  Field 11 — Geoid separation (undulation N)                [metres]
 
-For robust absolute checks use the horizontal-only (2D) metric: the 1σ and
-95% criteria are evaluated against 2D horizontal error unless --use-3d is
-specified.  3D statistics are always printed for reference.
+Ellipsoidal height is recovered as:
+  h_ell = field[9] + field[11]   (= MSL + N)
+
+MRTKLIB's outnmea_gga() always populates both fields via geoidh(), so 3D
+comparison against SINEX/F5 ellipsoidal height is valid.
+
+If field[11] is absent or zero (some third-party receivers omit it), the
+script falls back to the reference ellipsoidal height for Up computation and
+emits a warning.  In that case 2D horizontal comparison is more reliable.
 
 Usage
 -----
@@ -68,14 +73,25 @@ def _nmea_to_deg(val_str, hemi):
 def parse_nmea(filepath):
     """Parse NMEA GGA sentences.
 
+    Recovers ellipsoidal height from the two GGA height fields:
+      field[9]  — MSL altitude (orthometric height)
+      field[11] — Geoid separation N
+      h_ell     = field[9] + field[11]
+
     Args:
         filepath: Path to NMEA file.
 
     Returns:
-        dict mapping time-key (HHMMSS.ss string) to (lat_deg, lon_deg, alt, quality).
-        alt is orthometric height above the geoid as reported in the GGA sentence.
+        Tuple (data, geoid_ok) where:
+          data     — dict mapping time-key (HHMMSS.ss string) to
+                     (lat_deg, lon_deg, h_ell, quality).
+                     h_ell is the ellipsoidal height in metres.
+          geoid_ok — True if geoid separation was successfully read from
+                     at least one sentence; False if field[11] was absent
+                     or zero for all sentences (Up comparison unreliable).
     """
     data = {}
+    geoid_ok = False
     with open(filepath) as fh:
         for raw in fh:
             line = raw.strip()
@@ -95,11 +111,21 @@ def parse_nmea(filepath):
                     continue
                 lat = _nmea_to_deg(fields[2], fields[3])
                 lon = _nmea_to_deg(fields[4], fields[5])
-                alt = float(fields[9])
-                data[time_key] = (lat, lon, alt, quality)
+                alt_msl = float(fields[9])
+                # Recover ellipsoidal height: h_ell = MSL + geoid_separation
+                geoid_sep = 0.0
+                if len(fields) > 11 and fields[11]:
+                    try:
+                        geoid_sep = float(fields[11])
+                    except ValueError:
+                        pass
+                if geoid_sep != 0.0:
+                    geoid_ok = True
+                h_ell = alt_msl + geoid_sep
+                data[time_key] = (lat, lon, h_ell, quality)
             except (ValueError, IndexError):
                 continue
-    return data
+    return data, geoid_ok
 
 
 # ---------------------------------------------------------------------------
@@ -108,30 +134,27 @@ def parse_nmea(filepath):
 def compute_abs_metrics(true_xyz, test_data, skip_epochs=0):
     """Compute per-epoch position errors against a fixed true coordinate.
 
-    Because NMEA altitude is orthometric (above geoid) rather than ellipsoidal,
-    the true_xyz coordinate is used only for its lat/lon when projecting to ENU.
-    Horizontal (East, North) errors are geoid-independent; Up errors may be
-    biased by the geoid undulation at the site.
+    Uses the ellipsoidal height recovered from GGA fields 9+11 directly.
+    If parse_nmea() could not read geoid separation (geoid_ok=False), the
+    caller should warn the user that Up errors may be unreliable.
 
     Args:
         true_xyz: np.array([X, Y, Z]) — true ECEF coordinate in metres.
-        test_data: dict from parse_nmea().
+        test_data: dict from parse_nmea() — values are (lat, lon, h_ell, q).
         skip_epochs: initial epochs to discard.
 
     Returns:
         dict of statistics, or None if no usable epochs.
     """
-    true_lat, true_lon, true_h_ell = xyz2blh(*true_xyz)
+    true_lat, true_lon, _true_h = xyz2blh(*true_xyz)
     epochs = sorted(test_data.keys())[skip_epochs:]
     if not epochs:
         return None
 
     enu_errors, q_list = [], []
     for key in epochs:
-        lat, lon, alt_orth, q = test_data[key]
-        # Use ellipsoidal height of reference for ECEF conversion of test point
-        # (avoids inflating Up error by the full geoid undulation)
-        test_xyz = blh2xyz(lat, lon, true_h_ell)   # use ref ellipsoidal h
+        lat, lon, h_ell, q = test_data[key]
+        test_xyz = blh2xyz(lat, lon, h_ell)
         dx = test_xyz - true_xyz
         enu = xyz2enu(dx, true_lat, true_lon)
         enu_errors.append(enu)
@@ -149,7 +172,7 @@ def compute_abs_metrics(true_xyz, test_data, skip_epochs=0):
         "q_list": q_list,
         "true_lat": true_lat,
         "true_lon": true_lon,
-        # Horizontal (2D) — geoid-independent
+        # Horizontal (2D)
         "mean_2d":  float(np.mean(horiz)),
         "rms_2d":   float(np.sqrt(np.mean(horiz ** 2))),
         "p68_2d":   float(np.percentile(horiz, 68)),
@@ -157,7 +180,7 @@ def compute_abs_metrics(true_xyz, test_data, skip_epochs=0):
         "max_2d":   float(np.max(horiz)),
         "rms_e":    float(np.sqrt(np.mean(en[:, 0] ** 2))),
         "rms_n":    float(np.sqrt(np.mean(en[:, 1] ** 2))),
-        # 3D — Up may include geoid bias; informational only unless --use-3d
+        # 3D (valid when geoid separation is present in GGA)
         "mean_3d":  float(np.mean(e3d)),
         "rms_3d":   float(np.sqrt(np.mean(e3d ** 2))),
         "p68_3d":   float(np.percentile(e3d, 68)),
@@ -183,7 +206,7 @@ def plot_results(m, ref_label, output_path="abs_nmea_compare.png"):
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 7), sharex=True)
     ax1.plot(idx, en[:, 0], label="East",  alpha=0.8, linewidth=0.8)
     ax1.plot(idx, en[:, 1], label="North", alpha=0.8, linewidth=0.8)
-    ax1.plot(idx, en[:, 2], label="Up (may include geoid bias)",
+    ax1.plot(idx, en[:, 2], label="Up",
              alpha=0.5, linewidth=0.8, linestyle="--")
     ax1.axhline(0, color="k", linewidth=0.5)
     ax1.set_ylabel("Position error [cm]")
@@ -289,10 +312,13 @@ def main():  # noqa: D103
         print(f"Skip      : {args.skip_epochs} initial epochs")
     print()
 
-    test_data = parse_nmea(args.test)
+    test_data, geoid_ok = parse_nmea(args.test)
     if not test_data:
         print("FAIL: no GGA data in test file", file=sys.stderr)
         return 1
+    if not geoid_ok:
+        print("WARNING: GGA field[11] (geoid separation) absent or zero in all epochs.")
+        print("         Up errors may be unreliable; consider using 2D pass/fail only.")
 
     # ── Compute metrics ──────────────────────────────────────────────────────
     m = compute_abs_metrics(true_xyz, test_data, args.skip_epochs)
@@ -304,9 +330,10 @@ def main():  # noqa: D103
     print(f"True pos  : {tl:.8f}°N  {tn:.8f}°E  {th:.4f} m (ellipsoidal)")
     print(f"Epochs    : {m['n']}")
     print()
-    print("  ENU RMS (horizontal, geoid-independent):")
+    print("  ENU RMS:")
     print(f"    East   : {m['rms_e']*100:8.3f} cm")
     print(f"    North  : {m['rms_n']*100:8.3f} cm")
+    print(f"    Up     : {m['rms_u']*100:8.3f} cm")
     print()
     print("  2D horizontal error distribution:")
     print(f"    Bias   : {m['mean_2d']*100:8.3f} cm  (mean)")
@@ -315,7 +342,7 @@ def main():  # noqa: D103
     print(f"    95%    : {m['p95_2d']*100:8.3f} cm  (95th percentile)")
     print(f"    Max    : {m['max_2d']*100:8.3f} cm")
     print()
-    print("  3D error distribution (Up may include geoid bias):")
+    print("  3D error distribution:")
     print(f"    RMS    : {m['rms_3d']*100:8.3f} cm")
     print(f"    1σ     : {m['p68_3d']*100:8.3f} cm")
     print(f"    95%    : {m['p95_3d']*100:8.3f} cm")
