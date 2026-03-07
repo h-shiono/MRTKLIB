@@ -105,6 +105,13 @@ extern int miono_get_corr(const double *rr, nav_t *nav);
 #define IL(f,opt)   (NP(opt)+NI(opt)+NT(opt)+(f))   /* receiver h/w bias */
 #define IB(s,f,opt) (NR(opt)+MAXSAT*(f)+(s)-1) /* phase bias (s:satno,f:freq) */
 
+/* polynomial coefficients for adaptive AR ratio threshold based on sat-pair count
+   (fitted to LAMBDA reliability curves from TU Delft; valid for 1–50 pairs) */
+static const double ar_poly_coeffs[3][5]={
+    {-1.94058448e-01,-7.79023476e+00, 1.24231120e+02,-4.03126050e+02, 3.50413202e+02},
+    { 6.42237302e-01,-8.39813962e+00, 2.92107285e+01,-2.37577308e+01,-1.14307128e+00},
+    {-2.22600390e-02, 3.23169103e-01,-1.39837429e+00, 2.19282996e+00,-5.34583971e-02}};
+
 /* global variables ----------------------------------------------------------*/
 static int statlevel=0;          /* rtk status output level (0:off) */
 static FILE *fp_stat=NULL;       /* rtk status file pointer */
@@ -1430,8 +1437,27 @@ static int resamb_LAMBDA(rtk_t *rtk, double *bias, double *xa, int gps, int glo,
         rtk->sol.ratio=s[0]>0?(float)(s[1]/s[0]):0.0f;
         if (rtk->sol.ratio>999.9) rtk->sol.ratio=999.9f;
 
-        /* set AR ratio threshold (Phase 1B: polynomial adjustment goes here) */
-        rtk->sol.thres=(float)opt->thresar[0];
+        /* adaptive AR ratio threshold: polynomial in 1/(nb+1) if min≠max */
+        if (opt->thresar[5]!=opt->thresar[6]) {
+            int nb1=nb<50?nb:50; /* poly fitted for up to 50 sat pairs */
+            double coeff[3];
+            /* evaluate each polynomial coefficient at thresar[0] */
+            for (int ki=0;ki<3;ki++) {
+                coeff[ki]=ar_poly_coeffs[ki][0];
+                for (int kj=1;kj<5;kj++)
+                    coeff[ki]=coeff[ki]*opt->thresar[0]+ar_poly_coeffs[ki][kj];
+            }
+            /* evaluate threshold polynomial in 1/(nb1+1) */
+            rtk->sol.thres=(float)coeff[0];
+            for (int ki=1;ki<3;ki++)
+                rtk->sol.thres=rtk->sol.thres*1.0f/(float)(nb1+1)+(float)coeff[ki];
+            /* clamp to [thresar[5], thresar[6]] */
+            if (rtk->sol.thres<(float)opt->thresar[5]) rtk->sol.thres=(float)opt->thresar[5];
+            if (rtk->sol.thres>(float)opt->thresar[6]) rtk->sol.thres=(float)opt->thresar[6];
+        }
+        else {
+            rtk->sol.thres=(float)opt->thresar[0];
+        }
 
         /* validation by popular ratio-test */
         if (s[0]<=0.0||s[1]/s[0]>=rtk->sol.thres) {
