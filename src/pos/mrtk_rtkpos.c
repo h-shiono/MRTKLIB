@@ -785,7 +785,7 @@ static void udbias(rtk_t *rtk, double tt, const obsd_t *obs, const int *sat,
                    const int *iu, const int *ir, int ns, const nav_t *nav)
 {
     double cp,pr,cp1,cp2,pr1,pr2,*bias,offset,freqi,freq1,freq2,C1,C2;
-    int i,j,k,slip,reset,nf=NF(&rtk->opt);
+    int i,j,k,slip,rejc,reset,nf=NF(&rtk->opt);
     
     trace(NULL,3,"udbias  : tt=%.3f ns=%d\n",tt,ns);
     
@@ -845,8 +845,10 @@ static void udbias(rtk_t *rtk, double tt, const obsd_t *obs, const int *sat,
                 int f2i=seliflc(rtk->opt.nf,rtk->ssat[sat[i]-1].sys);
                 slip|=rtk->ssat[sat[i]-1].slip[f2i];
             }
-            if (rtk->opt.modear==ARMODE_INST||!(slip&1)) continue;
+            rejc=rtk->ssat[sat[i]-1].rejc[k];
+            if (rtk->opt.modear==ARMODE_INST||(!(slip&1)&&rejc<2)) continue;
             rtk->x[j]=0.0;
+            rtk->ssat[sat[i]-1].rejc[k]=0;
             rtk->ssat[sat[i]-1].lock[k]=-rtk->opt.minlock;
         }
         bias=zeros(ns,1);
@@ -1245,14 +1247,20 @@ static int ddres(rtk_t *rtk, const nav_t *nav, const obsd_t *obs, double dt,
             else      rtk->ssat[sat[j]-1].resp[f-nf]=v[nv];
             
             /* test innovation */
-            if (opt->maxinno>0.0&&fabs(v[nv])>opt->maxinno) {
-                if (f<nf) {
-                    rtk->ssat[sat[i]-1].rejc[f]++;
-                    rtk->ssat[sat[j]-1].rejc[f]++;
+            if (opt->maxinno>0.0) {
+                /* open threshold 10x if either phase-bias just initialized */
+                double threshadj=1.0;
+                if (f<nf&&opt->mode>PMODE_DGPS&&P) {
+                    int ii=IB(sat[i],f,opt),jj=IB(sat[j],f,opt);
+                    if (P[ii+rtk->nx*ii]==SQR(opt->std[0])||
+                        P[jj+rtk->nx*jj]==SQR(opt->std[0])) threshadj=10.0;
                 }
-                errmsg(rtk,"outlier rejected (sat=%3d-%3d %s%d v=%.3f)\n",
-                       sat[i],sat[j],f<nf?"L":"P",f%nf+1,v[nv]);
-                continue;
+                if (fabs(v[nv])>opt->maxinno*threshadj) {
+                    rtk->ssat[sat[j]-1].rejc[f<nf?f:f-nf]++;
+                    errmsg(rtk,"outlier rejected (sat=%3d-%3d %s%d v=%.3f)\n",
+                           sat[i],sat[j],f<nf?"L":"P",f%nf+1,v[nv]);
+                    continue;
+                }
             }
             /* SD (single-differenced) measurement error variances */
             {
