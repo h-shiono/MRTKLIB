@@ -4,12 +4,13 @@ This benchmark evaluates MRTKLIB's kinematic (vehicle-mounted) positioning
 performance using the open-data [PPC2024 (Precise Positioning Challenge)][ppc]
 dataset collected for the contest organised by the Institute of Navigation Japan
 (測位航法学会).  It covers six urban driving runs
-(Nagoya × 3, Tokyo × 3) and supports two positioning modes:
+(Nagoya × 3, Tokyo × 3) and supports three positioning modes:
 
 | Mode | Engine | Correction |
 |------|--------|------------|
 | CLAS | PPP-RTK | QZSS L6D (IS-QZSS-L6-003) |
 | MADOCA | PPP | QZSS L6E (MADOCA-PPP) |
+| RTK | Kinematic RTK | Rover + base station RINEX |
 
 > **Note:** This benchmark is intentionally excluded from the regular CTest
 > suite because it requires large external datasets.  Run it on demand.
@@ -123,8 +124,7 @@ Options:
 ### Step 2 — Run the benchmark
 
 ```bash
-cd scripts/benchmark
-python run_benchmark.py --mode both
+python scripts/benchmark/run_benchmark.py
 ```
 
 This calls `rnx2rtkp` for each run × mode combination, saves NMEA output to
@@ -140,7 +140,7 @@ Full options:
 | `--dataset-dir DIR` | `data/benchmark` | PPC-Dataset root |
 | `--l6-dir DIR` | `data/benchmark/l6` | L6 file cache |
 | `--out-dir DIR` | `data/benchmark/results` | NMEA output dir |
-| `--mode clas\|madoca\|both` | `both` | Positioning mode |
+| `--mode clas\|madoca\|rtk\|both\|all` | `all` | Positioning mode (`both`=clas+madoca, `all`=all three) |
 | `--case ID[,ID...]` | all | Run specific cases only |
 | `--rnx2rtkp PATH` | auto | Path to rnx2rtkp binary |
 | `--skip-download` | off | Skip L6 download |

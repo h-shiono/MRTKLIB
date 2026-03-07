@@ -22,7 +22,8 @@ No functional changes to the library.
     breakdown (FIX/FF/ALL for CLAS & RTK; PPP for MADOCA); computes 2D/3D RMS,
     1σ, 95%, TTFF, mean satellite count; optional PNG plots
   - `run_benchmark.py` — Orchestrator with result caching, layered `-k` conf
-    support, and summary table; `--mode clas|madoca|rtk|both`
+    support, and summary table; `--mode clas|madoca|rtk|both|all`
+    (`both`=clas+madoca, `all`=clas+madoca+rtk, default `all`)
 - **Benchmark configurations** (`conf/benchmark/`):
   - `clas.conf` — CLAS PPP-RTK: `ant1-anttype=*`, `pos2-isb=off`, NMEA output
   - `madoca.conf` — MADOCA PPP: `pos1-dynamics=on`, `ant1-postype=single`, NMEA

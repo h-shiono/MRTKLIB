@@ -1,8 +1,9 @@
 """run_benchmark.py - Run MRTKLIB kinematic positioning benchmark on PPC-Dataset.
 
-For each configured driving run, calls rnx2rtkp in PPP-RTK (CLAS) and/or PPP
-(MADOCA) mode, then compares the NMEA output against the PPC-Dataset ground
-truth reference.csv.  Results are summarised in a fixed-width ASCII table.
+For each configured driving run, calls rnx2rtkp in PPP-RTK (CLAS), PPP
+(MADOCA), and/or kinematic RTK mode, then compares the NMEA output against the
+PPC-Dataset ground truth reference.csv.  Results are summarised in a
+fixed-width ASCII table.
 
 Requirements
 ------------
@@ -12,21 +13,22 @@ Requirements
   unless --skip-download is given.
 - rnx2rtkp binary is located automatically under build/ or can be specified
   with --rnx2rtkp.
+- Python packages: numpy (always); matplotlib (only with --plot).
 
 Usage
 -----
     python run_benchmark.py [options]
 
-    --dataset-dir DIR     PPC-Dataset root (default: data/benchmark)
-    --l6-dir DIR          L6 file cache (default: data/benchmark/l6)
-    --out-dir DIR         Results directory (default: data/benchmark/results)
-    --mode clas|madoca|both  (default: both)
-    --case ID[,ID...]     Run subset (default: all 6 runs)
-    --rnx2rtkp PATH       rnx2rtkp binary path (default: auto-detect)
-    --skip-download       Skip L6 download step
-    --skip-epochs N       Epochs to skip for metrics (default: 60)
-    --plot                Save per-case ENU PNG to --out-dir
-    -v / --verbose        Show rnx2rtkp stdout/stderr
+    --dataset-dir DIR           PPC-Dataset root (default: data/benchmark)
+    --l6-dir DIR                L6 file cache (default: data/benchmark/l6)
+    --out-dir DIR               Results directory (default: data/benchmark/results)
+    --mode clas|madoca|rtk|both|all  (both=clas+madoca, all=clas+madoca+rtk, default: all)
+    --case ID[,ID...]           Run subset (default: all 6 runs)
+    --rnx2rtkp PATH             rnx2rtkp binary path (default: auto-detect)
+    --skip-download             Skip L6 download step
+    --skip-epochs N             Epochs to skip for metrics (default: 60)
+    --plot                      Save per-case ENU PNG to --out-dir
+    -v / --verbose              Show rnx2rtkp stdout/stderr
 """
 
 import argparse
@@ -193,21 +195,26 @@ def _row(case_id: str, mode: str, tier: str, n: int, n_sv: str, rate: str,
 
 
 def print_summary(rows: list[dict]) -> None:
-    """Print a fixed-width summary table (3 tier rows per case/mode).
+    """Print a fixed-width summary table.
 
-    Tiers:
+    CLAS and RTK produce three tier rows per case; MADOCA produces one PPP row.
+
+    Tiers (CLAS / RTK):
       FIX  — Q=4 integer-fix epochs only
       FF   — Q=4 or Q=5 (fix + float), excludes SPP blunders
       ALL  — every matched epoch (fix + float + SPP)
 
+    Tier (MADOCA):
+      PPP  — all valid PPP-float epochs (Q=3)
+
     Rate% column:
-      FIX row : Q=4 fix rate (clas/rtk); 0% for madoca
-      FF  row : Q=4|Q=5 rate
-      ALL row : <30cm threshold rate for madoca; — for clas/rtk
+      FIX row : Q=4 fix rate (clas/rtk)
+      FF  row : Q=4|Q=5 rate (clas/rtk)
+      PPP row : <30cm threshold rate (madoca)
 
     TTFF column:
       FIX row : first ≥30-consecutive-Q=4 run (clas/rtk)
-      ALL row : first ≥30-consecutive-<30cm run (madoca)
+      PPP row : first ≥30-consecutive-<30cm run (madoca)
 
     Args:
         rows: List of result dicts from the benchmark loop.
@@ -275,11 +282,18 @@ def run_benchmark(args: argparse.Namespace) -> int:
     Returns:
         Exit code.
     """
-    # Resolve paths
+    # Resolve paths (relative paths are resolved against the repo root so the
+    # script works correctly regardless of the current working directory)
     root = Path(__file__).resolve().parent.parent.parent
     dataset_dir = Path(args.dataset_dir)
+    if not dataset_dir.is_absolute():
+        dataset_dir = root / dataset_dir
     l6_dir = Path(args.l6_dir)
+    if not l6_dir.is_absolute():
+        l6_dir = root / l6_dir
     out_dir = Path(args.out_dir)
+    if not out_dir.is_absolute():
+        out_dir = root / out_dir
     conf_dir = root / "conf" / "benchmark"
 
     rnx2rtkp = _find_rnx2rtkp(args.rnx2rtkp)
@@ -299,16 +313,17 @@ def run_benchmark(args: argparse.Namespace) -> int:
         except KeyError as exc:
             sys.exit(f"FAIL: {exc}")
 
-    # Validate dataset presence
+    # Validate dataset presence (rover.obs, base.nav, reference.csv)
     for case in cases:
-        obs = dataset_dir / case["city"] / case["run"] / "rover.obs"
-        if not obs.exists():
-            sys.exit(
-                f"FAIL: PPC-Dataset not found at {dataset_dir!r}.\n"
-                "  Download it manually and place it so that e.g.\n"
-                f"  {obs} exists.\n"
-                "  See docs/benchmark.md for instructions."
-            )
+        case_dir = dataset_dir / case["city"] / case["run"]
+        for fname in ("rover.obs", "base.nav", "reference.csv"):
+            fpath = case_dir / fname
+            if not fpath.exists():
+                sys.exit(
+                    f"FAIL: PPC-Dataset file not found: {fpath}\n"
+                    f"  Dataset root: {dataset_dir}\n"
+                    "  Download it manually — see docs/benchmark.md for instructions."
+                )
 
     # Expand mode aliases
     if args.mode == "all":
@@ -341,14 +356,14 @@ def run_benchmark(args: argparse.Namespace) -> int:
             else:
                 # Build expected paths without downloading
                 from cases import l6_sessions
-                from download_l6 import _MADOCA_PRNS
+                from download_l6 import MADOCA_PRNS
 
                 sessions = l6_sessions(case["gps_week"], case["tow_start"], case["tow_end"])
                 for year, doy, session in sessions:
                     l6d = l6_dir / f"{year}{doy:03d}{session}.l6"
                     if l6d.exists():
                         l6_paths["clas"].append(l6d)
-                    for prn in _MADOCA_PRNS:
+                    for prn in MADOCA_PRNS:
                         l6e = l6_dir / f"{year}{doy:03d}{session}.{prn}.l6"
                         if l6e.exists():
                             l6_paths["madoca"].append(l6e)

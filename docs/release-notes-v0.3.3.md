@@ -43,7 +43,8 @@ Four new Python scripts provide an end-to-end kinematic evaluation pipeline:
 | `run_benchmark.py` | Orchestrator: download → run `rnx2rtkp` → compare → summary table |
 
 **Key features:**
-- Three positioning modes: `--mode clas|madoca|rtk|both` (both = all three)
+- Three positioning modes: `--mode clas|madoca|rtk|both|all`
+  (`both`=clas+madoca, `all`=clas+madoca+rtk, default `all`)
 - L6D archive: `https://sys.qzss.go.jp/archives/l6/` (CLAS)
 - L6E archive: `https://l6msg.go.gnss.go.jp/archives/` (MADOCA, PRN auto-probe)
 - Result caching: skips `rnx2rtkp` if output file is newer than all inputs

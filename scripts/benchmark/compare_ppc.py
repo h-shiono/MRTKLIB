@@ -73,19 +73,19 @@ def parse_reference(csv_path: str) -> list[tuple[float, float, float, float]]:
     return rows
 
 
-def parse_nmea(nmea_path: str) -> list[tuple[float, float, float, float, int]]:
+def parse_nmea(nmea_path: str) -> list[tuple[float, float, float, float, int, int]]:
     """Parse rnx2rtkp NMEA GGA output into a list of timed position records.
 
-    Each record holds ``(utc_sod, lat_deg, lon_deg, h_ell, quality)`` where
-    ``utc_sod`` is UTC seconds-of-day from the GGA time field (HHMMSS.ss).
+    Each record holds ``(utc_sod, lat_deg, lon_deg, h_ell, quality, n_sv)``
+    where ``utc_sod`` is UTC seconds-of-day from the GGA time field (HHMMSS.ss).
     Ellipsoidal height is recovered as ``MSL + geoid_separation``.
 
     Args:
         nmea_path: Path to the NMEA file.
 
     Returns:
-        List of ``(utc_sod, lat_deg, lon_deg, h_ell, quality)`` tuples, sorted
-        by ``utc_sod``.
+        List of ``(utc_sod, lat_deg, lon_deg, h_ell, quality, n_sv)`` tuples,
+        sorted by ``utc_sod``.
     """
     rows = []
     with open(nmea_path) as fh:
@@ -195,8 +195,8 @@ def compute_metrics(
     if not pairs:
         return None
 
-    # True reference: use the mean ECEF of reference epochs as the geodetic origin
-    # for ENU projection (per-epoch projection is more accurate for moving platform)
+    # Per-epoch ENU projection: compute ECEF error vector and project to local
+    # ENU using the ground-truth lat/lon as the origin for that epoch.
     enu_errors = []
     q_list = []
     sv_list = []

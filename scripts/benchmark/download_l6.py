@@ -34,7 +34,7 @@ _L6E_URL = (
     "https://l6msg.go.gnss.go.jp/archives/{year}/{doy:03d}/"
     "{year}{doy:03d}{session}.{prn}.l6"
 )
-_MADOCA_PRNS = [209, 193, 194, 195, 196, 199]
+MADOCA_PRNS = [209, 193, 194, 195, 196, 199]
 
 
 # ---------------------------------------------------------------------------
@@ -61,7 +61,7 @@ def _probe_l6e_prn(year: int, doy: int, session: str) -> int | None:
     Returns:
         First PRN that returns HTTP 200, or ``None`` if none found.
     """
-    for prn in _MADOCA_PRNS:
+    for prn in MADOCA_PRNS:
         url = _l6e_url(year, doy, session, prn)
         try:
             req = urllib.request.Request(url, method="HEAD")
@@ -150,9 +150,9 @@ def download_l6e_session(
     """
     if dry_run:
         print(f"  [dry-run]  probing MADOCA PRNs for {year}/{doy:03d}/{session}:")
-        for prn in _MADOCA_PRNS:
+        for prn in MADOCA_PRNS:
             print(f"             {_l6e_url(year, doy, session, prn)}")
-        return l6_dir / f"{year}{doy:03d}{session}.{_MADOCA_PRNS[0]}.l6"
+        return l6_dir / f"{year}{doy:03d}{session}.{MADOCA_PRNS[0]}.l6"
 
     prn = _probe_l6e_prn(year, doy, session)
     if prn is None:
