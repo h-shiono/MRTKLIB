@@ -55,6 +55,8 @@ typedef struct {        /* solution type */
     float age;          /* age of differential (s) */
     float ratio;        /* AR ratio factor for valiation */
     float thres;        /* AR ratio threshold for valiation */
+    float prev_ratio1;  /* previous initial AR ratio factor for validation */
+    float prev_ratio2;  /* previous final AR ratio factor for validation */
 } sol_t;
 
 typedef struct {        /* solution buffer type */

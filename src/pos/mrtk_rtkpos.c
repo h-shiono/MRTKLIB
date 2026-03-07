@@ -1248,48 +1248,61 @@ static double intpres(gtime_t time, const obsd_t *obs, int n, const nav_t *nav,
     return fabs(ttb)>fabs(tt)?ttb:tt;
 }
 /* index for SD to DD transformation matrix D --------------------------------*/
-static int ddidx(rtk_t *rtk, int *ix)
+static int ddidx(rtk_t *rtk, int *ix, int gps, int glo, int sbs)
 {
-    int i,j,k,m,f,nb=0,na=rtk->na,nf=NF(&rtk->opt),nofix;
-    
-    trace(NULL,3,"ddidx   :\n");
-    
+    int i,j,k,m,f,n,nb=0,na=rtk->na,nf=NF(&rtk->opt),nofix;
+
+    trace(NULL,3,"ddidx   : gps=%d glo=%d sbs=%d\n",gps,glo,sbs);
+
+    /* clear fix flag for all sats (1=float, 2=fix) */
     for (i=0;i<MAXSAT;i++) for (j=0;j<NFREQ;j++) {
         rtk->ssat[i].fix[j]=0;
     }
     for (m=0;m<6;m++) { /* m=0:GPS/SBS,1:GLO,2:GAL,3:BDS,4:QZS,5:IRN */
-        
-        nofix=(m==1&&rtk->opt.glomodear==0)||(m==3&&rtk->opt.bdsmodear==0);
-        
+
+        /* skip if ambiguity resolution turned off for this constellation */
+        nofix=(m==0&&gps==0)||(m==1&&glo==0)||(m==3&&rtk->opt.bdsmodear==0);
+
         for (f=0,k=na;f<nf;f++,k+=MAXSAT) {
-            
+
+            /* find reference satellite: must be valid, locked, no half-cycle,
+               above elevation mask, and not in a no-fix constellation */
             for (i=k;i<k+MAXSAT;i++) {
                 if (rtk->x[i]==0.0||!test_sys(rtk->ssat[i-k].sys,m)||
-                    !rtk->ssat[i-k].vsat[f]||!rtk->ssat[i-k].half[f]) {
+                    !rtk->ssat[i-k].vsat[f]) {
                     continue;
                 }
-                if (rtk->ssat[i-k].lock[f]>0&&!(rtk->ssat[i-k].slip[f]&2)&&
+                if (rtk->ssat[i-k].lock[f]>=0&&!(rtk->ssat[i-k].slip[f]&2)&&
                     rtk->ssat[i-k].azel[1]>=rtk->opt.elmaskar&&!nofix) {
                     rtk->ssat[i-k].fix[f]=2; /* fix */
                     break;
                 }
                 else rtk->ssat[i-k].fix[f]=1;
             }
-            for (j=k;j<k+MAXSAT;j++) {
+            /* no valid reference satellite found for this freq/constellation */
+            if (i>=k+MAXSAT||rtk->ssat[i-k].fix[f]!=2) continue;
+
+            /* build DD pairs using found reference satellite */
+            for (n=0,j=k;j<k+MAXSAT;j++) {
                 if (i==j||rtk->x[j]==0.0||!test_sys(rtk->ssat[j-k].sys,m)||
                     !rtk->ssat[j-k].vsat[f]) {
                     continue;
                 }
-                if (rtk->ssat[j-k].lock[f]>0&&!(rtk->ssat[j-k].slip[f]&2)&&
-                    rtk->ssat[i-k].vsat[f]&&
+                /* skip SBAS sats if sbs flag not set */
+                if (sbs==0&&satsys(j-k+1,NULL)==SYS_SBS) continue;
+                if (rtk->ssat[j-k].lock[f]>=0&&!(rtk->ssat[j-k].slip[f]&2)&&
+                    rtk->ssat[j-k].vsat[f]&&
                     rtk->ssat[j-k].azel[1]>=rtk->opt.elmaskar&&!nofix) {
                     ix[nb*2  ]=i; /* state index of ref bias */
                     ix[nb*2+1]=j; /* state index of target bias */
                     nb++;
                     rtk->ssat[j-k].fix[f]=2; /* fix */
+                    n++;
                 }
                 else rtk->ssat[j-k].fix[f]=1;
             }
+            /* don't use ref sat if no valid pairs found */
+            if (n==0) rtk->ssat[i-k].fix[f]=1;
         }
     }
     return nb;
@@ -1350,10 +1363,19 @@ static void holdamb(rtk_t *rtk, const double *xa)
             nv++;
         }
     }
+    /* skip hold if not enough sats (only enforced in fix-and-hold mode) */
+    if (rtk->opt.modear==ARMODE_FIXHOLD&&rtk->opt.minholdsats>0&&
+        nv<rtk->opt.minholdsats) {
+        trace(NULL,3,"holdamb: not enough sats to hold ambiguity (nv=%d)\n",nv);
+        free(v); free(H);
+        return;
+    }
+    rtk->holdamb=1; /* record that hold has occurred at least once */
+
     if (nv>0) {
         R=zeros(nv,nv);
         for (i=0;i<nv;i++) R[i+i*nv]=VAR_HOLDAMB;
-        
+
         /* update states with constraints */
         if ((info=filter(rtk->x,rtk->P,H,v,R,rtk->nx,nv))) {
             errmsg(rtk,"filter error (info=%d)\n",info);
@@ -1362,32 +1384,31 @@ static void holdamb(rtk_t *rtk, const double *xa)
     }
     free(v); free(H);
 }
-/* resolve integer ambiguity by LAMBDA ---------------------------------------*/
-static int resamb_LAMBDA(rtk_t *rtk, double *bias, double *xa)
+/* resolve integer ambiguity by LAMBDA for one constellation set --------------*/
+static int resamb_LAMBDA(rtk_t *rtk, double *bias, double *xa, int gps, int glo, int sbs)
 {
     prcopt_t *opt=&rtk->opt;
     int i,j,nb,info,nx=rtk->nx,na=rtk->na;
     double *DP,*y,*b,*db,*Qb,*Qab,*QQ,s[2];
     int *ix;
-    
+
     trace(NULL,3,"resamb_LAMBDA : nx=%d\n",nx);
-    
+
     rtk->sol.ratio=0.0;
-    
-    if (rtk->opt.mode<=PMODE_DGPS||rtk->opt.modear==ARMODE_OFF||
-        rtk->opt.thresar[0]<1.0) {
-        return 0;
-    }
-    /* index of SD to DD transformation matrix D */
+    rtk->nb_ar=0;
+
+    /* create index of SD→DD transformation matrix */
     ix=imat(nx,2);
-    if ((nb=ddidx(rtk,ix))<=0) {
-        errmsg(rtk,"no valid double-difference\n");
+    if ((nb=ddidx(rtk,ix,gps,glo,sbs))<(opt->minfixsats>0?opt->minfixsats-1:0)) {
+        errmsg(rtk,"not enough valid double-differences\n");
         free(ix);
-        return 0;
+        return -1; /* flag abort — insufficient pairs */
     }
+    rtk->nb_ar=nb;
+
     y=mat(nb,1); DP=mat(nb,nx-na); b=mat(nb,2); db=mat(nb,1); Qb=mat(nb,nb);
     Qab=mat(na,nb); QQ=mat(na,nb);
-    
+
     /* y=D*xc, Qb=D*Qc*D', Qab=Qac*D' */
     for (i=0;i<nb;i++) {
         y[i]=rtk->x[ix[i*2]]-rtk->x[ix[i*2+1]];
@@ -1405,14 +1426,17 @@ static int resamb_LAMBDA(rtk_t *rtk, double *bias, double *xa)
     if (!(info=lambda(nb,2,y,Qb,b,s))) {
         trace(NULL,4,"N(1)="); tracemat(NULL,4,b   ,1,nb,10,3);
         trace(NULL,4,"N(2)="); tracemat(NULL,4,b+nb,1,nb,10,3);
-        
+
         rtk->sol.ratio=s[0]>0?(float)(s[1]/s[0]):0.0f;
         if (rtk->sol.ratio>999.9) rtk->sol.ratio=999.9f;
-        
+
+        /* set AR ratio threshold (Phase 1B: polynomial adjustment goes here) */
+        rtk->sol.thres=(float)opt->thresar[0];
+
         /* validation by popular ratio-test */
-        if (s[0]<=0.0||s[1]/s[0]>=opt->thresar[0]) {
-            
-            /* transform float to fixed solution (xa=xa-Qab*Qb\(b0-b)) */
+        if (s[0]<=0.0||s[1]/s[0]>=rtk->sol.thres) {
+
+            /* transform float to fixed solution (xa=x-Qab*Qb\(b0-b)) */
             for (i=0;i<na;i++) {
                 rtk->xa[i]=rtk->x[i];
                 for (j=0;j<na;j++) rtk->Pa[i+j*na]=rtk->P[i+j*nx];
@@ -1424,22 +1448,22 @@ static int resamb_LAMBDA(rtk_t *rtk, double *bias, double *xa)
             if (!matinv(Qb,nb)) {
                 matmul("NN",nb,1,nb, 1.0,Qb ,y,0.0,db);
                 matmul("NN",na,1,nb,-1.0,Qab,db,1.0,rtk->xa);
-                
+
                 /* covariance of fixed solution (Qa=Qa-Qab*Qb^-1*Qab') */
                 matmul("NN",na,nb,nb, 1.0,Qab,Qb ,0.0,QQ);
                 matmul("NT",na,na,nb,-1.0,QQ ,Qab,1.0,rtk->Pa);
-                
-                trace(NULL,3,"resamb : validation ok (nb=%d ratio=%.2f s=%.2f/%.2f)\n",
-                      nb,s[0]==0.0?0.0:s[1]/s[0],s[0],s[1]);
-                
+
+                trace(NULL,3,"resamb : validation ok (nb=%d ratio=%.2f thresh=%.2f s=%.2f/%.2f)\n",
+                      nb,s[0]==0.0?0.0:s[1]/s[0],rtk->sol.thres,s[0],s[1]);
+
                 /* restore SD ambiguity */
                 restamb(rtk,bias,xa);
             }
             else nb=0;
         }
         else { /* validation failed */
-            errmsg(rtk,"ambiguity validation failed (nb=%d ratio=%.2f s=%.2f/%.2f)\n",
-                   nb,s[1]/s[0],s[0],s[1]);
+            errmsg(rtk,"ambiguity validation failed (nb=%d ratio=%.2f thresh=%.2f s=%.2f/%.2f)\n",
+                   nb,s[1]/s[0],rtk->sol.thres,s[0],s[1]);
             nb=0;
         }
     }
@@ -1449,8 +1473,127 @@ static int resamb_LAMBDA(rtk_t *rtk, double *bias, double *xa)
     }
     free(ix);
     free(y); free(DP); free(b); free(db); free(Qb); free(Qab); free(QQ);
-    
-    return nb; /* number of ambiguities */
+
+    return nb; /* number of ambiguities (0=failed, -1=aborted) */
+}
+/* resolve integer ambiguity with partial AR and multi-attempt strategy -------*/
+static int manage_amb_LAMBDA(rtk_t *rtk, double *bias, double *xa,
+                              const int *sat, int nf, int ns)
+{
+    int gps1=-1,glo1=-1,sbas1=-1,gps2,glo2,sbas2,nb,rerun,dly;
+    float ratio1,posvar=0.0f;
+
+    /* compute mean diagonal position variance to guard against false fix */
+    for (int i=0;i<3;i++) posvar+=rtk->P[i+i*rtk->nx];
+    posvar/=3.0f;
+
+    trace(NULL,3,"manage_amb_LAMBDA: posvar=%.6f prevR=%.3f/%.3f nb_ar=%d\n",
+          posvar,rtk->sol.prev_ratio1,rtk->sol.prev_ratio2,rtk->nb_ar);
+
+    /* skip AR if basic criteria not met */
+    if (rtk->opt.mode<=PMODE_DGPS||rtk->opt.modear==ARMODE_OFF||
+        rtk->opt.thresar[0]<1.0||
+        (rtk->opt.thresar[1]>0.0&&posvar>rtk->opt.thresar[1])) {
+        trace(NULL,3,"manage_amb_LAMBDA: skip AR\n");
+        rtk->sol.ratio=0.0f;
+        rtk->sol.prev_ratio1=rtk->sol.prev_ratio2=0.0f;
+        rtk->nb_ar=0;
+        return 0;
+    }
+
+    /* partial AR: exclude next weakest satellite if still not fixed */
+    int lockc[NFREQ], excsat=0;
+    if (rtk->opt.mindropsats>0&&
+        rtk->sol.prev_ratio2<rtk->sol.thres&&
+        rtk->nb_ar>=rtk->opt.mindropsats) {
+        /* find position of last excluded sat, then step to next */
+        int i=0;
+        if (rtk->excsat!=0) {
+            for (;i<ns;i++) {
+                if (rtk->excsat==sat[i]) { i++; break; }
+            }
+            if (i>=ns) i=0; /* wrap if not found */
+        }
+        /* find next sat currently used in AR */
+        for (;i<ns;i++) {
+            for (int f=0;f<nf;f++) {
+                if (rtk->ssat[sat[i]-1].vsat[f]&&
+                    rtk->ssat[sat[i]-1].lock[f]>=0&&
+                    rtk->ssat[sat[i]-1].azel[1]>=rtk->opt.elmin) {
+                    excsat=sat[i];
+                    break;
+                }
+            }
+            if (excsat) break;
+        }
+        if (excsat) {
+            for (int f=0;f<nf;f++) {
+                lockc[f]=rtk->ssat[excsat-1].lock[f];
+                /* temporarily mark sat as newly-locked to exclude from AR */
+                rtk->ssat[excsat-1].lock[f]=-rtk->nb_ar;
+            }
+            trace(NULL,3,"manage_amb_LAMBDA: exclude sat %d\n",excsat);
+        }
+        rtk->excsat=excsat;
+    }
+
+    /* initial AR pass: always enable GPS; GLO depends on fix-and-hold state */
+    gps1=1;
+    glo1=(rtk->opt.navsys&SYS_GLO)?
+         ((rtk->opt.glomodear==GLO_ARMODE_FIXHOLD&&!rtk->holdamb)?0:1):0;
+    sbas1=(rtk->opt.navsys&SYS_GLO)?glo1:((rtk->opt.navsys&SYS_SBS)?1:0);
+    nb=resamb_LAMBDA(rtk,bias,xa,gps1,glo1,sbas1);
+    ratio1=rtk->sol.ratio;
+
+    /* AR filter: if ratio dropped badly compared to previous epoch,
+       remove any newly-locked satellites and rerun (Phase 2A: arfilter=1) */
+    if (rtk->opt.arfilter) {
+        rerun=0;
+        if (nb>=0&&rtk->sol.prev_ratio2>=rtk->sol.thres&&
+            ((rtk->sol.ratio<rtk->sol.thres)||
+             (rtk->sol.ratio<rtk->opt.thresar[0]*1.1&&
+              rtk->sol.ratio<rtk->sol.prev_ratio1/2.0))) {
+            trace(NULL,3,"manage_amb_LAMBDA: low ratio, check new sats\n");
+            dly=2;
+            for (int i=0;i<ns;i++) for (int f=0;f<nf;f++) {
+                if (rtk->ssat[sat[i]-1].fix[f]!=2) continue;
+                if (rtk->ssat[sat[i]-1].lock[f]==0) {
+                    trace(NULL,3,"manage_amb_LAMBDA: remove sat %d:%d\n",sat[i],f);
+                    rtk->ssat[sat[i]-1].lock[f]=-rtk->opt.minlock-dly;
+                    dly+=2;
+                    rerun=1;
+                }
+            }
+        }
+        if (rerun) {
+            trace(NULL,3,"manage_amb_LAMBDA: rerun with new sats removed\n");
+            nb=resamb_LAMBDA(rtk,bias,xa,gps1,glo1,sbas1);
+        }
+    }
+    rtk->sol.prev_ratio1=ratio1;
+
+    /* GLO fix-and-hold second pass: re-run with final GLO settings if needed */
+    if ((rtk->opt.navsys&SYS_GLO)&&
+        rtk->opt.glomodear==GLO_ARMODE_FIXHOLD&&
+        rtk->sol.ratio<rtk->sol.thres) {
+        glo2=sbas2=0;
+        /* turn off GPS if gpsmodear==0 and already have good fix (debug use) */
+        gps2=(rtk->opt.gpsmodear==0&&rtk->sol.ratio>=rtk->sol.thres)?0:1;
+        if (glo1!=glo2||gps1!=gps2)
+            nb=resamb_LAMBDA(rtk,bias,xa,gps2,glo2,sbas2);
+    }
+
+    /* restore excluded satellite if still no fix or ratio didn't improve */
+    if (excsat&&(rtk->sol.ratio<rtk->sol.thres)&&
+        (rtk->sol.ratio<1.5f*rtk->sol.prev_ratio2)) {
+        for (int f=0;f<nf;f++) rtk->ssat[excsat-1].lock[f]=lockc[f];
+        trace(NULL,3,"manage_amb_LAMBDA: restore sat %d\n",excsat);
+    }
+
+    rtk->sol.prev_ratio1=ratio1>0.0f?ratio1:rtk->sol.ratio;
+    rtk->sol.prev_ratio2=rtk->sol.ratio;
+
+    return nb;
 }
 /* validation of solution ----------------------------------------------------*/
 static int valpos(rtk_t *rtk, const double *v, const double *R, const int *vflg,
@@ -1586,19 +1729,19 @@ static int relpos(rtk_t *rtk, const obsd_t *obs, int nu, int nr,
         }
         else stat=SOLQ_NONE;
     }
-    /* resolve integer ambiguity by LAMBDA */
-    if (stat!=SOLQ_NONE&&resamb_LAMBDA(rtk,bias,xa)>1) {
-        
+    /* resolve integer ambiguity by LAMBDA (partial AR + multi-attempt) */
+    if (stat==SOLQ_FLOAT&&manage_amb_LAMBDA(rtk,bias,xa,sat,nf,ns)>1) {
+
         if (zdres(0,obs,nu,rs,dts,var,svh,nav,xa,opt,0,y,e,azel,freq)) {
-            
-            /* post-fit reisiduals for fixed solution */
+
+            /* post-fit residuals for fixed solution */
             nv=ddres(rtk,nav,dt,xa,NULL,sat,y,e,azel,freq,iu,ir,ns,v,NULL,R,
                      vflg);
-            
+
             /* validation of fixed solution */
             if (valpos(rtk,v,R,vflg,nv,4.0)) {
-                
-                /* hold integer ambiguity */
+
+                /* hold integer ambiguity if meet minfix count */
                 if (++rtk->nfix>=rtk->opt.minfix&&
                     rtk->opt.modear==ARMODE_FIXHOLD) {
                     holdamb(rtk,xa);
@@ -1708,7 +1851,11 @@ extern void rtkinit(rtk_t *rtk, const prcopt_t *opt)
     }
     for (i=0;i<MAXERRMSG;i++) rtk->errbuf[i]=0;
     for (i=0;i<6;i++) rtk->prev_qr[i]=0.0;
+    rtk->excsat=0;
+    rtk->nb_ar=0;
+    rtk->holdamb=0;
     rtk->opt=*opt;
+    rtk->sol.thres=(float)opt->thresar[0];
 }
 /* free rtk control ------------------------------------------------------------
 * free memory for rtk control struct

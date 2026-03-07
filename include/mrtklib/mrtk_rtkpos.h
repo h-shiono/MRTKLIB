@@ -63,6 +63,9 @@ typedef struct {        /* RTK control/result type */
     prcopt_t opt;       /* processing options */
     int miono_info[2];  /* MADOCA-PPP iono info (0:region id, 1:area No.) */
     double prev_qr[6];  /* previous position variance/covariance (m^2) */
+    int excsat;         /* index of next satellite to exclude for partial AR */
+    int nb_ar;          /* number of DD ambiguities used for AR last epoch */
+    char holdamb;       /* fix-and-hold has occurred at least once */
 } rtk_t;
 
 /**

@@ -121,6 +121,11 @@ extern "C" {
 #define ARMODE_WLNL    4            /* AR mode: wide lane/narrow lane */
 #define ARMODE_TCAR    5            /* AR mode: triple carrier ar */
 
+#define GLO_ARMODE_OFF     0        /* GLO AR mode: off */
+#define GLO_ARMODE_ON      1        /* GLO AR mode: on */
+#define GLO_ARMODE_AUTOCAL 2        /* GLO AR mode: auto calibrate */
+#define GLO_ARMODE_FIXHOLD 3        /* GLO AR mode: fix and hold */
+
 /*============================================================================
  * SBAS / Position Option Constants
  *===========================================================================*/
@@ -263,6 +268,14 @@ typedef struct prcopt_t {        /* processing options type */
     double maxpdophold;     /* maximum PDOP to hold ambiguity (0:no limit) */
     int    refdop;          /* reference DOP (0:conventional, 1:single-diff) */
     double beta;            /* ionosphere time constant for Gauss-Markov (s) */
+
+    /* Partial AR and AR filter options (demo5) */
+    int    minfixsats;      /* min sat pairs for valid AR fix (0=no minimum) */
+    int    mindropsats;     /* min sat pairs before excluding weakest for PAR (0=off) */
+    int    minholdsats;     /* min DD pairs for fix-and-hold (0=no minimum) */
+    int    arfilter;        /* AR filter: exclude newly-locked sats degrading ratio (0:off,1:on) */
+    int    gpsmodear;       /* GPS AR mode for GLO fix-and-hold second pass (0:off,1:on) */
+    double gainholdamb;     /* gain for fractional GLO/SBAS inter-channel bias update */
 } prcopt_t;
 
 /*============================================================================
