@@ -112,3 +112,13 @@ This project stands on the shoulders of giants:
 | **Lighthouse Technology & Consulting** | MADOCALIB — system integration and L6E/L6D decoder |
 
 For detailed licensing information, please refer to [LICENSE.txt](LICENSE.txt).
+
+## 🗄️ Benchmark Dataset
+
+The kinematic positioning benchmark uses the **PPC-Dataset** (Precise Positioning
+Challenge 2024), kindly released as open data by:
+
+> **Taro Suzuki**, Chiba Institute of Technology
+> <https://github.com/taroz/PPC-Dataset>
+
+See [docs/benchmark.md](docs/benchmark.md) for usage instructions.

@@ -149,10 +149,12 @@ int main(int argc, char **argv)
     sprintf(solopt.prog ,"%s(%s ver.%s)",PROGNAME,MRTKLIB_SOFTNAME,MRTKLIB_VERSION_STRING);
     sprintf(filopt.trace,"%s.trace",PROGNAME);
     
-    /* load options from configuration file */
+    /* load options from configuration file(s)
+     * resetsysopts() is called once before the loop so that multiple -k flags
+     * are layered: each subsequent file overrides only the keys it specifies. */
+    resetsysopts();
     for (i=1;i<argc;i++) {
         if (!strcmp(argv[i],"-k")&&i+1<argc) {
-            resetsysopts();
             if (!loadopts(argv[++i],sysopts)) return -1;
             getsysopts(&prcopt,&solopt,&filopt);
             apply_pppsig(prcopt.pppsig);

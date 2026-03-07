@@ -7,10 +7,13 @@ select = ["E", "F", "W", "I", "D"]
 # main() in CLI scripts doesn't need a separate docstring (module docstring suffices).
 # One-time migration tools (apply_headers) are also excluded.
 [lint.per-file-ignores]
-"scripts/apply_headers.py"     = ["D103"]
-"scripts/tests/compare_pos.py" = ["D103"]
-"scripts/tests/check_pos_scatter.py" = ["D103"]
-"scripts/tests/compare_nmea.py"      = ["D103"]
+"scripts/apply_headers.py"              = ["D103"]
+"scripts/tests/compare_pos.py"          = ["D103"]
+"scripts/tests/check_pos_scatter.py"    = ["D103"]
+"scripts/tests/compare_nmea.py"         = ["D103"]
+"scripts/benchmark/run_benchmark.py"    = ["D103"]
+"scripts/benchmark/download_l6.py"      = ["D103"]
+"scripts/benchmark/compare_ppc.py"      = ["D103"]
 
 [lint.pydocstyle]
 convention = "google"

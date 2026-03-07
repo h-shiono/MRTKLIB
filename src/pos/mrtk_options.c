@@ -409,6 +409,7 @@ extern int loadopts(const char *file, opt_t *opts)
             continue;
         }
         *p++='\0';
+        while (*p==' '||*p=='\t') p++; /* skip leading whitespace in value */
         chop(buff);
         if (!(opt=searchopt(buff,opts))) continue;
         
