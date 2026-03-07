@@ -1856,10 +1856,10 @@ static int relpos(rtk_t *rtk, const obsd_t *obs, int nu, int nr,
             rtk->sol.ns=0;
             for (i=0;i<ns;i++) for (f=0;f<nf;f++) {
                 if (!rtk->ssat[sat[i]-1].vsat[f]) continue;
-                /* increment lock during countdown OR when sat has been in a fix */
-                if (rtk->ssat[sat[i]-1].lock[f]<0||
-                    (rtk->nfix>0&&rtk->ssat[sat[i]-1].fix[f]>=2))
-                    rtk->ssat[sat[i]-1].lock[f]++;
+                /* increment lock unconditionally — conditional (demo5 Phase 4D) froze
+                   lock counts on nfix=0 epochs, preventing satellite-set diversification
+                   needed to escape false-fix/holdamb cycles in urban canyons */
+                rtk->ssat[sat[i]-1].lock[f]++;
                 rtk->ssat[sat[i]-1].outc[f]=0;
                 if (f==0) rtk->sol.ns++; /* valid satellite count by L1 */
             }
