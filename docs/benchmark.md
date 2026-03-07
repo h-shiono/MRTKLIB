@@ -303,7 +303,7 @@ pos2-thresdop      = 1.0  # Doppler slip threshold (cyc/s, 0=off)
 | tokyo_run2  | 18.3% | **25.9%** | ~~17.993 m~~ | **0.095 m** | 802 s |
 | tokyo_run3  | 25.1% | **27.7%** | 0.293 m | **0.219 m** | 658 s |
 
-### Key findings
+### Key findings (Phase 1A–3B)
 
 - **tokyo_run2 false-fix elimination**: v0.3.3 had RMS_2D(fix) = 17.993 m despite
   tiny 1σ/95% values — a small cluster of wrongly-fixed epochs dominated the RMS at
@@ -315,6 +315,45 @@ pos2-thresdop      = 1.0  # Doppler slip threshold (cyc/s, 0=off)
 - **5/6 runs** show improved RMS_2D(fix); **4/6 runs** show improved Fix%.
 - **nagoya_run3 RMS_2D(fix)** increases (0.307 → 0.837 m) while Fix% rises slightly,
   suggesting the fix window now includes noisier epochs that were previously rejected.
+
+---
+
+## v0.4.1 RTK Benchmark Results (demo5 Phase 4A–4E)
+
+A second deep-diff pass against demo5 identified additional correctness fixes
+(Phases 4A–4E).  Results below use city conf (`nagoya.conf` / `tokyo.conf`) for
+precise base-station coordinates.
+
+### Additional algorithm changes (Phase 4A–4E)
+
+| Phase | Change |
+|-------|--------|
+| 4A | DD residual minimum raised from 1 → 4 to prevent rank-deficient filter updates |
+| 4A | `fix[j]=2` retention across non-fix epochs (preserves AR candidates) |
+| 4A | `seph2clk()` parenthesis bug fix (SBAS clock iteration) |
+| 4A | GF cycle-slip: add `thresslip==0` guard; use `continue` instead of early `return` |
+| 4B | `varerr()` rewrite: per-constellation EFACT (GAL/QZS/CMP/IRN), SNR term, IFLC scaling |
+| 4B | Half-cycle variance inflation (+0.01 m²) when LLI_HALFC bit set |
+| 4C | GLONASS clock: reject ephemeris with `|taun| > 1 s` |
+| 4C | GLONASS health: ICD-specific bit check `(svh&9)!=0 || (svh&6)==4` |
+| 4D | Acceleration coupling gated on position variance < `thresar[1]` |
+| 4E | Revert E5 (vsat set by phase DD → code DD): phase-only vsat deadlocks in urban canyons |
+| 4E | Revert E3 (conditional lock increment): `nfix>0` guard prevents bootstrap from 0 |
+
+### RTK comparison: v0.4.0 → v0.4.1
+
+`--skip-epochs 60`, FIX tier (Q=4) only.  City conf used for v0.4.1.
+
+| Case | Fix% (v0.4.0) | Fix% (v0.4.1) | Δ Fix% |
+|------|:-------------:|:-------------:|:------:|
+| nagoya_run1 | 29.1% | **38.2%** | +9.1 pp |
+| nagoya_run2 | 28.0% | **37.0%** | +9.0 pp |
+| nagoya_run3 | 10.1% | **12.9%** | +2.8 pp |
+| tokyo_run1  |  3.1% | **5.1%** | +2.0 pp |
+| tokyo_run2  | 25.9% | **26.1%** | +0.2 pp |
+| tokyo_run3  | 27.7% | **34.2%** | +6.5 pp |
+
+All 6 runs show improved fix rates.
 
 [demo5]: https://github.com/rtklibexplorer/RTKLIB
 
