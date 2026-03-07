@@ -406,20 +406,36 @@ static double gfobs(const obsd_t *obs, int i, int j, int k, const nav_t *nav)
     return L1*CLIGHT/freq1-L2*CLIGHT/freq2;
 }
 /* single-differenced measurement error variance -----------------------------*/
-static double varerr(int sat, int sys, double el, double bl, double dt, int f,
+/* select IFLC second frequency (L5 for Galileo if nf>=3, L2 otherwise) -----*/
+static int seliflc(int optnf, int sys)
+{
+    return (optnf==2||sys!=SYS_GAL)?1:2;
+}
+static double varerr(int sat, int sys, double el, double snr_rover,
+                     double snr_base, double bl, double dt, int f,
                      const prcopt_t *opt)
 {
     double a,b,c=opt->err[3]*bl/1E4,d=CLIGHT*opt->sclkstab*dt,fact=1.0;
-    double sinel=sin(el);
+    double sinel=sin(el),var;
     int nf=NF(opt);
-    
+
     if (f>=nf) fact=opt->eratio[f-nf];
     if (fact<=0.0) fact=opt->eratio[0];
     fact*=sys==SYS_GLO?EFACT_GLO:(sys==SYS_SBS?EFACT_SBS:EFACT_GPS);
     a=fact*opt->err[1];
     b=fact*opt->err[2];
-    
-    return 2.0*(opt->ionoopt==IONOOPT_IFLC?3.0:1.0)*(a*a+b*b/sinel/sinel+c*c)+d*d;
+
+    var=2.0*(opt->ionoopt==IONOOPT_IFLC?3.0:1.0)*(a*a+b*b/sinel/sinel+c*c)+d*d;
+
+    if (opt->err[6]>0.0) { /* add SNR term */
+        double e=fact*opt->err[6];
+        double snr_max=opt->err[5];
+        double dr=snr_max-snr_rover, db=snr_max-snr_base;
+        var+=2.0*(opt->ionoopt==IONOOPT_IFLC?3.0:1.0)*e*e*
+             (pow(10.0,0.1*(dr>0.0?dr:0.0))+
+              pow(10.0,0.1*(db>0.0?db:0.0)));
+    }
+    return var;
 }
 /* baseline length -----------------------------------------------------------*/
 static double baseline(const double *ru, const double *rb, double *dr)
@@ -825,7 +841,10 @@ static void udbias(rtk_t *rtk, double tt, const obsd_t *obs, const int *sat,
             j=IB(sat[i],k,&rtk->opt);
             rtk->P[j+j*rtk->nx]+=rtk->opt.prn[0]*rtk->opt.prn[0]*fabs(tt);
             slip=rtk->ssat[sat[i]-1].slip[k];
-            if (rtk->opt.ionoopt==IONOOPT_IFLC) slip|=rtk->ssat[sat[i]-1].slip[1];
+            if (rtk->opt.ionoopt==IONOOPT_IFLC) {
+                int f2i=seliflc(rtk->opt.nf,rtk->ssat[sat[i]-1].sys);
+                slip|=rtk->ssat[sat[i]-1].slip[f2i];
+            }
             if (rtk->opt.modear==ARMODE_INST||!(slip&1)) continue;
             rtk->x[j]=0.0;
             rtk->ssat[sat[i]-1].lock[k]=-rtk->opt.minlock;
@@ -844,12 +863,13 @@ static void udbias(rtk_t *rtk, double tt, const obsd_t *obs, const int *sat,
                 bias[i]=cp-pr*freqi/CLIGHT;
             }
             else {
+                int f2b=seliflc(rtk->opt.nf,rtk->ssat[sat[i]-1].sys);
                 cp1=sdobs(obs,iu[i],ir[i],0);
-                cp2=sdobs(obs,iu[i],ir[i],1);
+                cp2=sdobs(obs,iu[i],ir[i],f2b);
                 pr1=sdobs(obs,iu[i],ir[i],NFREQ);
-                pr2=sdobs(obs,iu[i],ir[i],NFREQ+1);
+                pr2=sdobs(obs,iu[i],ir[i],NFREQ+f2b);
                 freq1=sat2freq(sat[i],obs[iu[i]].code[0],nav);
-                freq2=sat2freq(sat[i],obs[iu[i]].code[1],nav);
+                freq2=sat2freq(sat[i],obs[iu[i]].code[f2b],nav);
                 if (cp1==0.0||cp2==0.0||pr1==0.0||pr2==0.0||freq1==0.0||freq2<=0.0) continue;
                 
                 C1= SQR(freq1)/(SQR(freq1)-SQR(freq2));
@@ -910,25 +930,26 @@ static void zdres_sat(int base, double r, const obsd_t *obs, const nav_t *nav,
                       const prcopt_t *opt, double *y, double *freq)
 {
     double freq1,freq2,C1,C2,dant_if;
-    int i,nf=NF(opt);
-    
+    int i,nf=NF(opt),f2;
+
     if (opt->ionoopt==IONOOPT_IFLC) { /* iono-free linear combination */
+        f2=seliflc(nf,satsys(obs->sat,NULL));
         freq1=sat2freq(obs->sat,obs->code[0],nav);
-        freq2=sat2freq(obs->sat,obs->code[1],nav);
+        freq2=sat2freq(obs->sat,obs->code[f2],nav);
         if (freq1==0.0||freq2==0.0) return;
-        
+
         if (testsnr(base,0,azel[1],obs->SNR[0]*SNR_UNIT,&opt->snrmask)||
-            testsnr(base,1,azel[1],obs->SNR[1]*SNR_UNIT,&opt->snrmask)) return;
-        
+            testsnr(base,f2,azel[1],obs->SNR[f2]*SNR_UNIT,&opt->snrmask)) return;
+
         C1= SQR(freq1)/(SQR(freq1)-SQR(freq2));
         C2=-SQR(freq2)/(SQR(freq1)-SQR(freq2));
-        dant_if=C1*dant[0]+C2*dant[1];
-        
-        if (obs->L[0]!=0.0&&obs->L[1]!=0.0) {
-            y[0]=C1*obs->L[0]*CLIGHT/freq1+C2*obs->L[1]*CLIGHT/freq2-r-dant_if;
+        dant_if=C1*dant[0]+C2*dant[f2];
+
+        if (obs->L[0]!=0.0&&obs->L[f2]!=0.0) {
+            y[0]=C1*obs->L[0]*CLIGHT/freq1+C2*obs->L[f2]*CLIGHT/freq2-r-dant_if;
         }
-        if (obs->P[0]!=0.0&&obs->P[1]!=0.0) {
-            y[1]=C1*obs->P[0]+C2*obs->P[1]-r-dant_if;
+        if (obs->P[0]!=0.0&&obs->P[f2]!=0.0) {
+            y[1]=C1*obs->P[0]+C2*obs->P[f2]-r-dant_if;
         }
         freq[0]=1.0;
     }
@@ -1114,10 +1135,11 @@ static int test_sys(int sys, int m)
     return 0;
 }
 /* DD (double-differenced) phase/code residuals ------------------------------*/
-static int ddres(rtk_t *rtk, const nav_t *nav, double dt, const double *x,
-                 const double *P, const int *sat, double *y, double *e,
-                 double *azel, double *freq, const int *iu, const int *ir,
-                 int ns, double *v, double *H, double *R, int *vflg)
+static int ddres(rtk_t *rtk, const nav_t *nav, const obsd_t *obs, double dt,
+                 const double *x, const double *P, const int *sat, double *y,
+                 double *e, double *azel, double *freq, const int *iu,
+                 const int *ir, int ns, double *v, double *H, double *R,
+                 int *vflg)
 {
     prcopt_t *opt=&rtk->opt;
     double bl,dr[3],posu[3],posr[3],didxi=0.0,didxj=0.0,*im;
@@ -1233,8 +1255,15 @@ static int ddres(rtk_t *rtk, const nav_t *nav, double dt, const double *x,
                 continue;
             }
             /* SD (single-differenced) measurement error variances */
-            Ri[nv]=varerr(sat[i],sysi,azel[1+iu[i]*2],bl,dt,f,opt);
-            Rj[nv]=varerr(sat[j],sysj,azel[1+iu[j]*2],bl,dt,f,opt);
+            {
+                int frq=f%nf;
+                Ri[nv]=varerr(sat[i],sysi,azel[1+iu[i]*2],
+                              obs[iu[i]].SNR[frq]*SNR_UNIT,
+                              obs[ir[i]].SNR[frq]*SNR_UNIT,bl,dt,f,opt);
+                Rj[nv]=varerr(sat[j],sysj,azel[1+iu[j]*2],
+                              obs[iu[j]].SNR[frq]*SNR_UNIT,
+                              obs[ir[j]].SNR[frq]*SNR_UNIT,bl,dt,f,opt);
+            }
             
             /* set valid data flags */
             if (opt->mode>PMODE_DGPS) {
@@ -1763,7 +1792,7 @@ static int relpos(rtk_t *rtk, const obsd_t *obs, int nu, int nr,
             break;
         }
         /* DD (double-differenced) residuals and partial derivatives */
-        if ((nv=ddres(rtk,nav,dt,xp,Pp,sat,y,e,azel,freq,iu,ir,ns,v,H,R,
+        if ((nv=ddres(rtk,nav,obs,dt,xp,Pp,sat,y,e,azel,freq,iu,ir,ns,v,H,R,
                       vflg))<1) {
             errmsg(rtk,"no double-differenced residual\n");
             stat=SOLQ_NONE;
@@ -1782,7 +1811,7 @@ static int relpos(rtk_t *rtk, const obsd_t *obs, int nu, int nr,
                                freq)) {
         
         /* post-fit residuals for float solution */
-        nv=ddres(rtk,nav,dt,xp,Pp,sat,y,e,azel,freq,iu,ir,ns,v,NULL,R,vflg);
+        nv=ddres(rtk,nav,obs,dt,xp,Pp,sat,y,e,azel,freq,iu,ir,ns,v,NULL,R,vflg);
         
         /* validation of float solution */
         if (valpos(rtk,v,R,vflg,nv,4.0)) {
@@ -1810,7 +1839,7 @@ static int relpos(rtk_t *rtk, const obsd_t *obs, int nu, int nr,
         if (zdres(0,obs,nu,rs,dts,var,svh,nav,xa,opt,0,y,e,azel,freq)) {
 
             /* post-fit residuals for fixed solution */
-            nv=ddres(rtk,nav,dt,xa,NULL,sat,y,e,azel,freq,iu,ir,ns,v,NULL,R,
+            nv=ddres(rtk,nav,obs,dt,xa,NULL,sat,y,e,azel,freq,iu,ir,ns,v,NULL,R,
                      vflg);
 
             /* validation of fixed solution */
