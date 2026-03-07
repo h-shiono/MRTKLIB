@@ -342,7 +342,11 @@ precise base-station coordinates.
 
 ### RTK comparison: v0.4.0 → v0.4.1
 
-`--skip-epochs 60`, FIX tier (Q=4) only.  City conf used for v0.4.1.
+`--skip-epochs 60`, FIX tier (Q=4) only.
+v0.4.0: no city conf (base position from RINEX header).
+v0.4.1: city conf applied (precise base-station LLH coordinates).
+
+#### Fix rate
 
 | Case | Fix% (v0.4.0) | Fix% (v0.4.1) | Δ Fix% |
 |------|:-------------:|:-------------:|:------:|
@@ -354,6 +358,33 @@ precise base-station coordinates.
 | tokyo_run3  | 27.7% | **34.2%** | +6.5 pp |
 
 All 6 runs show improved fix rates.
+
+#### Accuracy (FIX epochs only)
+
+| Case | RMS_2D (v0.3.3) | RMS_2D (v0.4.0) | RMS_2D (v0.4.1) | 1σ (v0.4.1) | TTFF (v0.4.1) |
+|------|:---------------:|:---------------:|:---------------:|:-----------:|--------------:|
+| nagoya_run1 | 1.536 m | 0.418 m | **0.360 m** | 0.113 m | **64 s** |
+| nagoya_run2 | 1.060 m | 0.589 m | 1.104 m ↑ | 0.174 m | 0 s |
+| nagoya_run3 | 0.307 m | 0.837 m | 1.182 m ↑ | 1.373 m | 86 s |
+| tokyo_run1  | 0.709 m | 0.341 m | 0.631 m ↑ | 0.033 m | **707 s** |
+| tokyo_run2  | ~~17.982 m~~ | **0.095 m** | **0.094 m** | 0.022 m | 815 s |
+| tokyo_run3  | 0.292 m | 0.219 m | **0.087 m** | 0.015 m | 667 s |
+
+### Key findings (Phase 4A–4E)
+
+- **Fix rate improves universally** (+2–9 pp across all 6 runs), driven by Phase 4A–4D
+  correctness fixes (rank-deficient filter guard, EFACT, GLONASS health/clock).
+- **RMS_2D(fix) mixed**: 3/6 runs improve (nagoya_run1, tokyo_run2, tokyo_run3),
+  3/6 regress (nagoya_run2, nagoya_run3, tokyo_run1).  In each regressing case,
+  the 1σ value is still acceptable (≤ 0.174 m for nagoya_run2 and tokyo_run1),
+  indicating that a small cluster of false-fix outliers inflates the RMS while the
+  majority of fixed epochs remain accurate.  This is the classic fix-rate / precision
+  tradeoff: more aggressive AR accepts harder epochs that occasionally misfixes.
+- **nagoya_run3 1σ = 1.373 m** is the one genuine concern — a persistent false-fix
+  window appears to be present; see the Limitations section.
+- **TTFF improvements**: nagoya_run1 drops from 808 s → 64 s; tokyo_run1 from 1852 s →
+  707 s.  The `fix[j]=2` retention (Phase 4A) and the Phase 4D accel-coupling gate
+  are the likely contributors.
 
 [demo5]: https://github.com/rtklibexplorer/RTKLIB
 
