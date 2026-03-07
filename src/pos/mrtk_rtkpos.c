@@ -1300,13 +1300,9 @@ static int ddres(rtk_t *rtk, const nav_t *nav, const obsd_t *obs, double dt,
                 if (!code&&(obs[iu[i]].LLI[frq]&LLI_HALFC)) Ri[nv]+=0.01;
                 if (!code&&(obs[iu[j]].LLI[frq]&LLI_HALFC)) Rj[nv]+=0.01;
 
-                /* set valid data flags: RTK uses phase DD, DGPS uses all */
-                if (opt->mode>PMODE_DGPS) {
-                    if (!code) rtk->ssat[sat[i]-1].vsat[frq]=rtk->ssat[sat[j]-1].vsat[frq]=1;
-                }
-                else {
-                    rtk->ssat[sat[i]-1].vsat[frq]=rtk->ssat[sat[j]-1].vsat[frq]=1;
-                }
+                /* set valid data flags: use code DD to flag valid (E5 reverted:
+                   demo5 phase-only vsat caused nfix=0 deadlock in urban canyons) */
+                if (code) rtk->ssat[sat[i]-1].vsat[frq]=rtk->ssat[sat[j]-1].vsat[frq]=1;
             }
             trace(NULL,4,"sat=%3d-%3d %s%d v=%13.3f R=%8.6f %8.6f\n",sat[i],
                   sat[j],f<nf?"L":"P",f%nf+1,v[nv],Ri[nv],Rj[nv]);
