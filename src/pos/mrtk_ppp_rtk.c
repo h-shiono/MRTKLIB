@@ -530,6 +530,68 @@ static void udion(rtk_t *rtk, double tt, double bl, const obsd_t *obs, int ns)
  * @param[in]     obs Observation data
  * @param[in]     n   Number of observations
  */
+/* detect cycle slip by Doppler/phase rate comparison (demo5, single-receiver) */
+static void detslp_dop(rtk_t *rtk, const obsd_t *obs, int n, const nav_t *nav)
+{
+    (void)nav;
+    int i, f, sat, ndop = 0, nf = rtk->opt.nf < NFREQ ? rtk->opt.nf : NFREQ;
+    double dph, dpt, tt, mean_dop = 0.0;
+    double dopdif[MAXOBS][NFREQ] = {{0}}, tts[MAXOBS][NFREQ] = {{0}};
+
+    if (rtk->opt.thresdop <= 0.0) return; /* disabled */
+
+    for (i = 0; i < n && i < MAXOBS; i++) {
+        sat = obs[i].sat;
+        for (f = 0; f < nf; f++) {
+            if (obs[i].L[f] == 0.0 || obs[i].D[f] == 0.0 ||
+                rtk->ssat[sat-1].ph[0][f] == 0.0) continue;
+            tt = timediff(obs[i].time, rtk->ssat[sat-1].pt[0][f]);
+            if (fabs(tt) < DTTOL) continue;
+            dph = (obs[i].L[f] - rtk->ssat[sat-1].ph[0][f]) / tt;
+            dpt = -obs[i].D[f];
+            dopdif[i][f] = dph - dpt;
+            tts[i][f] = tt;
+            if (fabs(dopdif[i][f]) < 3.0 * rtk->opt.thresdop) {
+                mean_dop += dopdif[i][f]; ndop++;
+            }
+        }
+    }
+    if (ndop == 0) return;
+    mean_dop /= ndop;
+
+    for (i = 0; i < n && i < MAXOBS; i++) {
+        sat = obs[i].sat;
+        for (f = 0; f < nf; f++) {
+            if (dopdif[i][f] == 0.0) continue;
+            if (fabs(dopdif[i][f] - mean_dop) > rtk->opt.thresdop) {
+                rtk->ssat[sat-1].slip[f] |= 1;
+                trace(NULL, 3, "ppprtk detslp_dop: sat=%2d F=%d dL=%.3f off=%.3f tt=%.2f\n",
+                      sat, f+1, dopdif[i][f]-mean_dop, mean_dop, tts[i][f]);
+            }
+        }
+    }
+}
+/* detect cycle slip by observation code change (demo5, single-receiver) */
+static void detslp_code(rtk_t *rtk, const obsd_t *obs, int n)
+{
+    int i, f, sat, nf = rtk->opt.nf < NFREQ ? rtk->opt.nf : NFREQ;
+    for (i = 0; i < n && i < MAXOBS; i++) {
+        sat = obs[i].sat;
+        for (f = 0; f < nf; f++) {
+            uint8_t code = obs[i].code[f];
+            if (code == CODE_NONE) continue;
+            uint8_t ccode = rtk->ssat[sat-1].codeprev[f][0];
+            if (code != ccode) {
+                rtk->ssat[sat-1].codeprev[f][0] = code;
+                if (ccode != CODE_NONE) {
+                    rtk->ssat[sat-1].slip[f] |= 1;
+                    trace(NULL, 3, "ppprtk detslp_code: sat=%2d F=%d %s->%s\n",
+                          sat, f+1, code2obs(ccode), code2obs(code));
+                }
+            }
+        }
+    }
+}
 static void detslp_ll(rtk_t *rtk, const obsd_t *obs, int n)
 {
     int i, j;
@@ -655,6 +717,12 @@ static void udbias_ppp(rtk_t *rtk, double tt, const obsd_t *obs, int n,
 
     /* detect cycle slip by geometry-free phase jump */
     detslp_gf(rtk, obs, n, nav);
+
+    /* detect cycle slip by Doppler rate (demo5) */
+    detslp_dop(rtk, obs, n, nav);
+
+    /* detect cycle slip by observation code change (demo5) */
+    detslp_code(rtk, obs, n);
 
     for (f = 0; f < nf; f++) {
         /* reset phase-bias if expire obs outage counter */
