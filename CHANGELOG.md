@@ -95,7 +95,7 @@ coordinates.  `--skip-epochs 60`.
 
 ### Test Results
 
-All 53 tests pass (unchanged from v0.3.3):
+All 57 tests pass (unchanged from v0.3.3):
 
 | Test Suite | Tests |
 |------------|-------|
