@@ -568,6 +568,7 @@ int ephpos(gtime_t time, gtime_t teph, int sat, const nav_t *nav,
     }
     else if (sys==SYS_GLO) {
         if (!(geph=selgeph(teph,sat,iode,nav))) return 0;
+        if (fabs(geph->taun)>1.0) return 0; /* reject corrupted GLO clock data (consistent with ephclk) */
         geph2pos(time,geph,rs,dts,var);
         time=timeadd(time,tt);
         geph2pos(time,geph,rst,dtst,var);

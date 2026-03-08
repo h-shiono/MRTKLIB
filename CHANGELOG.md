@@ -5,6 +5,72 @@ All notable changes to MRTKLIB are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v0.4.2] - 2026-03-08
+
+**PPP-RTK / PPP accuracy release** — Extends the [demo5](https://github.com/rtklibexplorer/RTKLIB)
+kinematic algorithm improvements from the RTK engine (v0.4.1) to the CLAS PPP-RTK
+and MADOCA PPP engines.  RTK and VRS-RTK engines are unchanged.
+
+### Added
+
+- **`detslp_dop()` for PPP-RTK and PPP** — Doppler-based cycle-slip detection with
+  clock-jump mean removal, identical to the RTK implementation ported in v0.4.1.
+  Activated by `pos2-thresdop > 0.0` (library default: 0 = disabled).
+- **`detslp_code()` for PPP-RTK and PPP** — Observation-code-change cycle-slip
+  detector; flags slips whenever a satellite's tracked signal code changes between
+  epochs, indicating a receiver re-acquisition that shifts the integer ambiguity.
+- **`ph[0][f]` / `pt[0][f]` update in PPP `update_stat()`** — PPP did not previously
+  record phase observations needed by `detslp_dop()`; the update was added to enable
+  Doppler slip detection on the next epoch.
+
+### Changed
+
+- **`ephpos()` GLONASS clock rejection** — Added `if (fabs(geph->taun) > 1.0) return 0`
+  guard, matching the protection already present in `ephclk()`.  Corrupted GLONASS
+  clock entries (`|taun| > 1 s`) could propagate incorrect `dts[0]` into PPP-RTK and
+  PPP via `satpos_ssr()`.
+- **PPP-RTK PAR — position variance gate (B2)** — `ppp_rtk_pos()` now skips AR when
+  the mean diagonal of the 3 × 3 position covariance block exceeds `thresar[1]`,
+  preventing premature fixing before filter convergence.
+- **PPP-RTK PAR — arfilter (B3)** — After PAR fails, newly-locked satellites
+  (lock count = 0) are backed off and LAMBDA is retried, matching the RTK `arfilter`
+  behaviour (activated by `pos2-arfilter`).
+- **Full per-constellation EFACT in `varerr()`** — Both `mrtk_ppp_rtk.c` and
+  `mrtk_ppp.c` now expand the system error factor to all seven constellations
+  (GAL/QZS/CMP/IRN) via `mrtk_const.h` constants; previously GPS/GLO/SBS only.
+- **Adaptive outlier threshold in `residual_test()` (PPP-RTK only)** — The
+  sigma-normalised rejection threshold is inflated 10× for phase residuals whose
+  corresponding bias state was just initialised (`P[IB,IB] == SQR(std[0])`).
+
+### Fixed
+
+- **PPP adaptive outlier threshold regression** — An equivalent D2 threshold inflation
+  applied to PPP's absolute-metres check (`|v| > maxinno`) caused a severe accuracy
+  regression (tokyo_run1 MADOCA RMS: 1.8 m → 199 m).  Undifferenced PPP residuals can
+  legitimately exceed tens of metres at initialisation; inflating the threshold by 10×
+  admitted extreme outliers.  The change was reverted; PPP retains the original
+  fixed-threshold check.
+
+### CLAS benchmark summary (6-run PPC-Dataset, FIX tier, `--skip-epochs 60`)
+
+| Run | Fix% (v0.3.3) | Fix% (v0.4.2) | RMS_2D fix (v0.3.3) | RMS_2D fix (v0.4.2) | 1σ (v0.4.2) |
+|-----|:---:|:---:|:---:|:---:|:---:|
+| nagoya_run1 | 17.0% | 17.0% | 1.105 m | 1.105 m | 0.402 m |
+| nagoya_run2 | 26.9% | 23.4% | 1.088 m | 1.119 m | **0.461 m** |
+| nagoya_run3 |  6.3% |  6.3% | 0.318 m | 0.318 m | 0.339 m |
+| tokyo_run1  |  5.2% |  4.9% | 0.868 m | **0.747 m** | 0.244 m |
+| tokyo_run2  | 21.7% | 21.7% | 0.590 m | **0.514 m** | 0.120 m |
+| tokyo_run3  |  7.4% |  7.4% | 0.801 m | 0.801 m | 0.075 m |
+
+2/6 Tokyo runs: FIX RMS_2D improved (−13–14%).
+MADOCA results unchanged across all 6 runs.
+
+### Test Results
+
+All 57 tests pass (unchanged from v0.4.1).
+
+---
+
 ## [v0.4.1] - 2026-03-07
 
 **RTK accuracy release** — Ports the [demo5](https://github.com/rtklibexplorer/RTKLIB)
@@ -481,6 +547,7 @@ Initial release — MALIB structural migration complete.
 - **MALIB integration** — Structural base from JAXA MALIB feature/1.2.0
   (directory layout, threading, stream I/O).
 
+[v0.4.2]: https://github.com/h-shiono/MRTKLIB/compare/v0.4.1...v0.4.2
 [v0.4.1]: https://github.com/h-shiono/MRTKLIB/compare/v0.3.3...v0.4.1
 [v0.3.3]: https://github.com/h-shiono/MRTKLIB/compare/v0.3.2...v0.3.3
 [v0.3.2]: https://github.com/h-shiono/MRTKLIB/compare/v0.3.1...v0.3.2

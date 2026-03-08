@@ -432,7 +432,9 @@ static double varerr(int sat, int sys, double el, int idx, int type,
     double fact=1.0,sinel=sin(el);
 
     if (type==1) fact*=opt->eratio[idx==0?0:1];
-    fact*=sys==SYS_GLO?EFACT_GLO:(sys==SYS_SBS?EFACT_SBS:EFACT_GPS);
+    fact*=sys==SYS_GLO?EFACT_GLO:(sys==SYS_GAL?EFACT_GAL:
+          (sys==SYS_QZS?EFACT_QZS:(sys==SYS_CMP?EFACT_CMP:
+          (sys==SYS_IRN?EFACT_IRN:(sys==SYS_SBS?EFACT_SBS:EFACT_GPS)))));
     if (opt->ionoopt==IONOOPT_IFLC) fact*=3.0;
     return SQR(fact*opt->err[1])+SQR(fact*opt->err[2]/sinel);
 }
@@ -565,6 +567,68 @@ static int corr_meas(const obsd_t *obs, const nav_t *nav, const double *azel,
     return 1;
 }
 /* detect cycle slip by LLI --------------------------------------------------*/
+/* detect cycle slip by Doppler/phase rate comparison (demo5, single-receiver) */
+static void detslp_dop(rtk_t *rtk, const obsd_t *obs, int n, const nav_t *nav)
+{
+    (void)nav;
+    int i,f,sat,ndop=0,nf=rtk->opt.nf<NFREQ?rtk->opt.nf:NFREQ;
+    double dph,dpt,tt,mean_dop=0.0;
+    double dopdif[MAXOBS][NFREQ]={{0}},tts[MAXOBS][NFREQ]={{0}};
+
+    if (rtk->opt.thresdop<=0.0) return;
+
+    for (i=0;i<n&&i<MAXOBS;i++) {
+        sat=obs[i].sat;
+        for (f=0;f<nf;f++) {
+            if (obs[i].L[f]==0.0||obs[i].D[f]==0.0||
+                rtk->ssat[sat-1].ph[0][f]==0.0) continue;
+            tt=timediff(obs[i].time,rtk->ssat[sat-1].pt[0][f]);
+            if (fabs(tt)<DTTOL) continue;
+            dph=(obs[i].L[f]-rtk->ssat[sat-1].ph[0][f])/tt;
+            dpt=-obs[i].D[f];
+            dopdif[i][f]=dph-dpt;
+            tts[i][f]=tt;
+            if (fabs(dopdif[i][f])<3.0*rtk->opt.thresdop) {
+                mean_dop+=dopdif[i][f]; ndop++;
+            }
+        }
+    }
+    if (ndop==0) return;
+    mean_dop/=ndop;
+
+    for (i=0;i<n&&i<MAXOBS;i++) {
+        sat=obs[i].sat;
+        for (f=0;f<nf;f++) {
+            if (dopdif[i][f]==0.0) continue;
+            if (fabs(dopdif[i][f]-mean_dop)>rtk->opt.thresdop) {
+                rtk->ssat[sat-1].slip[f]|=1;
+                trace(NULL,3,"ppp detslp_dop: sat=%2d F=%d dL=%.3f off=%.3f tt=%.2f\n",
+                      sat,f+1,dopdif[i][f]-mean_dop,mean_dop,tts[i][f]);
+            }
+        }
+    }
+}
+/* detect cycle slip by observation code change (demo5, single-receiver) */
+static void detslp_code(rtk_t *rtk, const obsd_t *obs, int n)
+{
+    int i,f,sat,nf=rtk->opt.nf<NFREQ?rtk->opt.nf:NFREQ;
+    for (i=0;i<n&&i<MAXOBS;i++) {
+        sat=obs[i].sat;
+        for (f=0;f<nf;f++) {
+            uint8_t code=obs[i].code[f];
+            if (code==CODE_NONE) continue;
+            uint8_t ccode=rtk->ssat[sat-1].codeprev[f][0];
+            if (code!=ccode) {
+                rtk->ssat[sat-1].codeprev[f][0]=code;
+                if (ccode!=CODE_NONE) {
+                    rtk->ssat[sat-1].slip[f]|=1;
+                    trace(NULL,3,"ppp detslp_code: sat=%2d F=%d %s->%s\n",
+                          sat,f+1,code2obs(ccode),code2obs(code));
+                }
+            }
+        }
+    }
+}
 static void detslp_ll(rtk_t *rtk, const obsd_t *obs, int n)
 {
     int i,j;
@@ -939,6 +1003,12 @@ static void udbias_ppp(rtk_t *rtk, const obsd_t *obs, int n, const nav_t *nav)
 
     /* detect cycle slip by ssr */
     detslp_ssr(rtk,obs,n,nav);
+
+    /* detect cycle slip by Doppler rate (demo5) */
+    detslp_dop(rtk,obs,n,nav);
+
+    /* detect cycle slip by observation code change (demo5) */
+    detslp_code(rtk,obs,n);
 
     ecef2pos(rtk->sol.rr,pos);
 
@@ -1374,6 +1444,13 @@ static void update_stat(rtk_t *rtk, const obsd_t *obs, int n, int stat)
 
     for (i=0;i<n&&i<MAXOBS;i++) for (j=0;j<opt->nf&&j<NFREQ;j++) {
         rtk->ssat[obs[i].sat-1].snr[j]=obs[i].SNR[j];
+    }
+    /* update previous phase/time for Doppler slip detection */
+    for (i=0;i<n&&i<MAXOBS;i++) for (j=0;j<opt->nf&&j<NFREQ;j++) {
+        if (obs[i].L[j]!=0.0) {
+            rtk->ssat[obs[i].sat-1].pt[0][j]=obs[i].time;
+            rtk->ssat[obs[i].sat-1].ph[0][j]=obs[i].L[j];
+        }
     }
     for (i=0;i<MAXSAT;i++) for (j=0;j<opt->nf&&j<NFREQ;j++) {
         if (rtk->ssat[i].slip[j]&3) rtk->ssat[i].slipc[j]++;
