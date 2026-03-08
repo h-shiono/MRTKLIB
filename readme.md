@@ -33,6 +33,23 @@ The ultimate goal is to unify the fragmented QZSS augmentation ecosystem into a 
 
 With the MADOCALIB integration complete, users can process L6E (orbit/clock/bias corrections) and L6D (ionospheric STEC corrections) streams seamlessly in both post-processing and real-time modes.
 
+### Algorithm Improvements
+
+In addition to library integration, selected algorithm improvements from community forks are
+incrementally back-ported to each engine:
+
+| Version | Engine | Improvements | Status |
+|---------|--------|-------------|--------|
+| **v0.4.1** | RTK | demo5 Partial AR (PAR), `detslp_dop` / `detslp_code`, full-constellation `varerr`, false-fix persistence fix | ✅ Released |
+| **v0.4.2** | PPP-RTK, PPP | demo5 `detslp_dop` / `detslp_code`, GLONASS clock guard in `ephpos()`, PAR variance gate + arfilter, full-constellation EFACT, adaptive outlier threshold (PPP-RTK only) | ✅ Released |
+| **v0.4.3** | All | TOML-based option file support (replacing legacy key=value `.conf` format) | 🔜 Planned |
+| **v0.5.0** | — | Port remaining RTKLIB console apps: `convbin` (RINEX converter), `str2str` (stream relay) | 🔜 Planned |
+| **TBD** | All | Doxygen docstring coverage expansion | 💭 Backlog |
+
+> demo5 algorithm improvements are adapted from **[demo5 RTKLIB](https://github.com/rtklibexplorer/RTKLIB)**
+> by Tim Everett (rtklibexplorer).  Benchmark results use the
+> [PPC-Dataset](https://github.com/taroz/PPC-Dataset) (Taro Suzuki, Chiba Institute of Technology).
+
 ### Known Limitations
 
 | Mode | L6E (SSR) | L6D (Ionospheric) | Notes |
@@ -79,6 +96,17 @@ Test data and regression datasets are available in `tests/data/`.
 ```
 
 ## 👨‍💻 For Developers
+
+### Development Workflow
+
+MRTKLIB is developed using an AI-assisted workflow.
+Algorithm porting, test authoring, and code migration are performed with
+**[Claude Code](https://claude.ai/claude-code)** (Anthropic).
+Architecture, implementation strategy, and final review are directed by the project author;
+porting strategy design is also supported by **Gemini Pro** (Google).
+
+All commits, test results, and architectural decisions remain under human authorship and review.
+
 ### Running Tests
 MRTKLIB includes both robust unit tests (utest) and regression tests to ensure core stability when merging complex GNSS algorithms.
 

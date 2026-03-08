@@ -291,7 +291,9 @@ static double varerr(int sat, int sys, double el, int type,
     else {
         /* normal error model */
         if (type == 1) fact *= opt->eratio[0];
-        fact *= sys == SYS_GLO ? EFACT_GLO : (sys == SYS_SBS ? EFACT_SBS : EFACT_GPS);
+        fact *= sys==SYS_GLO?EFACT_GLO:(sys==SYS_GAL?EFACT_GAL:
+                (sys==SYS_QZS?EFACT_QZS:(sys==SYS_CMP?EFACT_CMP:
+                (sys==SYS_IRN?EFACT_IRN:(sys==SYS_SBS?EFACT_SBS:EFACT_GPS)))));
         if (opt->ionoopt == IONOOPT_IFLC) fact *= 3.0;
         a = fact * opt->err[1];
         b = fact * opt->err[2];
@@ -530,6 +532,68 @@ static void udion(rtk_t *rtk, double tt, double bl, const obsd_t *obs, int ns)
  * @param[in]     obs Observation data
  * @param[in]     n   Number of observations
  */
+/* detect cycle slip by Doppler/phase rate comparison (demo5, single-receiver) */
+static void detslp_dop(rtk_t *rtk, const obsd_t *obs, int n, const nav_t *nav)
+{
+    (void)nav;
+    int i, f, sat, ndop = 0, nf = rtk->opt.nf < NFREQ ? rtk->opt.nf : NFREQ;
+    double dph, dpt, tt, mean_dop = 0.0;
+    double dopdif[MAXOBS][NFREQ] = {{0}}, tts[MAXOBS][NFREQ] = {{0}};
+
+    if (rtk->opt.thresdop <= 0.0) return; /* disabled */
+
+    for (i = 0; i < n && i < MAXOBS; i++) {
+        sat = obs[i].sat;
+        for (f = 0; f < nf; f++) {
+            if (obs[i].L[f] == 0.0 || obs[i].D[f] == 0.0 ||
+                rtk->ssat[sat-1].ph[0][f] == 0.0) continue;
+            tt = timediff(obs[i].time, rtk->ssat[sat-1].pt[0][f]);
+            if (fabs(tt) < DTTOL) continue;
+            dph = (obs[i].L[f] - rtk->ssat[sat-1].ph[0][f]) / tt;
+            dpt = -obs[i].D[f];
+            dopdif[i][f] = dph - dpt;
+            tts[i][f] = tt;
+            if (fabs(dopdif[i][f]) < 3.0 * rtk->opt.thresdop) {
+                mean_dop += dopdif[i][f]; ndop++;
+            }
+        }
+    }
+    if (ndop == 0) return;
+    mean_dop /= ndop;
+
+    for (i = 0; i < n && i < MAXOBS; i++) {
+        sat = obs[i].sat;
+        for (f = 0; f < nf; f++) {
+            if (dopdif[i][f] == 0.0) continue;
+            if (fabs(dopdif[i][f] - mean_dop) > rtk->opt.thresdop) {
+                rtk->ssat[sat-1].slip[f] |= 1;
+                trace(NULL, 3, "ppprtk detslp_dop: sat=%2d F=%d dL=%.3f off=%.3f tt=%.2f\n",
+                      sat, f+1, dopdif[i][f]-mean_dop, mean_dop, tts[i][f]);
+            }
+        }
+    }
+}
+/* detect cycle slip by observation code change (demo5, single-receiver) */
+static void detslp_code(rtk_t *rtk, const obsd_t *obs, int n)
+{
+    int i, f, sat, nf = rtk->opt.nf < NFREQ ? rtk->opt.nf : NFREQ;
+    for (i = 0; i < n && i < MAXOBS; i++) {
+        sat = obs[i].sat;
+        for (f = 0; f < nf; f++) {
+            uint8_t code = obs[i].code[f];
+            if (code == CODE_NONE) continue;
+            uint8_t ccode = rtk->ssat[sat-1].codeprev[f][0];
+            if (code != ccode) {
+                rtk->ssat[sat-1].codeprev[f][0] = code;
+                if (ccode != CODE_NONE) {
+                    rtk->ssat[sat-1].slip[f] |= 1;
+                    trace(NULL, 3, "ppprtk detslp_code: sat=%2d F=%d %s->%s\n",
+                          sat, f+1, code2obs(ccode), code2obs(code));
+                }
+            }
+        }
+    }
+}
 static void detslp_ll(rtk_t *rtk, const obsd_t *obs, int n)
 {
     int i, j;
@@ -655,6 +719,12 @@ static void udbias_ppp(rtk_t *rtk, double tt, const obsd_t *obs, int n,
 
     /* detect cycle slip by geometry-free phase jump */
     detslp_gf(rtk, obs, n, nav);
+
+    /* detect cycle slip by Doppler rate (demo5) */
+    detslp_dop(rtk, obs, n, nav);
+
+    /* detect cycle slip by observation code change (demo5) */
+    detslp_code(rtk, obs, n);
 
     for (f = 0; f < nf; f++) {
         /* reset phase-bias if expire obs outage counter */
@@ -972,8 +1042,14 @@ static int residual_test(rtk_t *rtk, const int *vflg, const double *v,
         (void)stype;
 
         /* validate individual residuals */
+        /* D2: inflate threshold 10x for newly-initialized phase bias (demo5) */
+        double inno0_eff = inno0;
+        if (type == 0 && rtk->opt.std[0] > 0.0) {
+            int ib = IB_RTK(sat2, freq, &rtk->opt);
+            if (rtk->P[ib + ib * rtk->nx] == SQR(rtk->opt.std[0])) inno0_eff *= 10.0;
+        }
         if (!Q[i + i * m] || inno0 == 0 ||
-            (v[i] * v[i] < Q[i + i * m] * inno0 * inno0)) {
+            (v[i] * v[i] < Q[i + i * m] * inno0_eff * inno0_eff)) {
             if (type == 0) {
                 if (!rtk->ssat[sat2 - 1].vsat[freq]) continue;
                 vv += v[i] * v[i] / Q[i + i * m];
@@ -2139,6 +2215,17 @@ extern void ppp_rtk_pos(rtk_t *rtk, const obsd_t *obs, int n, nav_t *nav)
 
     /* resolve integer ambiguity by LAMBDA */
     if (stat != SOLQ_NONE) {
+        /* B2: position variance gate — skip AR if filter not yet converged */
+        {
+            double posvar = 0.0;
+            for (i = 0; i < 3; i++) posvar += rtk->P[i + i * rtk->nx];
+            posvar /= 3.0;
+            if (rtk->opt.thresar[1] > 0.0 && posvar > rtk->opt.thresar[1]) {
+                trace(NULL, 3, "ppprtk: skip AR (posvar=%.4f>thresar1=%.4f)\n",
+                      posvar, rtk->opt.thresar[1]);
+                nb = 0; goto ppprtk_ar_done;
+            }
+        }
         nb = resamb_LAMBDA(rtk, bias, xa);
 
         /* partial AR: exclude satellites to improve fix (posopt[6]=on) */
@@ -2182,6 +2269,24 @@ extern void ppp_rtk_pos(rtk_t *rtk, const obsd_t *obs, int n, nav_t *nav)
                 }
             }
         }
+
+        /* B3: arfilter — if AR still failing, exclude newly-locked sats and retry */
+        if (nb <= 1 && rtk->opt.arfilter) {
+            int nf2 = NF_RTK(&rtk->opt), rerun = 0, dly = 2, sat;
+            for (sat = 0; sat < MAXSAT; sat++) {
+                for (f = 0; f < nf2; f++) {
+                    if (rtk->ssat[sat].vsat[f] && rtk->ssat[sat].lock[f] == 0) {
+                        rtk->ssat[sat].lock[f] = -(rtk->opt.minlock + dly);
+                        dly += 2; rerun = 1;
+                    }
+                }
+            }
+            if (rerun) {
+                trace(NULL, 3, "ppprtk arfilter: rerun with newly-locked sats excluded\n");
+                nb = resamb_LAMBDA(rtk, bias, xa);
+            }
+        }
+        ppprtk_ar_done:;
 
         if (nb > 1) {
             /* recompute zdres with fixed solution */

@@ -394,6 +394,77 @@ remain equal to or better than the v0.3.3 baseline except nagoya_run1 (27.4% vs 
 
 ---
 
+## v0.4.2 PPP-RTK / PPP Benchmark Results (demo5 port to CLAS/MADOCA engines)
+
+MRTKLIB v0.4.2 (`feat/ppp-rtk-demo5-improvements`) extends the demo5
+algorithm improvements from the RTK engine to the **CLAS (PPP-RTK)** and
+**MADOCA (PPP)** engines.  The **RTK** engine is unchanged.
+
+### Algorithm changes
+
+| Phase | Engine | Change |
+|-------|--------|--------|
+| A | PPP-RTK, PPP | `ephpos()` now rejects GLONASS ephemeris with `\|taun\| > 1 s` — consistent with `ephclk()` guard present since v0.3.3 |
+| B2 | PPP-RTK | Position variance gate: skip AR when mean diag(P[0..2]) > `thresar[1]`  (prevents premature fixing before filter converges) |
+| B3 | PPP-RTK | `arfilter`: after PAR fails, back off newly-locked satellites one epoch and retry LAMBDA |
+| C | PPP-RTK, PPP | Doppler-based cycle-slip detection (`detslp_dop`, `pos2-thresdop`) |
+| C | PPP-RTK, PPP | Observation-code-change cycle-slip detection (`detslp_code`) |
+| D1 | PPP-RTK, PPP | Full per-constellation EFACT in `varerr()`: GAL/QZS/CMP/IRN added (previously only GPS/GLO/SBS) |
+| D2 | PPP-RTK only | Adaptive 10× outlier threshold for newly-initialised phase biases in `residual_test()` |
+
+> **Note on D2 and PPP**: The adaptive outlier inflation was found to cause
+> a severe regression in undifferenced PPP (tokyo_run1 MADOCA RMS: 1.8 m →
+> 199 m) because PPP phase residuals are not double-differenced and can
+> legitimately reach tens of metres at initialisation.  D2 is applied only
+> to PPP-RTK, whose sigma-normalised test already incorporates the large
+> initial bias variance via Q.
+
+### CLAS comparison: v0.3.3 → v0.4.2
+
+`--skip-epochs 60`, FIX tier (Q=4) only.
+
+| Case | Fix% (v0.3.3) | Fix% (v0.4.2) | Δ Fix% | RMS_2D fix (v0.3.3) | RMS_2D fix (v0.4.2) | 1σ (v0.3.3) | 1σ (v0.4.2) | TTFF (v0.4.2) |
+|------|:-------------:|:-------------:|:------:|--------------------:|--------------------:|:-----------:|:-----------:|--------------:|
+| nagoya_run1 | 17.0% | 17.0% |     0 pp | 1.105 m | 1.105 m | 0.402 m | 0.402 m |   0 s |
+| nagoya_run2 | 26.9% | 23.4% | **−3.5 pp** | 1.088 m | 1.119 m | 0.717 m | **0.461 m** |   0 s |
+| nagoya_run3 |  6.3% |  6.3% |     0 pp | 0.318 m | 0.318 m | 0.339 m | 0.339 m |   9 s |
+| tokyo_run1  |  5.2% |  4.9% | −0.3 pp | 0.868 m | **0.747 m** | 0.239 m | 0.244 m |  15 s |
+| tokyo_run2  | 21.7% | 21.7% |     0 pp | 0.590 m | **0.514 m** | 0.117 m | 0.120 m | 368 s |
+| tokyo_run3  |  7.4% |  7.4% |     0 pp | 0.801 m | 0.801 m | 0.075 m | 0.075 m |  28 s |
+
+### MADOCA comparison: v0.3.3 → v0.4.2
+
+MADOCA results are **unchanged** across all 6 runs.  The algorithms applied
+to the PPP engine (Phase A GLO taun, Phase C detslp_dop/code, Phase D1
+EFACT) produced no measurable difference on this dataset, and Phase D2 was
+explicitly excluded from PPP to avoid undifferenced-observation regression.
+
+| Case | N (v0.3.3) | N (v0.4.2) | <30cm% (v0.3.3) | <30cm% (v0.4.2) | RMS_2D (v0.3.3) | RMS_2D (v0.4.2) |
+|------|:----------:|:----------:|:---------------:|:---------------:|----------------:|----------------:|
+| nagoya_run1 | 1 968 | 1 968 |  0.0% |  0.0% | 17.428 m | 17.428 m |
+| nagoya_run2 | 7 494 | 7 494 |  0.2% |  0.2% | 39.299 m | 39.299 m |
+| nagoya_run3 | 2 753 | 2 753 |  2.1% |  2.1% |  2.649 m |  2.649 m |
+| tokyo_run1  | 3 084 | 3 084 | 16.6% | 16.6% |  1.825 m |  1.825 m |
+| tokyo_run2  | 8 159 | 8 159 |  6.7% |  6.7% |  2.894 m |  2.894 m |
+| tokyo_run3  | 2 795 | 2 795 |  3.4% |  3.4% |  0.724 m |  0.724 m |
+
+### Key findings (v0.4.2)
+
+- **CLAS tokyo accuracy**: 2/6 runs show improved FIX RMS_2D (tokyo_run1: −14%,
+  tokyo_run2: −13%).  The D1 EFACT expansion provides slightly more accurate
+  variance modelling for multi-constellation measurements.
+- **CLAS nagoya_run2 fix rate**: −3.5 pp (26.9% → 23.4%).  This run's FF rate
+  simultaneously improved (+4 pp: 63.9% → 67.9%) and 1σ FIX accuracy improved
+  significantly (0.717 m → 0.461 m), indicating that fewer but higher-quality
+  fixes are produced.  The likely mechanism: Phase C `detslp_code` resets biases
+  on code-switching events, increasing FLOAT residency but reducing false fixes.
+- **CLAS 4/6 runs**: Fix rate and FIX accuracy unchanged.
+- **MADOCA unchanged**: The demo5 algorithmic improvements have no measurable
+  impact on MADOCA PPP for this dataset.  Future gains may require PPP-specific
+  improvements (e.g., adaptive iono/trop Q tuning, wider MADOCA signal selection).
+
+---
+
 ## Metrics Definitions
 
 | Metric | Description |
