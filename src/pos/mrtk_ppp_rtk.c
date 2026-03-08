@@ -2139,6 +2139,17 @@ extern void ppp_rtk_pos(rtk_t *rtk, const obsd_t *obs, int n, nav_t *nav)
 
     /* resolve integer ambiguity by LAMBDA */
     if (stat != SOLQ_NONE) {
+        /* B2: position variance gate — skip AR if filter not yet converged */
+        {
+            double posvar = 0.0;
+            for (i = 0; i < 3; i++) posvar += rtk->P[i + i * rtk->nx];
+            posvar /= 3.0;
+            if (rtk->opt.thresar[1] > 0.0 && posvar > rtk->opt.thresar[1]) {
+                trace(NULL, 3, "ppprtk: skip AR (posvar=%.4f>thresar1=%.4f)\n",
+                      posvar, rtk->opt.thresar[1]);
+                nb = 0; goto ppprtk_ar_done;
+            }
+        }
         nb = resamb_LAMBDA(rtk, bias, xa);
 
         /* partial AR: exclude satellites to improve fix (posopt[6]=on) */
@@ -2182,6 +2193,24 @@ extern void ppp_rtk_pos(rtk_t *rtk, const obsd_t *obs, int n, nav_t *nav)
                 }
             }
         }
+
+        /* B3: arfilter — if AR still failing, exclude newly-locked sats and retry */
+        if (nb <= 1 && rtk->opt.arfilter) {
+            int nf2 = NF_RTK(&rtk->opt), rerun = 0, dly = 2, sat;
+            for (sat = 0; sat < MAXSAT; sat++) {
+                for (f = 0; f < nf2; f++) {
+                    if (rtk->ssat[sat].vsat[f] && rtk->ssat[sat].lock[f] == 0) {
+                        rtk->ssat[sat].lock[f] = -(rtk->opt.minlock + dly);
+                        dly += 2; rerun = 1;
+                    }
+                }
+            }
+            if (rerun) {
+                trace(NULL, 3, "ppprtk arfilter: rerun with newly-locked sats excluded\n");
+                nb = resamb_LAMBDA(rtk, bias, xa);
+            }
+        }
+        ppprtk_ar_done:;
 
         if (nb > 1) {
             /* recompute zdres with fixed solution */
