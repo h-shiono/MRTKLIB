@@ -781,7 +781,15 @@ int satexclude(int sat, double var, int svh, const struct prcopt_t *opt)
     }
     if (sys==SYS_QZS) svh&= 0xFE; /* mask QZSS LEX health */
     if (sys==SYS_CMP) svh&=~0x1D; /* mask BeiDou health by reserved bit */
-    if (svh) {
+    if (sys==SYS_GLO) {
+        /* GLONASS ICD health: bit0=L1 bad, bit3=sat malfunction,
+           bits1-2=01 (binary) means L2 bad — all three cases excluded */
+        if ((svh&9)!=0||(svh&6)==4) {
+            trace(NULL,3,"unhealthy satellite: sat=%3d svh=%02X\n",sat,svh);
+            return 1;
+        }
+    }
+    else if (svh) {
         trace(NULL,3,"unhealthy satellite: sat=%3d svh=%02X\n",sat,svh);
         return 1;
     }

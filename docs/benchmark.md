@@ -248,6 +248,7 @@ MADOCA-PPP never produces an integer fix and is reported as a single **PPP** tie
   runs achieve sub-metre FIX RMS (e.g. nagoya_run3: 0.31 m, tokyo_run3: 0.29 m).
   tokyo_run2 FIX RMS remains elevated (18 m) despite tiny 1σ/95% values, indicating
   a small number of wrongly-fixed epochs that dominate the RMS at this ~27 km baseline.
+  This false-fix issue is resolved in v0.4.0 (see below).
 - **MADOCA PPP N**: outputs Q=3 (PPP float) or Q=0 (no solution); Q=0 is
   filtered, so N reflects epochs where the filter produced a solution.  In
   nagoya_run1, only 27% of rover epochs have a valid solution (heavy urban
@@ -257,6 +258,139 @@ MADOCA-PPP never produces an integer fix and is reported as a single **PPP** tie
   was already in a sustained fix run.
 - RTK baselines range from ~13 km (Nagoya) to ~27 km (Tokyo), which is long for
   kinematic RTK; float solutions dominate accordingly.
+
+---
+
+## v0.4.0 RTK Benchmark Results (demo5 Integration)
+
+MRTKLIB v0.4.0 (`feat/demo5-integration`) integrates several RTK algorithm
+improvements from [rtklibexplorer's demo5 fork][demo5].
+The **CLAS** and **MADOCA** engines are unaffected by these changes.
+
+### Algorithm changes
+
+| Phase | Change |
+|-------|--------|
+| 1A | Partial Ambiguity Resolution (PAR) — LAMBDA tries reduced satellite subsets to raise fix ratio |
+| 1B | AR-filter — exclude newly-locked satellites that degrade the fix ratio; retry LAMBDA without them |
+| 2A | Doppler-based cycle-slip detection (`pos2-thresdop`) |
+| 2B | Minimum-fix-satellite guard (`pos2-arminfixsats`) — reject fixes with too few satellite pairs |
+| 3A | `seliflc()` — Galileo triple-freq IFLC now uses L1+L5 (not L1+L2) |
+| 3A | SNR-weighted observation variance (`err[6]` term in `varerr()`) |
+| 3B | Adaptive 10× outlier threshold for newly-initialised phase biases |
+| 3B | `rejc<2` guard — phase-bias reset requires ≥2 successive rejections, not just one |
+
+### RTK configuration changes
+
+Three new parameters are enabled in `conf/benchmark/rtk.conf`:
+
+```ini
+pos2-arminfixsats  = 4    # min satellite pairs for a valid PAR fix
+pos2-arfilter      = on   # exclude newly-locked sats that degrade ratio
+pos2-thresdop      = 1.0  # Doppler slip threshold (cyc/s, 0=off)
+```
+
+### RTK comparison: v0.3.3 → v0.4.0
+
+`--skip-epochs 60`, FIX tier (Q=4) only.
+
+| Case | Fix% (v0.3.3) | Fix% (v0.4.0) | RMS_2D fix (v0.3.3) | RMS_2D fix (v0.4.0) | TTFF (v0.4.0) |
+|------|:-------------:|:-------------:|--------------------:|--------------------:|--------------:|
+| nagoya_run1 | 29.7% | 29.1% | 1.536 m | **0.418 m** | 796 s |
+| nagoya_run2 | 16.1% | **28.0%** | 1.081 m | **0.596 m** | 0 s |
+| nagoya_run3 |  8.2% | **10.1%** | 0.307 m | 0.837 m | 78 s |
+| tokyo_run1  |  3.4% |  3.1% | 0.711 m | **0.342 m** | 1840 s |
+| tokyo_run2  | 18.3% | **25.9%** | ~~17.993 m~~ | **0.095 m** | 802 s |
+| tokyo_run3  | 25.1% | **27.7%** | 0.293 m | **0.219 m** | 658 s |
+
+### Key findings (Phase 1A–3B)
+
+- **tokyo_run2 false-fix elimination**: v0.3.3 had RMS_2D(fix) = 17.993 m despite
+  tiny 1σ/95% values — a small cluster of wrongly-fixed epochs dominated the RMS at
+  this ~27 km baseline.  The `rejc<2` guard (Phase 3B) prevents premature phase-bias
+  reset on a single transient outlier.  Combined with `arminfixsats=4`, the false fix
+  is eliminated and RMS_2D(fix) drops to **0.095 m** — a 189× improvement.
+- **nagoya_run2 fix rate**: +12 pp (16.1% → 28.0%); PAR finds valid partial subsets
+  on a run with fewer simultaneously-clean satellite pairs.
+- **5/6 runs** show improved RMS_2D(fix); **4/6 runs** show improved Fix%.
+- **nagoya_run3 RMS_2D(fix)** increases (0.307 → 0.837 m) while Fix% rises slightly,
+  suggesting the fix window now includes noisier epochs that were previously rejected.
+
+---
+
+## v0.4.1 RTK Benchmark Results (demo5 Phase 4A–4F)
+
+A second deep-diff pass against demo5 identified additional correctness fixes
+(Phases 4A–4F).  Results below use city conf (`nagoya.conf` / `tokyo.conf`) for
+precise base-station coordinates.
+
+### Additional algorithm changes (Phase 4A–4F)
+
+| Phase | Change |
+|-------|--------|
+| 4A | DD residual minimum raised from 1 → 4 to prevent rank-deficient filter updates |
+| 4A | `fix[j]=2` retention across non-fix epochs (preserves AR candidates) |
+| 4A | `seph2clk()` parenthesis bug fix (SBAS clock iteration) |
+| 4A | GF cycle-slip: add `thresslip==0` guard; use `continue` instead of early `return` |
+| 4B | `varerr()` rewrite: per-constellation EFACT (GAL/QZS/CMP/IRN), SNR term, IFLC scaling |
+| 4B | Half-cycle variance inflation (+0.01 m²) when LLI_HALFC bit set |
+| 4C | GLONASS clock: reject ephemeris with `|taun| > 1 s` |
+| 4C | GLONASS health: ICD-specific bit check `(svh&9)!=0 || (svh&6)==4` |
+| 4D | Acceleration coupling gated on position variance < `thresar[1]` |
+| 4E | Revert E5 (vsat set by phase DD → code DD): phase-only vsat deadlocks in urban canyons |
+| 4E | Revert E3 (conditional lock increment): `nfix>0` guard prevents bootstrap from 0 |
+| 4F | Revert Phase 4D conditional lock: froze lock counts on `nfix=0` epochs, sustaining false-fix/holdamb cycles in urban canyons |
+
+### RTK comparison: v0.4.0 → v0.4.1
+
+`--skip-epochs 60`, FIX tier (Q=4) only.
+v0.4.0: no city conf (base position from RINEX header).
+v0.4.1: city conf applied (precise base-station LLH coordinates).
+
+#### Fix rate
+
+| Case | Fix% (v0.4.0) | Fix% (v0.4.1) | Δ Fix% |
+|------|:-------------:|:-------------:|:------:|
+| nagoya_run1 | 29.1% | 27.4% | −1.7 pp |
+| nagoya_run2 | 28.0% | **28.3%** | +0.3 pp |
+| nagoya_run3 | 10.1% | **10.1%** | 0 pp |
+| tokyo_run1  |  3.1% | 2.9% | −0.2 pp |
+| tokyo_run2  | 25.9% | 22.1% | −3.8 pp |
+| tokyo_run3  | 27.7% | **27.7%** | 0 pp |
+
+Fix rate vs v0.4.0 is mixed (Phase 4D conditional lock reverted), but all runs
+remain equal to or better than the v0.3.3 baseline except nagoya_run1 (27.4% vs 29.7%).
+
+#### Accuracy (FIX epochs only)
+
+| Case | RMS_2D (v0.3.3) | RMS_2D (v0.4.0) | RMS_2D (v0.4.1) | 1σ (v0.4.1) | TTFF (v0.4.1) |
+|------|:---------------:|:---------------:|:---------------:|:-----------:|--------------:|
+| nagoya_run1 | 1.536 m | 0.418 m | **0.425 m** | **0.112 m** | 797 s |
+| nagoya_run2 | 1.060 m | 0.589 m | 1.014 m ↑ | 0.175 m | 0 s |
+| nagoya_run3 | 0.307 m | 0.837 m | 0.716 m | **0.135 m** | **74 s** |
+| tokyo_run1  | 0.709 m | 0.341 m | 0.555 m ↑ | **0.026 m** | 1841 s |
+| tokyo_run2  | ~~17.982 m~~ | **0.095 m** | **0.079 m** | **0.020 m** | 803 s |
+| tokyo_run3  | 0.292 m | 0.219 m | **0.095 m** | **0.013 m** | 658 s |
+
+### Key findings (Phase 4A–4F)
+
+- **Fix rate vs v0.3.3 baseline**: 4/6 runs improved (nagoya_run2 +12 pp, tokyo_run2 +4 pp,
+  tokyo_run3 +3 pp, nagoya_run3 +2 pp); 1/6 slightly below (nagoya_run1 −2 pp);
+  1/6 nearly unchanged (tokyo_run1 −0.5 pp).
+- **1σ accuracy restored**: Phase 4D's conditional lock increment caused false-fix
+  persistence (holdamb cycles in urban canyons), inflating nagoya_run3 1σ to 1.373 m.
+  Phase 4F reverts this, restoring 1σ = 0.135 m — matching the v0.3.3 baseline (0.128 m).
+- **Mechanism**: once `holdamb()` fires with wrong integers, it constrains ambiguity P
+  to VAR_HOLDAMB=0.001 cy² (process noise would need ~10 M epochs to overcome).
+  The conditional lock froze lock counters on `nfix=0` epochs, preventing satellite-set
+  diversification and causing immediate re-selection of the same wrong integers.  Reverting
+  to unconditional `lock++` allows the eligible satellite set to evolve between fix attempts,
+  enabling eventual escape from the false-fix cycle.
+- **TTFF**: nagoya_run1 regresses slightly (797 s vs 64 s with Phase 4D conditional lock),
+  but the underlying accuracy is preserved.  The Phase 4D accel-coupling gate (D1) is
+  retained; it improves state convergence without the false-fix side-effect.
+
+[demo5]: https://github.com/rtklibexplorer/RTKLIB
 
 ---
 

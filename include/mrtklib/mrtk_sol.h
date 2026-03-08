@@ -55,6 +55,8 @@ typedef struct {        /* solution type */
     float age;          /* age of differential (s) */
     float ratio;        /* AR ratio factor for valiation */
     float thres;        /* AR ratio threshold for valiation */
+    float prev_ratio1;  /* previous initial AR ratio factor for validation */
+    float prev_ratio2;  /* previous final AR ratio factor for validation */
 } sol_t;
 
 typedef struct {        /* solution buffer type */
@@ -116,6 +118,7 @@ typedef struct {        /* satellite status type */
     double ionc;        /* ionospheric delay by carrier phase (m) */
     uint8_t code[NFREQ]; /* observation code indicator (CODE_???) */
     int pbreset[NFREQ]; /* phase bias reset flag */
+    uint8_t codeprev[NFREQ][2]; /* previous obs code per freq/receiver (0:rover,1:base) */
 } ssat_t;
 
 /*============================================================================

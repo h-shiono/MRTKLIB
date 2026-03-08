@@ -102,6 +102,7 @@ This project stands on the shoulders of giants:
 
 | Contributor | Role |
 |-------------|------|
+| **Tim Everett (rtklibexplorer)** | demo5 RTKLIB — kinematic RTK algorithm improvements (PAR, detslp_dop/code, varerr) |
 | **T. Takasu** | RTKLIB — the foundational GNSS positioning library |
 | **T. Suzuki** | RTKLIB — u-blox receiver decoder |
 | **Geospatial Information Authority of Japan** | GSILIB v1.0.3 — CLAS grid correction algorithms |

@@ -378,7 +378,7 @@ extern double seph2clk(gtime_t time, const seph_t *seph)
     t=ts=timediff(time,seph->t0);
 
     for (i=0;i<2;i++) {
-        t=ts-seph->af0+seph->af1*t;
+        t=ts-(seph->af0+seph->af1*t); /* parentheses required: iterate clock bias */
     }
     return seph->af0+seph->af1*t;
 }
@@ -532,6 +532,7 @@ static int ephclk(gtime_t time, gtime_t teph, int sat, const nav_t *nav,
     }
     else if (sys==SYS_GLO) {
         if (!(geph=selgeph(teph,sat,-1,nav))) return 0;
+        if (fabs(geph->taun)>1.0) return 0; /* reject corrupted GLO clock data */
         *dts=geph2clk(time,geph);
     }
     else if (sys==SYS_SBS) {

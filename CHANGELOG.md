@@ -5,6 +5,111 @@ All notable changes to MRTKLIB are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v0.4.1] - 2026-03-07
+
+**RTK accuracy release** — Ports the [demo5](https://github.com/rtklibexplorer/RTKLIB)
+kinematic RTK algorithm improvements into MRTKLIB and resolves a false-fix persistence
+defect that caused 1σ accuracy to degrade to 1.4 m in urban-canyon scenarios.
+
+### Added
+
+- **`pos2-arminfixsats`** — Minimum satellites required for AR (`nb >= minfixsats-1`
+  DD pairs); guards against rank-deficient LAMBDA decompositions (library default: 0 = disabled;
+  benchmark conf: 4).
+- **`pos2-arfilter`** — AR candidate filter: newly-locked satellites that degrade
+  the ambiguity ratio are temporarily excluded and re-introduced epoch by epoch
+  (library default: off; benchmark conf: on).
+- **`pos2-thresdop`** — Doppler-based cycle-slip threshold in cycles/s; 0 = disabled
+  (library default: 0; benchmark conf: 1.0).
+- **`stats-eratio3`** — Phase/code variance ratio for L5 frequency, completing
+  independent eratio configuration for triple-frequency processing.
+- **Partial AR (`manage_amb_LAMBDA`)** — Multi-attempt LAMBDA with PAR satellite
+  exclusion loop and polynomial ratio threshold scaled to number of satellite pairs.
+- **`detslp_code()`** — Observation-code-change-based cycle-slip detector for
+  receiver signal-tracking transitions.
+- **`detslp_dop()`** restored — Doppler-based slip detection with clock-jump
+  mean-removal fix that prevented false triggers.
+- **RTK benchmark results** — Full six-run PPC-Dataset results (Phase 4A–4F) added
+  to `docs/benchmark.md` with Fix%, RMS_2D, 1σ, 95%, and TTFF.
+
+### Changed
+
+- **`varerr()`** — Rewritten with per-constellation elevation factors (GAL/QZS/CMP/IRN),
+  SNR-weighted noise term, and correct IFLC variance scaling.
+- **Outlier rejection threshold** — Adaptive 10× inflation for first-epoch or
+  recently-reset biases; added `rejc<2` guard to prevent premature bias reset.
+- **`seliflc()`** — Carrier-smoothed pseudo-range selection included in observation
+  pre-processing.
+- **Acceleration coupling gate** — State-transition acceleration term (`F[pos,acc]`)
+  is disabled when position variance exceeds `thresar[1]`, preventing premature
+  dynamics coupling before the filter has converged.
+- **Half-cycle variance inflation** — Adds +0.01 m² to phase measurement variance
+  when the LLI half-cycle ambiguity flag is set.
+- **`seph2clk()` parenthesis fix** — Corrected iteration guard for SBAS ephemeris
+  clock computation.
+- **GF slip detector** — Added `thresslip==0` early-out guard; replaced early
+  `return` with `continue` to prevent skipping subsequent satellite pairs.
+
+### Fixed
+
+- **False-fix persistence in urban canyons** (Phase 4F) — `holdamb()` constrains
+  the Kalman ambiguity covariance to VAR_HOLDAMB = 0.001 cy², making wrong integer
+  solutions effectively permanent until a cycle-slip or satellite-loss event.  A
+  Phase 4D change had made the lock counter conditional (`lock++` only when
+  `nfix>0 && fix[f]≥2`), which froze lock counts during `nfix=0` epochs and
+  forced re-selection of the same wrong integers immediately after every false-fix
+  break.  Reverting to unconditional `lock++` allows the eligible satellite set to
+  diversify between fix attempts, enabling escape from the false-fix cycle.
+  **Effect**: nagoya_run3 1σ restored from 1.373 m → 0.135 m (baseline: 0.128 m).
+
+- **GLONASS clock rejection** — Ephemeris entries with `|taun| > 1 s` are now
+  discarded; corrupted GLO clock data was propagating into positioning.
+
+- **GLONASS health check** — Switched from generic `svh!=0` to ICD-specific bit
+  mask `(svh&9)!=0 || (svh&6)==4`; GPS/Galileo/QZSS retain the `svh!=0` check.
+
+- **vsat set by phase DD** (Phase 4E revert) — A demo5 change that set `vsat=1`
+  only from phase DD residuals caused AR bootstrap deadlock in urban canyons where
+  satellites have valid code DD but noisy phase.  Reverted to code-DD-based
+  `vsat` (original behaviour).
+
+- **Conditional lock increment** (Phase 4E revert) — A demo5 change that gated
+  `lock++` on `nfix>0` prevented bootstrap from `nfix=0` at session start, blocking
+  AR entirely until the first integer fix was achieved.
+
+### RTK benchmark summary (6-run PPC-Dataset, FIX tier)
+
+All results use city conf (`nagoya.conf` / `tokyo.conf`) for precise base-station
+coordinates.  `--skip-epochs 60`.
+
+| Run | Fix% (v0.3.3) | Fix% (v0.4.1) | 1σ (v0.3.3) | 1σ (v0.4.1) | TTFF (v0.4.1) |
+|-----|:---:|:---:|:---:|:---:|---:|
+| nagoya_run1 | 29.7% | 27.4% | 0.112 m | 0.112 m | 797 s |
+| nagoya_run2 | 16.1% | **28.3%** | 0.154 m | 0.175 m | 0 s |
+| nagoya_run3 |  8.2% | **10.1%** | 0.128 m | **0.135 m** | 74 s |
+| tokyo_run1  |  3.4% |  2.9% | 0.027 m | **0.026 m** | 1841 s |
+| tokyo_run2  | 18.3% | **22.1%** | 0.010 m | 0.020 m | 803 s |
+| tokyo_run3  | 25.1% | **27.7%** | 0.013 m | 0.013 m | 658 s |
+
+4/6 runs show improved fix rate vs v0.3.3; all runs maintain Phase-3-level 1σ accuracy.
+
+### Test Results
+
+All 57 tests pass (unchanged from v0.3.3):
+
+| Test Suite | Tests |
+|------------|-------|
+| Unit tests | 12 |
+| SPP / receiver bias / rtkrcv | 5 |
+| MADOCA PPP / PPP-AR / PPP-AR+iono | 10 |
+| CLAS PPP-RTK + VRS-RTK | 19 |
+| ssr2obs / ssr2osr / BINEX | 4 |
+| Tier 2 absolute accuracy | 2 |
+| Tier 3 position scatter | 2 |
+| Fixtures | 3 |
+
+---
+
 ## [v0.3.3] - 2026-03-07
 
 Minor release — kinematic positioning benchmark for urban driving evaluation.
@@ -376,6 +481,7 @@ Initial release — MALIB structural migration complete.
 - **MALIB integration** — Structural base from JAXA MALIB feature/1.2.0
   (directory layout, threading, stream I/O).
 
+[v0.4.1]: https://github.com/h-shiono/MRTKLIB/compare/v0.3.3...v0.4.1
 [v0.3.3]: https://github.com/h-shiono/MRTKLIB/compare/v0.3.2...v0.3.3
 [v0.3.2]: https://github.com/h-shiono/MRTKLIB/compare/v0.3.1...v0.3.2
 [v0.3.1]: https://github.com/h-shiono/MRTKLIB/compare/v0.3.0...v0.3.1
