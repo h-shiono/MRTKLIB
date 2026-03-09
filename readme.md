@@ -131,9 +131,9 @@ This project stands on the shoulders of giants:
 
 | Contributor | Role |
 |-------------|------|
+| **Tomoji Takasu** | RTKLIB — the foundational GNSS positioning library |
+| **Taro Suzuki** | RTKLIB — u-blox receiver decoder |
 | **Tim Everett (rtklibexplorer)** | demo5 RTKLIB — kinematic RTK algorithm improvements (PAR, detslp_dop/code, varerr) |
-| **T. Takasu** | RTKLIB — the foundational GNSS positioning library |
-| **T. Suzuki** | RTKLIB — u-blox receiver decoder |
 | **Geospatial Information Authority of Japan** | GSILIB v1.0.3 — CLAS grid correction algorithms |
 | **Mitsubishi Electric Corp.** | CLASLIB — CLAS PPP-RTK / VRS-RTK engine |
 | **Japan Aerospace Exploration Agency** | MALIB — MADOCA-PPP structural base |
