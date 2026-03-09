@@ -8,7 +8,7 @@
 
 It is designed to overcome the architectural limitations of the original legacy [RTKLIB](https://www.rtklib.com/), providing a robust foundation for next-generation GNSS applications, including high-scale server processing, containerized environments, and seamless integration of Japanese QZSS augmentation services.
 
-The structural foundation is based on **MALIB (MADOCA-PPP Library) feature/1.2.0** developed by JAXA and TOSHIBA, with the PPP positioning engine replaced by **MADOCALIB**'s implementation for higher-accuracy PPP/PPP-AR processing. Both post-processing (`rnx2rtkp`) and real-time processing (`rtkrcv`) are supported, including L6E (SSR orbit/clock/bias) and L6D (ionospheric STEC) correction streams.
+The structural foundation is based on **MALIB (MADOCA-PPP Library) feature/1.2.0** developed by JAXA and TOSHIBA. The PPP/PPP-AR positioning engine comes from **MADOCALIB**, while the centimetre-level PPP-RTK engine is built on **CLASLIB** — making MRTKLIB the first open-source implementation to support real-time CLAS PPP-RTK positioning via `rtkrcv`. Kinematic positioning accuracy is further enhanced by selected algorithm improvements from **[demo5 RTKLIB](https://github.com/rtklibexplorer/RTKLIB)**. Both post-processing (`rnx2rtkp`) and real-time processing (`rtkrcv`) are supported, including L6E (SSR orbit/clock/bias) and L6D (CLAS CSSR) correction streams.
 
 ---
 
@@ -42,7 +42,8 @@ incrementally back-ported to each engine:
 |---------|--------|-------------|--------|
 | **v0.4.1** | RTK | demo5 Partial AR (PAR), `detslp_dop` / `detslp_code`, full-constellation `varerr`, false-fix persistence fix | ✅ Released |
 | **v0.4.2** | PPP-RTK, PPP | demo5 `detslp_dop` / `detslp_code`, GLONASS clock guard in `ephpos()`, PAR variance gate + arfilter, full-constellation EFACT, adaptive outlier threshold (PPP-RTK only) | ✅ Released |
-| **v0.4.3** | PPP-RTK | Real-time CLAS PPP-RTK via `rtkrcv` (BINEX+L6, SBF+L6, RTCM3+UBX file replay; 97.7% fix rate) | ✅ Released |
+| **v0.4.3** | PPP-RTK | Real-time CLAS PPP-RTK via `rtkrcv` (BINEX+L6, SBF+L6, RTCM3+UBX; 97.7% fix rate) | ✅ Released |
+| **v0.4.4** | PPP-RTK | Dual-channel CLAS real-time via `rtkrcv` (base stream slot repurposed for L6 ch2) | ✅ Released |
 | **v0.5.0** | All | TOML-based option file support (replacing legacy key=value `.conf` format) | 🔜 Planned |
 | **v0.5.1** | — | Port remaining RTKLIB console apps: `convbin` (RINEX converter), `str2str` (stream relay) | 🔜 Planned |
 | **TBD** | All | Doxygen docstring coverage expansion | 💭 Backlog |
@@ -53,13 +54,14 @@ incrementally back-ported to each engine:
 
 ### Known Limitations
 
-| Mode | L6E (SSR) | L6D (Ionospheric) | Notes |
-|------|-----------|-------------------|-------|
-| **Post-processing** (`rnx2rtkp`) | Multiple `.l6` files | Multiple `.l6` files | Full PPP/PPP-AR/PPP-AR+iono support |
-| **Real-time** (`rtkrcv`) | Single stream (`inpstr3`) | Not yet supported | PPP/PPP-AR only |
+| Mode | L6E (SSR) | L6D (CLAS) | Notes |
+|------|-----------|------------|-------|
+| **Post-processing** (`rnx2rtkp`) | Multiple `.l6` files | Dual-channel | Full PPP/PPP-AR/PPP-AR+iono/PPP-RTK |
+| **Real-time** (`rtkrcv`) | Single stream (`inpstr3`) | Dual-channel (`inpstr2` + `inpstr3`) | PPP-RTK with 1ch or 2ch CLAS L6D |
 
-* **Real-time correction stream**: The rtksvr architecture provides a single correction input (`inpstr3`). Multiple QZSS L6E channels (e.g., QZS-3 and QZS-4) are supported when the receiver multiplexes them into one SBF stream, which is the typical configuration for Septentrio and similar receivers.
-* **Real-time L6D**: Ionospheric STEC correction (L6D) input is not yet available in real-time mode. PPP-AR+iono requires post-processing.
+* **Real-time CLAS L6D**: Dual-channel support uses stream 3 for L6 ch1 and stream 2 (base slot, unused in PPP-RTK) for L6 ch2.
+* **Real-time L6E**: The rtksvr provides a single correction input (`inpstr3`). Multiple QZSS L6E channels (e.g., QZS-3 and QZS-4) are supported when the receiver multiplexes them into one SBF stream.
+* **Real-time PPP-AR+iono**: Ionospheric STEC correction via L6D is available in CLAS PPP-RTK mode but not in the MADOCA PPP-AR+iono path (post-processing only).
 
 ---
 

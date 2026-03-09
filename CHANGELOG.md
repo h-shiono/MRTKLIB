@@ -5,6 +5,37 @@ All notable changes to MRTKLIB are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v0.4.4] - 2026-03-09
+
+**Dual-channel CLAS real-time PPP-RTK** — Extends `rtkrcv` to process two independent
+CLAS L6D correction streams by repurposing the unused base-station stream slot for L6
+ch2.  Achieves 67.4% fix rate on the 2025/157 dual-channel dataset (PP baseline: 88%).
+
+### Added
+
+- **2ch CLAS real-time via `rtkrcv`** — `inpstr2` (internal index 1, base slot, unused
+  in PPP-RTK) carries L6 ch2; `inpstr3` (internal index 2) carries L6 ch1.  CLAS channel
+  is derived from the 0-based stream index: `ch = (index == 1) ? 1 : 0`.
+- **`rtkrcv_2ch.conf`** — Configuration for dual-channel BINEX+L6 file replay.
+- **`rtkrcv_rt_clas_2ch` CTest** — Regression test replaying 1 hour of 2ch data at 10x
+  speed (~372 s wall time).  Uses `RESOURCE_LOCK rtkrcv_port`.
+
+### PP vs RT performance (2025/157 dual-channel dataset)
+
+| Metric | PP (rnx2rtkp) | RT (rtkrcv) |
+|--------|:---:|:---:|
+| Fix (Q=4) | ~3,168 (88%) | 2,428 (67.4%) |
+| Float (Q=5) | ~432 (12%) | 1,155 (32.1%) |
+| SPP (Q=1) | 0 (0%) | 17 (0.5%) |
+
+RT fix rate gap due to real-time L6 stream synchronisation constraints.
+
+### Test Results
+
+59 tests (58 from v0.4.3 + 1 new `rtkrcv_rt_clas_2ch`).
+
+---
+
 ## [v0.4.3] - 2026-03-09
 
 **Real-time CLAS PPP-RTK** — Enables `rtkrcv` to perform CLAS PPP-RTK positioning

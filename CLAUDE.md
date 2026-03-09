@@ -4,28 +4,34 @@
 
 **MRTKLIB** is a modernized, unified GNSS positioning library that integrates JAXA's MALIB, claslib, and madocalib into a single cohesive C/C++ package built on a modern CMake/vcpkg architecture.
 
-### Current Phase: CLAS Engine Unification
+### Current Phase: Algorithm Refinement & Real-Time Expansion
 
-The MADOCALIB PPP algorithm integration (PPP, PPP-AR, PPP-AR+iono) is **complete** with all L6E/L6D data flows working. The next phase is merging claslib into the unified parameter framework.
+All three upstream libraries (MALIB, MADOCALIB, CLASLIB) are fully integrated.
+Post-processing and real-time engines are operational for PPP, PPP-AR, PPP-RTK,
+and VRS-RTK modes.  Current work focuses on algorithm improvements and real-time
+feature expansion.
 
 ### Phase History
 
 1. ~~Structural Migration~~ — MALIB-based code ported to `include/mrtklib/` + `src/` layout ✅
 2. ~~PPP Engine Swap~~ — MADOCALIB PPP/PPP-AR/PPP-AR+iono algorithms integrated ✅
-3. **CLAS Engine Unification** — Merging claslib into the unified parameter framework (current)
+3. ~~CLAS Engine Unification~~ — CLASLIB merged into unified parameter framework ✅
+4. ~~demo5 Algorithm Porting~~ — RTK (v0.4.1), PPP-RTK/PPP (v0.4.2) ✅
+5. ~~Real-Time CLAS PPP-RTK~~ — rtkrcv 1ch (v0.4.3) + 2ch (v0.4.4) ✅
 
-### Test Status (30/30 pass)
+### Test Status (59 tests)
 
-| Test | Status | Notes |
-|------|--------|-------|
-| Unit tests (12) | PASS | |
-| SPP regression | PASS | |
-| Receiver bias | PASS | |
-| rtkrcv_rt | PASS | Real-time PPP via SBF file stream replay |
-| MADOCA PPP | PASS | <0.5cm 3D RMS |
-| MADOCA PPP-AR (mdc-004) | PASS | 1.562cm (tolerance 0.02m, LAPACK diff) |
-| MADOCA PPP-AR (mdc-003) | PASS | |
-| MADOCA PPP-AR+iono | PASS | 3.778cm (tolerance 0.04m, LAPACK diff) |
+| Test Suite | Count | Status |
+|------------|-------|--------|
+| Unit tests | 12 | PASS |
+| SPP / receiver bias | 4 | PASS |
+| rtkrcv real-time (MADOCA + CLAS 1ch + CLAS 2ch) | 3 | PASS |
+| MADOCA PPP / PPP-AR / PPP-AR+iono | 10 | PASS |
+| CLAS PPP-RTK + VRS-RTK | 19 | PASS |
+| ssr2obs / ssr2osr / BINEX | 4 | PASS |
+| Tier 2 absolute accuracy | 2 | PASS |
+| Tier 3 position scatter | 2 | PASS |
+| Fixtures | 3 | PASS |
 
 ## 2. Your Role (AI Assistant)
 
@@ -88,8 +94,9 @@ MRTKLIB uses system LAPACK; upstream madocalib uses an embedded LU solver. This 
 ### 6.3 pppiono_t Design
 MRTKLIB uses a heap-allocated pointer (`nav->pppiono = calloc(...)`) while upstream uses an embedded struct (`nav.pppiono`). All access uses `->` instead of `.`.
 
-### 6.4 Single L6E Stream Limitation
-MRTKLIB currently supports only one L6E file. Multi-L6E requires changing `_mcssr` from singleton to array (`mcssr_t _mcssr[MCSSR_MAX_PRN]`) in `mrtk_madoca.c`, affecting ~56 references.
+### 6.4 Multi-Channel Support
+- **CLAS L6D**: Both post-processing and real-time support dual-channel (`CLAS_CH_NUM=2`).  In rtkrcv, stream 1 (base slot) carries ch2, stream 2 carries ch1.
+- **MADOCA L6E**: Post-processing supports multi-L6E via `SSR_CH_NUM=2`.  Real-time is single-stream (receiver typically multiplexes into one SBF stream).
 
 ---
 

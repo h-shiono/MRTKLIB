@@ -419,7 +419,7 @@ static int decoderaw(rtksvr_t *svr, int index)
         }
         else if (svr->format[index]==STRFMT_CLAS) {
             if (svr->clas) {
-                int ch=0;
+                int ch=(index==1)?1:0; /* index 1 (inpstr2)→ch1, index 2 (inpstr3)→ch0 */
 
                 /* rate-limit: stop processing L6 when it runs too
                  * far ahead of observation time.  This prevents the
@@ -518,7 +518,7 @@ static int decoderaw(rtksvr_t *svr, int index)
         if (svr->clas&&ret==10&&
             (svr->format[index]==STRFMT_UBX||
              svr->format[index]==STRFMT_L6E)) {
-            int k,ch=0,cret;
+            int k,ch=(index==1)?1:0,cret;
             /* initialize week_ref from obs time (once) */
             if (svr->clas->week_ref[0]==0) {
                 gtime_t t=svr->raw[0].time;

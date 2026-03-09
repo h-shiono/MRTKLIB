@@ -579,6 +579,7 @@ set_tests_properties(madocalib_pppar_abs_check PROPERTIES
 #   claslib_vrs_rtk_st12    VRS-RTK with SubType 12 (2019/349)
 #   claslib_vrs_rtk_2ch     VRS-RTK with 2-channel (2025/157)
 #   rtkrcv_rt_clas          Real-time CLAS PPP-RTK (BINEX+L6, rtkrcv file replay)
+#   rtkrcv_rt_clas_2ch      Real-time CLAS PPP-RTK dual-channel L6 (rtkrcv file replay)
 set(_CLSDATA  ${CMAKE_SOURCE_DIR}/tests/data/claslib)
 set(_COMPARE_NMEA ${CMAKE_SOURCE_DIR}/scripts/tests/compare_nmea.py)
 
@@ -620,7 +621,11 @@ add_test(NAME claslib_cleanup
         ${_CLSDATA}/2025157U_ch2.obs \
         ${_CLSDATA}/0627239Q.bnx.tag \
         ${_CLSDATA}/2019239Q.l6.tag \
-        ${_CLSDATA}/rtkrcv_clas_ref.nmea"
+        ${_CLSDATA}/0627157U.bnx.tag \
+        ${_CLSDATA}/2025157U_ch1.l6.tag \
+        ${_CLSDATA}/2025157U_ch2.l6.tag \
+        ${_CLSDATA}/rtkrcv_clas_ref.nmea \
+        ${_CLSDATA}/ref_L6_2CH_RT.nmea"
 )
 set_tests_properties(claslib_cleanup PROPERTIES
     FIXTURES_CLEANUP claslib_data
@@ -1002,6 +1007,28 @@ add_test(NAME rtkrcv_rt_clas
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
 )
 set_tests_properties(rtkrcv_rt_clas PROPERTIES
+    FIXTURES_REQUIRED claslib_data
+    TIMEOUT           600
+    LABELS            "regression;claslib;realtime"
+    RESOURCE_LOCK     rtkrcv_port
+)
+
+# ── rtkrcv RT CLAS PPP-RTK dual-channel regression ────────────────────────────
+# Replays BINEX obs + 2-channel CLAS L6 via rtkrcv at x10 speed.
+# Stream 2 (base slot) carries L6 ch2; stream 3 carries L6 ch1.
+# Uses line-count threshold (≥90% of reference) for pass/fail.
+add_test(NAME rtkrcv_rt_clas_2ch
+    COMMAND bash ${_TESTCMAKE}/run_rtkrcv_test.sh
+        $<TARGET_FILE:rtkrcv>
+        ${CMAKE_SOURCE_DIR}
+        ${_CLSDATA}/ref_L6_2CH_RT.nmea
+        10
+        conf/claslib/rtkrcv_2ch.conf
+        52006
+        500
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+set_tests_properties(rtkrcv_rt_clas_2ch PROPERTIES
     FIXTURES_REQUIRED claslib_data
     TIMEOUT           600
     LABELS            "regression;claslib;realtime"
