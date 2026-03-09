@@ -767,7 +767,6 @@ static void set_cssr_bank_trop(clas_ctx_t *ctx, int ch, gtime_t time,
     clas_bank_ctrl_t *bank = ctx->bank[ch];
     clas_trop_bank_t *trop;
     int i, j;
-
     if ((trop = get_same_trop(bank, time)) == NULL) {
         trop = &bank->TropBank[bank->NextTrop];
         trop->time = time;
@@ -937,14 +936,12 @@ static int sub_get_close_cssr(clas_bank_ctrl_t *bank, gtime_t time, int network,
                               clas_bias_bank_t **cbias, clas_bias_bank_t **pbias,
                               clas_trop_bank_t **trop, int *flag)
 {
-    if (!(*orbit = get_close_orbit(bank, time, network, 180.0)) ||
-        !(*pbias = get_close_net_pbias(bank, (*orbit)->time, network, 0.0))) {
-        trace(NULL,2, "sub_get_close_cssr(): orbit or pbias not found, net=%d\n", network);
-        return 0;
-    }
+    *orbit = get_close_orbit(bank, time, network, 180.0);
+    if (!*orbit) return 0;
+    *pbias = get_close_net_pbias(bank, (*orbit)->time, network, 0.0);
+    if (!*pbias) return 0;
     if (!(*trop = get_close_trop(bank, time, (*orbit)->time, network, 30.0,
           bank->fastfix[network] ? 0 : 1))) {
-        trace(NULL,2, "sub_get_close_cssr(): trop not found, net=%d\n", network);
         return 0;
     }
     /* re-align pbias to trop if needed */
@@ -2473,6 +2470,11 @@ extern int clas_input_cssr(clas_ctx_t *ctx, uint8_t data, int ch)
         l6->nframe++;
     }
     return 0;
+}
+
+extern int clas_decode_msg(clas_ctx_t *ctx, int ch)
+{
+    return decode_qzs_msg(ctx, ch);
 }
 
 extern int clas_input_cssrf(clas_ctx_t *ctx, FILE *fp, int ch)

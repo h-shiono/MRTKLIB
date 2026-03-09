@@ -391,7 +391,7 @@ static int decoderaw(rtksvr_t *svr, int index)
     tracet(NULL,4,"decoderaw: index=%d\n",index);
     
     rtksvrlock(svr);
-    
+
     if(init_flg&&svr->rtcm[0].time.time!=0){
         init_mcssr(svr->rtcm[0].time);
         init_flg=0;
@@ -419,12 +419,76 @@ static int decoderaw(rtksvr_t *svr, int index)
         }
         else if (svr->format[index]==STRFMT_CLAS) {
             if (svr->clas) {
-                ret=clas_input_cssr(svr->clas,svr->buff[index][i],0);
+                int ch=0;
+
+                /* rate-limit: stop processing L6 when it runs too
+                 * far ahead of observation time.  This prevents the
+                 * bank ring buffer from overwriting corrections that
+                 * the positioning engine still needs.  The 60-second
+                 * margin accommodates the initial time offset between
+                 * obs and L6 data while keeping corrections within
+                 * the trop age limit (120 s). */
+                {
+                    gtime_t l6t=svr->clas->l6buf[ch].time;
+                    gtime_t obst=svr->raw[0].time;
+                    if (l6t.time>0 && obst.time>0 &&
+                        timediff(l6t,obst)>60.0) {
+                        /* shift unconsumed bytes to start of buffer */
+                        int remain=svr->nb[index]-i;
+                        if (remain>0) {
+                            memmove(svr->buff[index],svr->buff[index]+i,remain);
+                        }
+                        svr->nb[index]=remain;
+                        break;
+                    }
+                }
+
+                /* initialize GPS week reference from obs time (once) */
+                if (svr->clas->week_ref[0]==0) {
+                    gtime_t t=svr->raw[0].time;
+                    if (t.time>0) {
+                        int j,week;
+                        time2gpst(t,&week);
+                        for (j=0;j<CSSR_REF_MAX;j++) {
+                            svr->clas->week_ref[j]=week;
+                            svr->clas->tow_ref[j]=-1;
+                        }
+                    }
+                }
+                clas_input_cssr(svr->clas,svr->buff[index][i],ch);
+                ret=clas_decode_msg(svr->clas,ch);
                 if (ret==10) {
-                    clas_bank_get_close(svr->clas,svr->clas->l6buf[0].time,
-                                        svr->clas->grid[0].network,0,
-                                        &svr->clas->current[0]);
-                    clas_update_global(&svr->nav,&svr->clas->current[0],0);
+                    int net=svr->clas->grid[ch].network;
+                    if (net>0) {
+                        int rc=clas_bank_get_close(svr->clas,
+                                                svr->clas->l6buf[ch].time,
+                                                net,ch,
+                                                &svr->clas->current[ch]);
+                        if (rc==0) {
+                            clas_update_global(&svr->nav,
+                                               &svr->clas->current[ch],ch);
+                            clas_check_grid_status(svr->clas,
+                                                   &svr->clas->current[ch],ch);
+                        }
+                    } else if (svr->clas->bank[ch] && svr->clas->bank[ch]->use) {
+                        /* bootstrap: scan all networks until grid resolved */
+                        clas_corr_t *tmp=(clas_corr_t *)calloc(
+                            1,sizeof(clas_corr_t));
+                        if (tmp) {
+                            int net2,nfound=0;
+                            for (net2=1;net2<CLAS_MAX_NETWORK;net2++) {
+                                if (clas_bank_get_close(
+                                        svr->clas,
+                                        svr->clas->l6buf[ch].time,
+                                        net2,ch,tmp)==0) {
+                                    nfound++;
+                                    clas_check_grid_status(svr->clas,tmp,ch);
+                                    clas_update_global(&svr->nav,tmp,ch);
+                                }
+                            }
+                            free(tmp);
+                        }
+                    }
                 }
             }
         }
@@ -449,6 +513,59 @@ static int decoderaw(rtksvr_t *svr, int index)
         /* update rtk server */
         if (ret>0) {
             update_svr(svr,ret,obs,nav,ephsat,ephset,sbsmsg,index,fobs);
+        }
+        /* redirect L6 payload to CLAS decoder (UBX/L6E → CLAS path) */
+        if (svr->clas&&ret==10&&
+            (svr->format[index]==STRFMT_UBX||
+             svr->format[index]==STRFMT_L6E)) {
+            int k,ch=0,cret;
+            /* initialize week_ref from obs time (once) */
+            if (svr->clas->week_ref[0]==0) {
+                gtime_t t=svr->raw[0].time;
+                if (t.time>0) {
+                    int j,week;
+                    time2gpst(t,&week);
+                    for (j=0;j<CSSR_REF_MAX;j++) {
+                        svr->clas->week_ref[j]=week;
+                        svr->clas->tow_ref[j]=-1;
+                    }
+                }
+            }
+            /* feed 250-byte L6 frame from rtcm->buff to CLAS decoder */
+            for (k=0;k<250;k++) {
+                clas_input_cssr(svr->clas,svr->rtcm[index].buff[k],ch);
+                cret=clas_decode_msg(svr->clas,ch);
+                if (cret==10) {
+                    int net=svr->clas->grid[ch].network;
+                    if (net>0) {
+                        if (clas_bank_get_close(svr->clas,
+                                                svr->clas->l6buf[ch].time,
+                                                net,ch,
+                                                &svr->clas->current[ch])==0) {
+                            clas_update_global(&svr->nav,
+                                               &svr->clas->current[ch],ch);
+                            clas_check_grid_status(svr->clas,
+                                                   &svr->clas->current[ch],ch);
+                        }
+                    } else if (svr->clas->bank[ch] &&
+                               svr->clas->bank[ch]->use) {
+                        clas_corr_t *tmp=(clas_corr_t *)calloc(
+                            1,sizeof(clas_corr_t));
+                        if (tmp) {
+                            int net2;
+                            for (net2=1;net2<CLAS_MAX_NETWORK;net2++) {
+                                if (clas_bank_get_close(svr->clas,
+                                        svr->clas->l6buf[ch].time,
+                                        net2,ch,tmp)==0) {
+                                    clas_check_grid_status(svr->clas,tmp,ch);
+                                    clas_update_global(&svr->nav,tmp,ch);
+                                }
+                            }
+                            free(tmp);
+                        }
+                    }
+                }
+            }
         }
         /* observation data received */
         if (ret==1) {
@@ -646,7 +763,7 @@ static void *rtksvrthread(void *arg)
         tick=tickget();
         for (i=0;i<3;i++) {
             p=svr->buff[i]+svr->nb[i]; q=svr->buff[i]+svr->buffsize;
-            
+
             /* read receiver raw/rtcm data from input stream */
             if ((n=strread(svr->stream+i,p,q-p))<=0) {
                 continue;
@@ -982,9 +1099,11 @@ extern int rtksvrstart(rtksvr_t *svr, int cycle, int buffsize, int *strs,
     /* store global context for thread use */
     svr->ctx=g_mrtk_ctx;
 
-    /* initialize CLAS context if STRFMT_CLAS format is used */
+    /* initialize CLAS context if L6 source is available for PPP-RTK */
     for (i=0;i<3;i++) {
-        if (formats[i]==STRFMT_CLAS&&!svr->clas) {
+        if ((formats[i]==STRFMT_CLAS||
+            ((formats[i]==STRFMT_UBX||formats[i]==STRFMT_L6E)&&
+             prcopt->mode==PMODE_PPP_RTK))&&!svr->clas) {
             svr->clas=(clas_ctx_t *)calloc(1,sizeof(clas_ctx_t));
             if (svr->clas) clas_ctx_init(svr->clas);
         }

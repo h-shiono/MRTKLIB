@@ -5,6 +5,58 @@ All notable changes to MRTKLIB are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v0.4.3] - 2026-03-09
+
+**Real-time CLAS PPP-RTK** — Enables `rtkrcv` to perform CLAS PPP-RTK positioning
+using BINEX/SBF observations and CLAS L6D corrections via file-stream replay.
+Achieves 97.7% fix rate on the 2019/239 reference dataset, matching post-processing
+steady-state accuracy after convergence.
+
+### Added
+
+- **Real-time CLAS PPP-RTK via `rtkrcv`** — The CLAS PPP-RTK engine now runs inside
+  the rtksvr real-time pipeline.  Supported input stream combinations: BINEX+L6,
+  SBF+L6, RTCM3+UBX.
+- **L6 rate limiter** (`mrtk_rtksvr.c`) — Pauses L6 correction processing when it
+  runs >60 s ahead of observations, protecting the CLAS bank ring buffer (32 entries)
+  from overwrite during file replay.
+- **`gen_bnx_tag.py`** — BINEX time-tag generator; parses 0x7F-05 observation records
+  to extract epoch timestamps and create `.tag` files for `::T::xN` replay.
+- **`gen_l6_tag.py`** — L6 time-tag generator with `--sync-tag` master synchronisation;
+  auto-detects compressed master tags and adjusts tick_n scaling.
+- **`rtkrcv_rt_clas` CTest** — Automated regression test replaying 1 hour of BINEX+L6
+  data at 10x speed (~370 s wall time).  Uses `RESOURCE_LOCK rtkrcv_port` to prevent
+  parallel conflicts with the MADOCA `rtkrcv_rt` test.
+- **rtkrcv configurations** — Three configs for different stream combinations:
+  `rtkrcv.conf` (BINEX+L6), `rtkrcv_sbf_l6d.conf` (SBF+L6),
+  `rtkrcv_rtcm3_ubx.conf` (RTCM3+UBX).
+- **Documentation** ([docs/rtkrcv-clas-realtime.md](docs/rtkrcv-clas-realtime.md)) —
+  Setup guide, PP vs RT comparison, architecture overview, troubleshooting.
+
+### Changed
+
+- **`run_rtkrcv_test.sh`** — Parameterised to accept config file path, port, and
+  max timeout; previously hardcoded to the MADOCA test configuration.
+- **Debug fprintf cleanup** — Removed temporary debug print statements from
+  `mrtk_clas.c`, `mrtk_clas_grid.c`, `mrtk_clas_osr.c`, and `mrtk_ppp_rtk.c`.
+
+### PP vs RT performance (2019/239 dataset)
+
+| Metric | PP (rnx2rtkp) | RT (rtkrcv) |
+|--------|:---:|:---:|
+| Fix (Q=4) | 3,575 (99.86%) | 3,517 (97.72%) |
+| Float (Q=5) | 5 (0.14%) | 5 (0.14%) |
+| SPP (Q=1) | 0 (0.00%) | 77 (2.14%) |
+
+77 Q=1 epochs = initial convergence period (~77 s).
+Steady-state fix rate identical to post-processing.
+
+### Test Results
+
+58 tests (57 from v0.4.2 + 1 new `rtkrcv_rt_clas`).
+
+---
+
 ## [v0.4.2] - 2026-03-08
 
 **PPP-RTK / PPP accuracy release** — Extends the [demo5](https://github.com/rtklibexplorer/RTKLIB)
@@ -547,6 +599,7 @@ Initial release — MALIB structural migration complete.
 - **MALIB integration** — Structural base from JAXA MALIB feature/1.2.0
   (directory layout, threading, stream I/O).
 
+[v0.4.3]: https://github.com/h-shiono/MRTKLIB/compare/v0.4.2...v0.4.3
 [v0.4.2]: https://github.com/h-shiono/MRTKLIB/compare/v0.4.1...v0.4.2
 [v0.4.1]: https://github.com/h-shiono/MRTKLIB/compare/v0.3.3...v0.4.1
 [v0.3.3]: https://github.com/h-shiono/MRTKLIB/compare/v0.3.2...v0.3.3

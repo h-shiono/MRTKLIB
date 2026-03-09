@@ -75,6 +75,8 @@
 #include "rtklib.h"
 #include "mrtklib/mrtklib.h"
 #include "mrtklib/mrtk_context.h"
+#include "mrtklib/mrtk_clas.h"
+#include "mrtklib/mrtk_station.h"
 #include "vt.h"
 
 #define PRGNAME     "rtkrcv"            /* program name */
@@ -212,7 +214,7 @@ static const char *pathopts[]={         /* path options help */
 #define FLGOPT  "0:off,1:std+2:age/ratio/ns"
 #define ISTOPT  "0:off,1:serial,2:file,3:tcpsvr,4:tcpcli,6:ntripcli,7:ftp,8:http,10:udpsvr,11:udpcli"
 #define OSTOPT  "0:off,1:serial,2:file,3:tcpsvr,4:tcpcli,5:ntripsvr,9:ntripcas,10:udpsvr,11:udpcli"
-#define FMTOPT  "0:rtcm2,1:rtcm3,2:oem4,3:oem3,4:ubx,5:ss2,6:hemis,7:skytraq,8:javad,9:nvs,10:binex,11:rt17,12:sbf,14:sp3,20:stat,21:l6e"
+#define FMTOPT  "0:rtcm2,1:rtcm3,2:oem4,3:oem3,4:ubx,5:ss2,6:hemis,7:skytraq,8:javad,9:nvs,10:binex,11:rt17,12:sbf,14:sp3,20:stat,21:l6e,22:clas"
 #define NMEOPT  "0:off,1:latlon,2:single"
 #define SOLOPT  "0:llh,1:xyz,2:enu,3:nmea,4:stat"
 #define MSGOPT  "0:all,1:rover,2:base,3:corr"
@@ -521,8 +523,43 @@ static int startsvr(vt_t *vt)
                      cmds,cmds_periodic,ropts,nmeacycle,nmeareq,npos,&prcopt,
                      solopt,&moni,rst,errmsg)) {
         trace(NULL,2,"rtk server start error (%s)\n",errmsg);
+        fprintf(stderr,"rtk server start error: %s\n",errmsg);
         vt_printf(vt,"rtk server start error (%s)\n",errmsg);
         return 0;
+    }
+    /* load CLAS auxiliary files after server start.
+     * lock to avoid racing with the rtksvr thread */
+    if (svr.clas) {
+        rtksvrlock(&svr);
+        /* grid definition file */
+        if (*filopt.grid) {
+            if (clas_read_grid_def(svr.clas,filopt.grid)!=0) {
+                fprintf(stderr,"clas grid file error: %s\n",filopt.grid);
+            }
+        }
+        /* ISB correction table */
+        if (prcopt.isb==ISBOPT_TABLE&&*filopt.isb) {
+            readisb(filopt.isb,&svr.nav);
+        }
+        /* L2C phase shift table */
+        if (prcopt.phasshft==ISBOPT_TABLE&&*filopt.phacyc) {
+            readL2C(filopt.phacyc,&svr.nav);
+        }
+        /* grid BLQ for OTL (tidecorr=3) */
+        if (prcopt.tidecorr==3&&*filopt.blq) {
+            readblqgrid(filopt.blq,svr.clas);
+        }
+        /* receiver OTL */
+        if (prcopt.mode>PMODE_SINGLE&&*filopt.blq) {
+            readblq(filopt.blq,sta[0].name,prcopt.odisp[0]);
+        }
+        /* station info and ISB setup */
+        memcpy(svr.nav.stas,sta,sizeof(sta_t)*MAXRCV);
+        if (prcopt.isb==ISBOPT_TABLE) {
+            setisb(&svr.nav,prcopt.rectype[0],prcopt.rectype[1],
+                   &svr.nav.stas[0],&svr.nav.stas[1]);
+        }
+        rtksvrunlock(&svr);
     }
     return 1;
 }
@@ -979,7 +1016,7 @@ static void prstream(vt_t *vt)
     };
     const char *fmt[]={
         "rtcm2","rtcm3","oem4","oem3","ubx","ss2","hemis","skytreq","javad",
-        "nvs","binex","rt17","sbf","","sp3","","","","","","stat","l6e"
+        "nvs","binex","rt17","sbf","","sp3","","","","","","stat","l6e","clas"
     };
     const char *sol[]={"llh","xyz","enu","nmea","stat","-"};
     stream_t stream[9];

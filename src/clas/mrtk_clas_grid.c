@@ -692,7 +692,9 @@ static int trop_data(zwd_t *z, gtime_t time, double *ztd, double *zwd,
 
     trace(NULL, 4, "trop_data: %s\n", time_str(time, 0));
 
-    if (z->n <= 0) return 0;
+    if (z->n <= 0) {
+        return 0;
+    }
 
     tt = timediff(time, z->data[k].time);
     if (fabs(tt) > MAXAGESSR_TROP) {

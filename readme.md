@@ -42,8 +42,9 @@ incrementally back-ported to each engine:
 |---------|--------|-------------|--------|
 | **v0.4.1** | RTK | demo5 Partial AR (PAR), `detslp_dop` / `detslp_code`, full-constellation `varerr`, false-fix persistence fix | ✅ Released |
 | **v0.4.2** | PPP-RTK, PPP | demo5 `detslp_dop` / `detslp_code`, GLONASS clock guard in `ephpos()`, PAR variance gate + arfilter, full-constellation EFACT, adaptive outlier threshold (PPP-RTK only) | ✅ Released |
-| **v0.4.3** | All | TOML-based option file support (replacing legacy key=value `.conf` format) | 🔜 Planned |
-| **v0.5.0** | — | Port remaining RTKLIB console apps: `convbin` (RINEX converter), `str2str` (stream relay) | 🔜 Planned |
+| **v0.4.3** | PPP-RTK | Real-time CLAS PPP-RTK via `rtkrcv` (BINEX+L6, SBF+L6, RTCM3+UBX file replay; 97.7% fix rate) | ✅ Released |
+| **v0.5.0** | All | TOML-based option file support (replacing legacy key=value `.conf` format) | 🔜 Planned |
+| **v0.5.1** | — | Port remaining RTKLIB console apps: `convbin` (RINEX converter), `str2str` (stream relay) | 🔜 Planned |
 | **TBD** | All | Doxygen docstring coverage expansion | 💭 Backlog |
 
 > demo5 algorithm improvements are adapted from **[demo5 RTKLIB](https://github.com/rtklibexplorer/RTKLIB)**

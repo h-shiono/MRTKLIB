@@ -1953,8 +1953,6 @@ extern void ppp_rtk_pos(rtk_t *rtk, const obsd_t *obs, int n, nav_t *nav)
 
     trace(NULL, 2, "ppp_rtk_pos: time=%s nx=%d n=%d\n",
           time_str(obs[0].time, 0), rtk->nx, n);
-    /* temporary debug (remove after Phase 5.3) */
-
     /* check CLAS context availability */
     if (!nav->clas_ctx) {
         trace(NULL, 2, "ppp_rtk_pos: no CLAS context\n");
@@ -2010,7 +2008,7 @@ extern void ppp_rtk_pos(rtk_t *rtk, const obsd_t *obs, int n, nav_t *nav)
     grid = &clas->grid[0]; /* single channel, ch=0 */
     corr = &clas->current[0];
     ecef2pos(rtk->x, pos);
-    if ((nn = clas_get_grid_index(clas, pos, grid, 0, obs[0].time)) <= 0) {
+    if ((nn = clas_get_grid_index(clas, pos, grid, opt->gridsel, obs[0].time)) <= 0) {
         trace(NULL, 2, "ppp_rtk_pos: no valid grid\n");
         free(azel); free(e); free(y); free(rs); free(dts); free(var);
         rtk->sol.stat = SOLQ_SINGLE;
@@ -2022,10 +2020,19 @@ extern void ppp_rtk_pos(rtk_t *rtk, const obsd_t *obs, int n, nav_t *nav)
         int nch = opt->l6mrg ? SSR_CH_NUM : 1;
         int ch;
         for (ch = 0; ch < nch; ch++) {
-            if (grid->network > 0 && grid->network != clas->current[ch].network) {
-                if (clas_bank_get_close(clas, clas->l6buf[ch].time,
+            /* re-fetch corrections closest to observation time,
+             * falling back to L6 buffer time if obs lookup fails */
+            if (grid->network > 0) {
+                int bgrc=clas_bank_get_close(clas, obs[0].time,
                                         grid->network, ch,
-                                        &clas->current[ch]) != 0) {
+                                        &clas->current[ch]);
+                if (bgrc != 0) {
+                    /* fallback: try L6 buffer time */
+                    bgrc=clas_bank_get_close(clas, clas->l6buf[ch].time,
+                                        grid->network, ch,
+                                        &clas->current[ch]);
+                }
+                if (bgrc != 0) {
                     trace(NULL, 3, "ppp_rtk_pos: bank lookup failed ch=%d\n", ch);
                     continue;
                 }
@@ -2101,7 +2108,6 @@ extern void ppp_rtk_pos(rtk_t *rtk, const obsd_t *obs, int n, nav_t *nav)
                 stat = SOLQ_NONE;
                 break;
             }
-
             /* DD residuals and partial derivatives */
             if ((nv = ddres(rtk, nav, xp, pbslip, Pp, obs, y, e, azel, n,
                             v, H, R, vflg, k)) <= 0) {
@@ -2109,7 +2115,6 @@ extern void ppp_rtk_pos(rtk_t *rtk, const obsd_t *obs, int n, nav_t *nav)
                 stat = SOLQ_NONE;
                 break;
             }
-
             /* Kalman filter measurement update */
             matcpy(Pp, rtk->P, rtk->nx, rtk->nx);
             matcpy(xp, rtk->x, rtk->nx, 1);
