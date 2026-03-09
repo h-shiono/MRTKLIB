@@ -13,9 +13,9 @@ ch2.  Achieves 67.4% fix rate on the 2025/157 dual-channel dataset (PP baseline:
 
 ### Added
 
-- **2ch CLAS real-time via `rtkrcv`** — Stream index 1 (base slot, unused in PPP-RTK)
-  carries L6 ch2; stream index 2 carries L6 ch1.  CLAS channel is derived from stream
-  index: `ch = (index == 1) ? 1 : 0`.
+- **2ch CLAS real-time via `rtkrcv`** — `inpstr2` (internal index 1, base slot, unused
+  in PPP-RTK) carries L6 ch2; `inpstr3` (internal index 2) carries L6 ch1.  CLAS channel
+  is derived from the 0-based stream index: `ch = (index == 1) ? 1 : 0`.
 - **`rtkrcv_2ch.conf`** — Configuration for dual-channel BINEX+L6 file replay.
 - **`rtkrcv_rt_clas_2ch` CTest** — Regression test replaying 1 hour of 2ch data at 10x
   speed (~372 s wall time).  Uses `RESOURCE_LOCK rtkrcv_port`.

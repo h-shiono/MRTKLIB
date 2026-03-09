@@ -64,7 +64,7 @@ simultaneously — matching the post-processing engine's dual-channel capability
 The CLAS channel assignment was changed from hardcoded `ch=0` to stream-index-derived:
 
 ```c
-int ch = (index == 1) ? 1 : 0;  /* stream 2→ch0, stream 1→ch1 */
+int ch = (index == 1) ? 1 : 0;  /* index 1 (inpstr2)→ch1, index 2 (inpstr3)→ch0 */
 ```
 
 This applies to both the direct CLAS decode path and the UBX/L6E redirect path.

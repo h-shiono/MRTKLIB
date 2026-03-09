@@ -419,7 +419,7 @@ static int decoderaw(rtksvr_t *svr, int index)
         }
         else if (svr->format[index]==STRFMT_CLAS) {
             if (svr->clas) {
-                int ch=(index==1)?1:0; /* stream 2→ch0, stream 1→ch1 */
+                int ch=(index==1)?1:0; /* index 1 (inpstr2)→ch1, index 2 (inpstr3)→ch0 */
 
                 /* rate-limit: stop processing L6 when it runs too
                  * far ahead of observation time.  This prevents the
