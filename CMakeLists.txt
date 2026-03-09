@@ -162,9 +162,15 @@ add_executable(dumpcssr
 )
 target_link_libraries(dumpcssr PRIVATE mrtklib)
 
+# ── cssr2rtcm3 ────────────────────────────────────────────────────────────────
+add_executable(cssr2rtcm3
+    apps/cssr2rtcm3/cssr2rtcm3.c
+)
+target_link_libraries(cssr2rtcm3 PRIVATE mrtklib)
+
 # ── Install ───────────────────────────────────────────────────────────────────
 # cmake --install build  →  copies binaries to bin/ (matches make install)
-install(TARGETS rnx2rtkp rtkrcv recvbias ssr2obs ssr2osr dumpcssr RUNTIME DESTINATION bin)
+install(TARGETS rnx2rtkp rtkrcv recvbias ssr2obs ssr2osr dumpcssr cssr2rtcm3 RUNTIME DESTINATION bin)
 
 # ── Utility tools (optional) ─────────────────────────────────────────────────
 # Build with: cmake --preset default -DBUILD_UTILS=ON
