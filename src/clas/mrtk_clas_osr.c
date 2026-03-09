@@ -1051,7 +1051,6 @@ int clas_osr_zdres(const obsd_t *obs, int n, const double *rs,
         free(obs_copy);
         return 0;
     }
-
     /* earth tides correction
      * upstream claslib uses switch/case semantics for tidecorr:
      *   0: off

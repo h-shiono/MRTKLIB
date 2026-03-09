@@ -648,6 +648,19 @@ void clas_ctx_free(clas_ctx_t *ctx);
 int clas_input_cssr(clas_ctx_t *ctx, uint8_t data, int ch);
 
 /**
+ * @brief Decode the next pending CSSR message from the assembled bit buffer.
+ *
+ * Call this after clas_input_cssr() to trigger CSSR message decoding.
+ * clas_input_cssr() only assembles L6 frames; this function performs the
+ * actual CSSR decode step and returns a completion code.
+ *
+ * @param[in,out] ctx  CLAS context
+ * @param[in]     ch   Channel index (0 = primary)
+ * @return 10 when a complete CSSR correction set is ready, 0 otherwise
+ */
+int clas_decode_msg(clas_ctx_t *ctx, int ch);
+
+/**
  * @brief Input CSSR from file (one message at a time, post-processing).
  * @param[in,out] ctx   CLAS context
  * @param[in]     fp    File pointer
