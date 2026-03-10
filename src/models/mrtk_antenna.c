@@ -120,7 +120,7 @@ static int readngspcv(const char *file, pcvs_t *pcvs)
         } else if (n == 5) {
             if (decodef(buff, 3, neu) < 3) {
                 continue;
-            };
+            }
             pcv.off[1][0]=neu[1];
             pcv.off[1][1]=neu[0];
             pcv.off[1][2]=neu[2];
