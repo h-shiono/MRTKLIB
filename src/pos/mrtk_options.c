@@ -455,9 +455,20 @@ extern int saveopts(const char *file, const char *mode, const char *comment,
 {
     FILE *fp;
     char buff[2048];
+    const char *ext;
     int i;
-    
+
     trace(NULL,3,"saveopts: file=%s mode=%s\n",file,mode);
+
+    /* detect .toml extension — TOML save does not support append mode */
+    ext=strrchr(file,'.');
+    if (ext&&strcmp(ext,".toml")==0) {
+        if (mode&&strcmp(mode,"a")==0) {
+            trace(NULL,2,"saveopts: TOML append not supported, skipping (%s)\n",file);
+            return 1; /* not an error — caller likely already wrote with "w" */
+        }
+        return saveopts_toml(file,comment,opts);
+    }
     
     if (!(fp=fopen(file,mode))) {
         trace(NULL,1,"saveopts: options file open error (%s)\n",file);

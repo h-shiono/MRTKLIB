@@ -27,8 +27,13 @@ cd "$PROJECT_ROOT"
 
 OUTPUT=$(mktemp /tmp/rtkrcv_ctest_XXXXXX.pos)
 
-# Determine file extension for temp conf
-CONF_EXT="${CONF_FILE##*.}"
+# Determine file extension for temp conf (fallback to .conf if no '.')
+CONF_BASENAME=$(basename "$CONF_FILE")
+if [[ "$CONF_BASENAME" == *.* ]]; then
+    CONF_EXT="${CONF_BASENAME##*.}"
+else
+    CONF_EXT="conf"
+fi
 CONF=$(mktemp /tmp/rtkrcv_conf_XXXXXX."${CONF_EXT}")
 RTKRCV_PID=""
 
