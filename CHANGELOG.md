@@ -5,6 +5,39 @@ All notable changes to MRTKLIB are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v0.4.5] - 2026-03-10
+
+**`cssr2rtcm3` real-time CSSR→RTCM3 converter** — New standalone application that
+converts QZSS CLAS L6D (CSSR) corrections to RTCM3 MSM4 (OSR) messages in real-time,
+enabling CLAS-unsupported receivers to use centimetre-level QZSS corrections via
+standard NTRIP/TCP.  Includes single SBF stream mode for Septentrio receivers.
+
+### Added
+
+- **`cssr2rtcm3` application** (`apps/cssr2rtcm3/cssr2rtcm3.c`) — Stream-based
+  CSSR→RTCM3 converter.  Inputs: serial/TCP/NTRIP/file L6 stream + RINEX NAV +
+  position (NMEA GGA or fixed).  Outputs: RTCM3 1005 + MSM4 (1074/1084/1094/1114).
+- **SBF single-stream mode** (`-in sbf://...`) — Accepts a single Septentrio SBF
+  stream containing multiplexed QZSRawL6D (4270), decoded NAV, and PVTGeodetic.
+  No separate `-nav` or `-pos`/`-p` required.
+- **7 new SBF block decoders** in `mrtk_rcv_septentrio.c`:
+  - QZSRawL6D (4270) — CLAS L6D (reuses existing `decode_qzsrawl6`)
+  - PVTGeodetic (4007) — Receiver SPP position (new return code 5)
+  - GPSNav (5891), GLONav (4004), GALNav (4002), BDSNav (4081), QZSNav (4095) —
+    Decoded navigation ephemeris (ported from demo5)
+- **Dual-channel L6** — Optional `-2ch` argument for second L6 correction stream.
+
+### Validation
+
+File replay verified on 2019/239 dataset: 207 epochs, 2,567 satellite observations,
+828 RTCM3 messages.  **Real-device verification with a Septentrio receiver is planned.**
+
+### Test Results
+
+59 tests (unchanged from v0.4.4).
+
+---
+
 ## [v0.4.4] - 2026-03-09
 
 **Dual-channel CLAS real-time PPP-RTK** — Extends `rtkrcv` to process two independent
@@ -630,6 +663,8 @@ Initial release — MALIB structural migration complete.
 - **MALIB integration** — Structural base from JAXA MALIB feature/1.2.0
   (directory layout, threading, stream I/O).
 
+[v0.4.5]: https://github.com/h-shiono/MRTKLIB/compare/v0.4.4...v0.4.5
+[v0.4.4]: https://github.com/h-shiono/MRTKLIB/compare/v0.4.3...v0.4.4
 [v0.4.3]: https://github.com/h-shiono/MRTKLIB/compare/v0.4.2...v0.4.3
 [v0.4.2]: https://github.com/h-shiono/MRTKLIB/compare/v0.4.1...v0.4.2
 [v0.4.1]: https://github.com/h-shiono/MRTKLIB/compare/v0.3.3...v0.4.1
