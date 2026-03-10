@@ -1,0 +1,19 @@
+# MRTKLIB Configuration (TOML v1.0.0)
+# Converted from: nagoya.conf
+
+[antenna.rover]
+type    = "TRM105000.10    NONE"
+delta_e = 0.0
+delta_n = 0.0
+delta_u = 0.0
+
+[antenna.base]
+position_type = "llh"
+position_1    = 35.13470947  # latitude  (deg)
+position_2    = 136.97757427  # longitude (deg)
+position_3    = 104.718  # ellipsoidal height (m)
+type          = "TRM115000.00    NONE"
+delta_e       = 0.0
+delta_n       = 0.0
+delta_u       = -0.0652
+

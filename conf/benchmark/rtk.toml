@@ -1,0 +1,113 @@
+# MRTKLIB Configuration (TOML v1.0.0)
+# Converted from: rtk.conf
+
+[positioning]
+mode                = "kinematic"  # (2:kinematic)
+frequency           = "l1+2+3"  # triple-freq
+solution_type       = "forward"
+elevation_mask      = 15.0  # (deg)
+dynamics            = true  # kinematic
+satellite_ephemeris = "brdc"
+excluded_sats       = ""
+constellations      = 57  # GPS + Galileo + QZSS + BDS; GPS+SBS+GLO+GAL+QZS (matches rover observation constellations)
+
+[positioning.snr_mask]
+rover_enabled = true
+base_enabled  = false
+L1            = [10, 10, 10, 10, 30, 30, 30, 30, 30]
+L2            = [10, 10, 10, 10, 30, 30, 30, 30, 30]
+L5            = [10, 10, 10, 10, 30, 30, 30, 30, 30]
+
+[positioning.corrections]
+satellite_antenna = true  # satellite antenna (off: no precise eph)
+receiver_antenna  = true  # receiver antenna PCV (city conf sets antenna type)
+phase_windup      = "on"  # phase windup
+exclude_eclipse   = true  # eclipsing satellite exclusion
+raim_fde          = true  # RAIM FDE
+
+[positioning.atmosphere]
+tidal_correction = "on"  # solid earth tides
+ionosphere       = "off"
+troposphere      = "off"
+
+[ambiguity_resolution]
+mode = "fix-and-hold"
+
+[ambiguity_resolution.thresholds]
+ratio          = 3.0
+ratio1         = 0.9999
+ratio2         = 0.25
+elevation_mask = 15.0
+hold_elevation = 0.0
+
+[ambiguity_resolution.counters]
+lock_count     = 0
+min_fix        = 10
+max_iterations = 99
+out_count      = 5
+
+[ambiguity_resolution.partial_ar]
+min_fix_sats = 4  # min sat pairs for valid fix (PAR guard)
+ar_filter    = true  # exclude newly-locked sats that degrade ratio
+
+[rejection]
+innovation = 30.0  # (m)
+gdop       = 30.0
+
+[slip_detection]
+threshold = 0.05  # (m)
+doppler   = 1.0  # Doppler slip threshold (cyc/s, 0=off)
+
+[kalman_filter]
+iterations = 1
+
+[receiver]
+max_age         = 30.0  # (s)
+baseline_length = 0.0
+baseline_sigma  = 0.0
+
+[antenna.rover]
+position_type = "single"
+type          = "*"
+delta_e       = 0.0
+delta_n       = 0.0
+delta_u       = 0.0
+
+[antenna.base]
+position_type = "rinexhead"
+type          = "*"
+delta_e       = 0.0
+delta_n       = 0.0
+delta_u       = 0.0
+
+[output]
+format            = "nmea"
+header            = true
+options           = true
+time_system       = "gpst"
+time_format       = "tow"
+time_decimals     = 3
+coordinate_format = "deg"
+field_separator   = ""
+height_type       = "ellipsoidal"
+geoid_model       = "internal"
+static_solution   = "all"
+nmea_interval_1   = 0.0
+nmea_interval_2   = 0.0
+solution_status   = "off"
+
+[files]
+receiver_atx  = "./tests/data/madocalib/igs20.atx"
+satellite_atx = ""
+station_pos   = ""
+geoid         = ""
+dcb           = ""
+temp_dir      = ""
+geexe         = ""
+solution_stat = ""
+trace         = ""
+
+[server]
+time_interpolation = true
+sbas_satellite     = "all"
+

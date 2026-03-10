@@ -1,0 +1,30 @@
+# MRTKLIB Configuration (TOML v1.0.0)
+# Converted from: ssr2obs.conf
+
+[positioning]
+mode           = "ssr2osr"  # (10:ssr2osr)
+frequency      = "l1+2+3"  # (3:l1+2+3 for L1+L2+L5)
+excluded_sats  = ""  # (prn ...)
+constellations = 25  # GPS + Galileo + QZSS; (1:gps+8:gal+16:qzs)
+
+[positioning.corrections]
+receiver_antenna  = false  # receiver antenna model(0:off,1:on)
+phase_windup      = "on"  # phase windup correction(0:off,1:on)
+iono_compensation = "ssr"  # compensate time variation of ionosphere delay(0:off,1:ssr)
+shapiro_delay     = true  # shapiro time delay correction (0:off,1:on)
+no_phase_bias_adj = false  # don't adjust phase bias (0:off,1:on)
+
+[positioning.atmosphere]
+tidal_correction = "solid+otl-clasgrid+pole"  # (0:off,3:solid+otl-clasgrid+pole)
+
+[antenna.rover]
+position_type = "llh"  # (0:llh,1:xyz)
+position_1    = 36.1036338527778
+position_2    = 140.086318405556
+position_3    = 69.77042
+
+[files]
+cssr_grid     = "./tests/data/claslib/clas_grid.def"
+ocean_loading = "./tests/data/claslib/clas_grid.blq"  # for static or moving rovers
+eop           = "./tests/data/claslib/igu00p01.erp"
+

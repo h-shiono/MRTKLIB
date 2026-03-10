@@ -1,0 +1,172 @@
+# MRTKLIB Configuration (TOML v1.0.0)
+# Converted from: clas.conf
+
+[positioning]
+mode                = "ppp-rtk"  # (9:ppp-rtk)
+frequency           = "l1+2+3"  # GPS/QZSS L1+L2+L5, Galileo E1+E5
+solution_type       = "forward"  # (0:forward)
+elevation_mask      = 15.0  # (deg)
+dynamics            = true  # kinematic
+satellite_ephemeris = "brdc+ssrapc"
+excluded_sats       = ""
+constellations      = 25  # GPS + Galileo + QZSS; GPS+GAL+QZS
+
+[positioning.clas]
+grid_selection_radius = 1000  # [m]
+receiver_type         = "Septentrio mosaic-X5"
+
+[positioning.snr_mask]
+rover_enabled = true  # (0:off,1:on)
+L1            = [10, 10, 10, 10, 30, 30, 30, 30, 30]
+L2            = [10, 10, 10, 10, 30, 30, 30, 30, 30]
+L5            = [10, 10, 10, 10, 30, 30, 30, 30, 30]
+
+[positioning.corrections]
+satellite_antenna = true
+receiver_antenna  = true  # receiver antenna pco/pcv
+phase_windup      = "on"  # phase windup
+exclude_eclipse   = true  # exclude eclipsing satellites
+raim_fde          = true  # raim fde
+iono_compensation = "meas"  # iono time-variation compensation
+partial_ar        = true  # partial ambiguity resolution
+shapiro_delay     = true  # shapiro delay
+exclude_qzs_ref   = true  # exclude QZS as reference satellite
+no_phase_bias_adj = false
+gps_frequency     = "l1+l2"  # GPS/QZS freq
+
+[positioning.atmosphere]
+tidal_correction = "solid+otl-clasgrid+pole"  # solid+otl-clasgrid+pole
+ionosphere       = "est-adaptive"
+troposphere      = "off"
+
+[ambiguity_resolution]
+mode   = "fix-and-hold"
+qzs_ar = true
+
+[ambiguity_resolution.thresholds]
+alpha          = "10%"
+elevation_mask = 20.0
+hold_elevation = 30.0
+
+[ambiguity_resolution.counters]
+lock_count = 5
+out_count  = 1
+min_fix    = 0
+
+[ambiguity_resolution.partial_ar]
+min_ambiguities   = 6
+max_excluded_sats = 4
+
+[ambiguity_resolution.hold]
+variance = 0.001
+
+[rejection]
+l1_l2_residual       = 2.0
+dispersive           = 3.0
+non_dispersive       = 3.0
+hold_chi_square      = 0.5
+fix_chi_square       = 5.0
+pseudorange_diff     = 10.0
+position_error_count = 5
+
+[slip_detection]
+threshold = 0.05
+
+[kalman_filter]
+iterations = 1
+
+[kalman_filter.measurement_error]
+code_phase_ratio_L1 = 50.0
+phase               = 0.01
+phase_elevation     = 0.005
+phase_baseline      = 0.0
+doppler             = 10.0
+
+[kalman_filter.initial_std]
+bias        = 100.0
+ionosphere  = 0.01
+troposphere = 0.005
+
+[kalman_filter.process_noise]
+accel_h         = 0.2
+accel_v         = 0.1
+position_h      = 0.0
+position_v      = 0.0
+bias            = 0.001
+ionosphere      = 0.001
+iono_max        = 0.05
+troposphere     = 0.001
+iono_time_const = 10.0
+clock_stability = 5.00e-12
+
+[adaptive_filter]
+iono_forgetting = 0.3
+iono_gain       = 3.0
+enabled         = false
+pva_forgetting  = 0.3
+pva_gain        = 1.0
+
+[receiver]
+baseline_length = 0.0
+baseline_sigma  = 0.0
+max_age         = 30.0
+isb             = false  # no ISB table entry for Septentrio mosaic-X5
+reference_type  = "CLAS"
+phase_shift     = "table"
+
+[antenna.rover]
+type          = "*"
+position_type = "single"
+delta_e       = 0.0
+delta_n       = 0.0
+delta_u       = 0.0
+
+[antenna.base]
+position_type = "llh"
+position_1    = 0.0
+position_2    = 0.0
+position_3    = 0.0
+type          = "*"
+delta_e       = 0.0
+delta_n       = 0.0
+delta_u       = 0.0
+
+[output]
+format            = "nmea"
+header            = true
+options           = true
+time_system       = "gpst"
+time_format       = "tow"
+time_decimals     = 3
+coordinate_format = "deg"
+field_separator   = ""
+height_type       = "ellipsoidal"
+geoid_model       = "internal"
+static_solution   = "all"
+nmea_interval_1   = 0.0
+nmea_interval_2   = 0.0
+solution_status   = "off"
+
+[files]
+cssr_grid     = "./tests/data/claslib/clas_grid.def"
+ocean_loading = "./tests/data/claslib/clas_grid.blq"
+eop           = "./tests/data/claslib/igu00p01.erp"
+receiver_atx  = "./tests/data/claslib/igs14_L5copy.atx"
+isb_table     = "./tests/data/claslib/isb.tbl"
+phase_cycle   = "./tests/data/claslib/l2csft.tbl"
+satellite_atx = ""
+station_pos   = ""
+geoid         = ""
+dcb           = ""
+temp_dir      = ""
+geexe         = ""
+solution_stat = ""
+trace         = ""
+
+[server]
+rinex_option_1     = ""
+time_interpolation = true
+sbas_satellite     = "all"
+max_obs_loss       = 90.0
+float_count        = 15
+

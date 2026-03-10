@@ -278,9 +278,9 @@ mkdir -p "$MDCL_CONFDIR"
 
 # Use MRTKLIB's conf files (they are faithful copies of madocalib's
 # sample configs with only file-rcvantfile path adjusted)
-CONF_PPP="conf/madocalib/rnx2rtkp.conf"
-CONF_PPPAR="conf/madocalib/rnx2rtkp_pppar.conf"
-CONF_PPPAR_IONO="conf/madocalib/rnx2rtkp_pppar_iono.conf"
+CONF_PPP="conf/madocalib/rnx2rtkp.toml"
+CONF_PPPAR="conf/madocalib/rnx2rtkp_pppar.toml"
+CONF_PPPAR_IONO="conf/madocalib/rnx2rtkp_pppar_iono.toml"
 
 # Helper to run madocalib's rnx2rtkp and verify
 run_madocalib_rnx2rtkp() {

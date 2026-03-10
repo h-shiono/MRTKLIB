@@ -122,8 +122,8 @@ echo "Extracting data..."
 tar -xzf tests/data/malib/MALIB_OSS_data.tar.gz --strip-components=2 -C tests/data/malib
 
 # Copy config file
-cp conf/malib/rnx2rtkp.conf .
-CLEANUP_FILES+=(./rnx2rtkp.conf)
+cp conf/malib/rnx2rtkp.toml .
+CLEANUP_FILES+=(./rnx2rtkp.toml)
 
 # Input files
 obs=tests/data/malib/MALIB_OSS_data_obsnav_240822-1100.obs
@@ -137,7 +137,7 @@ mkdir -p "$output_dir"
 # Execute MALIB rnx2rtkp (PPP)
 output="${output_dir}/MALIB_OSS_data_obsnav_240822-1100.pp.pos"
 echo "Running MALIB rnx2rtkp for PPP..."
-"$RNX2RTKP" -k rnx2rtkp.conf ${TRACE_OPTS[@]+"${TRACE_OPTS[@]}"} -o "$output" "$obs" "$nav" "$l6e"
+"$RNX2RTKP" -k rnx2rtkp.toml ${TRACE_OPTS[@]+"${TRACE_OPTS[@]}"} -o "$output" "$obs" "$nav" "$l6e"
 
 # Execute MALIB rnx2rtkp (SPP)
 output_spp="${output_dir}/MALIB_OSS_data_obsnav_240822-1100.pp.spp.pos"

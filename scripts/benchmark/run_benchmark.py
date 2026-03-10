@@ -370,7 +370,7 @@ def run_benchmark(args: argparse.Namespace) -> int:
                             break
 
         for mode in modes:
-            conf = str(conf_dir / f"{mode}.conf")
+            conf = str(conf_dir / f"{mode}.toml")
             out = out_dir / f"{case['id']}_{mode}.nmea"
 
             # Determine extra input files and convergence threshold
@@ -409,7 +409,7 @@ def run_benchmark(args: argparse.Namespace) -> int:
 
             if not skip_run:
                 t0 = time.monotonic()
-                city_conf = str(conf_dir / f"{case['city']}.conf")
+                city_conf = str(conf_dir / f"{case['city']}.toml")
                 ok = _run_rnx2rtkp(
                     rnx2rtkp, conf, city_conf,
                     case["gps_week"],

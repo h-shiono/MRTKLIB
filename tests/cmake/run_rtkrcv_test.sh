@@ -18,7 +18,7 @@ RTKRCV_BIN="$1"
 PROJECT_ROOT="$2"
 REFERENCE="$3"
 PLAYBACK_SPEED="${4:-10}"
-CONF_FILE="${5:-conf/malib/rtkrcv.conf}"
+CONF_FILE="${5:-conf/malib/rtkrcv.toml}"
 RTKRCV_PORT="${6:-52003}"
 MAX_TIMEOUT="${7:-300}"
 IDLE_TIMEOUT=10
@@ -26,7 +26,15 @@ IDLE_TIMEOUT=10
 cd "$PROJECT_ROOT"
 
 OUTPUT=$(mktemp /tmp/rtkrcv_ctest_XXXXXX.pos)
-CONF=$(mktemp /tmp/rtkrcv_conf_XXXXXX.conf)
+
+# Determine file extension for temp conf (fallback to .conf if no '.')
+CONF_BASENAME=$(basename "$CONF_FILE")
+if [[ "$CONF_BASENAME" == *.* ]]; then
+    CONF_EXT="${CONF_BASENAME##*.}"
+else
+    CONF_EXT="conf"
+fi
+CONF=$(mktemp /tmp/rtkrcv_conf_XXXXXX."${CONF_EXT}")
 RTKRCV_PID=""
 
 cleanup() {
@@ -40,8 +48,26 @@ trap cleanup EXIT
 
 # Patch conf: set output path and playback speed
 cp "$CONF_FILE" "$CONF"
-sed -i.bak "s|^outstr1-path.*|outstr1-path       =${OUTPUT}|" "$CONF"
-sed -i.bak "s|::x[0-9]*|::x${PLAYBACK_SPEED}|g" "$CONF"
+if [[ "$CONF_EXT" == "toml" ]]; then
+    # TOML format: patch path under [streams.output.stream1]
+    # Replace the outstr1 path value (line matching 'path' after output.stream1 section)
+    python3 -c "
+import sys, re
+text = open(sys.argv[1]).read()
+# Replace output stream1 path
+text = re.sub(
+    r'(\[streams\.output\.stream1\][^\[]*?path\s*=\s*)\"[^\"]*\"',
+    r'\1\"${OUTPUT}\"',
+    text, count=1, flags=re.DOTALL)
+# Replace playback speed
+text = re.sub(r'::x[0-9]+', '::x${PLAYBACK_SPEED}', text)
+open(sys.argv[1], 'w').write(text)
+" "$CONF"
+else
+    # Legacy .conf format
+    sed -i.bak "s|^outstr1-path.*|outstr1-path       =${OUTPUT}|" "$CONF"
+    sed -i.bak "s|::x[0-9]*|::x${PLAYBACK_SPEED}|g" "$CONF"
+fi
 
 # Start rtkrcv in background
 "$RTKRCV_BIN" -s -p "$RTKRCV_PORT" -o "$CONF" &
