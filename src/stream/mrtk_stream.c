@@ -1186,7 +1186,7 @@ static int waittcpsvr(tcpsvr_t *tcpsvr, char *msg)
     }
 
     while (accsock(tcpsvr, msg)) {
-        ;
+        /* accept all pending connections */
     }
 
     updatetcpsvr(tcpsvr,msg);
@@ -3352,7 +3352,7 @@ extern void strsendcmd(stream_t *str, const char *cmd)
         n=(int)(q-p); strncpy(msg,p,n); msg[n]='\0';
         
         if (!*msg||*msg=='#') { /* null or comment */
-            ;
+            /* skip */
         }
         else if (*msg=='!') { /* binary escape */
             

@@ -2676,14 +2676,14 @@ extern int rtkpos(mrtk_ctx_t *ctx, rtk_t *rtk, const obsd_t *obs, int n, nav_t *
     }
     /* count rover/base station observations */
     for (nu = 0; nu < n && obs[nu].rcv == 1; nu++) {
-        ;
+        /* count via loop header */
     }
     for (nr[0] = 0; nu + nr[0] < n && obs[nu + nr[0]].rcv == 2; nr[0]++) {
-        ;
+        /* count via loop header */
     }
     if (opt->l6mrg) {
         for (nr[1] = 0; nu + nr[0] + nr[1] < n && obs[nu + nr[0] + nr[1]].rcv == 3; nr[1]++) {
-            ;
+            /* count via loop header */
         }
     }
     

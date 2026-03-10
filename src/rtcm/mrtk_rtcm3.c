@@ -255,7 +255,7 @@ static void adjday_glot(rtcm_t *rtcm, double tod)
 static double adjcp(rtcm_t *rtcm, int sat, int idx, double cp)
 {
     if (rtcm->cp[sat - 1][idx] == 0.0) {
-        ;
+        /* first epoch: no rollover adjustment */
     } else if (cp < rtcm->cp[sat - 1][idx] - 750.0) {
         cp += 1500.0;
     } else if (cp > rtcm->cp[sat - 1][idx] + 750.0) {
@@ -2212,7 +2212,7 @@ static void sigindex(int sys, const uint8_t *code, int n, const char *opt,
     /* signal index in obs data */
     for (i=nex=0;i<n;i++) {
         if (ex[i] == 0) {
-            ;
+            /* primary signal: index already assigned */
         } else if (nex < NEXOBS) {
             idx[i] = NFREQ + nex++;
         } else { /* no space in obs data */

@@ -185,7 +185,7 @@ extern int readblq(const char *file, const char *sta, double *odisp)
     /* station name to upper case */
     sscanf(sta,"%16s",staname);
     for (p = staname; (*p = (char)toupper((int)(*p))); p++) {
-        ;
+        /* convert in-place via loop header */
     }
 
     if (!(fp=fopen(file,"r"))) {
@@ -201,7 +201,7 @@ extern int readblq(const char *file, const char *sta, double *odisp)
             continue;
         }
         for (p = name; (*p = (char)toupper((int)(*p))); p++) {
-            ;
+            /* convert in-place via loop header */
         }
         if (strcmp(name, staname)) {
             continue;

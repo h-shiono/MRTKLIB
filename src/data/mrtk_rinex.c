@@ -417,7 +417,7 @@ static void decode_obsh(FILE *fp, char *buff, int ver, int *tsys,
     } else if (strstr(label, "MARKER TYPE")) {
         ; /* ver.3 */
     } else if (strstr(label, "OBSERVER / AGENCY")) {
-        ;
+        /* ignored */
     } else if (strstr(label, "REC # / TYPE / VERS")) {
         if (sta) {
             setstr(sta->recsno, buff,   20);
