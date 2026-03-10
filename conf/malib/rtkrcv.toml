@@ -1,0 +1,225 @@
+# MRTKLIB Configuration (TOML v1.0.0)
+# Converted from: rtkrcv.conf
+
+[positioning]
+mode                = "ppp-kine"  # (0:single,1:dgps,2:kinematic,3:static,4:movingbase,5:fixed,6:ppp-kine,7:ppp-static,8:ppp-fixed)
+frequency           = "l1+2"  # (1:l1,2:l1+2,3:l1+2+3,4:l1+2+3+4,5:l1+2+3+4+5)
+solution_type       = "forward"  # (0:forward,1:backward,2:combined)
+elevation_mask      = 10.0  # (deg)
+dynamics            = false  # (0:off,1:on)
+satellite_ephemeris = "brdc+ssrapc"  # (0:brdc,1:precise,2:brdc+sbas,3:brdc+ssrapc,4:brdc+ssrcom)
+excluded_sats       = ""  # (prn ...)
+constellations      = 29  # GPS + GLONASS + Galileo + QZSS; (1:gps+2:sbas+4:glo+8:gal+16:qzs+32:bds+64:navic)
+
+[positioning.snr_mask]
+rover_enabled = false  # (0:off,1:on)
+base_enabled  = false  # (0:off,1:on)
+L1            = [0, 0, 0, 0, 0, 0, 0, 0, 0]
+L2            = [0, 0, 0, 0, 0, 0, 0, 0, 0]
+L5            = [0, 0, 0, 0, 0, 0, 0, 0, 0]
+
+[positioning.corrections]
+satellite_antenna = true  # (0:off,1:on)
+receiver_antenna  = true  # (0:off,1:on)
+phase_windup      = "on"  # (0:off,1:on,2:precise)
+exclude_eclipse   = true  # (0:off,1:on)
+raim_fde          = false  # (0:off,1:on)
+iono_compensation = "off"  # (0:off,1:on)
+
+[positioning.atmosphere]
+tidal_correction = "on"  # (0:off,1:on,2:otl)
+ionosphere       = "est-stec"  # (0:off,1:brdc,2:sbas,3:dual-freq,4:est-stec,5:ionex-tec,6:qzs-brdc)
+troposphere      = "est-ztd"  # (0:off,1:saas,2:sbas,3:est-ztd,4:est-ztdgrad)
+
+[ambiguity_resolution]
+mode    = "continuous"  # (0:off,1:continuous,2:instantaneous,3:fix-and-hold)
+systems = 1  # (1:gps+8:gal+16:qzs)
+
+[ambiguity_resolution.thresholds]
+ratio          = 3.0
+ratio1         = 0.9999
+ratio2         = 0.25
+ratio3         = 0.1
+ratio4         = 0.05
+elevation_mask = 15.0  # (deg)
+hold_elevation = 0.0  # (deg)
+
+[ambiguity_resolution.counters]
+lock_count     = 0
+min_fix        = 10
+max_iterations = 99
+out_count      = 5
+
+[rejection]
+innovation = 100.0  # (m)
+gdop       = 30.0
+
+[slip_detection]
+threshold = 0.15  # (m)
+
+[kalman_filter]
+sync_solution = false  # (0:off,1:on)
+iterations    = 1
+
+[kalman_filter.measurement_error]
+code_phase_ratio_L1 = 300.0
+code_phase_ratio_L2 = 300.0
+phase               = 0.003  # (m)
+phase_elevation     = 0.003  # (m)
+phase_baseline      = 0.0  # (m/10km)
+doppler             = 1.0  # (Hz)
+
+[kalman_filter.initial_std]
+bias        = 30.0  # (m)
+ionosphere  = 0.03  # (m)
+troposphere = 0.3  # (m)
+
+[kalman_filter.process_noise]
+accel_h         = 1.0  # (m/s^2)
+accel_v         = 0.1  # (m/s^2)
+bias            = 1.00e-05  # (m)
+ionosphere      = 0.01  # (m)
+troposphere     = 3.00e-05  # (m)
+position        = 0.0  # (m)
+clock_stability = 5.00e-12  # (s/s)
+
+[signals]
+galileo = "E1/E5b"  # (0:E1C-E5a,1:E1C-E5b)
+bds3    = "B1I/B3I"  # (0:B1-B3,1:B1C-B2a)
+
+[receiver]
+max_age            = 30.0  # (s)
+baseline_length    = 0.0  # (m)
+baseline_sigma     = 0.0  # (m)
+ignore_chi_error   = false  # (0:off,1:on)
+bds2_bias          = false  # (0:off,1:on)
+ppp_sat_clock_bias = 0  # (0:auto,1:ssr,2:bia,3:dcb)
+ppp_sat_phase_bias = 0  # (0:auto,1:ssr,3:fcb)
+uncorr_bias        = 0  # (0:use uncorrected code bias,1: do not use uncorrected code bias)
+max_bias_dt        = 0  # (bia and fcb product code/phase bias timeout(s))
+
+[antenna.rover]
+position_type = "llh"  # (0:llh,1:xyz,2:single,3:posfile,4:rinexhead,5:rtcm,6:raw)
+position_1    = 90.0  # (deg|m)
+position_2    = 0.0  # (deg|m)
+position_3    = -6335367.6285  # (m|m)
+type          = ""
+delta_e       = 0.0  # (m)
+delta_n       = 0.0  # (m)
+delta_u       = 0.0  # (m)
+
+[antenna.base]
+position_type      = "llh"  # (0:llh,1:xyz,2:single,3:posfile,4:rinexhead,5:rtcm,6:raw)
+position_1         = 90.0  # (deg|m)
+position_2         = 0.0  # (deg|m)
+position_3         = -6335367.6285  # (m|m)
+type               = ""
+delta_e            = 0.0  # (m)
+delta_n            = 0.0  # (m)
+delta_u            = 0.0  # (m)
+max_average_epochs = 0
+init_reset         = false  # (0:off,1:on)
+
+[output]
+format            = "llh"  # (0:llh,1:xyz,2:enu,3:nmea)
+header            = true  # (0:off,1:on)
+options           = true  # (0:off,1:on)
+velocity          = false  # (0:off,1:on)
+time_system       = "gpst"  # (0:gpst,1:utc,2:jst)
+time_format       = "hms"  # (0:tow,1:hms)
+time_decimals     = 3
+coordinate_format = "deg"  # (0:deg,1:dms)
+field_separator   = ""
+single_output     = false  # (0:off,1:on)
+max_solution_std  = 0.0  # (m)
+height_type       = "ellipsoidal"  # (0:ellipsoidal,1:geodetic)
+geoid_model       = "internal"  # (0:internal,1:egm96,2:egm08_2.5,3:egm08_1,4:gsi2000)
+static_solution   = "all"  # (0:all,1:single)
+nmea_interval_1   = 0.0  # (s)
+nmea_interval_2   = 0.0  # (s)
+solution_status   = "off"  # (0:off,1:state,2:residual)
+
+[files]
+satellite_atx = "./tests/data/malib/igs14_20230719_KMD_add.atx"
+receiver_atx  = "./tests/data/malib/igs14_20230719_KMD_add.atx"
+station_pos   = ""
+geoid         = ""
+ionosphere    = ""
+dcb           = ""
+eop           = ""
+ocean_loading = ""
+fcb           = ""
+bias_sinex    = ""
+temp_dir      = ""
+geexe         = ""
+solution_stat = ""
+trace         = ""
+
+[server]
+time_interpolation = false  # (0:off,1:on)
+sbas_satellite     = "0"  # (0:all)
+rinex_option_1     = ""
+rinex_option_2     = ""
+ppp_option         = ""
+rtcm_option        = ""
+cycle_ms           = 10  # (ms)
+timeout_ms         = 10000  # (ms)
+reconnect_ms       = 10000  # (ms)
+nmea_cycle_ms      = 5000  # (ms)
+buffer_size        = 32768  # (bytes)
+nav_msg_select     = "all"  # (0:all,1:rover,2:base,3:corr)
+proxy              = ""
+swap_margin        = 30  # (s)
+
+[unknown]
+pos2-siggpsIIR-M = "0"  # (0:L1C/A-L2P,1:L1C/A-L2C)
+pos2-siggpsIIF   = "0"  # (0:L1C/A-L2P,1:L1C/A-L2C,2:L1C/A-L5)
+pos2-siggpsIIIA  = "0"  # (0:L1C/A-L2P,1:L1C/A-L2C,2:L1C/A-L5)
+pos2-sigqzs1_2   = "1"  # (0:L1C-L5,1:L1C/A-L2C)
+
+[console]
+passwd   = ""
+timetype = "gpst"  # (0:gpst,1:utc,2:jst,3:tow)
+soltype  = "deg"  # (0:dms,1:deg,2:xyz,3:enu,4:pyl)
+solflag  = "off"  # (0:off,1:std+2:age/ratio/ns)
+
+[streams.input.rover]
+type   = "file"  # (0:off,1:serial,2:file,3:tcpsvr,4:tcpcli,6:ntripcli,7:ftp,8:http,10:udpsvr,11:udpcli)
+path   = "./tests/data/malib/MALIB_OSS_data_obsnav_240822-1100.sbf::T::x10"
+format = "sbf"  # (0:rtcm2,1:rtcm3,2:oem4,3:oem3,4:ubx,5:ss2,6:hemis,7:skytraq,8:javad,9:nvs,10:binex,11:rt17,12:sbf,14:sp3,21:l6e)
+
+[streams.input.base]
+type    = "off"  # (0:off,1:serial,2:file,3:tcpsvr,4:tcpcli,6:ntripcli,7:ftp,8:http,10:udpsvr,11:udpcli)
+path    = ""
+format  = ""  # (0:rtcm2,1:rtcm3,2:oem4,3:oem3,4:ubx,5:ss2,6:hemis,7:skytraq,8:javad,9:nvs,10:binex,11:rt17,12:sbf,14:sp3,21:l6e)
+nmeareq = false  # (0:off,1:latlon,2:single)
+nmealat = 0.0  # (deg)
+nmealon = 0.0  # (deg)
+
+[streams.input.correction]
+type   = "file"  # (0:off,1:serial,2:file,3:tcpsvr,4:tcpcli,6:ntripcli,7:ftp,8:http,10:udpsvr,11:udpcli)
+path   = "./tests/data/malib/MALIB_OSS_data_l6e_240822-1100.sbf::T::x10"
+format = "sbf"  # (0:rtcm2,1:rtcm3,2:oem4,3:oem3,4:ubx,5:ss2,6:hemis,7:skytraq,8:javad,9:nvs,10:binex,11:rt17,12:sbf,14:sp3,21:l6e)
+
+[streams.output.stream1]
+type   = "file"  # (0:off,1:serial,2:file,3:tcpsvr,4:tcpcli,5:ntripsvr,9:ntripcas,10:udpsvr,11:udpcli)
+path   = "./tests/data/malib/out/rtkrcv_test.pos"
+format = "llh"  # (0:llh,1:xyz,2:enu,3:nmea,4:stat)
+
+[streams.output.stream2]
+type   = "off"  # (0:off,1:serial,2:file,3:tcpsvr,4:tcpcli,5:ntripsvr,9:ntripcas,10:udpsvr,11:udpcli)
+path   = ""
+format = "llh"  # (0:llh,1:xyz,2:enu,3:nmea,4:stat)
+
+[streams.log.stream1]
+type = "off"  # (0:off,1:serial,2:file,3:tcpsvr,4:tcpcli,5:ntripsvr,9:ntripcas,10:udpsvr,11:udpcli)
+path = ""
+
+[streams.log.stream2]
+type = "off"  # (0:off,1:serial,2:file,3:tcpsvr,4:tcpcli,5:ntripsvr,9:ntripcas,10:udpsvr,11:udpcli)
+path = ""
+
+[streams.log.stream3]
+type = "off"  # (0:off,1:serial,2:file,3:tcpsvr,4:tcpcli,5:ntripsvr,9:ntripcas,10:udpsvr,11:udpcli)
+path = ""
+

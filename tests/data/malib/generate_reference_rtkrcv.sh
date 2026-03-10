@@ -156,7 +156,7 @@ cleanup() {
         kill -TERM "$RTKRCV_PID" 2>/dev/null || true
         wait "$RTKRCV_PID" 2>/dev/null || true
     fi
-    rm -f ./rtkrcv.conf ./rtkrcv.conf.bak ./rtkrcv.nav
+    rm -f ./rtkrcv.toml ./rtkrcv.nav
     # Files extracted by tar (be specific to avoid deleting generated .pos files)
     rm -f tests/data/malib/2024235L.209.l6
     rm -f tests/data/malib/MALIB_OSS_data_obsnav_240822-1100.obs
@@ -173,17 +173,24 @@ echo "Extracting data..."
 tar -xzf tests/data/malib/MALIB_OSS_data.tar.gz --strip-components=2 -C tests/data/malib
 
 # Prepare config: copy and patch output path + playback speed
-cp conf/malib/rtkrcv.conf .
-# Set output file path
-sed -i.bak "s|^outstr1-path.*|outstr1-path       =./${output}|" rtkrcv.conf
-# Set playback speed
-sed -i.bak "s|::x[0-9]*|::x${PLAYBACK_SPEED}|g" rtkrcv.conf
-rm -f rtkrcv.conf.bak
+cp conf/malib/rtkrcv.toml ./rtkrcv.toml
+python3 -c "
+import sys, re
+text = open(sys.argv[1]).read()
+# Replace output stream1 path
+text = re.sub(
+    r'(\[streams\.output\.stream1\][^\[]*?path\s*=\s*)\"[^\"]*\"',
+    r'\1\"./${output}\"',
+    text, count=1, flags=re.DOTALL)
+# Replace playback speed
+text = re.sub(r'::x[0-9]+', '::x${PLAYBACK_SPEED}', text)
+open(sys.argv[1], 'w').write(text)
+" ./rtkrcv.toml
 
 echo "Config: playback speed x${PLAYBACK_SPEED}, output -> ${output}"
 
 # Build rtkrcv command
-RTKRCV_CMD=("$RTKRCV" -s -p "$RTKRCV_PORT" -o rtkrcv.conf)
+RTKRCV_CMD=("$RTKRCV" -s -p "$RTKRCV_PORT" -o rtkrcv.toml)
 if [[ "$TRACE_LEVEL" -gt 0 ]]; then
     RTKRCV_CMD+=(-t "$TRACE_LEVEL")
 fi

@@ -1,0 +1,233 @@
+# MRTKLIB Configuration (TOML v1.0.0)
+# Converted from: rtkrcv.conf
+
+[positioning]
+mode                = "ppp-rtk"  # (9:ppp-rtk)
+frequency           = "l1+2+3"  # (3:l1+2+3 for GPS/QZSS L1+L2+L5, Galileo E1+E5b)
+solution_type       = "forward"  # (0:forward)
+elevation_mask      = 15.0  # (deg)
+dynamics            = true  # kinematic
+satellite_ephemeris = "brdc+ssrapc"  # (3:brdc+ssrapc)
+excluded_sats       = ""
+constellations      = 25  # GPS + Galileo + QZSS; (1:gps+8:gal+16:qzs)
+
+[positioning.clas]
+grid_selection_radius  = 1000  # CLAS grid selection radius (m)
+receiver_type          = "Trimble NetR9"
+position_uncertainty_x = 10.0
+position_uncertainty_y = 10.0
+position_uncertainty_z = 10.0
+
+[positioning.snr_mask]
+rover_enabled = true  # (0:off,1:on)
+base_enabled  = false
+L1            = [10, 10, 10, 10, 30, 30, 30, 30, 30]
+L2            = [10, 10, 10, 10, 30, 30, 30, 30, 30]
+L5            = [10, 10, 10, 10, 30, 30, 30, 30, 30]
+
+[positioning.corrections]
+satellite_antenna = false  # satellite antenna model
+receiver_antenna  = true  # receiver antenna model
+phase_windup      = "on"  # phase windup
+exclude_eclipse   = true  # exclude eclipsing satellites
+raim_fde          = true  # raim fde
+iono_compensation = "meas"  # compensate iono time variation (2:meas)
+partial_ar        = true  # partial ambiguity resolution
+shapiro_delay     = true  # shapiro time delay
+exclude_qzs_ref   = true  # exclude QZS as reference satellite
+no_phase_bias_adj = false
+gps_frequency     = "l1+l2"  # gps/qzs freq (2:l1+l2)
+
+[positioning.atmosphere]
+tidal_correction = "solid+otl-clasgrid+pole"  # (3:solid+otl-clasgrid+pole)
+ionosphere       = "est-adaptive"  # (9:est-adaptive)
+troposphere      = "off"
+
+[ambiguity_resolution]
+mode   = "fix-and-hold"  # (3:fix-and-hold)
+qzs_ar = true
+
+[ambiguity_resolution.thresholds]
+alpha          = "10%"  # significance level
+elevation_mask = 20.0  # (deg)
+hold_elevation = 30.0  # (deg)
+
+[ambiguity_resolution.counters]
+lock_count = 5
+out_count  = 1
+min_fix    = 0
+
+[ambiguity_resolution.partial_ar]
+min_ambiguities   = 6  # min ambiguities for PAR
+max_excluded_sats = 4  # max excluded sats for PAR
+
+[ambiguity_resolution.hold]
+variance = 0.001  # fix-and-hold variance (cycle^2)
+
+[rejection]
+l1_l2_residual       = 2.0  # (sigma) L1/L2 residual rejection
+dispersive           = 3.0  # (sigma) dispersive residual rejection
+non_dispersive       = 3.0  # (sigma) non-dispersive (l0) rejection
+hold_chi_square      = 0.5  # Fix&Hold chi-square threshold
+fix_chi_square       = 5.0  # Fix chi-square threshold
+pseudorange_diff     = 10.0  # (m)
+position_error_count = 5
+
+[slip_detection]
+threshold = 0.05  # (m)
+
+[kalman_filter]
+iterations = 1
+
+[kalman_filter.measurement_error]
+code_phase_ratio_L1 = 50.0
+phase               = 0.01  # (m)
+phase_elevation     = 0.005  # (m)
+phase_baseline      = 0.0  # (m/10km)
+doppler             = 10.0  # (Hz)
+
+[kalman_filter.initial_std]
+bias        = 100.0  # initial bias std (cycle)
+ionosphere  = 0.01  # initial iono std (m)
+troposphere = 0.005  # initial trop std (m)
+
+[kalman_filter.process_noise]
+accel_h         = 0.2  # (m/s^2)
+accel_v         = 0.1  # (m/s^2)
+position_h      = 0.0  # (m)
+position_v      = 0.0  # (m)
+bias            = 0.001  # (m)
+ionosphere      = 0.001  # (m)
+iono_max        = 0.05  # (m)
+troposphere     = 0.001  # (m)
+iono_time_const = 10.0  # (s)
+clock_stability = 5.00e-12  # (s/s)
+
+[adaptive_filter]
+iono_forgetting = 0.3  # iono forgetting factor
+iono_gain       = 3.0  # iono adaptive filter gain
+enabled         = false
+pva_forgetting  = 0.3
+pva_gain        = 1.0
+
+[receiver]
+baseline_length = 0.0  # (m)
+baseline_sigma  = 0.0  # (m)
+max_age         = 30.0  # (s)
+isb             = true  # ISB correction
+phase_shift     = "table"  # 1/4 cycle phase shift correction
+reference_type  = "CLAS"  # reference receiver type (always CLAS)
+
+[antenna.rover]
+position_type = "single"  # initial position from SPP
+type          = "TRM59800.80     NONE"
+delta_e       = 0.0  # (m)
+delta_n       = 0.0  # (m)
+delta_u       = 0.0  # (m)
+
+[antenna.base]
+position_type      = "llh"
+position_1         = 0.0
+position_2         = 0.0
+position_3         = 0.0
+type               = "*"
+delta_e            = 0.0
+delta_n            = 0.0
+delta_u            = 0.0
+max_average_epochs = 0
+init_reset         = false
+
+[output]
+format            = "nmea"  # (3:nmea)
+header            = true
+options           = true
+velocity          = false
+time_system       = "gpst"
+time_format       = "tow"  # applies to non-NMEA formats; NMEA uses UTC from gpst2utc()
+time_decimals     = 3
+coordinate_format = "deg"
+field_separator   = ""
+single_output     = false
+max_solution_std  = 0.0
+height_type       = "ellipsoidal"
+geoid_model       = "internal"
+static_solution   = "all"
+nmea_interval_1   = 0.0
+nmea_interval_2   = 0.0
+solution_status   = "off"
+
+[files]
+cssr_grid     = "./tests/data/claslib/clas_grid.def"
+ocean_loading = "./tests/data/claslib/clas_grid.blq"
+eop           = "./tests/data/claslib/igu00p01.erp"
+receiver_atx  = "./tests/data/claslib/igs14_L5copy.atx"
+isb_table     = "./tests/data/claslib/isb.tbl"
+phase_cycle   = "./tests/data/claslib/l2csft.tbl"
+satellite_atx = ""
+station_pos   = ""
+geoid         = ""
+dcb           = ""
+temp_dir      = ""
+geexe         = ""
+solution_stat = ""
+trace         = ""
+
+[server]
+cycle_ms           = 10  # (ms)
+timeout_ms         = 10000  # (ms)
+reconnect_ms       = 10000  # (ms)
+nmea_cycle_ms      = 5000  # (ms)
+buffer_size        = 32768  # (bytes)
+nav_msg_select     = "all"
+proxy              = ""
+swap_margin        = 30  # (s)
+time_interpolation = true  # interpolate corrections between epochs
+max_obs_loss       = 90.0  # max epochs without observation before reset
+float_count        = 15  # float epochs before fix attempt
+
+[streams.input.rover]
+type   = "file"  # (2:file)
+path   = "./tests/data/claslib/0627239Q.bnx::T::x10"
+format = "binex"  # (10:binex) GNSS observations
+
+[streams.input.base]
+type    = "off"
+path    = ""
+format  = ""
+nmeareq = false
+nmealat = 0.0
+nmealon = 0.0
+
+[streams.input.correction]
+type   = "file"  # (2:file)
+path   = "./tests/data/claslib/2019239Q.l6::T::x10"
+format = "clas"  # (22:clas) CLAS L6 CSSR corrections
+
+[streams.output.stream1]
+type   = "file"
+path   = "./tests/data/claslib/out/rtkrcv_clas_test.nmea"
+format = "nmea"  # (3:nmea)
+
+[streams.output.stream2]
+type   = "off"
+path   = ""
+format = "nmea"
+
+[streams.log.stream1]
+type = "off"
+path = ""
+
+[streams.log.stream2]
+type = "off"
+path = ""
+
+[streams.log.stream3]
+type = "off"
+path = ""
+
+[console]
+passwd   = ""
+timetype = "gpst"
+soltype  = "deg"
+solflag  = "off"
+

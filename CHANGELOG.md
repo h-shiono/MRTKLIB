@@ -5,6 +5,50 @@ All notable changes to MRTKLIB are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v0.5.0] - 2026-03-10
+
+**TOML configuration migration** — Replaces the legacy RTKLIB `key=value` `.conf`
+format with TOML v1.0.  All 19 configuration files converted to semantic TOML
+sections.  Zero-regression: all 59 tests pass with bit-identical positioning output.
+
+### Added
+
+- **TOML v1.0 parser** — [tomlc99](https://github.com/cktan/tomlc99) (MIT, C99)
+  vendored at `src/core/tomlc99/`.
+- **`mrtk_toml.c` / `mrtk_toml.h`** — C TOML loader with 230-entry mapping table.
+  Navigates TOML tree, converts values to strings, and feeds them through the
+  existing `searchopt()` + `str2opt()` infrastructure.
+- **`scripts/tools/conf2toml.py`** — Python converter: legacy `.conf` → `.toml`
+  with full enum resolution (bare integers → named strings), rtkrcv stream/console
+  key support, and batch conversion mode.
+- **19 TOML config files** — claslib (9), madocalib (3), malib (2), benchmark (5).
+  Options grouped semantically: `[positioning]`, `[ambiguity_resolution]`,
+  `[kalman_filter]`, `[streams.*]`, etc.
+
+### Changed
+
+- **`loadopts()` auto-detection** — Checks file extension; `.toml` dispatches to
+  `loadopts_toml()`, other extensions use the legacy parser.
+- **CTest** — All 59 test commands switched from `-k *.conf` to `-k *.toml`.
+- **`run_rtkrcv_test.sh`** — TOML-aware config patching (Python regex for output
+  path and playback speed).
+- **`run_benchmark.py`** — References updated to `.toml`.
+- **Reference generation scripts** — Updated to use `.toml` configs.
+
+### Removed
+
+- **19 legacy `.conf` files** — All configuration files under `conf/` replaced by
+  `.toml` equivalents.
+- **`toml11` vcpkg dependency** — Removed (C++17, incompatible with C11 codebase);
+  replaced by vendored tomlc99.
+
+### Test Results
+
+59 tests — unchanged from v0.4.4.  Bit-identical output verified on CLAS PPP-RTK
+(7,160-line NMEA, 0 diff between `.conf` and `.toml`).
+
+---
+
 ## [v0.4.4] - 2026-03-09
 
 **Dual-channel CLAS real-time PPP-RTK** — Extends `rtkrcv` to process two independent

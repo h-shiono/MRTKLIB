@@ -1,0 +1,71 @@
+# MRTKLIB Configuration (TOML v1.0.0)
+# Converted from: ssr2osr.conf
+
+[positioning]
+mode                = "ssr2osr"  # (10:ssr2osr,11:ssr2osr-fixed)
+frequency           = "l1+2+3"  # (3:l1+2+3 for L1+L2+L5)
+elevation_mask      = 15.0  # (deg)
+satellite_ephemeris = "brdc+ssrapc"  # (3:brdc+ssrapc)
+excluded_sats       = ""  # (prn ...)
+constellations      = 25  # GPS + Galileo + QZSS; (1:gps+8:gal+16:qzs)
+
+[positioning.clas]
+receiver_type = "Trimble NetR9"  # User receiver type
+
+[positioning.snr_mask]
+rover_enabled = true  # (0:off,1:on)
+L1            = [10, 10, 10, 10, 30, 30, 30, 30, 30]
+L2            = [10, 10, 10, 10, 30, 30, 30, 30, 30]
+L5            = [10, 10, 10, 10, 30, 30, 30, 30, 30]
+
+[positioning.corrections]
+receiver_antenna  = true  # receiver antenna model(0:off,1:on)
+phase_windup      = "on"  # phase windup correction(0:off,1:on)
+iono_compensation = "meas"  # compensate time variation of ionosphere delay(0:off,1:ssr,2:meas)
+shapiro_delay     = true  # shapiro time delay correction (0:off,1:on)
+no_phase_bias_adj = false  # don't adjust phase bias (0:off,1:on)
+
+[positioning.atmosphere]
+tidal_correction = "solid+otl-clasgrid+pole"  # (0:off,3:solid+otl-clasgrid+pole)
+
+[kalman_filter.measurement_error]
+code_phase_ratio_L1 = 50.0  # code/phase error ratio
+phase               = 0.01  # (m) measurement error
+phase_elevation     = 0.006  # (m) measurement error elevation dependant
+
+[receiver]
+isb            = true  # isb correction method (0:off,1:table)
+phase_shift    = "table"  # 1/4 cycle phase shift correction method in case of L2C (0:off,1:table)
+reference_type = "CLAS"  # Reference receiver type (always fixed as CLAS)
+
+[antenna.rover]
+type          = "TRM59800.80     NONE"  # User antenna type
+position_type = "llh"  # (0:llh,1:xyz)
+position_1    = 36.1036338  # (deg)
+position_2    = 140.086318494  # (deg)
+position_3    = 69.767  # (m)
+
+[output]
+format            = "nmea"  # (0:llh,1:xyz,2:enu,3:nmea)
+header            = true  # (0:off,1:on)
+options           = true  # (0:off,1:on)
+time_system       = "gpst"  # (0:gpst,1:utc,2:jst)
+time_format       = "tow"  # (0:tow,1:hms)
+time_decimals     = 3
+coordinate_format = "deg"  # (0:deg,1:dms)
+field_separator   = ""
+height_type       = "ellipsoidal"  # (0:ellipsoidal,1:geodetic)
+geoid_model       = "internal"  # (0:internal,1:egm96,2:egm08_2.5,3:egm08_1,4:gsi2000)
+static_solution   = "all"  # (0:all,1:single)
+nmea_interval_1   = 0.0  # (s)
+nmea_interval_2   = 0.0  # (s)
+solution_status   = "residual"  # (0:off,1:state,2:residual)
+
+[files]
+cssr_grid     = "./tests/data/claslib/clas_grid.def"
+ocean_loading = "./tests/data/claslib/clas_grid.blq"  # for static or moving rovers
+eop           = "./tests/data/claslib/igu00p01.erp"
+receiver_atx  = "./tests/data/claslib/igs14_L5copy.atx"
+isb_table     = "./tests/data/claslib/isb.tbl"
+phase_cycle   = "./tests/data/claslib/l2csft.tbl"
+
