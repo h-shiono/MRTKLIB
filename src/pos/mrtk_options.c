@@ -313,7 +313,7 @@ static int str2enum(const char *str, const char *comment, int *val)
             continue;
         }
         for (p -= 2; p >= comment && '0' <= *p && *p <= '9'; p--) {
-            ;
+            /* find start of numeric id */
         }
        return sscanf(p+1,"%d",val)==1;
     }
