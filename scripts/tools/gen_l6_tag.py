@@ -33,6 +33,41 @@ from datetime import datetime, timedelta, timezone
 
 L6_FRAME_SIZE = 250  # bytes per frame
 L6_FRAME_INTERVAL = 1.0  # seconds between frames
+GPS_EPOCH_UNIX = 315964800  # Unix timestamp of GPS epoch (1980-01-06T00:00:00Z)
+
+# GPS-UTC leap seconds table: (UTC datetime, cumulative leap seconds)
+# Only entries from GPS epoch onward; kept in sync with IERS Bulletin C.
+_LEAP_SECONDS = [
+    (datetime(1981, 7, 1, tzinfo=timezone.utc), 1),
+    (datetime(1982, 7, 1, tzinfo=timezone.utc), 2),
+    (datetime(1983, 7, 1, tzinfo=timezone.utc), 3),
+    (datetime(1985, 7, 1, tzinfo=timezone.utc), 4),
+    (datetime(1988, 1, 1, tzinfo=timezone.utc), 5),
+    (datetime(1990, 1, 1, tzinfo=timezone.utc), 6),
+    (datetime(1991, 1, 1, tzinfo=timezone.utc), 7),
+    (datetime(1992, 7, 1, tzinfo=timezone.utc), 8),
+    (datetime(1993, 7, 1, tzinfo=timezone.utc), 9),
+    (datetime(1994, 7, 1, tzinfo=timezone.utc), 10),
+    (datetime(1996, 1, 1, tzinfo=timezone.utc), 11),
+    (datetime(1997, 7, 1, tzinfo=timezone.utc), 12),
+    (datetime(1999, 1, 1, tzinfo=timezone.utc), 13),
+    (datetime(2006, 1, 1, tzinfo=timezone.utc), 14),
+    (datetime(2009, 1, 1, tzinfo=timezone.utc), 15),
+    (datetime(2012, 7, 1, tzinfo=timezone.utc), 16),
+    (datetime(2015, 7, 1, tzinfo=timezone.utc), 17),
+    (datetime(2017, 1, 1, tzinfo=timezone.utc), 18),
+]
+
+
+def utc2gpst_offset(utc_dt: datetime) -> int:
+    """Return GPS-UTC leap second offset for a given UTC datetime."""
+    offset = 0
+    for dt, ls in _LEAP_SECONDS:
+        if utc_dt >= dt:
+            offset = ls
+        else:
+            break
+    return offset
 
 
 def parse_l6_filename(path: str) -> datetime:
@@ -114,11 +149,11 @@ def gen_tag(l6_path: str, sync_tag: str = None) -> str:
 
     # Parse base time from filename (UTC)
     base_utc = parse_l6_filename(l6_path)
-    # Store as time_t (Unix timestamp) — same as what RTKLIB stores
-    # RTKLIB does: wtime=utc2gpst(timeget()), then stores wtime.time
-    # So tag base_time = unix_timestamp + leap_seconds
-    # But for synthetic tags, we match the convention of the master tag
-    time_time = int(base_utc.timestamp())
+    # Convert UTC to GPST basis to match gen_bnx_tag.py and RTKLIB convention.
+    # RTKLIB stores wtime=utc2gpst(timeget()).time in the tag header,
+    # so time_time = UTC_unix_timestamp + leap_seconds.
+    leap = utc2gpst_offset(base_utc)
+    time_time = int(base_utc.timestamp()) + leap
     time_sec = 0.0
 
     # Determine tick_f for sync
