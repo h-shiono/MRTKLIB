@@ -46,6 +46,7 @@ incrementally back-ported to each engine:
 | **v0.4.4** | PPP-RTK | Dual-channel CLAS real-time via `rtkrcv` (base stream slot repurposed for L6 ch2) | ✅ Released |
 | **v0.5.0** | All | TOML configuration (replaces legacy `.conf`); legacy `doc/` removed | ✅ Released |
 | **v0.5.1** | PPP-RTK | Bug fix: dual-channel CLAS RT fix rate degradation ([#35](https://github.com/h-shiono/MRTKLIB/issues/35)); `gen_l6_tag.py` tick_scale fix | ✅ Released |
+| **v0.5.2** | All | Code quality: mandatory braces on control flow, nested/complex ternary elimination (67 files) | ✅ Released |
 | **v0.5.x** | PPP-RTK | Bug fix: CLAS real-time positioning does not work properly ([#31](https://github.com/h-shiono/MRTKLIB/issues/31)) | 🔜 Planned |
 | **v0.5.x** | All | Signals update: frequency / physical band separation and structuring | 🔜 Planned |
 | **TBD** | — | Port remaining RTKLIB console apps: `convbin` (RINEX converter), `str2str` (stream relay) | 💭 Backlog |
