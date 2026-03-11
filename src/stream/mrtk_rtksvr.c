@@ -480,7 +480,7 @@ static int decoderaw(rtksvr_t* svr, int index) {
             if (svr->format[index] == STRFMT_UBX) {
                 /* UBX: demux L6D frames by PRN (both channels in same stream) */
                 int l6prn = svr->rtcm[index].buff[4]; /* PRN from L6 frame header */
-                if (svr->clas->l6delivery[0] == 0 || svr->clas->l6delivery[0] == l6prn) {
+                if (svr->clas->l6delivery[0] < 0 || svr->clas->l6delivery[0] == l6prn) {
                     ch = 0;
                 } else {
                     ch = 1;
@@ -512,6 +512,7 @@ static int decoderaw(rtksvr_t* svr, int index) {
                     max_cret = cret;
                 }
                 if (cret == 10) {
+                    trace(NULL, 2, "L6D CSSR epoch: ch=%d k=%d\n", ch, k);
                     int net = svr->clas->grid[ch].network;
                     if (net > 0) {
                         if (clas_bank_get_close(svr->clas, svr->clas->l6buf[ch].time, net, ch,
@@ -534,7 +535,10 @@ static int decoderaw(rtksvr_t* svr, int index) {
                     }
                 }
             }
-            trace(NULL, 4, "L6D redirect: max_cret=%d ch=%d\n", max_cret, ch);
+            if (max_cret > 0) {
+                trace(NULL, 2, "L6D redirect: max_cret=%d ch=%d nframe=%d havebit=%d nbit=%d\n", max_cret, ch,
+                      svr->clas->l6buf[ch].nframe, svr->clas->l6buf[ch].havebit, svr->clas->l6buf[ch].nbit);
+            }
         }
         /* observation data received */
         if (ret == 1) {
