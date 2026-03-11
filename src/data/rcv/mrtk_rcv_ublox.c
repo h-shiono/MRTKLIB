@@ -1361,7 +1361,13 @@ static int decode_rxmqzssl6(raw_t* raw, rtcm_t* rtcm) {
     ret = 0;
     if (stat == 1) {
         memcpy(rtcm->buff, p + 14, 250);
-        ret = decode_qzss_l6emsg(rtcm);
+        if (msg == 0) {
+            /* L6D (CLAS): skip MADOCA decoder, route to CLAS via redirect block */
+            ret = 10;
+        } else {
+            /* L6E (MADOCA-PPP): decode SSR corrections */
+            ret = decode_qzss_l6emsg(rtcm);
+        }
     }
     return ret;
 }

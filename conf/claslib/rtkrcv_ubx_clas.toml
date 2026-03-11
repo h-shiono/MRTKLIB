@@ -1,0 +1,256 @@
+# MRTKLIB Configuration (TOML v1.0.0)
+#
+# Template for real-time CLAS PPP-RTK using u-blox receivers.
+# Rover observations and L6D corrections are both received as UBX format.
+#
+# Usage:
+#   1. Edit [streams.input.*] sections to match your local setup
+#   2. Edit [antenna.rover] type to match your receiver antenna
+#   3. Run: ./build/rtkrcv -k conf/claslib/rtkrcv_ubx_clas.toml
+#
+# Tested with: u-blox F9P (obs) + D9C (L6D via UBX-RXM-QZSSL6)
+
+[positioning]
+mode                = "ppp-rtk"  # (9:ppp-rtk)
+signals             = ["G1C", "G2W", "E1C", "E5Q", "E7Q", "J1C", "J5Q", "J2X"]
+solution_type       = "forward"  # (0:forward)
+elevation_mask      = 15.0  # (deg)
+dynamics            = true  # kinematic
+satellite_ephemeris = "brdc+ssrapc"  # (3:brdc+ssrapc)
+excluded_sats       = ""
+constellations      = 25  # GPS + Galileo + QZSS; (1:gps+8:gal+16:qzs)
+
+[positioning.clas]
+grid_selection_radius  = 1000  # CLAS grid selection radius (m)
+receiver_type          = "TRIMBLE NETR9"  # reference receiver type for ISB
+position_uncertainty_x = 10.0
+position_uncertainty_y = 10.0
+position_uncertainty_z = 10.0
+
+[positioning.snr_mask]
+rover_enabled = true
+base_enabled  = false
+L1            = [10, 10, 10, 10, 30, 30, 30, 30, 30]
+L2            = [10, 10, 10, 10, 30, 30, 30, 30, 30]
+L5            = [10, 10, 10, 10, 30, 30, 30, 30, 30]
+
+[positioning.corrections]
+satellite_antenna = false
+receiver_antenna  = true
+phase_windup      = "on"
+exclude_eclipse   = true
+raim_fde          = true
+iono_compensation = "meas"
+partial_ar        = true
+shapiro_delay     = true
+exclude_qzs_ref   = true
+no_phase_bias_adj = false
+
+[positioning.atmosphere]
+tidal_correction = "solid+otl-clasgrid+pole"
+ionosphere       = "est-adaptive"
+troposphere      = "off"
+
+[ambiguity_resolution]
+mode   = "fix-and-hold"
+qzs_ar = true
+
+[ambiguity_resolution.thresholds]
+alpha          = "10%"
+elevation_mask = 20.0  # (deg)
+hold_elevation = 30.0  # (deg)
+
+[ambiguity_resolution.counters]
+lock_count = 5
+out_count  = 1
+min_fix    = 0
+
+[ambiguity_resolution.partial_ar]
+min_ambiguities   = 6
+max_excluded_sats = 4
+
+[ambiguity_resolution.hold]
+variance = 0.001
+
+[rejection]
+l1_l2_residual       = 2.0
+dispersive           = 3.0
+non_dispersive       = 3.0
+hold_chi_square      = 0.5
+fix_chi_square       = 5.0
+pseudorange_diff     = 10.0
+position_error_count = 5
+
+[slip_detection]
+threshold = 0.05  # (m)
+
+[kalman_filter]
+iterations = 1
+
+[kalman_filter.measurement_error]
+code_phase_ratio_L1 = 50.0
+phase               = 0.01
+phase_elevation     = 0.005
+phase_baseline      = 0.0
+doppler             = 10.0
+
+[kalman_filter.initial_std]
+bias        = 100.0
+ionosphere  = 0.01
+troposphere = 0.005
+
+[kalman_filter.process_noise]
+accel_h         = 0.2
+accel_v         = 0.1
+position_h      = 0.0
+position_v      = 0.0
+bias            = 0.001
+ionosphere      = 0.001
+iono_max        = 0.05
+troposphere     = 0.001
+iono_time_const = 10.0
+clock_stability = 5.00e-12
+
+[adaptive_filter]
+iono_forgetting = 0.3
+iono_gain       = 3.0
+enabled         = false
+pva_forgetting  = 0.3
+pva_gain        = 1.0
+
+[receiver]
+baseline_length = 0.0
+baseline_sigma  = 0.0
+max_age         = 30.0
+isb             = true
+phase_shift     = "table"
+reference_type  = "CLAS"
+
+[antenna.rover]
+position_type = "single"  # initial position from SPP
+type          = "AOAD/M_T        NONE"  # change to your antenna type
+delta_e       = 0.0
+delta_n       = 0.0
+delta_u       = 0.0
+
+[antenna.base]
+position_type      = "llh"
+position_1         = 0.0
+position_2         = 0.0
+position_3         = 0.0
+type               = ""
+delta_e            = 0.0
+delta_n            = 0.0
+delta_u            = 0.0
+max_average_epochs = 0
+init_reset         = false
+
+[output]
+format            = "nmea"
+header            = true
+options           = true
+velocity          = false
+time_system       = "gpst"
+time_format       = "tow"
+time_decimals     = 3
+coordinate_format = "deg"
+field_separator   = ""
+single_output     = false
+max_solution_std  = 0.0
+height_type       = "ellipsoidal"
+geoid_model       = "internal"
+static_solution   = "all"
+nmea_interval_1   = 0.0
+nmea_interval_2   = 0.0
+solution_status   = "off"
+
+[files]
+cssr_grid     = "./tests/data/claslib/clas_grid.def"
+ocean_loading = "./tests/data/claslib/clas_grid.blq"
+eop           = "./tests/data/claslib/igu00p01.erp"
+receiver_atx  = "./tests/data/claslib/igs14_L5copy.atx"
+isb_table     = "./tests/data/claslib/isb.tbl"
+phase_cycle   = "./tests/data/claslib/l2csft.tbl"
+satellite_atx = ""
+station_pos   = ""
+geoid         = ""
+dcb           = ""
+temp_dir      = ""
+geexe         = ""
+solution_stat = ""
+trace         = ""
+
+[server]
+cycle_ms           = 10
+timeout_ms         = 10000
+reconnect_ms       = 10000
+nmea_cycle_ms      = 5000
+buffer_size        = 32768
+nav_msg_select     = "all"
+proxy              = ""
+swap_margin        = 30
+time_interpolation = true
+max_obs_loss       = 90.0
+float_count        = 15
+
+# ── Input streams ─────────────────────────────────────────────────────────────
+# Edit these sections to match your local setup.
+#
+# Example: u-blox F9P (obs) on TCP port 20001, D9C (L6D) on TCP port 20002
+#   [streams.input.rover]
+#   type   = "tcpcli"
+#   path   = "localhost:20001"
+#   format = "ubx"
+#
+#   [streams.input.correction]
+#   type   = "tcpcli"
+#   path   = "localhost:20002"
+#   format = "ubx"
+
+[streams.input.rover]
+type   = "tcpcli"
+path   = "localhost:20001"
+format = "ubx"
+
+[streams.input.base]
+type    = "off"
+path    = ""
+format  = ""
+nmeareq = false
+nmealat = 0.0
+nmealon = 0.0
+
+[streams.input.correction]
+type   = "tcpcli"
+path   = "localhost:20002"
+format = "ubx"  # UBX-RXM-QZSSL6 carrying L6D (CLAS)
+
+# ── Output streams ────────────────────────────────────────────────────────────
+
+[streams.output.stream1]
+type   = "off"
+path   = ""
+format = "nmea"
+
+[streams.output.stream2]
+type   = "off"
+path   = ""
+format = "nmea"
+
+[streams.log.stream1]
+type = "off"
+path = ""
+
+[streams.log.stream2]
+type = "off"
+path = ""
+
+[streams.log.stream3]
+type = "off"
+path = ""
+
+[console]
+passwd   = ""
+timetype = "gpst"
+soltype  = "deg"
+solflag  = "off"

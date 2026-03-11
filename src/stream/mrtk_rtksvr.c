@@ -469,13 +469,30 @@ static int decoderaw(rtksvr_t* svr, int index) {
                   time_str(obs->data[0].time,0),obs->n);
         }
 #endif
-        /* update rtk server */
-        if (ret > 0) {
+        /* update rtk server (skip update_ssr for UBX L6D: ret=10 means
+         * "L6 payload ready for CLAS redirect", not "SSR message decoded") */
+        if (ret > 0 && !(ret == 10 && svr->format[index] == STRFMT_UBX)) {
             update_svr(svr, ret, obs, nav, ephsat, ephset, sbsmsg, index, fobs);
         }
         /* redirect L6 payload to CLAS decoder (UBX/L6E → CLAS path) */
         if (svr->clas && ret == 10 && (svr->format[index] == STRFMT_UBX || svr->format[index] == STRFMT_L6E)) {
-            int k, ch = (index == 1) ? 1 : 0, cret;
+            int k, ch, cret, max_cret = 0;
+
+            if (svr->format[index] == STRFMT_UBX) {
+                /* UBX: demux L6D frames by PRN (both channels in same stream) */
+                int l6prn = svr->rtcm[index].buff[4]; /* PRN from L6 frame header */
+                if (svr->clas->l6delivery[0] < 0 || svr->clas->l6delivery[0] == l6prn) {
+                    ch = 0;
+                } else {
+                    ch = 1;
+                }
+            } else {
+                /* L6E: use stream index mapping (separate streams per channel) */
+                ch = (index == 1) ? 1 : 0;
+            }
+
+            trace(NULL, 3, "L6 redirect: fmt=%d ch=%d prn=%d index=%d\n", svr->format[index], ch,
+                  svr->rtcm[index].buff[4], index);
             /* initialize week_ref from obs time (once) */
             if (svr->clas->week_ref[0] == 0) {
                 gtime_t t = svr->raw[0].time;
@@ -486,13 +503,18 @@ static int decoderaw(rtksvr_t* svr, int index) {
                         svr->clas->week_ref[j] = week;
                         svr->clas->tow_ref[j] = -1;
                     }
+                    trace(NULL, 2, "L6 redirect: week_ref initialized to %d\n", week);
                 }
             }
             /* feed 250-byte L6 frame from rtcm->buff to CLAS decoder */
             for (k = 0; k < 250; k++) {
                 clas_input_cssr(svr->clas, svr->rtcm[index].buff[k], ch);
                 cret = clas_decode_msg(svr->clas, ch);
+                if (cret > max_cret) {
+                    max_cret = cret;
+                }
                 if (cret == 10) {
+                    trace(NULL, 2, "L6 CSSR epoch: ch=%d k=%d\n", ch, k);
                     int net = svr->clas->grid[ch].network;
                     if (net > 0) {
                         if (clas_bank_get_close(svr->clas, svr->clas->l6buf[ch].time, net, ch,
@@ -514,6 +536,10 @@ static int decoderaw(rtksvr_t* svr, int index) {
                         }
                     }
                 }
+            }
+            if (max_cret > 0) {
+                trace(NULL, 2, "L6 redirect: max_cret=%d ch=%d nframe=%d havebit=%d nbit=%d\n", max_cret, ch,
+                      svr->clas->l6buf[ch].nframe, svr->clas->l6buf[ch].havebit, svr->clas->l6buf[ch].nbit);
             }
         }
         /* observation data received */

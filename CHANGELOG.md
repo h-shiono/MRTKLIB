@@ -5,6 +5,31 @@ All notable changes to MRTKLIB are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v0.5.5] - 2026-03-11
+
+**Bug fix** — CLAS real-time positioning via UBX does not work
+([#31](https://github.com/h-shiono/MRTKLIB/issues/31)).
+
+### Fixed
+
+- **`decode_rxmqzssl6()`** — L6D frames (msg=0) were unconditionally sent to
+  the MADOCA decoder which silently dropped them (vendor_id≠2).  Now branches on
+  the `msg` field: L6D returns `ret=10` directly, routing to the CLAS decoder
+  via the redirect block.
+- **UBX 2-channel L6D demux** — UBX streams interleave L6D frames from two QZS
+  satellites.  The redirect block now extracts the PRN from the L6 frame header
+  and routes frames to separate CLAS channels (ch0/ch1), preventing subframe
+  assembly corruption in `clas_input_cssr()`.
+- **`l6delivery[]` initial value** — Channel assignment checked `== 0` but the
+  field is initialized to `-1`.  Fixed to `< 0`.
+
+### Added
+
+- **`conf/claslib/rtkrcv_ubx_clas.toml`** — Template config for real-time CLAS
+  PPP-RTK via u-blox UBX TCP streams (F9P obs + D9C L6D).
+- **CSSR decode trace** — Diagnostic trace output for L6D redirect and CSSR
+  epoch decode events.
+
 ## [v0.5.4] - 2026-03-11
 
 **Signals architecture redesign** — Introduces `mrtk_band_t` enum (26 physical
