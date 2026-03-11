@@ -213,7 +213,11 @@ extern char* code2obs(uint8_t code) {
  *-----------------------------------------------------------------------------*/
 extern int code2idx(int sys, uint8_t code) {
     int freq_num = code2freq_num(code);
-    mrtk_band_t band = mrtk_rinex_freq_to_band(sys, freq_num);
+    mrtk_band_t band;
+    if (sys == SYS_BD2) {
+        sys = SYS_CMP;
+    }
+    band = mrtk_rinex_freq_to_band(sys, freq_num);
     return band2idx_fixed(band);
 }
 /* obs code to frequency number ------------------------------------------------
@@ -467,15 +471,13 @@ extern void freeobs(obs_t* obs) {
  * descending priority order; remaining slots are zero-initialized.
  *===========================================================================*/
 
-#define NUM_PRIORITY_ENTRIES 26
-
 typedef struct {
     int sys;
     mrtk_sig_priority_t priority;
 } sig_priority_entry_t;
 
 /* clang-format off */
-static const sig_priority_entry_t SIG_PRIORITY_TABLE[NUM_PRIORITY_ENTRIES] = {
+static const sig_priority_entry_t SIG_PRIORITY_TABLE[] = {
     /* GPS — obsdef: "CPYWMNSL", "PYWCMNDLSX", "QXI" */
     {
         .sys = SYS_GPS,
@@ -974,7 +976,7 @@ extern const uint8_t* mrtk_get_signal_priority(int sys, mrtk_band_t band) {
     if (band == MRTK_BAND_UNKNOWN || band >= MRTK_BAND_MAX) {
         return NULL;
     }
-    for (i = 0; i < NUM_PRIORITY_ENTRIES; i++) {
+    for (i = 0; i < (int)(sizeof(SIG_PRIORITY_TABLE) / sizeof(SIG_PRIORITY_TABLE[0])); i++) {
         if (SIG_PRIORITY_TABLE[i].sys == sys && SIG_PRIORITY_TABLE[i].priority.band == band) {
             return SIG_PRIORITY_TABLE[i].priority.codes;
         }
@@ -1082,9 +1084,9 @@ extern int mrtk_band_to_freq_num(int sys, mrtk_band_t band) {
 }
 
 /* mrtk_parse_signal_str: parse RINEX3-style signal string -------------------
- * parse a signal string like "GL1C" into (system, band, code) components.
- * format: {sys_char}{freq_digit}{attr_char} (3 chars minimum)
- * args   : const char *str   I  signal string (e.g., "GL1C", "EL5Q")
+ * parse a signal string like "G1C" into (system, band, code) components.
+ * format: {sys_char}{freq_digit}{attr_char} (3 chars)
+ * args   : const char *str   I  signal string (e.g., "G1C", "E5Q", "J2X")
  *          int        *sys   O  satellite system (SYS_???)
  *          mrtk_band_t *band O  physical frequency band
  *          uint8_t    *code  O  observation code (CODE_???)
@@ -1170,7 +1172,7 @@ static int sys2sigcfg_idx(int sys) {
 }
 
 /* mrtk_sigcfg_from_signals: build sigcfg from signal string array -----------
- * parse an array of RINEX3-style signal strings (e.g., "GL1C", "EL5Q") and
+ * parse an array of RINEX3-style signal strings (e.g., "G1C", "E5Q") and
  * populate per-constellation sigcfg arrays. Also derives nf as the maximum
  * number of signals configured for any single constellation.
  * args   : const char **sigs  I  array of signal strings

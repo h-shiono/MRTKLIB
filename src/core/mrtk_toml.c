@@ -359,7 +359,7 @@ static toml_table_t* navigate_table(toml_table_t* root, const char* path) {
 static int toml_val_to_str(toml_table_t* tbl, const char* key, char* buf, int bufsz) {
     toml_datum_t d;
     toml_array_t* arr;
-    int i, n;
+    int i, n, len;
     char* p;
 
     /* Try string first */
@@ -396,16 +396,23 @@ static int toml_val_to_str(toml_table_t* tbl, const char* key, char* buf, int bu
     /* Try array (comma-separated: numbers for SNR masks, strings for signals) */
     arr = toml_array_in(tbl, key);
     if (arr) {
+        int rem;
         n = toml_array_nelem(arr);
         p = buf;
-        for (i = 0; i < n && p - buf < bufsz - 20; i++) {
+        for (i = 0; i < n; i++) {
+            rem = (int)(bufsz - (p - buf));
+            if (rem < 2) {
+                break;
+            }
             /* try string element first */
             d = toml_string_at(arr, i);
             if (d.ok) {
                 if (i > 0) {
                     *p++ = ',';
+                    rem--;
                 }
-                p += snprintf(p, bufsz - (p - buf), "%s", d.u.s);
+                len = snprintf(p, rem, "%s", d.u.s);
+                p += (len < rem) ? len : rem - 1;
                 free(d.u.s);
                 continue;
             }
@@ -413,15 +420,19 @@ static int toml_val_to_str(toml_table_t* tbl, const char* key, char* buf, int bu
             if (d.ok) {
                 if (i > 0) {
                     *p++ = ',';
+                    rem--;
                 }
-                p += snprintf(p, bufsz - (p - buf), "%.0f", d.u.d);
+                len = snprintf(p, rem, "%.0f", d.u.d);
+                p += (len < rem) ? len : rem - 1;
             } else {
                 d = toml_int_at(arr, i);
                 if (d.ok) {
                     if (i > 0) {
                         *p++ = ',';
+                        rem--;
                     }
-                    p += snprintf(p, bufsz - (p - buf), "%lld", (long long)d.u.i);
+                    len = snprintf(p, rem, "%lld", (long long)d.u.i);
+                    p += (len < rem) ? len : rem - 1;
                 }
             }
         }

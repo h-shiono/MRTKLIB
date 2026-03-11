@@ -258,8 +258,8 @@ double mrtk_band2freq_hz(mrtk_band_t band);
 int mrtk_band_to_freq_num(int sys, mrtk_band_t band);
 
 /**
- * @brief Parse a RINEX3-style signal string (e.g., "GL1C") into components.
- * @param[in]  str   Signal string (3-4 chars: {sys}{freq}{attr})
+ * @brief Parse a RINEX3-style signal string (e.g., "G1C") into components.
+ * @param[in]  str   Signal string (3 chars: {sys}{freq}{attr})
  * @param[out] sys   Satellite system (SYS_???)
  * @param[out] band  Physical frequency band
  * @param[out] code  Observation code (CODE_???)
@@ -269,7 +269,7 @@ int mrtk_parse_signal_str(const char* str, int* sys, mrtk_band_t* band, uint8_t*
 
 /**
  * @brief Build per-constellation signal config from a signal string array.
- * @param[in]  sigs   Array of signal strings (e.g., "GL1C", "EL5Q")
+ * @param[in]  sigs   Array of signal strings (e.g., "G1C", "E5Q")
  * @param[in]  nsig   Number of signal strings
  * @param[out] cfg    Per-constellation signal config array [MRTK_NSYS]
  * @param[out] nf     Derived number of frequencies (max signals per constellation)
