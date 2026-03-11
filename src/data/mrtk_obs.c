@@ -676,48 +676,313 @@ typedef struct {
     mrtk_sig_priority_t priority;
 } sig_priority_entry_t;
 
+/* clang-format off */
 static const sig_priority_entry_t SIG_PRIORITY_TABLE[NUM_PRIORITY_ENTRIES] = {
     /* GPS — obsdef: "CPYWMNSL", "PYWCMNDLSX", "QXI" */
-    {SYS_GPS, {MRTK_BAND_GPS_L1, {CODE_L1C, CODE_L1P, CODE_L1Y, CODE_L1W, CODE_L1M, CODE_L1N, CODE_L1S, CODE_L1L}}},
-    {SYS_GPS,
-     {MRTK_BAND_GPS_L2,
-      {CODE_L2P, CODE_L2Y, CODE_L2W, CODE_L2C, CODE_L2M, CODE_L2N, CODE_L2D, CODE_L2L, CODE_L2S, CODE_L2X}}},
-    {SYS_GPS, {MRTK_BAND_GPS_L5, {CODE_L5Q, CODE_L5X, CODE_L5I}}},
+    {
+        .sys = SYS_GPS,
+        .priority = {
+            .band = MRTK_BAND_GPS_L1,
+            .codes = {
+                CODE_L1C,
+                CODE_L1P,
+                CODE_L1Y,
+                CODE_L1W,
+                CODE_L1M,
+                CODE_L1N,
+                CODE_L1S,
+                CODE_L1L,
+            },
+        },
+    },
+    {
+        .sys = SYS_GPS,
+        .priority = {
+            .band = MRTK_BAND_GPS_L2,
+            .codes = {
+                CODE_L2P,
+                CODE_L2Y,
+                CODE_L2W,
+                CODE_L2C,
+                CODE_L2M,
+                CODE_L2N,
+                CODE_L2D,
+                CODE_L2L,
+                CODE_L2S,
+                CODE_L2X,
+            },
+        },
+    },
+    {
+        .sys = SYS_GPS,
+        .priority = {
+            .band = MRTK_BAND_GPS_L5,
+            .codes = {
+                CODE_L5Q,
+                CODE_L5X,
+                CODE_L5I,
+            },
+        },
+    },
 
     /* GLONASS — obsdef: "CP", "CP", (G3 not in obsdef but kept for completeness) */
-    {SYS_GLO, {MRTK_BAND_GLO_G1, {CODE_L1C, CODE_L1P}}},
-    {SYS_GLO, {MRTK_BAND_GLO_G2, {CODE_L2C, CODE_L2P}}},
-    {SYS_GLO, {MRTK_BAND_GLO_G3, {CODE_L3I, CODE_L3Q, CODE_L3X}}},
+    {
+        .sys = SYS_GLO,
+        .priority = {
+            .band = MRTK_BAND_GLO_G1,
+            .codes = {
+                CODE_L1C,
+                CODE_L1P,
+            },
+        },
+    },
+    {
+        .sys = SYS_GLO,
+        .priority = {
+            .band = MRTK_BAND_GLO_G2,
+            .codes = {
+                CODE_L2C,
+                CODE_L2P,
+            },
+        },
+    },
+    {
+        .sys = SYS_GLO,
+        .priority = {
+            .band = MRTK_BAND_GLO_G3,
+            .codes = {
+                CODE_L3I,
+                CODE_L3Q,
+                CODE_L3X,
+            },
+        },
+    },
 
     /* Galileo — obsdef: "CABXZ", "QXI", "QXI", "CXE", "QXI" */
-    {SYS_GAL, {MRTK_BAND_GAL_E1, {CODE_L1C, CODE_L1A, CODE_L1B, CODE_L1X, CODE_L1Z}}},
-    {SYS_GAL, {MRTK_BAND_GAL_E5a, {CODE_L5Q, CODE_L5X, CODE_L5I}}},
-    {SYS_GAL, {MRTK_BAND_GAL_E5b, {CODE_L7Q, CODE_L7X, CODE_L7I}}},
-    {SYS_GAL, {MRTK_BAND_GAL_E6, {CODE_L6C, CODE_L6X, CODE_L6E}}},
-    {SYS_GAL, {MRTK_BAND_GAL_E5ab, {CODE_L8Q, CODE_L8X, CODE_L8I}}},
+    {
+        .sys = SYS_GAL,
+        .priority = {
+            .band = MRTK_BAND_GAL_E1,
+            .codes = {
+                CODE_L1C,
+                CODE_L1A,
+                CODE_L1B,
+                CODE_L1X,
+                CODE_L1Z,
+            },
+        },
+    },
+    {
+        .sys = SYS_GAL,
+        .priority = {
+            .band = MRTK_BAND_GAL_E5a,
+            .codes = {
+                CODE_L5Q,
+                CODE_L5X,
+                CODE_L5I,
+            },
+        },
+    },
+    {
+        .sys = SYS_GAL,
+        .priority = {
+            .band = MRTK_BAND_GAL_E5b,
+            .codes = {
+                CODE_L7Q,
+                CODE_L7X,
+                CODE_L7I,
+            },
+        },
+    },
+    {
+        .sys = SYS_GAL,
+        .priority = {
+            .band = MRTK_BAND_GAL_E6,
+            .codes = {
+                CODE_L6C,
+                CODE_L6X,
+                CODE_L6E,
+            },
+        },
+    },
+    {
+        .sys = SYS_GAL,
+        .priority = {
+            .band = MRTK_BAND_GAL_E5ab,
+            .codes = {
+                CODE_L8Q,
+                CODE_L8X,
+                CODE_L8I,
+            },
+        },
+    },
 
     /* QZSS — obsdef: "LXSCE", "QXI", "LXS", "SEZ" */
-    {SYS_QZS, {MRTK_BAND_QZS_L1, {CODE_L1L, CODE_L1X, CODE_L1S, CODE_L1C, CODE_L1E}}},
-    {SYS_QZS, {MRTK_BAND_QZS_L5, {CODE_L5Q, CODE_L5X, CODE_L5I}}},
-    {SYS_QZS, {MRTK_BAND_QZS_L2, {CODE_L2L, CODE_L2X, CODE_L2S}}},
-    {SYS_QZS, {MRTK_BAND_QZS_L6, {CODE_L6S, CODE_L6E, CODE_L6Z}}},
+    {
+        .sys = SYS_QZS,
+        .priority = {
+            .band = MRTK_BAND_QZS_L1,
+            .codes = {
+                CODE_L1L,
+                CODE_L1X,
+                CODE_L1S,
+                CODE_L1C,
+                CODE_L1E,
+            },
+        },
+    },
+    {
+        .sys = SYS_QZS,
+        .priority = {
+            .band = MRTK_BAND_QZS_L5,
+            .codes = {
+                CODE_L5Q,
+                CODE_L5X,
+                CODE_L5I,
+            },
+        },
+    },
+    {
+        .sys = SYS_QZS,
+        .priority = {
+            .band = MRTK_BAND_QZS_L2,
+            .codes = {
+                CODE_L2L,
+                CODE_L2X,
+                CODE_L2S,
+            },
+        },
+    },
+    {
+        .sys = SYS_QZS,
+        .priority = {
+            .band = MRTK_BAND_QZS_L6,
+            .codes = {
+                CODE_L6S,
+                CODE_L6E,
+                CODE_L6Z,
+            },
+        },
+    },
 
     /* SBAS — obsdef: "C", "IQX" */
-    {SYS_SBS, {MRTK_BAND_SBS_L1, {CODE_L1C}}},
-    {SYS_SBS, {MRTK_BAND_SBS_L5, {CODE_L5I, CODE_L5Q, CODE_L5X}}},
+    {
+        .sys = SYS_SBS,
+        .priority = {
+            .band = MRTK_BAND_SBS_L1,
+            .codes = {
+                CODE_L1C,
+            },
+        },
+    },
+    {
+        .sys = SYS_SBS,
+        .priority = {
+            .band = MRTK_BAND_SBS_L5,
+            .codes = {
+                CODE_L5I,
+                CODE_L5Q,
+                CODE_L5X,
+            },
+        },
+    },
 
     /* BDS — obsdef: "IQX"(B1I), "IQX"(B3), "DIQX"(B2b), "PXD"(B1C), "PXD"(B2a), "PXD"(B2ab) */
-    {SYS_CMP, {MRTK_BAND_BDS_B1I, {CODE_L2I, CODE_L2Q, CODE_L2X}}},
-    {SYS_CMP, {MRTK_BAND_BDS_B3, {CODE_L6I, CODE_L6Q, CODE_L6X}}},
-    {SYS_CMP, {MRTK_BAND_BDS_B2b, {CODE_L7D, CODE_L7I, CODE_L7Q, CODE_L7X}}},
-    {SYS_CMP, {MRTK_BAND_BDS_B1C, {CODE_L1P, CODE_L1X, CODE_L1D}}},
-    {SYS_CMP, {MRTK_BAND_BDS_B2a, {CODE_L5P, CODE_L5X, CODE_L5D}}},
-    {SYS_CMP, {MRTK_BAND_BDS_B2ab, {CODE_L8P, CODE_L8X, CODE_L8D}}},
+    {
+        .sys = SYS_CMP,
+        .priority = {
+            .band = MRTK_BAND_BDS_B1I,
+            .codes = {
+                CODE_L2I,
+                CODE_L2Q,
+                CODE_L2X,
+            },
+        },
+    },
+    {
+        .sys = SYS_CMP,
+        .priority = {
+            .band = MRTK_BAND_BDS_B3,
+            .codes = {
+                CODE_L6I,
+                CODE_L6Q,
+                CODE_L6X,
+            },
+        },
+    },
+    {
+        .sys = SYS_CMP,
+        .priority = {
+            .band = MRTK_BAND_BDS_B2b,
+            .codes = {
+                CODE_L7D,
+                CODE_L7I,
+                CODE_L7Q,
+                CODE_L7X,
+            },
+        },
+    },
+    {
+        .sys = SYS_CMP,
+        .priority = {
+            .band = MRTK_BAND_BDS_B1C,
+            .codes = {
+                CODE_L1P,
+                CODE_L1X,
+                CODE_L1D,
+            },
+        },
+    },
+    {
+        .sys = SYS_CMP,
+        .priority = {
+            .band = MRTK_BAND_BDS_B2a,
+            .codes = {
+                CODE_L5P,
+                CODE_L5X,
+                CODE_L5D,
+            },
+        },
+    },
+    {
+        .sys = SYS_CMP,
+        .priority = {
+            .band = MRTK_BAND_BDS_B2ab,
+            .codes = {
+                CODE_L8P,
+                CODE_L8X,
+                CODE_L8D,
+            },
+        },
+    },
 
     /* NavIC/IRNSS — obsdef: "ABCX", "ABCX" */
-    {SYS_IRN, {MRTK_BAND_IRN_L5, {CODE_L5A, CODE_L5B, CODE_L5C, CODE_L5X}}},
-    {SYS_IRN, {MRTK_BAND_IRN_S, {CODE_L9A, CODE_L9B, CODE_L9C, CODE_L9X}}},
+    {
+        .sys = SYS_IRN,
+        .priority = {
+            .band = MRTK_BAND_IRN_L5,
+            .codes = {
+                CODE_L5A,
+                CODE_L5B,
+                CODE_L5C,
+                CODE_L5X,
+            },
+        },
+    },
+    {
+        .sys = SYS_IRN,
+        .priority = {
+            .band = MRTK_BAND_IRN_S,
+            .codes = {
+                CODE_L9A,
+                CODE_L9B,
+                CODE_L9C,
+                CODE_L9X,
+            },
+        },
+    },
 };
+/* clang-format on */
 
 /* mrtk_rinex_freq_to_band: RINEX frequency digit -> physical band -----------
  * convert RINEX frequency digit (1,2,3,...,9) to mrtk_band_t for a given
