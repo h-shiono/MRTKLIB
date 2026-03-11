@@ -582,9 +582,15 @@ static void buff2sysopts(void) {
 
         strcpy(buff, signals_);
         for (p = strtok(buff, ","); p && nsig < 64; p = strtok(NULL, ",")) {
+            char* end;
             /* trim leading whitespace */
             while (*p == ' ') {
                 p++;
+            }
+            /* trim trailing whitespace */
+            end = p + strlen(p) - 1;
+            while (end > p && *end == ' ') {
+                *end-- = '\0';
             }
             if (*p) {
                 sigs[nsig++] = p;
@@ -679,6 +685,7 @@ extern void resetsysopts(void) {
         }
     }
     exsats_[0] = '\0';
+    signals_[0] = '\0';
 }
 /* get system options ----------------------------------------------------------
  * get system options

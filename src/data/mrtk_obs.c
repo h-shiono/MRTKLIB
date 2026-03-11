@@ -1182,7 +1182,7 @@ static int sys2sigcfg_idx(int sys) {
  * return : 0: success, -1: error
  *----------------------------------------------------------------------------*/
 extern int mrtk_sigcfg_from_signals(const char** sigs, int nsig, mrtk_sigcfg_t* cfg, int* nf) {
-    int i, sys_idx, max_nf = 0;
+    int i, j, sys_idx, max_nf = 0;
     int sys;
     mrtk_band_t band;
     uint8_t code;
@@ -1210,8 +1210,16 @@ extern int mrtk_sigcfg_from_signals(const char** sigs, int nsig, mrtk_sigcfg_t* 
             return -1;
         }
 
+        /* reject duplicate bands within the same constellation */
+        for (j = 0; j < cfg[sys_idx].nsig; j++) {
+            if (cfg[sys_idx].sig[j].band == band) {
+                trace(NULL, 2, "mrtk_sigcfg_from_signals: duplicate band for '%s'\n", sigs[i]);
+                return -1;
+            }
+        }
+
         cfg[sys_idx].sig[cfg[sys_idx].nsig].band = band;
-        cfg[sys_idx].sig[cfg[sys_idx].nsig].preferred_code = code;
+        cfg[sys_idx].sig[cfg[sys_idx].nsig].preferred_code = code; /* reserved for future use */
         cfg[sys_idx].nsig++;
     }
 
