@@ -174,9 +174,9 @@ typedef struct {
 
 static obsdef_t obsdef_GPS[MAXFREQ] = {
     /* freq-index:freq */
-    {1, FREQ1},  /* 0:L1 */
-    {2, FREQ2},  /* 1:L2 */
-    {5, FREQ5},  /* 2:L5 */
+    {1, FREQ1},  /* 0:L1 (MRTK_BAND_GPS_L1) */
+    {2, FREQ2},  /* 1:L2 (MRTK_BAND_GPS_L2) */
+    {5, FREQ5},  /* 2:L5 (MRTK_BAND_GPS_L5) */
     {0, 0.0},    /* 3 */
     {0, 0.0},    /* 4 */
     {0, 0.0},    /* 5 */
@@ -184,8 +184,8 @@ static obsdef_t obsdef_GPS[MAXFREQ] = {
 };
 static obsdef_t obsdef_GLO[MAXFREQ] = {
     /* freq-index:freq */
-    {1, FREQ1_GLO}, /* 0:G1 */
-    {2, FREQ2_GLO}, /* 1:G2 */
+    {1, FREQ1_GLO}, /* 0:G1 (MRTK_BAND_GLO_G1) */
+    {2, FREQ2_GLO}, /* 1:G2 (MRTK_BAND_GLO_G2) */
     {0, 0.0},       /* 2 */
     {0, 0.0},       /* 3 */
     {0, 0.0},       /* 4 */
@@ -194,28 +194,28 @@ static obsdef_t obsdef_GLO[MAXFREQ] = {
 };
 static obsdef_t obsdef_GAL[MAXFREQ] = {
     /* freq-index:freq */
-    {1, FREQ1}, /* 0:E1 */
-    {5, FREQ5}, /* 1:E5a */
-    {7, FREQ7}, /* 2:E5b */
-    {6, FREQ6}, /* 3:E6 */
-    {8, FREQ8}, /* 4:E5ab */
+    {1, FREQ1}, /* 0:E1  (MRTK_BAND_GAL_E1)  */
+    {5, FREQ5}, /* 1:E5a (MRTK_BAND_GAL_E5a) */
+    {7, FREQ7}, /* 2:E5b (MRTK_BAND_GAL_E5b) */
+    {6, FREQ6}, /* 3:E6  (MRTK_BAND_GAL_E6)  */
+    {8, FREQ8}, /* 4:E5ab(MRTK_BAND_GAL_E5ab)*/
     {0, 0.0},   /* 5 */
     {0, 0.0},   /* 6 */
 };
 static obsdef_t obsdef_QZS[MAXFREQ] = {
     /* freq-index:freq */
-    {1, FREQ1}, /* 0:L1 */
-    {5, FREQ5}, /* 1:L5 */
-    {2, FREQ2}, /* 2:L2 */
-    {6, FREQ6}, /* 3:L6 */
+    {1, FREQ1}, /* 0:L1 (MRTK_BAND_QZS_L1) */
+    {5, FREQ5}, /* 1:L5 (MRTK_BAND_QZS_L5) */
+    {2, FREQ2}, /* 2:L2 (MRTK_BAND_QZS_L2) */
+    {6, FREQ6}, /* 3:L6 (MRTK_BAND_QZS_L6) */
     {0, 0.0},   /* 4 */
     {0, 0.0},   /* 5 */
     {0, 0.0},   /* 6 */
 };
 static obsdef_t obsdef_SBS[MAXFREQ] = {
     /* freq-index:freq */
-    {1, FREQ1}, /* 0:L1 */
-    {5, FREQ5}, /* 1:L5 */
+    {1, FREQ1}, /* 0:L1 (MRTK_BAND_SBS_L1) */
+    {5, FREQ5}, /* 1:L5 (MRTK_BAND_SBS_L5) */
     {0, 0.0},   /* 2 */
     {0, 0.0},   /* 3 */
     {0, 0.0},   /* 4 */
@@ -224,19 +224,19 @@ static obsdef_t obsdef_SBS[MAXFREQ] = {
 };
 static obsdef_t obsdef_BDS[MAXFREQ] = {
     /* freq-index:freq */
-    {2, FREQ1_CMP}, /* 0:B1I */
-    {6, FREQ3_CMP}, /* 1:B3I */
-    {7, FREQ2_CMP}, /* 2:B2I/B2b */
-    {1, FREQ1},     /* 3:B1C */
-    {5, FREQ5},     /* 4:B2a */
-    {8, FREQ8},     /* 5:B2 */
+    {2, FREQ1_CMP}, /* 0:B1I    (MRTK_BAND_BDS_B1I)  */
+    {6, FREQ3_CMP}, /* 1:B3I    (MRTK_BAND_BDS_B3)   */
+    {7, FREQ2_CMP}, /* 2:B2I/B2b(MRTK_BAND_BDS_B2b)  */
+    {1, FREQ1},     /* 3:B1C    (MRTK_BAND_BDS_B1C)  */
+    {5, FREQ5},     /* 4:B2a    (MRTK_BAND_BDS_B2a)  */
+    {8, FREQ8},     /* 5:B2     (MRTK_BAND_BDS_B2ab) */
     {0, 0.0},       /* 6 */
 };
 static obsdef_t obsdef_BD2[MAXFREQ] = {
     /* freq-index:freq */
-    {2, FREQ1_CMP}, /* 0:B1I */
-    {6, FREQ3_CMP}, /* 1:B3I */
-    {7, FREQ2_CMP}, /* 2:B2I */
+    {2, FREQ1_CMP}, /* 0:B1I (MRTK_BAND_BDS_B1I) */
+    {6, FREQ3_CMP}, /* 1:B3I (MRTK_BAND_BDS_B3)  */
+    {7, FREQ2_CMP}, /* 2:B2I (MRTK_BAND_BDS_B2b) */
     {0, 0.0},       /* 3 */
     {0, 0.0},       /* 4 */
     {0, 0.0},       /* 5 */
@@ -244,8 +244,8 @@ static obsdef_t obsdef_BD2[MAXFREQ] = {
 };
 static obsdef_t obsdef_IRN[MAXFREQ] = {
     /* freq-index:freq */
-    {5, FREQ5}, /* 0:L5 */
-    {9, FREQ9}, /* 1:S */
+    {5, FREQ5}, /* 0:L5 (MRTK_BAND_IRN_L5) */
+    {9, FREQ9}, /* 1:S  (MRTK_BAND_IRN_S)  */
     {0, 0.0},   /* 2 */
     {0, 0.0},   /* 3 */
     {0, 0.0},   /* 4 */
