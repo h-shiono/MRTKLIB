@@ -56,32 +56,50 @@
 *-----------------------------------------------------------------------------*/
 extern int satno(int sys, int prn)
 {
-    if (prn<=0) return 0;
+    if (prn <= 0) {
+        return 0;
+    }
     switch (sys) {
         case SYS_GPS:
-            if (prn<MINPRNGPS||MAXPRNGPS<prn) return 0;
+            if (prn < MINPRNGPS || MAXPRNGPS < prn) {
+                return 0;
+            }
             return prn-MINPRNGPS+1;
         case SYS_GLO:
-            if (prn<MINPRNGLO||MAXPRNGLO<prn) return 0;
+            if (prn < MINPRNGLO || MAXPRNGLO < prn) {
+                return 0;
+            }
             return NSATGPS+prn-MINPRNGLO+1;
         case SYS_GAL:
-            if (prn<MINPRNGAL||MAXPRNGAL<prn) return 0;
+            if (prn < MINPRNGAL || MAXPRNGAL < prn) {
+                return 0;
+            }
             return NSATGPS+NSATGLO+prn-MINPRNGAL+1;
         case SYS_QZS:
-            if (prn<MINPRNQZS||MAXPRNQZS<prn) return 0;
+            if (prn < MINPRNQZS || MAXPRNQZS < prn) {
+                return 0;
+            }
             return NSATGPS+NSATGLO+NSATGAL+prn-MINPRNQZS+1;
         case SYS_CMP:
-            if (prn<MINPRNCMP||MAXPRNCMP<prn) return 0;
+            if (prn < MINPRNCMP || MAXPRNCMP < prn) {
+                return 0;
+            }
             return NSATGPS+NSATGLO+NSATGAL+NSATQZS+prn-MINPRNCMP+1;
         case SYS_IRN:
-            if (prn<MINPRNIRN||MAXPRNIRN<prn) return 0;
+            if (prn < MINPRNIRN || MAXPRNIRN < prn) {
+                return 0;
+            }
             return NSATGPS+NSATGLO+NSATGAL+NSATQZS+NSATCMP+prn-MINPRNIRN+1;
         case SYS_LEO:
-            if (prn<MINPRNLEO||MAXPRNLEO<prn) return 0;
+            if (prn < MINPRNLEO || MAXPRNLEO < prn) {
+                return 0;
+            }
             return NSATGPS+NSATGLO+NSATGAL+NSATQZS+NSATCMP+NSATIRN+
                    prn-MINPRNLEO+1;
         case SYS_SBS:
-            if (prn<MINPRNSBS||MAXPRNSBS<prn) return 0;
+            if (prn < MINPRNSBS || MAXPRNSBS < prn) {
+                return 0;
+            }
             return NSATGPS+NSATGLO+NSATGAL+NSATQZS+NSATCMP+NSATIRN+NSATLEO+
                    prn-MINPRNSBS+1;
     }
@@ -96,33 +114,30 @@ extern int satno(int sys, int prn)
 extern int satsys(int sat, int *prn)
 {
     int sys=SYS_NONE;
-    if (sat<=0||MAXSAT<sat) sat=0;
-    else if (sat<=NSATGPS) {
+    if (sat <= 0 || MAXSAT < sat) {
+        sat = 0;
+    } else if (sat <= NSATGPS) {
         sys=SYS_GPS; sat+=MINPRNGPS-1;
-    }
-    else if ((sat-=NSATGPS)<=NSATGLO) {
+    } else if ((sat -= NSATGPS) <= NSATGLO) {
         sys=SYS_GLO; sat+=MINPRNGLO-1;
-    }
-    else if ((sat-=NSATGLO)<=NSATGAL) {
+    } else if ((sat -= NSATGLO) <= NSATGAL) {
         sys=SYS_GAL; sat+=MINPRNGAL-1;
-    }
-    else if ((sat-=NSATGAL)<=NSATQZS) {
+    } else if ((sat -= NSATGAL) <= NSATQZS) {
         sys=SYS_QZS; sat+=MINPRNQZS-1;
-    }
-    else if ((sat-=NSATQZS)<=NSATCMP) {
+    } else if ((sat -= NSATQZS) <= NSATCMP) {
         sys=SYS_CMP; sat+=MINPRNCMP-1;
-    }
-    else if ((sat-=NSATCMP)<=NSATIRN) {
+    } else if ((sat -= NSATCMP) <= NSATIRN) {
         sys=SYS_IRN; sat+=MINPRNIRN-1;
-    }
-    else if ((sat-=NSATIRN)<=NSATLEO) {
+    } else if ((sat -= NSATIRN) <= NSATLEO) {
         sys=SYS_LEO; sat+=MINPRNLEO-1;
-    }
-    else if ((sat-=NSATLEO)<=NSATSBS) {
+    } else if ((sat -= NSATLEO) <= NSATSBS) {
         sys=SYS_SBS; sat+=MINPRNSBS-1;
+    } else {
+        sat = 0;
     }
-    else sat=0;
-    if (prn) *prn=sat;
+    if (prn) {
+        *prn = sat;
+    }
     return sys;
 }
 /* convert satellite number to satellite system (BDS2-aware) -------------------
@@ -137,10 +152,14 @@ extern int satsys_bd2(int sat, int *prn)
 
     sys=satsys(sat,&_prn);
 #ifdef ENACMP
-    if (sys==SYS_CMP&&(_prn)<MINPRNBDS3) sys=SYS_BD2;
+    if (sys == SYS_CMP && (_prn) < MINPRNBDS3) {
+        sys = SYS_BD2;
+    }
 #endif
 
-    if (prn) *prn=_prn;
+    if (prn) {
+        *prn = _prn;
+    }
     return sys;
 }
 /* observation definition type for frequency mapping ---------------------------*/
@@ -251,7 +270,9 @@ extern void set_obsdef(int sys, const int *freq_nums)
     obsdef_t obsdef0={0};
     int i,j;
 
-    if (!(obsdef=get_obsdef(sys))) return;
+    if (!(obsdef = get_obsdef(sys))) {
+        return;
+    }
 
     for (i=0;i<MAXFREQ;i++) {
         obsdef_tmp[i]=obsdef[i];
@@ -259,9 +280,13 @@ extern void set_obsdef(int sys, const int *freq_nums)
     }
     for (i=0;i<MAXFREQ;i++) {
         for (j=0;j<MAXFREQ;j++) {
-            if (obsdef_tmp[j].freq_num==freq_nums[i]) break;
+            if (obsdef_tmp[j].freq_num == freq_nums[i]) {
+                break;
+            }
         }
-        if (j==MAXFREQ) continue;
+        if (j == MAXFREQ) {
+            continue;
+        }
         obsdef[i].freq_num = obsdef_tmp[j].freq_num;
         obsdef[i].freq_hz  = obsdef_tmp[j].freq_hz;
         strcpy(obsdef[i].codepris,obsdef_tmp[j].codepris);
@@ -333,7 +358,9 @@ extern void apply_pppsig(const int *pppsig)
 extern const char *get_codepris(int sys, int freq_idx)
 {
     obsdef_t *obsdef=get_obsdef(sys);
-    if (!obsdef||freq_idx<0||MAXFREQ<=freq_idx) return "";
+    if (!obsdef || freq_idx < 0 || MAXFREQ <= freq_idx) {
+        return "";
+    }
     return obsdef[freq_idx].codepris;
 }
 /* convert frequency index to frequency number --------------------------------
@@ -344,7 +371,9 @@ extern const char *get_codepris(int sys, int freq_idx)
 extern int freq_idx2freq_num(int sys, int freq_idx)
 {
     obsdef_t *obsdef=get_obsdef(sys);
-    if (!obsdef||freq_idx<0||MAXFREQ<=freq_idx) return 0;
+    if (!obsdef || freq_idx < 0 || MAXFREQ <= freq_idx) {
+        return 0;
+    }
     return obsdef[freq_idx].freq_num;
 }
 /* convert frequency number to frequency index --------------------------------
@@ -356,9 +385,13 @@ extern int freq_num2freq_idx(int sys, int freq_num)
 {
     obsdef_t *obsdef=get_obsdef(sys);
     int i;
-    if (!obsdef||freq_num<=0) return -1;
+    if (!obsdef || freq_num <= 0) {
+        return -1;
+    }
     for (i=0;i<MAXFREQ;i++) {
-        if (obsdef[i].freq_num==freq_num) return i;
+        if (obsdef[i].freq_num == freq_num) {
+            return i;
+        }
     }
     return -1;
 }
@@ -374,10 +407,14 @@ extern double freq_num2freq(int sys, int freq_num, int fcn)
     obsdef_t *obsdef=get_obsdef(sys);
     double freq=0.0,dfrq=0.0;
     int i;
-    if (!obsdef||freq_num<=0) return 0.0;
+    if (!obsdef || freq_num <= 0) {
+        return 0.0;
+    }
 
     if (sys==SYS_GLO) {
-        if (fcn<-7||fcn>6) return 0.0;
+        if (fcn < -7 || fcn > 6) {
+            return 0.0;
+        }
         if (freq_num==1||freq_num==2) {
             dfrq=dfrq_glo[freq_num-1];
         }
@@ -399,28 +436,29 @@ extern int freq_num2ant_idx(int sys, int freq_num)
 {
     int idx=NFREQPCV-1;
 
-    if      ((sys&(SYS_GPS|SYS_GAL|SYS_QZS|SYS_SBS|SYS_CMP|SYS_BD2))&&
-             (freq_num==1)) idx=0;
-    else if ((sys&(SYS_GPS|SYS_QZS))&&
-             (freq_num==2)) idx=1;
-    else if ((sys&(SYS_GPS|SYS_GAL|SYS_QZS|SYS_SBS|SYS_CMP|SYS_BD2))&&
-             (freq_num==5)) idx=2;
-    else if ((sys&SYS_GLO)&&
-             (freq_num==1||freq_num==4)) idx=3;
-    else if ((sys&(SYS_CMP|SYS_BD2))&&
-             (freq_num==2)) idx=4;
-    else if ((sys&(SYS_GAL|SYS_QZS))&&
-             (freq_num==6)) idx=5;
-    else if ((sys&(SYS_CMP|SYS_BD2))&&
-             (freq_num==6)) idx=6;
-    else if ((sys&SYS_GLO)&&
-             (freq_num==2||freq_num==6)) idx=7;
-    else if ((sys&(SYS_GAL|SYS_CMP|SYS_BD2))&&
-             (freq_num==7)) idx=8;
-    else if ((sys&SYS_GLO)&&
-             (freq_num==3)) idx=9;
-    else if ((sys&(SYS_GAL|SYS_CMP|SYS_BD2))&&
-             (freq_num==8)) idx=10;
+    if ((sys & (SYS_GPS | SYS_GAL | SYS_QZS | SYS_SBS | SYS_CMP | SYS_BD2)) && (freq_num == 1)) {
+        idx = 0;
+    } else if ((sys & (SYS_GPS | SYS_QZS)) && (freq_num == 2)) {
+        idx = 1;
+    } else if ((sys & (SYS_GPS | SYS_GAL | SYS_QZS | SYS_SBS | SYS_CMP | SYS_BD2)) && (freq_num == 5)) {
+        idx = 2;
+    } else if ((sys & SYS_GLO) && (freq_num == 1 || freq_num == 4)) {
+        idx = 3;
+    } else if ((sys & (SYS_CMP | SYS_BD2)) && (freq_num == 2)) {
+        idx = 4;
+    } else if ((sys & (SYS_GAL | SYS_QZS)) && (freq_num == 6)) {
+        idx = 5;
+    } else if ((sys & (SYS_CMP | SYS_BD2)) && (freq_num == 6)) {
+        idx = 6;
+    } else if ((sys & SYS_GLO) && (freq_num == 2 || freq_num == 6)) {
+        idx = 7;
+    } else if ((sys & (SYS_GAL | SYS_CMP | SYS_BD2)) && (freq_num == 7)) {
+        idx = 8;
+    } else if ((sys & SYS_GLO) && (freq_num == 3)) {
+        idx = 9;
+    } else if ((sys & (SYS_GAL | SYS_CMP | SYS_BD2)) && (freq_num == 8)) {
+        idx = 10;
+    }
     return idx;
 }
 /* convert frequency index to antenna PCV index --------------------------------
@@ -445,13 +483,20 @@ extern int satid2no(const char *id)
     char code;
 
     if (sscanf(id,"%d",&prn)==1) {
-        if      (MINPRNGPS<=prn&&prn<=MAXPRNGPS) sys=SYS_GPS;
-        else if (MINPRNSBS<=prn&&prn<=MAXPRNSBS) sys=SYS_SBS;
-        else if (MINPRNQZS<=prn&&prn<=MAXPRNQZS) sys=SYS_QZS;
-        else return 0;
+        if (MINPRNGPS <= prn && prn <= MAXPRNGPS) {
+            sys = SYS_GPS;
+        } else if (MINPRNSBS <= prn && prn <= MAXPRNSBS) {
+            sys = SYS_SBS;
+        } else if (MINPRNQZS <= prn && prn <= MAXPRNQZS) {
+            sys = SYS_QZS;
+        } else {
+            return 0;
+        }
         return satno(sys,prn);
     }
-    if (sscanf(id,"%c%d",&code,&prn)<2) return 0;
+    if (sscanf(id, "%c%d", &code, &prn) < 2) {
+        return 0;
+    }
 
     switch (code) {
         case 'G': sys=SYS_GPS; prn+=MINPRNGPS-1; break;
@@ -503,7 +548,9 @@ static void uniqeph(nav_t *nav)
 
     trace(NULL,3,"uniqeph: n=%d\n",nav->n);
 
-    if (nav->n<=0) return;
+    if (nav->n <= 0) {
+        return;
+    }
 
     qsort(nav->eph,nav->n,sizeof(eph_t),cmpeph);
 
@@ -542,7 +589,9 @@ static void uniqgeph(nav_t *nav)
 
     trace(NULL,3,"uniqgeph: ng=%d\n",nav->ng);
 
-    if (nav->ng<=0) return;
+    if (nav->ng <= 0) {
+        return;
+    }
 
     qsort(nav->geph,nav->ng,sizeof(geph_t),cmpgeph);
 
@@ -581,7 +630,9 @@ static void uniqseph(nav_t *nav)
 
     trace(NULL,3,"uniqseph: ns=%d\n",nav->ns);
 
-    if (nav->ns<=0) return;
+    if (nav->ns <= 0) {
+        return;
+    }
 
     qsort(nav->seph,nav->ns,sizeof(seph_t),cmpseph);
 
@@ -634,12 +685,18 @@ extern int readnav(const char *file, nav_t *nav)
 
     trace(NULL,3,"loadnav: file=%s\n",file);
 
-    if (!(fp=fopen(file,"r"))) return 0;
+    if (!(fp = fopen(file, "r"))) {
+        return 0;
+    }
 
     while (fgets(buff,sizeof(buff),fp)) {
         if (!strncmp(buff,"IONUTC",6)) {
-            for (i=0;i<8;i++) nav->ion_gps[i]=0.0;
-            for (i=0;i<8;i++) nav->utc_gps[i]=0.0;
+            for (i = 0; i < 8; i++) {
+                nav->ion_gps[i] = 0.0;
+            }
+            for (i = 0; i < 8; i++) {
+                nav->utc_gps[i] = 0.0;
+            }
             sscanf(buff,"IONUTC,%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf,%lf",
                    &nav->ion_gps[0],&nav->ion_gps[1],&nav->ion_gps[2],&nav->ion_gps[3],
                    &nav->ion_gps[4],&nav->ion_gps[5],&nav->ion_gps[6],&nav->ion_gps[7],
@@ -647,8 +704,14 @@ extern int readnav(const char *file, nav_t *nav)
                    &nav->utc_gps[4]);
             continue;
         }
-        if ((p=strchr(buff,','))) *p='\0'; else continue;
-        if (!(sat=satid2no(buff))) continue;
+        if ((p = strchr(buff, ','))) {
+            *p = '\0';
+        } else {
+            continue;
+        }
+        if (!(sat = satid2no(buff))) {
+            continue;
+        }
         if (satsys(sat,&prn)==SYS_GLO) {
             nav->geph[prn-1]=geph0;
             nav->geph[prn-1].sat=sat;
@@ -698,10 +761,14 @@ extern int savenav(const char *file, const nav_t *nav)
 
     trace(NULL,3,"savenav: file=%s\n",file);
 
-    if (!(fp=fopen(file,"w"))) return 0;
+    if (!(fp = fopen(file, "w"))) {
+        return 0;
+    }
 
     for (i=0;i<MAXSAT;i++) {
-        if (nav->eph[i].ttr.time==0) continue;
+        if (nav->eph[i].ttr.time == 0) {
+            continue;
+        }
         satno2id(nav->eph[i].sat,id);
         fprintf(fp,"%s,%d,%d,%d,%d,%d,%d,%d,%.14E,%.14E,%.14E,%.14E,%.14E,%.14E,"
                    "%.14E,%.14E,%.14E,%.14E,%.14E,%.14E,%.14E,%.14E,%.14E,%.14E,"
@@ -717,7 +784,9 @@ extern int savenav(const char *file, const nav_t *nav)
                 nav->eph[i].tgd[0],nav->eph[i].code,nav->eph[i].flag);
     }
     for (i=0;i<MAXPRNGLO;i++) {
-        if (nav->geph[i].tof.time==0) continue;
+        if (nav->geph[i].tof.time == 0) {
+            continue;
+        }
         satno2id(nav->geph[i].sat,id);
         fprintf(fp,"%s,%d,%d,%d,%d,%d,%d,%d,%.14E,%.14E,%.14E,%.14E,%.14E,%.14E,"
                    "%.14E,%.14E,%.14E,%.14E,%.14E,%.14E\n",
@@ -772,15 +841,27 @@ int satexclude(int sat, double var, int svh, const struct prcopt_t *opt)
 {
     int sys=satsys(sat,NULL);
 
-    if (svh<0) return 1; /* ephemeris unavailable */
+    if (svh < 0) {
+        return 1; /* ephemeris unavailable */
+    }
 
     if (opt) {
-        if (opt->exsats[sat-1]==1) return 1; /* excluded satellite */
-        if (opt->exsats[sat-1]==2) return 0; /* included satellite */
-        if (!(sys&opt->navsys)) return 1; /* unselected sat sys */
+        if (opt->exsats[sat - 1] == 1) {
+            return 1; /* excluded satellite */
+        }
+        if (opt->exsats[sat - 1] == 2) {
+            return 0; /* included satellite */
+        }
+        if (!(sys & opt->navsys)) {
+            return 1; /* unselected sat sys */
+        }
     }
-    if (sys==SYS_QZS) svh&= 0xFE; /* mask QZSS LEX health */
-    if (sys==SYS_CMP) svh&=~0x1D; /* mask BeiDou health by reserved bit */
+    if (sys == SYS_QZS) {
+        svh &= 0xFE; /* mask QZSS LEX health */
+    }
+    if (sys == SYS_CMP) {
+        svh &= ~0x1D; /* mask BeiDou health by reserved bit */
+    }
     if (sys==SYS_GLO) {
         /* GLONASS ICD health: bit0=L1 bad, bit3=sat malfunction,
            bits1-2=01 (binary) means L2 bad — all three cases excluded */

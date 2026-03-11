@@ -133,8 +133,10 @@ static int chksum(const uint8_t *buff, int len)
 {
     uint16_t sum=0;
     int i;
-    
-    for (i=8;i<len-4;i++) sum+=buff[i];
+
+    for (i = 8; i < len - 4; i++) {
+        sum += buff[i];
+    }
     trace(NULL,4,"checksum=%02X%02X %02X%02X:%02X%02X\n",
           sum>>8,sum&0xFF,buff[len-3],buff[len-4],buff[len-2],buff[len-1]);
     return (sum>>8)==buff[len-3]&&(sum&0xFF)==buff[len-4]&&
@@ -166,8 +168,17 @@ static int decode_crespos(raw_t *raw)
     std =R4(p+44);
     mode=U2(p+48);
     time2str(gpst2time(week,tow),tstr,3);
-    trace(NULL,3,"$BIN1 %s %13.9f %14.9f %10.4f %4d %3d %.3f\n",tstr,pos[0],pos[1],
-          pos[2],mode==6?1:(mode>4?2:(mode>1?5:0)),ns,std);
+    int mode_val;
+    if (mode == 6) {
+        mode_val = 1;
+    } else if (mode > 4) {
+        mode_val = 2;
+    } else if (mode > 1) {
+        mode_val = 5;
+    } else {
+        mode_val = 0;
+    }
+    trace(NULL, 3, "$BIN1 %s %13.9f %14.9f %10.4f %4d %3d %.3f\n", tstr, pos[0], pos[1], pos[2], mode_val, ns, std);
     return 0;
 }
 /* decode bin 96 raw phase and code ------------------------------------------*/
@@ -197,14 +208,18 @@ static int decode_cresraw(raw_t *raw)
     for (i=n=0,p+=12;i<12&&n<MAXOBS;i++,p+=24) {
         word1=U4(p  );
         word2=I4(p+4);
-        if ((prn=word1&0xFF)==0) continue; /* if 0, no data */
+        if ((prn = word1 & 0xFF) == 0) {
+            continue; /* if 0, no data */
+        }
         if (!(sat=satno(prn<=MAXPRNGPS?SYS_GPS:SYS_SBS,prn))) {
             trace(NULL,2,"creasent bin 96 satellite number error: prn=%d\n",prn);
             continue;
         }
         pr=R8(p+ 8)-toff;
         cp=R8(p+16)-toff;
-        if (!(word2&1)) cp=0.0; /* invalid phase */
+        if (!(word2 & 1)) {
+            cp = 0.0; /* invalid phase */
+        }
         sn =(word1>>8)&0xFF;
         snr=sn==0?0.0:10.0*log10(0.8192*sn)+SNR2CN0_L1;
         sc =(uint32_t)(word1>>24);
@@ -265,7 +280,9 @@ static int decode_cresraw2(raw_t *raw)
     }
     for (i=0,p+=16;i<15&&n<MAXOBS;i++) {
         word1=U4(p+324+4*i); /* L1CACodeMSBsPRN */
-        if ((prn=word1&0xFF)==0) continue; /* if 0, no data */
+        if ((prn = word1 & 0xFF) == 0) {
+            continue; /* if 0, no data */
+        }
         if (!(sat=satno(prn<=MAXPRNGPS?SYS_GPS:SYS_SBS,prn))) {
             trace(NULL,2,"creasent bin 76 satellite number error: prn=%d\n",prn);
             continue;
@@ -287,13 +304,18 @@ static int decode_cresraw2(raw_t *raw)
         lli[0]|=((word1>>12)&7)?2:0;
         raw->lockt[sat-1][0]=(uint8_t)sc;
         dop[0]=((word2>>1)&0x7FFFFF)/512.0;
-        if ((word2>>24)&1) dop[0]=-dop[0];
+        if ((word2 >> 24) & 1) {
+            dop[0] = -dop[0];
+        }
         pr[0]=pr1+(word3&0xFFFF)/256.0;
         cp[0]=floor(pr[0]*freq[0]/CLIGHT/8192.0)*8192.0;
         cp[0]+=((word2&0xFE000000)+((word3&0xFFFF0000)>>7))/524288.0;
-        if      (cp[0]-pr[0]*freq[0]/CLIGHT<-4096.0) cp[0]+=8192.0;
-        else if (cp[0]-pr[0]*freq[0]/CLIGHT> 4096.0) cp[0]-=8192.0;
-        
+        if (cp[0] - pr[0] * freq[0] / CLIGHT < -4096.0) {
+            cp[0] += 8192.0;
+        } else if (cp[0] - pr[0] * freq[0] / CLIGHT > 4096.0) {
+            cp[0] -= 8192.0;
+        }
+
         if (i<12) {
             word1=U4(p  +12*i); /* L2PSatObs */
             word2=U4(p+4+12*i);
@@ -310,18 +332,27 @@ static int decode_cresraw2(raw_t *raw)
             lli[1]|=((word1>>12)&7)?2:0;
             raw->lockt[sat-1][1]=(uint8_t)sc;
             dop[1]=((word2>>1)&0x7FFFFF)/512.0;
-            if ((word2>>24)&1) dop[1]=-dop[1];
+            if ((word2 >> 24) & 1) {
+                dop[1] = -dop[1];
+            }
             pr[1]=(word3&0xFFFF)/256.0;
             if (pr[1]!=0.0) {
                 pr[1]+=pr1;
-                if      (pr[1]-pr[0]<-128.0) pr[1]+=256.0;
-                else if (pr[1]-pr[0]> 128.0) pr[1]-=256.0;
+                if (pr[1] - pr[0] < -128.0) {
+                    pr[1] += 256.0;
+                } else if (pr[1] - pr[0] > 128.0) {
+                    pr[1] -= 256.0;
+                }
                 cp[1]=floor(pr[1]*freq[1]/CLIGHT/8192.0)*8192.0;
                 cp[1]+=((word2&0xFE000000)+((word3&0xFFFF0000)>>7))/524288.0;
-                if      (cp[1]-pr[1]*freq[1]/CLIGHT<-4096.0) cp[1]+=8192.0;
-                else if (cp[1]-pr[1]*freq[1]/CLIGHT> 4096.0) cp[1]-=8192.0;
+                if (cp[1] - pr[1] * freq[1] / CLIGHT < -4096.0) {
+                    cp[1] += 8192.0;
+                } else if (cp[1] - pr[1] * freq[1] / CLIGHT > 4096.0) {
+                    cp[1] -= 8192.0;
+                }
+            } else {
+                cp[1] = 0.0;
             }
-            else cp[1]=0.0;
         }
         raw->obs.data[n].time=time;
         raw->obs.data[n].sat =sat;
@@ -345,7 +376,9 @@ static int decode_cresraw2(raw_t *raw)
     }
     raw->time=time;
     raw->obs.n=n;
-    if (strstr(raw->opt,"-ENAGLO")) return 0; /* glonass follows */
+    if (strstr(raw->opt, "-ENAGLO")) {
+        return 0; /* glonass follows */
+    }
     return 1;
 }
 /* decode bin 95 ephemeris ---------------------------------------------------*/
@@ -367,16 +400,22 @@ static int decode_creseph(raw_t *raw)
         trace(NULL,2,"crescent bin 95 satellite number error: prn=%d\n",prn);
         return -1;
     }
-    for (i=0;i<3;i++) for (j=0;j<10;j++) {
-        word=U4(p+8+i*40+j*4)>>6;
-        for (k=0;k<3;k++) buff[i*30+j*3+k]=(uint8_t)((word>>(8*(2-k)))&0xFF);
+    for (i = 0; i < 3; i++) {
+        for (j = 0; j < 10; j++) {
+            word = U4(p + 8 + i * 40 + j * 4) >> 6;
+            for (k = 0; k < 3; k++) {
+                buff[i * 30 + j * 3 + k] = (uint8_t)((word >> (8 * (2 - k))) & 0xFF);
+            }
+        }
     }
     if (!decode_frame(buff,&eph,NULL,NULL,NULL)) {
         trace(NULL,2,"crescent bin 95 navigation frame error: prn=%d\n",prn);
         return -1;
     }
     if (!strstr(raw->opt,"-EPHALL")) {
-        if (eph.iode==raw->nav.eph[sat-1].iode) return 0; /* unchanged */
+        if (eph.iode == raw->nav.eph[sat - 1].iode) {
+            return 0; /* unchanged */
+        }
     }
     eph.sat=sat;
     raw->nav.eph[sat-1]=eph;
@@ -396,7 +435,9 @@ static int decode_cresionutc(raw_t *raw)
         trace(NULL,2,"crescent bin 94 message length error: len=%d\n",raw->len);
         return -1;
     }
-    for (i=0;i<8;i++) raw->nav.ion_gps[i]=R8(p+i*8);
+    for (i = 0; i < 8; i++) {
+        raw->nav.ion_gps[i] = R8(p + i * 8);
+    }
     raw->nav.utc_gps[0]=R8(p+64);
     raw->nav.utc_gps[1]=R8(p+72);
     raw->nav.utc_gps[2]=(double)U4(p+80);
@@ -426,12 +467,17 @@ static int decode_creswaas(raw_t *raw)
     raw->sbsmsg.prn=prn;
     raw->sbsmsg.tow=U4(p+4);
     tow=time2gpst(raw->time,&raw->sbsmsg.week);
-    if      (raw->sbsmsg.tow<tow-302400.0) raw->sbsmsg.week++;
-    else if (raw->sbsmsg.tow>tow+302400.0) raw->sbsmsg.week--;
-    
+    if (raw->sbsmsg.tow < tow - 302400.0) {
+        raw->sbsmsg.week++;
+    } else if (raw->sbsmsg.tow > tow + 302400.0) {
+        raw->sbsmsg.week--;
+    }
+
     for (i=k=0;i<8&&k<29;i++) {
         word=U4(p+8+i*4);
-        for (j=0;j<4&&k<29;j++) raw->sbsmsg.msg[k++]=(uint8_t)(word>>(3-j)*8);
+        for (j = 0; j < 4 && k < 29; j++) {
+            raw->sbsmsg.msg[k++] = (uint8_t)(word >> (3 - j) * 8);
+        }
     }
     raw->sbsmsg.msg[28]&=0xC0;
     return 3;
@@ -447,9 +493,11 @@ static int decode_cresgloraw(raw_t *raw)
     uint8_t *p=raw->buff+8;
     
     trace(NULL,4,"decode_cregloraw: len=%d\n",raw->len);
-    
-    if (!strstr(raw->opt,"-ENAGLO")) return 0;
-    
+
+    if (!strstr(raw->opt, "-ENAGLO")) {
+        return 0;
+    }
+
     if (raw->len!=364) {
         trace(NULL,2,"crescent bin 66 message length error: len=%d\n",raw->len);
         return -1;
@@ -468,7 +516,9 @@ static int decode_cresgloraw(raw_t *raw)
     }
     for (i=0,p+=16;i<12&&n<MAXOBS;i++) {
         word1=U4(p+288+4*i); /* L1CACodeMSBsSlot */
-        if ((prn=word1&0xFF)==0) continue; /* if 0, no data */
+        if ((prn = word1 & 0xFF) == 0) {
+            continue; /* if 0, no data */
+        }
         if (!(sat=satno(SYS_GLO,prn))) {
             trace(NULL,2,"creasent bin 66 satellite number error: prn=%d\n",prn);
             continue;
@@ -494,13 +544,18 @@ static int decode_cresgloraw(raw_t *raw)
         lli[0]|=((word1>>12)&7)?2:0;
         raw->lockt[sat-1][0]=(uint8_t)sc;
         dop[0]=((word2>>1)&0x7FFFFF)/512.0;
-        if ((word2>>24)&1) dop[0]=-dop[0];
+        if ((word2 >> 24) & 1) {
+            dop[0] = -dop[0];
+        }
         pr[0]=pr1+(word3&0xFFFF)/256.0;
         cp[0]=floor(pr[0]*freq[0]/CLIGHT/8192.0)*8192.0;
         cp[0]+=((word2&0xFE000000)+((word3&0xFFFF0000)>>7))/524288.0;
-        if      (cp[0]-pr[0]*freq[0]/CLIGHT<-4096.0) cp[0]+=8192.0;
-        else if (cp[0]-pr[0]*freq[0]/CLIGHT> 4096.0) cp[0]-=8192.0;
-        
+        if (cp[0] - pr[0] * freq[0] / CLIGHT < -4096.0) {
+            cp[0] += 8192.0;
+        } else if (cp[0] - pr[0] * freq[0] / CLIGHT > 4096.0) {
+            cp[0] -= 8192.0;
+        }
+
         /* L2Obs */
         word1=U4(p+144+12*i);
         word2=U4(p+148+12*i);
@@ -517,16 +572,24 @@ static int decode_cresgloraw(raw_t *raw)
         lli[1]|=((word1>>12)&7)?2:0;
         raw->lockt[sat-1][1]=(uint8_t)sc;
         dop[1]=((word2>>1)&0x7FFFFF)/512.0;
-        if ((word2>>24)&1) dop[1]=-dop[1];
+        if ((word2 >> 24) & 1) {
+            dop[1] = -dop[1];
+        }
         pr[1]=(word3&0xFFFF)/256.0;
         if (pr[1]!=0.0) {
             pr[1]+=pr1;
-            if      (pr[1]-pr[0]<-128.0) pr[1]+=256.0;
-            else if (pr[1]-pr[0]> 128.0) pr[1]-=256.0;
+            if (pr[1] - pr[0] < -128.0) {
+                pr[1] += 256.0;
+            } else if (pr[1] - pr[0] > 128.0) {
+                pr[1] -= 256.0;
+            }
             cp[1]=floor(pr[1]*freq[1]/CLIGHT/8192.0)*8192.0;
             cp[1]+=((word2&0xFE000000)+((word3&0xFFFF0000)>>7))/524288.0;
-            if      (cp[1]-pr[1]*freq[1]/CLIGHT<-4096.0) cp[1]+=8192.0;
-            else if (cp[1]-pr[1]*freq[1]/CLIGHT> 4096.0) cp[1]-=8192.0;
+            if (cp[1] - pr[1] * freq[1] / CLIGHT < -4096.0) {
+                cp[1] += 8192.0;
+            } else if (cp[1] - pr[1] * freq[1] / CLIGHT > 4096.0) {
+                cp[1] -= 8192.0;
+            }
         }
         raw->obs.data[n].time=time;
         raw->obs.data[n].sat =sat;
@@ -560,9 +623,11 @@ static int decode_cresgloeph(raw_t *raw)
     int i,j,k,sat,prn,frq,time,no;
     
     trace(NULL,4,"decode_cregloeph: len=%d\n",raw->len);
-    
-    if (!strstr(raw->opt,"-ENAGLO")) return 0;
-    
+
+    if (!strstr(raw->opt, "-ENAGLO")) {
+        return 0;
+    }
+
     prn =U1(p);   p+=1;
     frq =U1(p)-8; p+=1+2;
     time=U4(p);   p+=4;
@@ -572,8 +637,10 @@ static int decode_cresgloeph(raw_t *raw)
         return -1;
     }
     for (i=0;i<5;i++) {
-        for (j=0;j<3;j++) for (k=3;k>=0;k--) {
-            str[k+j*4]=U1(p++);
+        for (j = 0; j < 3; j++) {
+            for (k = 3; k >= 0; k--) {
+                str[k + j * 4] = U1(p++);
+            }
         }
         if ((no=getbitu(str,1,4))!=i+1) {
             trace(NULL,2,"creasent bin 65 string no error: sat=%2d no=%d %d\n",sat,
@@ -584,11 +651,15 @@ static int decode_cresgloeph(raw_t *raw)
     }
     /* decode glonass ephemeris strings */
     geph.tof=raw->time;
-    if (!decode_glostr(raw->subfrm[sat-1],&geph,NULL)||geph.sat!=sat) return -1;
+    if (!decode_glostr(raw->subfrm[sat - 1], &geph, NULL) || geph.sat != sat) {
+        return -1;
+    }
     geph.frq=frq;
     
     if (!strstr(raw->opt,"-EPHALL")) {
-        if (geph.iode==raw->nav.geph[prn-1].iode) return 0; /* unchanged */
+        if (geph.iode == raw->nav.geph[prn - 1].iode) {
+            return 0; /* unchanged */
+        }
     }
     raw->nav.geph[prn-1]=geph;
     raw->ephsat=sat;
@@ -650,7 +721,9 @@ extern int input_cres(raw_t *raw, uint8_t data)
     
     /* synchronize frame */
     if (raw->nbyte==0) {
-        if (!sync_cres(raw->buff,data)) return 0;
+        if (!sync_cres(raw->buff, data)) {
+            return 0;
+        }
         raw->nbyte=4;
         return 0;
     }
@@ -663,7 +736,9 @@ extern int input_cres(raw_t *raw, uint8_t data)
             return -1;
         }
     }
-    if (raw->nbyte<8||raw->nbyte<raw->len) return 0;
+    if (raw->nbyte < 8 || raw->nbyte < raw->len) {
+        return 0;
+    }
     raw->nbyte=0;
     
     /* decode crescent raw message */
@@ -684,12 +759,20 @@ extern int input_cresf(raw_t *raw, FILE *fp)
     /* synchronize frame */
     if (raw->nbyte==0) {
         for (i=0;;i++) {
-            if ((data=fgetc(fp))==EOF) return -2;
-            if (sync_cres(raw->buff,(uint8_t)data)) break;
-            if (i>=4096) return 0;
+            if ((data = fgetc(fp)) == EOF) {
+                return -2;
+            }
+            if (sync_cres(raw->buff, (uint8_t)data)) {
+                break;
+            }
+            if (i >= 4096) {
+                return 0;
+            }
         }
     }
-    if (fread(raw->buff+4,1,4,fp)<4) return -2;
+    if (fread(raw->buff + 4, 1, 4, fp) < 4) {
+        return -2;
+    }
     raw->nbyte=8;
     
     if ((raw->len=U2(raw->buff+6)+12)>MAXRAWLEN) {
@@ -697,7 +780,9 @@ extern int input_cresf(raw_t *raw, FILE *fp)
         raw->nbyte=0;
         return -1;
     }
-    if (fread(raw->buff+8,1,raw->len-8,fp)<(size_t)(raw->len-8)) return -2;
+    if (fread(raw->buff + 8, 1, raw->len - 8, fp) < (size_t)(raw->len - 8)) {
+        return -2;
+    }
     raw->nbyte=0;
     
     /* decode crescent raw message */

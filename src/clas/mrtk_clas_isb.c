@@ -59,18 +59,30 @@ static void setstr(char *dst, const char *src, int n)
     p--;
     while (p >= dst && *p == ' ') {
         *p = '\0';
-        if (p > dst) p--;
+        if (p > dst) {
+            p--;
+        }
     }
 }
 
 /* satellite code character to system ------------------------------------------*/
 static int code2sys(char code)
 {
-    if (code == 'G' || code == ' ') return SYS_GPS;
-    if (code == 'R') return SYS_GLO;
-    if (code == 'E') return SYS_GAL;
-    if (code == 'J') return SYS_QZS;
-    if (code == 'C') return SYS_CMP;
+    if (code == 'G' || code == ' ') {
+        return SYS_GPS;
+    }
+    if (code == 'R') {
+        return SYS_GLO;
+    }
+    if (code == 'E') {
+        return SYS_GAL;
+    }
+    if (code == 'J') {
+        return SYS_QZS;
+    }
+    if (code == 'C') {
+        return SYS_CMP;
+    }
     return SYS_NONE;
 }
 
@@ -102,8 +114,12 @@ static int sys2isbidx(int sys)
 static void chop_isb(char *str)
 {
     char *p;
-    if ((p = strchr(str, '#'))) *p = '\0';
-    for (p = str + strlen(str) - 1; p >= str && !isgraph((int)*p); p--) *p = '\0';
+    if ((p = strchr(str, '#'))) {
+        *p = '\0';
+    }
+    for (p = str + strlen(str) - 1; p >= str && !isgraph((int)*p); p--) {
+        *p = '\0';
+    }
 }
 
 /* add ISB data to navigation data ---------------------------------------------*/
@@ -112,7 +128,11 @@ static int addisbdata(nav_t *nav, const isb_t *data)
     isb_t *isb_data;
 
     if (nav->nimax <= nav->ni) {
-        if (nav->nimax <= 0) nav->nimax = NINCISB; else nav->nimax *= 2;
+        if (nav->nimax <= 0) {
+            nav->nimax = NINCISB;
+        } else {
+            nav->nimax *= 2;
+        }
         if (!(isb_data = (isb_t *)realloc(nav->isb, sizeof(isb_t) * nav->nimax))) {
             trace(NULL, 1, "addisbdata: memalloc error n=%d\n", nav->nimax);
             free(nav->isb); nav->isb = NULL; nav->ni = nav->nimax = 0;
@@ -152,7 +172,9 @@ static int readisbf(const char *file, nav_t *nav)
     }
     while (fgets(buff, sizeof(buff), fp)) {
         ++n;
-        if (4 > n) continue;
+        if (4 > n) {
+            continue;
+        }
 
         chop_isb(buff);
         if (4 == n) {
@@ -293,7 +315,9 @@ extern int readisb(const char *file, nav_t *nav)
 
     for (i = 0; i < MAXEXFILE; i++) {
         if (!(efiles[i] = (char *)malloc(1024))) {
-            for (i--; i >= 0; i--) free(efiles[i]);
+            for (i--; i >= 0; i--) {
+                free(efiles[i]);
+            }
             return 0;
         }
     }
@@ -304,7 +328,9 @@ extern int readisb(const char *file, nav_t *nav)
     for (i = 0; i < n; i++) {
         readisbf(efiles[i], nav);
     }
-    for (i = 0; i < MAXEXFILE; i++) free(efiles[i]);
+    for (i = 0; i < MAXEXFILE; i++) {
+        free(efiles[i]);
+    }
 
     trace(NULL, 3, "readisb: total ni=%d\n", nav->ni);
     return 1;
@@ -326,27 +352,40 @@ extern void setisb(const nav_t *nav, const char *rectype0, const char *rectype1,
 
     /* clear ISB arrays */
     if (sta0) {
-        for (i = 0; i < NSYS; ++i)
-            for (j = 0; j < NFREQ; ++j)
-                for (k = 0; k < 2; ++k) sta0->isb[i][j][k] = 0.0;
+        for (i = 0; i < NSYS; ++i) {
+            for (j = 0; j < NFREQ; ++j) {
+                for (k = 0; k < 2; ++k) {
+                    sta0->isb[i][j][k] = 0.0;
+                }
+            }
+        }
     }
     if (sta1) {
-        for (i = 0; i < NSYS; ++i)
-            for (j = 0; j < NFREQ; ++j)
-                for (k = 0; k < 2; ++k) sta1->isb[i][j][k] = 0.0;
+        for (i = 0; i < NSYS; ++i) {
+            for (j = 0; j < NFREQ; ++j) {
+                for (k = 0; k < 2; ++k) {
+                    sta1->isb[i][j][k] = 0.0;
+                }
+            }
+        }
     }
 
-    if (!rectype0) return;
+    if (!rectype0) {
+        return;
+    }
 
     for (m = 0; m < nav->ni; ++m) {
         /* exact match: rover-base pair */
         if (!strcmp(rectype0, nav->isb[m].sta_name)) {
             if (rectype1 && !strcmp(rectype1, nav->isb[m].sta_name_base)) {
                 if (sta0) {
-                    for (i = 0; i < NSYS; ++i)
-                        for (j = 0; j < NFREQ; ++j)
-                            for (k = 0; k < 2; ++k)
+                    for (i = 0; i < NSYS; ++i) {
+                        for (j = 0; j < NFREQ; ++j) {
+                            for (k = 0; k < 2; ++k) {
                                 sta0->isb[i][j][k] = nav->isb[m].gsb[i][j][k];
+                            }
+                        }
+                    }
                 }
                 r = 1;
                 break;
@@ -356,10 +395,13 @@ extern void setisb(const nav_t *nav, const char *rectype0, const char *rectype1,
         if (rectype1 && !strcmp(rectype1, nav->isb[m].sta_name)) {
             if (!strcmp(rectype0, nav->isb[m].sta_name_base)) {
                 if (sta0) {
-                    for (i = 0; i < NSYS; ++i)
-                        for (j = 0; j < NFREQ; ++j)
-                            for (k = 0; k < 2; ++k)
+                    for (i = 0; i < NSYS; ++i) {
+                        for (j = 0; j < NFREQ; ++j) {
+                            for (k = 0; k < 2; ++k) {
                                 sta0->isb[i][j][k] = -nav->isb[m].gsb[i][j][k];
+                            }
+                        }
+                    }
                 }
                 r = 1;
                 break;
@@ -378,14 +420,22 @@ extern void setisb(const nav_t *nav, const char *rectype0, const char *rectype1,
     }
     if (r == 0) {
         if (pisb[0] && sta0) {
-            for (i = 0; i < NSYS; ++i)
-                for (j = 0; j < NFREQ; ++j)
-                    for (k = 0; k < 2; ++k) sta0->isb[i][j][k] = pisb[0]->gsb[i][j][k];
+            for (i = 0; i < NSYS; ++i) {
+                for (j = 0; j < NFREQ; ++j) {
+                    for (k = 0; k < 2; ++k) {
+                        sta0->isb[i][j][k] = pisb[0]->gsb[i][j][k];
+                    }
+                }
+            }
         }
         if (pisb[1] && sta1) {
-            for (i = 0; i < NSYS; ++i)
-                for (j = 0; j < NFREQ; ++j)
-                    for (k = 0; k < 2; ++k) sta1->isb[i][j][k] = pisb[1]->gsb[i][j][k];
+            for (i = 0; i < NSYS; ++i) {
+                for (j = 0; j < NFREQ; ++j) {
+                    for (k = 0; k < 2; ++k) {
+                        sta1->isb[i][j][k] = pisb[1]->gsb[i][j][k];
+                    }
+                }
+            }
         }
     }
 
@@ -411,11 +461,18 @@ extern void chk_isb(int sysno, const prcopt_t *opt, const sta_t *sta,
     int i, j;
     int isys = sys2isbidx(sysno);
 
-    for (i = 0; i < NFREQ; ++i)
-        for (j = 0; j < 2; ++j) y[i][j] = 0.0;
+    for (i = 0; i < NFREQ; ++i) {
+        for (j = 0; j < 2; ++j) {
+            y[i][j] = 0.0;
+        }
+    }
 
-    if (isys < 0) return;
-    if (opt->isb != ISBOPT_TABLE) return;
+    if (isys < 0) {
+        return;
+    }
+    if (opt->isb != ISBOPT_TABLE) {
+        return;
+    }
 
     for (i = 0; i < NFREQ; ++i) {
         for (j = 0; j < 2; ++j) {

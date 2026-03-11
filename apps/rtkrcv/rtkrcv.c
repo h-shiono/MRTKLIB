@@ -295,7 +295,9 @@ static void sigshut(int sig)
 static void chop(char *str)
 {
     char *p;
-    for (p=str+strlen(str)-1;p>=str&&!isgraph((int)*p);p--) *p='\0';
+    for (p = str + strlen(str) - 1; p >= str && !isgraph((int)*p); p--) {
+        *p = '\0';
+    }
 }
 /* thread to send keep alive for monitor port --------------------------------*/
 static void *sendkeepalive(void *arg)
@@ -318,7 +320,9 @@ static int openmoni(int port)
     trace(NULL,3,"openmomi: port=%d\n",port);
     
     sprintf(path,":%d",port);
-    if (!stropen(&moni,STR_TCPSVR,STR_MODE_RW,path)) return 0;
+    if (!stropen(&moni, STR_TCPSVR, STR_MODE_RW, path)) {
+        return 0;
+    }
     strsettimeout(&moni,timeout,reconnect);
     keepalive=1;
     pthread_create(&thread,NULL,sendkeepalive,NULL);
@@ -354,11 +358,17 @@ static int confwrite(vt_t *vt, const char *file)
         return 1;
     }
     strcpy(buff,file);
-    if ((p=strstr(buff,"::"))) *p='\0'; /* omit options in path */
-    if (!vt->state||!(fp=fopen(buff,"r"))) return 1; /* no existing file */
+    if ((p = strstr(buff, "::"))) {
+        *p = '\0'; /* omit options in path */
+    }
+    if (!vt->state || !(fp = fopen(buff, "r"))) {
+        return 1; /* no existing file */
+    }
     fclose(fp);
     vt_printf(vt,"overwrite %-16s ? (y/n): ",buff);
-    if (!vt_gets(vt,buff,sizeof(buff))||vt->brk) return 0;
+    if (!vt_gets(vt, buff, sizeof(buff)) || vt->brk) {
+        return 0;
+    }
     return toupper((int)buff[0])=='Y';
 }
 /* login ---------------------------------------------------------------------*/
@@ -367,18 +377,24 @@ static int login(vt_t *vt)
     char buff[256];
     
     trace(NULL,3,"login: passwd=%s type=%d\n",passwd,vt->type);
-    
-    if (!*passwd||!vt->type) return 1;
-    
+
+    if (!*passwd || !vt->type) {
+        return 1;
+    }
+
     while (!(intflg&2)) {
-        if (!vt_printf(vt,"password: ",PROGNAME)) return 0;
+        if (!vt_printf(vt, "password: ", PROGNAME)) {
+            return 0;
+        }
         vt->blind=1;
         if (!vt_gets(vt,buff,sizeof(buff))||vt->brk) {
             vt->blind=0;
             return 0;
         }
         vt->blind=0;
-        if (!strcmp(buff,passwd)) break;
+        if (!strcmp(buff, passwd)) {
+            break;
+        }
         vt_printf(vt,"\ninvalid password\n");
     }
     return 1;
@@ -391,12 +407,15 @@ static int readcmd(const char *file, char *cmd, int type)
     int i=0;
     
     trace(NULL,3,"readcmd: file=%s\n",file);
-    
-    if (!(fp=fopen(file,"r"))) return 0;
-    
+
+    if (!(fp = fopen(file, "r"))) {
+        return 0;
+    }
+
     while (fgets(buff,sizeof(buff),fp)) {
-        if (*buff=='@') i++;
-        else if (i==type&&p+strlen(buff)+1<cmd+MAXRCVCMD) {
+        if (*buff == '@') {
+            i++;
+        } else if (i == type && p + strlen(buff) + 1 < cmd + MAXRCVCMD) {
             p+=sprintf(p,"%s",buff);
         }
     }
@@ -415,28 +434,36 @@ static void readant(vt_t *vt, prcopt_t *opt, nav_t *nav)
     trace(NULL,3,"readant:\n");
     
     opt->pcvr[0]=opt->pcvr[1]=pcv0;
-    if (!*filopt.rcvantp) return;
-    
+    if (!*filopt.rcvantp) {
+        return;
+    }
+
     if (readpcv(filopt.rcvantp,&pcvr)) {
         for (i=0;i<2;i++) {
-            if (!*opt->anttype[i]) continue;
+            if (!*opt->anttype[i]) {
+                continue;
+            }
             if (!(pcv=searchpcv(0,opt->anttype[i],time,&pcvr))) {
                 vt_printf(vt,"no antenna %s in %s",opt->anttype[i],filopt.rcvantp);
                 continue;
             }
             opt->pcvr[i]=*pcv;
         }
+    } else {
+        vt_printf(vt, "antenna file open error %s", filopt.rcvantp);
     }
-    else vt_printf(vt,"antenna file open error %s",filopt.rcvantp);
-    
+
     if (readpcv(filopt.satantp,&pcvs)) {
         for (i=0;i<MAXSAT;i++) {
-            if (!(pcv=searchpcv(i+1,"",time,&pcvs))) continue;
+            if (!(pcv = searchpcv(i + 1, "", time, &pcvs))) {
+                continue;
+            }
             nav->pcvs[i]=*pcv;
         }
+    } else {
+        vt_printf(vt, "antenna file open error %s", filopt.satantp);
     }
-    else vt_printf(vt,"antenna file open error %s",filopt.satantp);
-    
+
     free(pcvr.pcv); free(pcvs.pcv);
 }
 /* start rtk server ----------------------------------------------------------*/
@@ -458,22 +485,30 @@ static int startsvr(vt_t *vt)
     
     /* read start commads from command files */
     for (i=0;i<3;i++) {
-        if (!*rcvcmds[i]) continue;
+        if (!*rcvcmds[i]) {
+            continue;
+        }
         if (!readcmd(rcvcmds[i],s1[i],0)) {
             vt_printf(vt,"no command file: %s\n",rcvcmds[i]);
+        } else {
+            cmds[i] = s1[i];
         }
-        else cmds[i]=s1[i];
         if (!readcmd(rcvcmds[i],s2[i],2)) {
             vt_printf(vt,"no command file: %s\n",rcvcmds[i]);
+        } else {
+            cmds_periodic[i] = s2[i];
         }
-        else cmds_periodic[i]=s2[i];
     }
     /* confirm overwrite */
     for (i=3;i<8;i++) {
-        if (strtype[i]==STR_FILE&&!confwrite(vt,strpath[i])) return 0;
+        if (strtype[i] == STR_FILE && !confwrite(vt, strpath[i])) {
+            return 0;
+        }
     }
     if (prcopt.refpos==4) { /* rtcm */
-        for (i=0;i<3;i++) prcopt.rb[i]=0.0;
+        for (i = 0; i < 3; i++) {
+            prcopt.rb[i] = 0.0;
+        }
     }
     pos[0]=nmeapos[0]*D2R;
     pos[1]=nmeapos[1]*D2R;
@@ -493,9 +528,13 @@ static int startsvr(vt_t *vt)
         trace(NULL,2,"geoid data open error: %s\n",filopt.geoid);
         vt_printf(vt,"geoid data open error: %s\n",filopt.geoid);
     }
-    for (i=0;*rcvopts[i].name;i++) modflgr[i]=0;
-    for (i=0;*sysopts[i].name;i++) modflgs[i]=0;
-    
+    for (i = 0; *rcvopts[i].name; i++) {
+        modflgr[i] = 0;
+    }
+    for (i = 0; *sysopts[i].name; i++) {
+        modflgs[i] = 0;
+    }
+
     /* set stream options */
     stropt[0]=timeout;
     stropt[1]=reconnect;
@@ -503,9 +542,11 @@ static int startsvr(vt_t *vt)
     stropt[3]=buffsize;
     stropt[4]=fswapmargin;
     strsetopt(stropt);
-    
-    if (strfmt[2]==8) strfmt[2]=STRFMT_SP3;
-    
+
+    if (strfmt[2] == 8) {
+        strfmt[2] = STRFMT_SP3;
+    }
+
     /* set ftp/http directory and proxy */
     strsetdir(filopt.tempdir);
     strsetproxy(proxyaddr);
@@ -570,16 +611,21 @@ static void stopsvr(vt_t *vt)
     int i,ret;
     
     trace(NULL,3,"stopsvr:\n");
-    
-    if (!svr.state) return;
-    
+
+    if (!svr.state) {
+        return;
+    }
+
     /* read stop commads from command files */
     for (i=0;i<3;i++) {
-        if (!*rcvcmds[i]) continue;
+        if (!*rcvcmds[i]) {
+            continue;
+        }
         if (!readcmd(rcvcmds[i],s[i],1)) {
             vt_printf(vt,"no command file: %s\n",rcvcmds[i]);
+        } else {
+            cmds[i] = s[i];
         }
-        else cmds[i]=s[i];
     }
     /* stop rtk server */
     rtksvrstop(&svr,cmds);
@@ -589,8 +635,10 @@ static void stopsvr(vt_t *vt)
         trace(NULL,2,"command exec error: %s (%d)\n",stopcmd,ret);
         vt_printf(vt,"command exec error: %s (%d)\n",stopcmd,ret);
     }
-    if (solopt[0].geoid>0) closegeoid();
-    
+    if (solopt[0].geoid > 0) {
+        closegeoid();
+    }
+
     vt_printf(vt,"stop rtk server\n");
 }
 /* print time ----------------------------------------------------------------*/
@@ -608,8 +656,9 @@ static void prtime(vt_t *vt, gtime_t time)
     }
     else if (timetype==3) {
         tow=time2gpst(time,&week); sprintf(tstr,"  %04d %9.2f",week,tow);
+    } else {
+        time2str(time, tstr, 1);
     }
-    else time2str(time,tstr,1);
     vt_printf(vt,"%s ",tstr);
 }
 /* print solution ------------------------------------------------------------*/
@@ -621,13 +670,17 @@ static void prsolution(vt_t *vt, const sol_t *sol, const double *rb)
     int i;
     
     trace(NULL,4,"prsolution:\n");
-    
-    if (sol->time.time==0||!sol->stat) return;
+
+    if (sol->time.time == 0 || !sol->stat) {
+        return;
+    }
     prtime(vt,sol->time);
     vt_printf(vt,"(%-6s)",solstr[sol->stat]);
     
     if (norm(sol->rr,3)>0.0&&norm(rb,3)>0.0) {
-        for (i=0;i<3;i++) bl[i]=sol->rr[i]-rb[i];
+        for (i = 0; i < 3; i++) {
+            bl[i] = sol->rr[i] - rb[i];
+        }
     }
     len=norm(bl,3);
     Qr[0]=sol->qr[0];
@@ -643,7 +696,9 @@ static void prsolution(vt_t *vt, const sol_t *sol, const double *rb)
             covenu(pos,Qr,Qe);
             deg2dms(pos[0]*R2D,dms1,4);
             deg2dms(pos[1]*R2D,dms2,4);
-            if (solopt[0].height==1) pos[2]-=geoidh(pos); /* geodetic */
+            if (solopt[0].height == 1) {
+                pos[2] -= geoidh(pos); /* geodetic */
+            }
         }       
         vt_printf(vt," %s:%2.0f %02.0f %07.4f",pos[0]<0?"S":"N",fabs(dms1[0]),dms1[1],dms1[2]);
         vt_printf(vt," %s:%3.0f %02.0f %07.4f",pos[1]<0?"W":"E",fabs(dms2[0]),dms2[1],dms2[2]);
@@ -656,7 +711,9 @@ static void prsolution(vt_t *vt, const sol_t *sol, const double *rb)
         if (norm(sol->rr,3)>0.0) {
             ecef2pos(sol->rr,pos);
             covenu(pos,Qr,Qe);
-            if (solopt[0].height==1) pos[2]-=geoidh(pos); /* geodetic */
+            if (solopt[0].height == 1) {
+                pos[2] -= geoidh(pos); /* geodetic */
+            }
         }       
         vt_printf(vt," %s:%11.8f",pos[0]<0.0?"S":"N",fabs(pos[0])*R2D);
         vt_printf(vt," %s:%12.8f",pos[1]<0.0?"W":"E",fabs(pos[1])*R2D);
@@ -692,7 +749,10 @@ static void prsolution(vt_t *vt, const sol_t *sol, const double *rb)
             ecef2enu(pos,bl,enu);
             covenu(pos,Qr,Qe);
             pitch=asin(enu[2]/len);
-            yaw=atan2(enu[0],enu[1]); if (yaw<0.0) yaw+=2.0*PI;
+            yaw = atan2(enu[0], enu[1]);
+            if (yaw < 0.0) {
+                yaw += 2.0 * PI;
+            }
         }
         vt_printf(vt," P:%12.3f",pitch*R2D);
         vt_printf(vt," Y:%12.3f",yaw*R2D);
@@ -737,21 +797,31 @@ static void prstatus(vt_t *vt)
     cputime=svr.cputime;
     prcout=svr.prcout;
     nave=svr.nave;
-    for (i=0;i<3;i++) nb[i]=svr.nb[i];
-    for (i=0;i<3;i++) for (j=0;j<10;j++) {
-        nmsg[i][j]=svr.nmsg[i][j];
+    for (i = 0; i < 3; i++) {
+        nb[i] = svr.nb[i];
+    }
+    for (i = 0; i < 3; i++) {
+        for (j = 0; j < 10; j++) {
+            nmsg[i][j] = svr.nmsg[i][j];
+        }
     }
     if (svr.state) {
         runtime=(double)(tickget()-svr.tick)/1000.0;
         rt[0]=floor(runtime/3600.0); runtime-=rt[0]*3600.0;
         rt[1]=floor(runtime/60.0); rt[2]=runtime-rt[1]*60.0;
     }
-    for (i=0;i<3;i++) rtcm[i]=svr.rtcm[i];
+    for (i = 0; i < 3; i++) {
+        rtcm[i] = svr.rtcm[i];
+    }
     rtksvrunlock(&svr);
     
     for (i=n=0;i<MAXSAT;i++) {
-        if (rtk.opt.mode==PMODE_SINGLE&&!rtk.ssat[i].vs) continue;
-        if (rtk.opt.mode!=PMODE_SINGLE&&!rtk.ssat[i].vsat[0]) continue;
+        if (rtk.opt.mode == PMODE_SINGLE && !rtk.ssat[i].vs) {
+            continue;
+        }
+        if (rtk.opt.mode != PMODE_SINGLE && !rtk.ssat[i].vsat[0]) {
+            continue;
+        }
         azel[  n*2]=rtk.ssat[i].azel[0];
         azel[1+n*2]=rtk.ssat[i].azel[1];
         n++;
@@ -779,14 +849,18 @@ static void prstatus(vt_t *vt)
     for (i=0;i<3;i++) {
         p=s; *p='\0';
         for (j=1;j<100;j++) {
-            if (rtcm[i].nmsg2[j]==0) continue;
+            if (rtcm[i].nmsg2[j] == 0) {
+                continue;
+            }
             p+=sprintf(p,"%s%d(%d)",p>s?",":"",j,rtcm[i].nmsg2[j]);
         }
         if (rtcm[i].nmsg2[0]>0) {
             sprintf(p,"%sother2(%d)",p>s?",":"",rtcm[i].nmsg2[0]);
         }
         for (j=1;j<300;j++) {
-            if (rtcm[i].nmsg3[j]==0) continue;
+            if (rtcm[i].nmsg3[j] == 0) {
+                continue;
+            }
             p+=sprintf(p,"%s%d(%d)",p>s?",":"",j+1000,rtcm[i].nmsg3[j]);
         }
         if (rtcm[i].nmsg3[0]>0) {
@@ -811,7 +885,11 @@ static void prstatus(vt_t *vt)
     vt_printf(vt,"%-28s: %d\n","# of all estimated states",rtk.nx);
     vt_printf(vt,"%-28s: %.3f,%.3f,%.3f\n","pos xyz single (m) rover",
             rtk.sol.rr[0],rtk.sol.rr[1],rtk.sol.rr[2]);
-    if (norm(rtk.sol.rr,3)>0.0) ecef2pos(rtk.sol.rr,pos); else pos[0]=pos[1]=pos[2]=0.0;
+    if (norm(rtk.sol.rr, 3) > 0.0) {
+        ecef2pos(rtk.sol.rr, pos);
+    } else {
+        pos[0] = pos[1] = pos[2] = 0.0;
+    }
     vt_printf(vt,"%-28s: %.8f,%.8f,%.3f\n","pos llh single (deg,m) rover",
             pos[0]*R2D,pos[1]*R2D,pos[2]);
     ecef2enu(pos,rtk.sol.rr+3,vel);
@@ -826,7 +904,11 @@ static void prstatus(vt_t *vt)
             rtk.Pa?SQRT(rtk.Pa[0]):0,rtk.Pa?SQRT(rtk.Pa[1+1*rtk.na]):0,rtk.Pa?SQRT(rtk.Pa[2+2*rtk.na]):0);
     vt_printf(vt,"%-28s: %.3f,%.3f,%.3f\n","pos xyz (m) base",
             rtk.rb[0],rtk.rb[1],rtk.rb[2]);
-    if (norm(rtk.rb,3)>0.0) ecef2pos(rtk.rb,pos); else pos[0]=pos[1]=pos[2]=0.0;
+    if (norm(rtk.rb, 3) > 0.0) {
+        ecef2pos(rtk.rb, pos);
+    } else {
+        pos[0] = pos[1] = pos[2] = 0.0;
+    }
     vt_printf(vt,"%-28s: %.8f,%.8f,%.3f\n","pos llh (deg,m) base",
             pos[0]*R2D,pos[1]*R2D,pos[2]);
     vt_printf(vt,"%-28s: %d\n","# of average single pos base",nave);
@@ -840,11 +922,15 @@ static void prstatus(vt_t *vt)
     vt_printf(vt,"%-28s: %.3f,%.3f,%.3f\n","vel enu (m/s) base",
             vel[0],vel[1],vel[2]);
     if (rtk.opt.mode>0&&rtk.x&&norm(rtk.x,3)>0.0) {
-        for (i=0;i<3;i++) rr[i]=rtk.x[i]-rtk.rb[i];
+        for (i = 0; i < 3; i++) {
+            rr[i] = rtk.x[i] - rtk.rb[i];
+        }
         bl1=norm(rr,3);
     }
     if (rtk.opt.mode>0&&rtk.xa&&norm(rtk.xa,3)>0.0) {
-        for (i=0;i<3;i++) rr[i]=rtk.xa[i]-rtk.rb[i];
+        for (i = 0; i < 3; i++) {
+            rr[i] = rtk.xa[i] - rtk.rb[i];
+        }
         bl2=norm(rr,3);
     }
     vt_printf(vt,"%-28s: %.3f\n","baseline length float (m)",bl1);
@@ -864,34 +950,77 @@ static void prsatellite(vt_t *vt, int sys, int nf)
     rtksvrlock(&svr);
     rtk=svr.rtk;
     rtksvrunlock(&svr);
-    if (nf<=0||nf>NFREQ) nf=NFREQ;
+    if (nf <= 0 || nf > NFREQ) {
+        nf = NFREQ;
+    }
     vt_printf(vt,"\n%s%3s %2s %5s %4s",ESC_BOLD,"SAT","C1","Az","El");
-    for (j=0;j<nf;j++) vt_printf(vt," L%d"    ,frq[j]);
-    for (j=0;j<nf;j++) vt_printf(vt,"  Fix%d" ,frq[j]);
-    for (j=0;j<nf;j++) vt_printf(vt,"  P%dRes",frq[j]);
-    for (j=0;j<nf;j++) vt_printf(vt,"   L%dRes",frq[j]);
-    for (j=0;j<nf;j++) vt_printf(vt,"  Sl%d"  ,frq[j]);
-    for (j=0;j<nf;j++) vt_printf(vt,"  Lock%d",frq[j]);
-    for (j=0;j<nf;j++) vt_printf(vt," Rj%d"   ,frq[j]);
+    for (j = 0; j < nf; j++) {
+        vt_printf(vt, " L%d", frq[j]);
+    }
+    for (j = 0; j < nf; j++) {
+        vt_printf(vt, "  Fix%d", frq[j]);
+    }
+    for (j = 0; j < nf; j++) {
+        vt_printf(vt, "  P%dRes", frq[j]);
+    }
+    for (j = 0; j < nf; j++) {
+        vt_printf(vt, "   L%dRes", frq[j]);
+    }
+    for (j = 0; j < nf; j++) {
+        vt_printf(vt, "  Sl%d", frq[j]);
+    }
+    for (j = 0; j < nf; j++) {
+        vt_printf(vt, "  Lock%d", frq[j]);
+    }
+    for (j = 0; j < nf; j++) {
+        vt_printf(vt, " Rj%d", frq[j]);
+    }
     vt_printf(vt,"%s\n",ESC_RESET);
     
     for (i=0;i<MAXSAT;i++) {
-        if (rtk.ssat[i].azel[1]<=0.0||!(satsys(i+1,NULL)&sys)) continue;
+        if (rtk.ssat[i].azel[1] <= 0.0 || !(satsys(i + 1, NULL) & sys)) {
+            continue;
+        }
         satno2id(i+1,id);
         vt_printf(vt,"%3s %2s",id,rtk.ssat[i].vs?"OK":"-");
-        az=rtk.ssat[i].azel[0]*R2D; if (az<0.0) az+=360.0;
+        az = rtk.ssat[i].azel[0] * R2D;
+        if (az < 0.0) {
+            az += 360.0;
+        }
         el=rtk.ssat[i].azel[1]*R2D;
         vt_printf(vt," %5.1f %4.1f",az,el);
-        for (j=0;j<nf;j++) vt_printf(vt," %2s",rtk.ssat[i].vsat[j]?"OK":"-");
+        for (j = 0; j < nf; j++) {
+            vt_printf(vt, " %2s", rtk.ssat[i].vsat[j] ? "OK" : "-");
+        }
         for (j=0;j<nf;j++) {
             fix=rtk.ssat[i].fix[j];
-            vt_printf(vt," %5s",fix==1?"FLOAT":(fix==2?"FIX":(fix==3?"HOLD":"-")));
+            const char* fix_str;
+            if (fix == 1) {
+                fix_str = "FLOAT";
+            } else if (fix == 2) {
+                fix_str = "FIX";
+            } else if (fix == 3) {
+                fix_str = "HOLD";
+            } else {
+                fix_str = "-";
+            }
+            vt_printf(vt, " %5s", fix_str);
         }
-        for (j=0;j<nf;j++) vt_printf(vt,"%7.3f",rtk.ssat[i].resp[j]);
-        for (j=0;j<nf;j++) vt_printf(vt,"%8.4f",rtk.ssat[i].resc[j]);
-        for (j=0;j<nf;j++) vt_printf(vt," %4d",rtk.ssat[i].slipc[j]);
-        for (j=0;j<nf;j++) vt_printf(vt," %6d",rtk.ssat[i].lock [j]);
-        for (j=0;j<nf;j++) vt_printf(vt," %3d",rtk.ssat[i].rejc [j]);
+        for (j = 0; j < nf; j++) {
+            vt_printf(vt, "%7.3f", rtk.ssat[i].resp[j]);
+        }
+        for (j = 0; j < nf; j++) {
+            vt_printf(vt, "%8.4f", rtk.ssat[i].resc[j]);
+        }
+        for (j = 0; j < nf; j++) {
+            vt_printf(vt, " %4d", rtk.ssat[i].slipc[j]);
+        }
+        for (j = 0; j < nf; j++) {
+            vt_printf(vt, " %6d", rtk.ssat[i].lock[j]);
+        }
+        for (j = 0; j < nf; j++) {
+            vt_printf(vt, " %3d", rtk.ssat[i].rejc[j]);
+        }
         vt_printf(vt,"\n");
     }
 }
@@ -906,34 +1035,62 @@ static void probserv(vt_t *vt, int sys, int nf)
     
     rtksvrlock(&svr);
     for (i=0;i<svr.obs[0][0].n&&n<MAXOBS*2;i++) {
-        if (!(satsys(svr.obs[0][0].data[i].sat,NULL)&sys)) continue;
+        if (!(satsys(svr.obs[0][0].data[i].sat, NULL) & sys)) {
+            continue;
+        }
         obs[n++]=svr.obs[0][0].data[i];
     }
     for (i=0;i<svr.obs[1][0].n&&n<MAXOBS*2;i++) {
-        if (!(satsys(svr.obs[1][0].data[i].sat,NULL)&sys)) continue;
+        if (!(satsys(svr.obs[1][0].data[i].sat, NULL) & sys)) {
+            continue;
+        }
         obs[n++]=svr.obs[1][0].data[i];
     }
     rtksvrunlock(&svr);
-    
-    if (nf<=0||nf>NFREQ) nf=NFREQ;
+
+    if (nf <= 0 || nf > NFREQ) {
+        nf = NFREQ;
+    }
     vt_printf(vt,"\n%s%-22s %3s %s",ESC_BOLD,"      TIME(GPST)","SAT","R");
-    for (i=0;i<nf;i++) vt_printf(vt," C%d"           ,i+1);
-    for (i=0;i<nf;i++) vt_printf(vt," S%d"           ,i+1);
-    for (i=0;i<nf;i++) vt_printf(vt,"        P%d(m)" ,i+1);
-    for (i=0;i<nf;i++) vt_printf(vt,"       L%d(cyc)",i+1);
-    for (i=0;i<nf;i++) vt_printf(vt,"  D%d(Hz)"      ,i+1);
+    for (i = 0; i < nf; i++) {
+        vt_printf(vt, " C%d", i + 1);
+    }
+    for (i = 0; i < nf; i++) {
+        vt_printf(vt, " S%d", i + 1);
+    }
+    for (i = 0; i < nf; i++) {
+        vt_printf(vt, "        P%d(m)", i + 1);
+    }
+    for (i = 0; i < nf; i++) {
+        vt_printf(vt, "       L%d(cyc)", i + 1);
+    }
+    for (i = 0; i < nf; i++) {
+        vt_printf(vt, "  D%d(Hz)", i + 1);
+    }
     vt_printf(vt," LLI%s\n",ESC_RESET);
     for (i=0;i<n;i++) {
         time2str(obs[i].time,tstr,2);
         satno2id(obs[i].sat,id);
         vt_printf(vt,"%s %3s %d",tstr,id,obs[i].rcv);
-        for (j=0;j<nf;j++) vt_printf(vt,"%3s"   ,code2obs(obs[i].code[j]));
-        for (j=0;j<nf;j++) vt_printf(vt,"%3.0f" ,obs[i].SNR[j]*SNR_UNIT);
-        for (j=0;j<nf;j++) vt_printf(vt,"%13.3f",obs[i].P[j]);
-        for (j=0;j<nf;j++) vt_printf(vt,"%14.3f",obs[i].L[j]);
-        for (j=0;j<nf;j++) vt_printf(vt,"%8.1f" ,obs[i].D[j]);
+        for (j = 0; j < nf; j++) {
+            vt_printf(vt, "%3s", code2obs(obs[i].code[j]));
+        }
+        for (j = 0; j < nf; j++) {
+            vt_printf(vt, "%3.0f", obs[i].SNR[j] * SNR_UNIT);
+        }
+        for (j = 0; j < nf; j++) {
+            vt_printf(vt, "%13.3f", obs[i].P[j]);
+        }
+        for (j = 0; j < nf; j++) {
+            vt_printf(vt, "%14.3f", obs[i].L[j]);
+        }
+        for (j = 0; j < nf; j++) {
+            vt_printf(vt, "%8.1f", obs[i].D[j]);
+        }
         vt_printf(vt," ");
-        for (j=0;j<nf;j++) vt_printf(vt,"%1X"   ,obs[i].LLI[j]);
+        for (j = 0; j < nf; j++) {
+            vt_printf(vt, "%1X", obs[i].LLI[j]);
+        }
         vt_printf(vt,"\n");
     }
 }
@@ -951,34 +1108,66 @@ static void prnavidata(vt_t *vt, int sys)
     
     rtksvrlock(&svr);
     time=svr.rtk.sol.time;
-    for (i=0;i<MAXSAT*2;i++) eph[i]=svr.nav.eph[i];
-    for (i=0;i<MAXPRNGLO;i++) geph[i]=svr.nav.geph[i];
-    for (i=0;i<8;i++) ion[i]=svr.nav.ion_gps[i];
-    for (i=0;i<8;i++) utc[i]=svr.nav.utc_gps[i];
+    for (i = 0; i < MAXSAT * 2; i++) {
+        eph[i] = svr.nav.eph[i];
+    }
+    for (i = 0; i < MAXPRNGLO; i++) {
+        geph[i] = svr.nav.geph[i];
+    }
+    for (i = 0; i < 8; i++) {
+        ion[i] = svr.nav.ion_gps[i];
+    }
+    for (i = 0; i < 8; i++) {
+        utc[i] = svr.nav.utc_gps[i];
+    }
     rtksvrunlock(&svr);
     
     vt_printf(vt,"\n%s%3s %3s %3s %3s %3s %3s %3s %19s %19s %19s %3s %3s%s\n",
               ESC_BOLD,"SAT","S","IOD","IOC","FRQ","A/A","SVH","Toe","Toc",
               "Ttr/Tof","L2C","L2P",ESC_RESET);
     for (i=0;i<MAXSAT*2;i++) {
-        if (!(satsys(i+1,NULL)&sys)||eph[i].sat!=(i+1)%MAXSAT) continue;
+        if (!(satsys(i + 1, NULL) & sys) || eph[i].sat != (i + 1) % MAXSAT) {
+            continue;
+        }
         valid=eph[i].toe.time!=0&&!eph[i].svh&&
               fabs(timediff(time,eph[i].toe))<=MAXDTOE;
         satno2id(i+1,id);
-        if (eph[i].toe.time!=0) time2str(eph[i].toe,s1,0); else strcpy(s1,"-");
-        if (eph[i].toc.time!=0) time2str(eph[i].toc,s2,0); else strcpy(s2,"-");
-        if (eph[i].ttr.time!=0) time2str(eph[i].ttr,s3,0); else strcpy(s3,"-");
+        if (eph[i].toe.time != 0) {
+            time2str(eph[i].toe, s1, 0);
+        } else {
+            strcpy(s1, "-");
+        }
+        if (eph[i].toc.time != 0) {
+            time2str(eph[i].toc, s2, 0);
+        } else {
+            strcpy(s2, "-");
+        }
+        if (eph[i].ttr.time != 0) {
+            time2str(eph[i].ttr, s3, 0);
+        } else {
+            strcpy(s3, "-");
+        }
         vt_printf(vt,"%3s %3s %3d %3d %3d %3d %03X %19s %19s %19s %3d %3d\n",
                 id,valid?"OK":"-",eph[i].iode,eph[i].iodc,0,eph[i].sva,
                 eph[i].svh,s1,s2,s3,eph[i].code,eph[i].flag);
     }
     for (i=0;i<MAXSAT;i++) {
-        if (!(satsys(i+1,&prn)&SYS_GLO&sys)||geph[prn-1].sat!=i+1) continue;
+        if (!(satsys(i + 1, &prn) & SYS_GLO & sys) || geph[prn - 1].sat != i + 1) {
+            continue;
+        }
         valid=geph[prn-1].toe.time!=0&&!geph[prn-1].svh&&
               fabs(timediff(time,geph[prn-1].toe))<=MAXDTOE_GLO;
         satno2id(i+1,id);
-        if (geph[prn-1].toe.time!=0) time2str(geph[prn-1].toe,s1,0); else strcpy(s1,"-");
-        if (geph[prn-1].tof.time!=0) time2str(geph[prn-1].tof,s2,0); else strcpy(s2,"-");
+        if (geph[prn - 1].toe.time != 0) {
+            time2str(geph[prn - 1].toe, s1, 0);
+        } else {
+            strcpy(s1, "-");
+        }
+        if (geph[prn - 1].tof.time != 0) {
+            time2str(geph[prn - 1].tof, s2, 0);
+        } else {
+            strcpy(s2, "-");
+        }
         vt_printf(vt,"%3s %3s %3d %3d %3d %3d  %02X %19s %19s %19s %3d %3d\n",
                  id,valid?"OK":"-",geph[prn-1].iode,0,geph[prn-1].frq,
                  geph[prn-1].age,geph[prn].svh,s1,"-",s2,0,0);
@@ -1025,9 +1214,15 @@ static void prstream(vt_t *vt)
     trace(NULL,4,"prstream:\n");
     
     rtksvrlock(&svr);
-    for (i=0;i<8;i++) stream[i]=svr.stream[i];
-    for (i=0;i<3;i++) format[i]=svr.format[i];
-    for (i=3;i<5;i++) format[i]=svr.solopt[i-3].posf;
+    for (i = 0; i < 8; i++) {
+        stream[i] = svr.stream[i];
+    }
+    for (i = 0; i < 3; i++) {
+        format[i] = svr.format[i];
+    }
+    for (i = 3; i < 5; i++) {
+        format[i] = svr.solopt[i - 3].posf;
+    }
     stream[8]=moni;
     format[8]=SOLF_LLH;
     rtksvrunlock(&svr);
@@ -1064,7 +1259,9 @@ static void prssr(vt_t *vt)
                ESC_BOLD,"SAT","S","UDI","IOD","URA","T0","D0-A","D0-C","D0-R",
                "D1-A","D1-C","D1-R","C0","C1","C2","C-HR",ESC_RESET);
     for (i=0;i<MAXSAT;i++) {
-        if (!ssr[i].t0[0].time) continue;
+        if (!ssr[i].t0[0].time) {
+            continue;
+        }
         satno2id(i+1,id);
         valid=fabs(timediff(time,ssr[i].t0[0]))<=1800.0;
         time2str(ssr[i].t0[0],tstr,0);
@@ -1085,10 +1282,14 @@ static int parse_sysopt(const char *arg)
     const char *sys_str="GREJCIS",*p;
     int i,sys=0;
 
-    if (arg[0]!='-') return 0;
-    
+    if (arg[0] != '-') {
+        return 0;
+    }
+
     for (i=1;arg[i];i++) {
-        if ((p=strchr(sys_str,arg[i]))) sys|=syss[(int)(p-sys_str)];
+        if ((p = strchr(sys_str, arg[i]))) {
+            sys |= syss[(int)(p - sys_str)];
+        }
     }
     return sys;
 }
@@ -1096,8 +1297,10 @@ static int parse_sysopt(const char *arg)
 static void cmd_start(char **args, int narg, vt_t *vt)
 {
     trace(NULL,3,"cmd_start:\n");
-    
-    if (!startsvr(vt)) return;
+
+    if (!startsvr(vt)) {
+        return;
+    }
     vt_printf(vt,"rtk server start\n");
 }
 /* stop command --------------------------------------------------------------*/
@@ -1114,7 +1317,9 @@ static void cmd_restart(char **args, int narg, vt_t *vt)
     trace(NULL,3,"cmd_restart:\n");
     
     stopsvr(vt);
-    if (!startsvr(vt)) return;
+    if (!startsvr(vt)) {
+        return;
+    }
     vt_printf(vt,"rtk server restart\n");
 }
 /* solution command ----------------------------------------------------------*/
@@ -1123,17 +1328,27 @@ static void cmd_solution(char **args, int narg, vt_t *vt)
     int i,cycle=0;
     
     trace(NULL,3,"cmd_solution:\n");
-    
-    if (narg>1) cycle=(int)(atof(args[1])*1000.0);
-    
-    if (cycle>0) svr.nsol=0;
-    
+
+    if (narg > 1) {
+        cycle = (int)(atof(args[1]) * 1000.0);
+    }
+
+    if (cycle > 0) {
+        svr.nsol = 0;
+    }
+
     while (!vt_chkbrk(vt)) {
         rtksvrlock(&svr);
-        for (i=0;i<svr.nsol;i++) prsolution(vt,&svr.solbuf[i],svr.rtk.rb);
+        for (i = 0; i < svr.nsol; i++) {
+            prsolution(vt, &svr.solbuf[i], svr.rtk.rb);
+        }
         svr.nsol=0;
         rtksvrunlock(&svr);
-        if (cycle>0) sleepms(cycle); else return;
+        if (cycle > 0) {
+            sleepms(cycle);
+        } else {
+            return;
+        }
     }
 }
 /* status command ------------------------------------------------------------*/
@@ -1142,13 +1357,21 @@ static void cmd_status(char **args, int narg, vt_t *vt)
     int cycle=0;
     
     trace(NULL,3,"cmd_status:\n");
-    
-    if (narg>1) cycle=(int)(atof(args[1])*1000.0);
-    
+
+    if (narg > 1) {
+        cycle = (int)(atof(args[1]) * 1000.0);
+    }
+
     while (!vt_chkbrk(vt)) {
-        if (cycle>0) vt_printf(vt,ESC_CLEAR);
+        if (cycle > 0) {
+            vt_printf(vt, ESC_CLEAR);
+        }
         prstatus(vt);
-        if (cycle>0) sleepms(cycle); else return;
+        if (cycle > 0) {
+            sleepms(cycle);
+        } else {
+            return;
+        }
     }
     vt_printf(vt,"\n");
 }
@@ -1160,14 +1383,24 @@ static void cmd_satellite(char **args, int narg, vt_t *vt)
     trace(NULL,3,"cmd_satellite:\n");
     
     for (i=1;i<narg;i++) {
-        if (sscanf(args[i],"-%d",&n)==1) nf=n;
-        else if ((s=parse_sysopt(args[i]))) sys=s;
-        else cycle=(int)(atof(args[i])*1000.0);
+        if (sscanf(args[i], "-%d", &n) == 1) {
+            nf = n;
+        } else if ((s = parse_sysopt(args[i]))) {
+            sys = s;
+        } else {
+            cycle = (int)(atof(args[i]) * 1000.0);
+        }
     }
     while (!vt_chkbrk(vt)) {
-        if (cycle>0) vt_printf(vt,ESC_CLEAR);
+        if (cycle > 0) {
+            vt_printf(vt, ESC_CLEAR);
+        }
         prsatellite(vt,sys,nf);
-        if (cycle>0) sleepms(cycle); else return;
+        if (cycle > 0) {
+            sleepms(cycle);
+        } else {
+            return;
+        }
     }
     vt_printf(vt,"\n");
 }
@@ -1179,14 +1412,24 @@ static void cmd_observ(char **args, int narg, vt_t *vt)
     trace(NULL,3,"cmd_observ:\n");
     
     for (i=1;i<narg;i++) {
-        if (sscanf(args[i],"-%d",&n)==1) nf=n;
-        else if ((s=parse_sysopt(args[i]))) sys=s;
-        else cycle=(int)(atof(args[i])*1000.0);
+        if (sscanf(args[i], "-%d", &n) == 1) {
+            nf = n;
+        } else if ((s = parse_sysopt(args[i]))) {
+            sys = s;
+        } else {
+            cycle = (int)(atof(args[i]) * 1000.0);
+        }
     }
     while (!vt_chkbrk(vt)) {
-        if (cycle>0) vt_printf(vt,ESC_CLEAR);
+        if (cycle > 0) {
+            vt_printf(vt, ESC_CLEAR);
+        }
         probserv(vt,sys,nf);
-        if (cycle>0) sleepms(cycle); else return;
+        if (cycle > 0) {
+            sleepms(cycle);
+        } else {
+            return;
+        }
     }
     vt_printf(vt,"\n");
 }
@@ -1198,13 +1441,22 @@ static void cmd_navidata(char **args, int narg, vt_t *vt)
     trace(NULL,3,"cmd_navidata:\n");
     
     for (i=1;i<narg;i++) {
-        if ((s=parse_sysopt(args[i]))) sys=s;
-        else cycle=(int)(atof(args[1])*1000.0);
+        if ((s = parse_sysopt(args[i]))) {
+            sys = s;
+        } else {
+            cycle = (int)(atof(args[1]) * 1000.0);
+        }
     }
     while (!vt_chkbrk(vt)) {
-        if (cycle>0) vt_printf(vt,ESC_CLEAR);
+        if (cycle > 0) {
+            vt_printf(vt, ESC_CLEAR);
+        }
         prnavidata(vt,sys);
-        if (cycle>0) sleepms(cycle); else return;
+        if (cycle > 0) {
+            sleepms(cycle);
+        } else {
+            return;
+        }
     }
     vt_printf(vt,"\n");
 }
@@ -1229,13 +1481,21 @@ static void cmd_stream(char **args, int narg, vt_t *vt)
     int cycle=0;
     
     trace(NULL,3,"cmd_stream:\n");
-    
-    if (narg>1) cycle=(int)(atof(args[1])*1000.0);
-    
+
+    if (narg > 1) {
+        cycle = (int)(atof(args[1]) * 1000.0);
+    }
+
     while (!vt_chkbrk(vt)) {
-        if (cycle>0) vt_printf(vt,ESC_CLEAR);
+        if (cycle > 0) {
+            vt_printf(vt, ESC_CLEAR);
+        }
         prstream(vt);
-        if (cycle>0) sleepms(cycle); else return;
+        if (cycle > 0) {
+            sleepms(cycle);
+        } else {
+            return;
+        }
     }
     vt_printf(vt,"\n");
 }
@@ -1245,13 +1505,21 @@ static void cmd_ssr(char **args, int narg, vt_t *vt)
     int cycle=0;
     
     trace(NULL,3,"cmd_ssr:\n");
-    
-    if (narg>1) cycle=(int)(atof(args[1])*1000.0);
-    
+
+    if (narg > 1) {
+        cycle = (int)(atof(args[1]) * 1000.0);
+    }
+
     while (!vt_chkbrk(vt)) {
-        if (cycle>0) vt_printf(vt,ESC_CLEAR);
+        if (cycle > 0) {
+            vt_printf(vt, ESC_CLEAR);
+        }
         prssr(vt);
-        if (cycle>0) sleepms(cycle); else return;
+        if (cycle > 0) {
+            sleepms(cycle);
+        } else {
+            return;
+        }
     }
     vt_printf(vt,"\n");
 }
@@ -1264,23 +1532,31 @@ static void cmd_option(char **args, int narg, vt_t *vt)
     trace(NULL,3,"cmd_option:\n");
     
     for (i=0;*rcvopts[i].name;i++) {
-        if (narg>=2&&!strstr(rcvopts[i].name,args[1])) continue;
+        if (narg >= 2 && !strstr(rcvopts[i].name, args[1])) {
+            continue;
+        }
         p=buff;
         p+=sprintf(p,"%-18s =",rcvopts[i].name);
         p+=opt2str(rcvopts+i,p);
         if (*rcvopts[i].comment) {
-            if ((n=(int)(buff+30-p))>0) p+=sprintf(p,"%*s",n,"");
+            if ((n = (int)(buff + 30 - p)) > 0) {
+                p += sprintf(p, "%*s", n, "");
+            }
             p+=sprintf(p," # (%s)",rcvopts[i].comment);
         }
         vt_printf(vt,"%s%s\n",modflgr[i]?"*":" ",buff);
     }
     for (i=0;*sysopts[i].name;i++) {
-        if (narg>=2&&!strstr(sysopts[i].name,args[1])) continue;
+        if (narg >= 2 && !strstr(sysopts[i].name, args[1])) {
+            continue;
+        }
         p=buff;
         p+=sprintf(p,"%-18s =",sysopts[i].name);
         p+=opt2str(sysopts+i,p);
         if (*sysopts[i].comment) {
-            if ((n=(int)(buff+30-p))>0) p+=sprintf(p,"%*s",n,"");
+            if ((n = (int)(buff + 30 - p)) > 0) {
+                p += sprintf(p, "%*s", n, "");
+            }
             p+=sprintf(p," # (%s)",sysopts[i].comment);
         }
         vt_printf(vt,"%s%s\n",modflgs[i]?"*":" ",buff);
@@ -1311,12 +1587,17 @@ static void cmd_set(char **args, int narg, vt_t *vt)
     }
     if (narg<3) {
         vt_printf(vt,"%s",opt->name);
-        if (*opt->comment) vt_printf(vt," (%s)",opt->comment);
+        if (*opt->comment) {
+            vt_printf(vt, " (%s)", opt->comment);
+        }
         vt_printf(vt,": ");
-        if (!vt_gets(vt,buff,sizeof(buff))||vt->brk) return;
+        if (!vt_gets(vt, buff, sizeof(buff)) || vt->brk) {
+            return;
+        }
+    } else {
+        strcpy(buff, args[2]);
     }
-    else strcpy(buff,args[2]);
-    
+
     chop(buff);
     if (!str2opt(opt,buff)) {
         vt_printf(vt,"invalid option value: %s %s\n",opt->name,buff);
@@ -1370,7 +1651,9 @@ static void cmd_save(char **args, int narg, vt_t *vt)
     else {
         sprintf(file,"%s/%s",OPTSDIR,OPTSFILE);
     }
-    if (!confwrite(vt,file)) return;
+    if (!confwrite(vt, file)) {
+        return;
+    }
     time2str(utc2gpst(timeget()),s,0);
     sprintf(comment,"%s options (%s, %s ver.%s)",PRGNAME,s,MRTKLIB_SOFTNAME,MRTKLIB_VERSION_STRING);
     setsysopts(&prcopt,solopt,&filopt);
@@ -1393,9 +1676,11 @@ static void cmd_log(char **args, int narg, vt_t *vt)
         vt_closelog(vt);
         vt_printf(vt,"log off\n");
         return;
-    } 
-    if (!confwrite(vt,args[1])) return;
-    
+    }
+    if (!confwrite(vt, args[1])) {
+        return;
+    }
+
     if (!vt_openlog(vt,args[1])) {
         vt_printf(vt,"log open error: %s\n",args[1]);
         return;
@@ -1410,10 +1695,14 @@ static void cmd_help(char **args, int narg, vt_t *vt)
     
     if (narg<2) {
         vt_printf(vt,"%s (%s ver.%s)\n",PRGNAME,MRTKLIB_SOFTNAME,MRTKLIB_VERSION_STRING);
-        for (i=0;*helptxt[i];i++) vt_printf(vt,"%s\n",helptxt[i]);
+        for (i = 0; *helptxt[i]; i++) {
+            vt_printf(vt, "%s\n", helptxt[i]);
+        }
     }
     else if (strstr(str,args[1])==str) {
-        for (i=0;*pathopts[i];i++) vt_printf(vt,"%s\n",pathopts[i]);
+        for (i = 0; *pathopts[i]; i++) {
+            vt_printf(vt, "%s\n", pathopts[i]);
+        }
     }
     else {
         vt_printf(vt,"unknown help: %s\n",args[1]);
@@ -1431,7 +1720,9 @@ static int cmd_exec(const char *cmd, vt_t *vt)
         return -1;
     }
     while (!vt_chkbrk(vt)) {
-        if (!fgets(buff,sizeof(buff),fp)) break;
+        if (!fgets(buff, sizeof(buff), fp)) {
+            break;
+        }
         vt_printf(vt,buff);
     }
     if ((ret=pclose(fp))) {
@@ -1464,11 +1755,15 @@ static void *con_thread(void *arg)
     while (con->state) {
         
         /* output prompt */
-        if (!vt_puts(con->vt,CMDPROMPT)) break;
-        
+        if (!vt_puts(con->vt, CMDPROMPT)) {
+            break;
+        }
+
         /* input command */
-        if (!vt_gets(con->vt,buff,sizeof(buff))) break;
-        
+        if (!vt_gets(con->vt, buff, sizeof(buff))) {
+            break;
+        }
+
         if (buff[0]=='!') { /* shell escape */
             cmd_exec(buff+1,con->vt);
             continue;
@@ -1478,10 +1773,14 @@ static void *con_thread(void *arg)
         for (p=strtok(buff," \t\n");p&&narg<MAXARG;p=strtok(NULL," \t\n")) {
             args[narg++]=p;
         }
-        if (narg==0) continue;
-        
+        if (narg == 0) {
+            continue;
+        }
+
         for (i=0,j=-1;*cmds[i];i++) {
-            if (strstr(cmds[i],args[0])==cmds[i]) j=i;
+            if (strstr(cmds[i], args[0]) == cmds[i]) {
+                j = i;
+            }
         }
         switch (j) {
             case  0: cmd_start    (args,narg,con->vt); break;
@@ -1503,7 +1802,9 @@ static void *con_thread(void *arg)
             case 16: cmd_help     (args,narg,con->vt); break;
             case 17: cmd_help     (args,narg,con->vt); break;
             case 18: /* exit */
-                if (con->vt->type) con->state=0;
+                if (con->vt->type) {
+                    con->state = 0;
+                }
                 break;
             case 19: /* shutdown */
                 if (!strcmp(args[0],"shutdown")) {
@@ -1527,9 +1828,11 @@ static con_t *con_open(int sock, const char *dev)
     con_t *con;
     
     trace(NULL,3,"con_open: sock=%d dev=%s\n",sock,dev);
-    
-    if (!(con=(con_t *)malloc(sizeof(con_t)))) return NULL;
-    
+
+    if (!(con = (con_t*)malloc(sizeof(con_t)))) {
+        return NULL;
+    }
+
     if (!(con->vt=vt_open(sock,dev))) {
         free(con);
         return NULL;
@@ -1546,8 +1849,10 @@ static con_t *con_open(int sock, const char *dev)
 static void con_close(con_t *con)
 {
     trace(NULL,3,"con_close:\n");
-    
-    if (!con) return;
+
+    if (!con) {
+        return;
+    }
     con->state=0;
     pthread_join(con->thread,NULL);
     free(con);
@@ -1585,13 +1890,17 @@ static void accept_sock(int ssock, con_t **con)
     socklen_t len=sizeof(addr);
     fd_set rs;
     int i,sock;
-    
-    if (ssock<=0) return;
-    
+
+    if (ssock <= 0) {
+        return;
+    }
+
     trace(NULL,4,"accept_sock: ssock=%d\n",ssock);
     
     for (i=1;i<MAXCON;i++) {
-        if (!con[i]||con[i]->state) continue;
+        if (!con[i] || con[i]->state) {
+            continue;
+        }
         con_close(con[i]);
         con[i]=NULL;
     }
@@ -1604,8 +1913,10 @@ static void accept_sock(int ssock, con_t **con)
         return;
     }
     for (i=1;i<MAXCON;i++) {
-        if (con[i]) continue;
-        
+        if (con[i]) {
+            continue;
+        }
+
         con[i]=con_open(sock,"");
         
         trace(NULL,3,"remote console connected: addr=%s\n",
@@ -1737,22 +2048,33 @@ int main(int argc, char **argv)
     g_mrtk_legacy_ctx=mrtk_context_new();
 
     for (i=1;i<argc;i++) {
-        if      (!strcmp(argv[i],"-s")) start=1;
-        else if (!strcmp(argv[i],"-p")&&i+1<argc) port=atoi(argv[++i]);
-        else if (!strcmp(argv[i],"-m")&&i+1<argc) moniport=atoi(argv[++i]);
-        else if (!strcmp(argv[i],"-d")&&i+1<argc) dev=argv[++i];
-        else if (!strcmp(argv[i],"-o")&&i+1<argc) strcpy(file,argv[++i]);
-        else if (!strcmp(argv[i],"-w")&&i+1<argc) strcpy(passwd,argv[++i]);
-        else if (!strcmp(argv[i],"-r")&&i+1<argc) outstat=atoi(argv[++i]);
-        else if (!strcmp(argv[i],"-t")&&i+1<argc) trace=atoi(argv[++i]);
-        else if (!strcmp(argv[i],"-sta")&&i+1<argc) strcpy(staname,argv[++i]);
-        else if (!strcmp(argv[i],"-v")||!strcmp(argv[i],"-ver")) printver();
-        else if (!strcmp(argv[i],"-rst")&&i+2<argc) {
+        if (!strcmp(argv[i], "-s")) {
+            start = 1;
+        } else if (!strcmp(argv[i], "-p") && i + 1 < argc) {
+            port = atoi(argv[++i]);
+        } else if (!strcmp(argv[i], "-m") && i + 1 < argc) {
+            moniport = atoi(argv[++i]);
+        } else if (!strcmp(argv[i], "-d") && i + 1 < argc) {
+            dev = argv[++i];
+        } else if (!strcmp(argv[i], "-o") && i + 1 < argc) {
+            strcpy(file, argv[++i]);
+        } else if (!strcmp(argv[i], "-w") && i + 1 < argc) {
+            strcpy(passwd, argv[++i]);
+        } else if (!strcmp(argv[i], "-r") && i + 1 < argc) {
+            outstat = atoi(argv[++i]);
+        } else if (!strcmp(argv[i], "-t") && i + 1 < argc) {
+            trace = atoi(argv[++i]);
+        } else if (!strcmp(argv[i], "-sta") && i + 1 < argc) {
+            strcpy(staname, argv[++i]);
+        } else if (!strcmp(argv[i], "-v") || !strcmp(argv[i], "-ver")) {
+            printver();
+        } else if (!strcmp(argv[i], "-rst") && i + 2 < argc) {
             sscanf(argv[++i],"%lf/%lf/%lf",ee,ee+1,ee+2);
             sscanf(argv[++i],"%lf:%lf:%lf",ee+3,ee+4,ee+5);
             rst=epoch2time(ee);
-        } 
-        else printusage();
+        } else {
+            printusage();
+        }
     }
     if (trace>0) {
         traceopen(ctx,TRACEFILE);
@@ -1763,8 +2085,10 @@ int main(int argc, char **argv)
     strinit(&moni);
     
     /* load options file */
-    if (!*file) sprintf(file,"%s/%s",OPTSDIR,OPTSFILE);
-    
+    if (!*file) {
+        sprintf(file, "%s/%s", OPTSDIR, OPTSFILE);
+    }
+
     resetsysopts();
     if (!loadopts(file,rcvopts)||!loadopts(file,sysopts)) {
         fprintf(stderr,"no options file: %s. defaults used\n",file);
@@ -1795,8 +2119,12 @@ int main(int argc, char **argv)
         /* open socket for remote console */
         if ((sock=open_sock(port))<=0) {
             fprintf(stderr,"console open error port=%d\n",port);
-            if (moniport>0) closemoni();
-            if (outstat>0) rtkclosestat();
+            if (moniport > 0) {
+                closemoni();
+            }
+            if (outstat > 0) {
+                rtkclosestat();
+            }
             traceclose(ctx);
             mrtk_context_free(g_mrtk_legacy_ctx);
             g_mrtk_ctx=NULL;
@@ -1808,8 +2136,12 @@ int main(int argc, char **argv)
         /* open device for local console */
         if (!(con[0]=con_open(0,dev))) {
             fprintf(stderr,"console open error dev=%s\n",dev);
-            if (moniport>0) closemoni();
-            if (outstat>0) rtkclosestat();
+            if (moniport > 0) {
+                closemoni();
+            }
+            if (outstat > 0) {
+                rtkclosestat();
+            }
             traceclose(ctx);
             mrtk_context_free(g_mrtk_legacy_ctx);
             g_mrtk_ctx=NULL;
@@ -1845,9 +2177,13 @@ int main(int argc, char **argv)
             con_close(con[i]);
         }
     }
-    if (moniport>0) closemoni();
-    if (outstat>0) rtkclosestat();
-    
+    if (moniport > 0) {
+        closemoni();
+    }
+    if (outstat > 0) {
+        rtkclosestat();
+    }
+
     /* save navigation data */
     if (!savenav(NAVIFILE,&svr.nav)) {
         fprintf(stderr,"navigation data save error: %s\n",NAVIFILE);

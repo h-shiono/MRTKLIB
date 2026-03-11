@@ -91,12 +91,19 @@ extern int str2time(const char *s, int i, int n, gtime_t *t)
     double ep[6];
     char str[256],*p=str;
 
-    if (i<0||(int)strlen(s)<i||(int)sizeof(str)-1<i) return -1;
-    for (s+=i;*s&&--n>=0;) *p++=*s++;
-    *p='\0';
-    if (sscanf(str,"%lf %lf %lf %lf %lf %lf",ep,ep+1,ep+2,ep+3,ep+4,ep+5)<6)
+    if (i < 0 || (int)strlen(s) < i || (int)sizeof(str) - 1 < i) {
         return -1;
-    if (ep[0]<100.0) ep[0]+=ep[0]<80.0?2000.0:1900.0;
+    }
+    for (s += i; *s && --n >= 0;) {
+        *p++ = *s++;
+    }
+    *p='\0';
+    if (sscanf(str, "%lf %lf %lf %lf %lf %lf", ep, ep + 1, ep + 2, ep + 3, ep + 4, ep + 5) < 6) {
+        return -1;
+    }
+    if (ep[0] < 100.0) {
+        ep[0] += ep[0] < 80.0 ? 2000.0 : 1900.0;
+    }
     *t=epoch2time(ep);
     return 0;
 }
@@ -112,7 +119,9 @@ extern gtime_t epoch2time(const double *ep)
     gtime_t time={0};
     int days,sec,year=(int)ep[0],mon=(int)ep[1],day=(int)ep[2];
 
-    if (year<1970||2099<year||mon<1||12<mon) return time;
+    if (year < 1970 || 2099 < year || mon < 1 || 12 < mon) {
+        return time;
+    }
 
     /* leap year if year%4==0 in 1901-2099 */
     days=(year-1970)*365+(year-1969)/4+doy[mon-1]+day-2+(year%4==0&&mon>=3?1:0);
@@ -140,7 +149,11 @@ extern void time2epoch(gtime_t t, double *ep)
     days=(int)(t.time/86400);
     sec=(int)(t.time-(time_t)days*86400);
     for (day=days%1461,mon=0;mon<48;mon++) {
-        if (day>=mday[mon]) day-=mday[mon]; else break;
+        if (day >= mday[mon]) {
+            day -= mday[mon];
+        } else {
+            break;
+        }
     }
     ep[0]=1970+days/1461*4+mon/12; ep[1]=mon%12+1; ep[2]=day+1;
     ep[3]=sec/3600; ep[4]=sec%3600/60; ep[5]=sec%60+t.sec;
@@ -155,7 +168,9 @@ extern gtime_t gpst2time(int week, double sec)
 {
     gtime_t t=epoch2time(gpst0);
 
-    if (sec<-1E9||1E9<sec) sec=0.0;
+    if (sec < -1E9 || 1E9 < sec) {
+        sec = 0.0;
+    }
     t.time+=(time_t)86400*7*week+(int)sec;
     t.sec=sec-(int)sec;
     return t;
@@ -172,7 +187,9 @@ extern double time2gpst(gtime_t t, int *week)
     time_t sec=t.time-t0.time;
     int w=(int)(sec/(86400*7));
 
-    if (week) *week=w;
+    if (week) {
+        *week = w;
+    }
     return (double)(sec-(double)w*86400*7)+t.sec;
 }
 /* galileo system time to time -------------------------------------------------
@@ -185,7 +202,9 @@ extern gtime_t gst2time(int week, double sec)
 {
     gtime_t t=epoch2time(gst0);
 
-    if (sec<-1E9||1E9<sec) sec=0.0;
+    if (sec < -1E9 || 1E9 < sec) {
+        sec = 0.0;
+    }
     t.time+=(time_t)86400*7*week+(int)sec;
     t.sec=sec-(int)sec;
     return t;
@@ -202,7 +221,9 @@ extern double time2gst(gtime_t t, int *week)
     time_t sec=t.time-t0.time;
     int w=(int)(sec/(86400*7));
 
-    if (week) *week=w;
+    if (week) {
+        *week = w;
+    }
     return (double)(sec-(double)w*86400*7)+t.sec;
 }
 /* beidou time (bdt) to time ---------------------------------------------------
@@ -215,7 +236,9 @@ extern gtime_t bdt2time(int week, double sec)
 {
     gtime_t t=epoch2time(bdt0);
 
-    if (sec<-1E9||1E9<sec) sec=0.0;
+    if (sec < -1E9 || 1E9 < sec) {
+        sec = 0.0;
+    }
     t.time+=(time_t)86400*7*week+(int)sec;
     t.sec=sec-(int)sec;
     return t;
@@ -232,7 +255,9 @@ extern double time2bdt(gtime_t t, int *week)
     time_t sec=t.time-t0.time;
     int w=(int)(sec/(86400*7));
 
-    if (week) *week=w;
+    if (week) {
+        *week = w;
+    }
     return (double)(sec-(double)w*86400*7)+t.sec;
 }
 /*============================================================================
@@ -322,10 +347,15 @@ static int read_leaps_text(FILE *fp)
     rewind(fp);
 
     while (fgets(buff,sizeof(buff),fp)&&n<MAXLEAPS) {
-        if ((p=strchr(buff,'#'))) *p='\0';
-        if (sscanf(buff,"%d %d %d %d %d %d %d",ep,ep+1,ep+2,ep+3,ep+4,ep+5,
-                   &ls)<7) continue;
-        for (i=0;i<6;i++) leaps[n][i]=ep[i];
+        if ((p = strchr(buff, '#'))) {
+            *p = '\0';
+        }
+        if (sscanf(buff, "%d %d %d %d %d %d %d", ep, ep + 1, ep + 2, ep + 3, ep + 4, ep + 5, &ls) < 7) {
+            continue;
+        }
+        for (i = 0; i < 6; i++) {
+            leaps[n][i] = ep[i];
+        }
         leaps[n++][6]=ls;
     }
     return n;
@@ -343,18 +373,29 @@ static int read_leaps_usno(FILE *fp)
     rewind(fp);
 
     while (fgets(buff,sizeof(buff),fp)&&n<MAXLEAPS) {
-        if (sscanf(buff,"%d %s %d =JD %lf TAI-UTC= %lf",&y,month,&d,&jd,
-                   &tai_utc)<5) continue;
-        if (y<1980) continue;
-        for (m=1;m<=12;m++) if (!strcmp(months[m-1],month)) break;
-        if (m>=13) continue;
+        if (sscanf(buff, "%d %s %d =JD %lf TAI-UTC= %lf", &y, month, &d, &jd, &tai_utc) < 5) {
+            continue;
+        }
+        if (y < 1980) {
+            continue;
+        }
+        for (m = 1; m <= 12; m++) {
+            if (!strcmp(months[m - 1], month)) {
+                break;
+            }
+        }
+        if (m >= 13) {
+            continue;
+        }
         ls[n][0]=y;
         ls[n][1]=m;
         ls[n][2]=d;
         ls[n++][6]=(char)(19.0-tai_utc);
     }
-    for (i=0;i<n;i++) for (j=0;j<7;j++) {
-        leaps[i][j]=ls[n-i-1][j];
+    for (i = 0; i < n; i++) {
+        for (j = 0; j < 7; j++) {
+            leaps[i][j] = ls[n - i - 1][j];
+        }
     }
     return n;
 }
@@ -374,14 +415,18 @@ extern int read_leaps(const char *file)
     FILE *fp;
     int i,n;
 
-    if (!(fp=fopen(file,"r"))) return 0;
+    if (!(fp = fopen(file, "r"))) {
+        return 0;
+    }
 
     /* read leap seconds table by text or usno */
     if (!(n=read_leaps_text(fp))&&!(n=read_leaps_usno(fp))) {
         fclose(fp);
         return 0;
     }
-    for (i=0;i<7;i++) leaps[n][i]=0.0;
+    for (i = 0; i < 7; i++) {
+        leaps[n][i] = 0.0;
+    }
     fclose(fp);
     return 1;
 }
@@ -398,7 +443,9 @@ extern gtime_t gpst2utc(gtime_t t)
 
     for (i=0;leaps[i][0]>0;i++) {
         tu=timeadd(t,leaps[i][6]);
-        if (timediff(tu,epoch2time(leaps[i]))>=0.0) return tu;
+        if (timediff(tu, epoch2time(leaps[i])) >= 0.0) {
+            return tu;
+        }
     }
     return t;
 }
@@ -413,7 +460,9 @@ extern gtime_t utc2gpst(gtime_t t)
     int i;
 
     for (i=0;leaps[i][0]>0;i++) {
-        if (timediff(t,epoch2time(leaps[i]))>=0.0) return timeadd(t,-leaps[i][6]);
+        if (timediff(t, epoch2time(leaps[i])) >= 0.0) {
+            return timeadd(t, -leaps[i][6]);
+        }
     }
     return t;
 }
@@ -485,7 +534,11 @@ extern void time2str(gtime_t t, char *s, int n)
 {
     double ep[6];
 
-    if (n<0) n=0; else if (n>12) n=12;
+    if (n < 0) {
+        n = 0;
+    } else if (n > 12) {
+        n = 12;
+    }
     if (1.0-t.sec<0.5/pow(10.0,n)) {t.time++; t.sec=0.0;};
     time2epoch(t,ep);
     sprintf(s,"%04.0f/%02.0f/%02.0f %02.0f:%02.0f:%0*.*f",ep[0],ep[1],ep[2],
@@ -526,7 +579,9 @@ extern int adjgpsweek(int week)
 {
     int w;
     (void)time2gpst(utc2gpst(timeget()),&w);
-    if (w<1560) w=1560; /* use 2009/12/1 if time is earlier than 2009/12/1 */
+    if (w < 1560) {
+        w = 1560; /* use 2009/12/1 if time is earlier than 2009/12/1 */
+    }
     return week+(w-week+1)/1024*1024;
 }
 /* get tick time ---------------------------------------------------------------
@@ -561,7 +616,9 @@ extern uint32_t tickget(void)
 extern void sleepms(int ms)
 {
     struct timespec ts;
-    if (ms<=0) return;
+    if (ms <= 0) {
+        return;
+    }
     ts.tv_sec=(time_t)(ms/1000);
     ts.tv_nsec=(long)(ms%1000*1000000);
     nanosleep(&ts,NULL);

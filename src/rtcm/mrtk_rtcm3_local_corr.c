@@ -64,7 +64,9 @@ void initblkinf(blkinf_t *b)
     br=(int)360.0/b->bs;
     b->bpos[0]=90.0-(int)(b->bn/br)*b->bs;
     b->bpos[1]=(b->bn%br)*b->bs;
-    if (b->bpos[1]>=180) b->bpos[1]-=360;
+    if (b->bpos[1] >= 180) {
+        b->bpos[1] -= 360;
+    }
     b->bpos[0]=b->bpos[0]*D2R;
     b->bpos[1]=b->bpos[1]*D2R;
 
@@ -72,8 +74,15 @@ void initblkinf(blkinf_t *b)
         gridsize = (double)b->bs / (double)gr;
         /* init grid position */
         for (i=0;i<gr*gr;i++) {
-            if (i<32) {if (!((b->mask[0]>>i)&1)) continue;}
-            else      {if (!((b->mask[1]>>(i-32))&1)) continue;}
+            if (i < 32) {
+                if (!((b->mask[0] >> i) & 1)) {
+                    continue;
+                }
+            } else {
+                if (!((b->mask[1] >> (i - 32)) & 1)) {
+                    continue;
+                }
+            }
             b->grid[b->n][0]=b->bpos[0]-((i/gr)*gridsize)*D2R;
             b->grid[b->n][1]=b->bpos[1]+((i%gr)*gridsize)*D2R;
             b->grid[b->n][2]=0;
@@ -183,7 +192,9 @@ int decode_lcltrop(rtcm_t *rtcm, int type)
         time_str(rtcm->time,0), tmpblkinf.bn, tmpblkinf.btype, tmpblkinf.gpitch,
         tmpblkinf.n);
     for(i=0;i<rtcm->lclblk.tnum;i++){
-        if(rtcm->lclblk.tblkinf[i].bn==tmpblkinf.bn) break;
+        if (rtcm->lclblk.tblkinf[i].bn == tmpblkinf.bn) {
+            break;
+        }
     }
     ctnum=i;
     if(i==rtcm->lclblk.tnum){
@@ -264,7 +275,9 @@ int decode_lcliono(rtcm_t *rtcm, int type)
     trace(NULL,3,"decode_lcliono : %s,bn=%4d,btype=%d,gp=%d\n",
         time_str(rtcm->time,0), tmpblkinf.bn, tmpblkinf.btype, tmpblkinf.gpitch);
     for(i=0;i<rtcm->lclblk.inum;i++){
-        if(rtcm->lclblk.iblkinf[i].bn==tmpblkinf.bn) break;
+        if (rtcm->lclblk.iblkinf[i].bn == tmpblkinf.bn) {
+            break;
+        }
     }
     if(i>=rtcm->lclblk.inum){
         rtcm->lclblk.inum++;
@@ -281,8 +294,15 @@ int decode_lcliono(rtcm_t *rtcm, int type)
         smask[0]=getbitu(rtcm->buff,p,nsat);    p+=nsat;
     }
     for (j=0,ns=0;j<nsat;j++) {
-        if (j<32) {if (((smask[0]>>j)&1))      prn[ns++]=j+minprn;}
-        else      {if (((smask[1]>>(j-32))&1)) prn[ns++]=j+minprn;}
+        if (j < 32) {
+            if (((smask[0] >> j) & 1)) {
+                prn[ns++] = j + minprn;
+            }
+        } else {
+            if (((smask[1] >> (j - 32)) & 1)) {
+                prn[ns++] = j + minprn;
+            }
+        }
     }
 
     /* latitude and longitude */
@@ -317,7 +337,9 @@ int decode_lcliono(rtcm_t *rtcm, int type)
     for (i=0;i<ns;i++) {
         nbase=getbitu(rtcm->buff,p,8); p+=8;
         base=nbase*ION_BAS_LSB;
-        if (!(sat=satno(msys,prn[i]))) continue;
+        if (!(sat = satno(msys, prn[i]))) {
+            continue;
+        }
         for (j=0;j<blkinf->n;j++) {
             if (2002<=type && type<=2006){
                 tp=blkinf->gp[j];
@@ -410,7 +432,9 @@ int encode_lcltrop(rtcm_t *rtcm, int type)
             tp=i;
         }
         trpp=&rtcm->lclblk.tstat[rtcm->lclblk.outtn][tp].trpd;
-        if(timediff(rtcm->time,trpp->time)>0 || trpp->time.time==0) continue;
+        if (timediff(rtcm->time, trpp->time) > 0 || trpp->time.time == 0) {
+            continue;
+        }
         rtcm->time=trpp->time;
         /* zenith wet delay */
         zhd=tropmodel(trpp->time,blkinf->grid[tp],zazel,0.0);
@@ -420,7 +444,9 @@ int encode_lcltrop(rtcm_t *rtcm, int type)
         }
         n++;
     }
-    if (!n) return 0;
+    if (!n) {
+        return 0;
+    }
 
     /* encode trop message */
     p=encode_lclhead(rtcm,type,blkinf);
@@ -436,7 +462,9 @@ int encode_lcltrop(rtcm_t *rtcm, int type)
             tp=i;
         }
         trpp=&rtcm->lclblk.tstat[rtcm->lclblk.outtn][tp].trpd;
-        if (trpp->std[0]==0) continue;
+        if (trpp->std[0] == 0) {
+            continue;
+        }
 
         /* latitude and longitude */
         if(type==2011) {
@@ -508,7 +536,9 @@ int encode_lcliono(rtcm_t *rtcm, int type)
     ssat=satno(msys, minprn);
     blkinf=&rtcm->lclblk.iblkinf[rtcm->lclblk.outin];
     /* search base value */
-    for (i=0; i<nsat; i++) base[i]=-1;
+    for (i = 0; i < nsat; i++) {
+        base[i] = -1;
+    }
     for (i=0,satmask[0]=0,satmask[1]=0; i<blkinf->n; i++) {
         if (2002<=type && type<=2006){
             tp=blkinf->gp[i];
@@ -530,12 +560,17 @@ int encode_lcliono(rtcm_t *rtcm, int type)
             if ((base[prn]==-1)||(base[prn]>(unsigned int)(ionp->ion/ION_BAS_LSB))) {
                 base[prn]=(unsigned int)(ionp->ion/ION_BAS_LSB);
             }
-            if (prn<32) satmask[0]|=(1<<(prn));
-            else        satmask[1]|=(1<<(prn-32));
+            if (prn < 32) {
+                satmask[0] |= (1 << (prn));
+            } else {
+                satmask[1] |= (1 << (prn - 32));
+            }
             n++;
         }
     }
-    if (!n) return 0;
+    if (!n) {
+        return 0;
+    }
 
     /* encode iono message */
     p=encode_lclhead(rtcm,type,blkinf);
@@ -560,8 +595,15 @@ int encode_lcliono(rtcm_t *rtcm, int type)
         }
     }
     for (i=0;i<nsat;i++) {
-        if (i<32) {if (((satmask[0]>>i)&1)==0)      continue;}
-        else      {if (((satmask[1]>>(i-32))&1)==0) continue;}
+        if (i < 32) {
+            if (((satmask[0] >> i) & 1) == 0) {
+                continue;
+            }
+        } else {
+            if (((satmask[1] >> (i - 32)) & 1) == 0) {
+                continue;
+            }
+        }
 
         setbitu(rtcm->buff,p, 8,base[i]); p+=8;    /* base value */
         for (j=0;j<blkinf->n;j++) {

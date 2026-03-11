@@ -140,7 +140,11 @@ static const double ura_eph[]={
 static int uraindex(double value)
 {
     int i;
-    for (i=0;i<15;i++) if (ura_eph[i]>=value) break;
+    for (i = 0; i < 15; i++) {
+        if (ura_eph[i] >= value) {
+            break;
+        }
+    }
     return i;
 }
 /* decode NVS xf5-raw: raw measurement data ----------------------------------*/
@@ -208,9 +212,19 @@ static int decode_xf5raw(raw_t *raw)
     }
     for (i=0,p+=27;(i<nsat) && (n<MAXOBS); i++,p+=30) {
         raw->obs.data[n].time  = time;
-        sys = (U1(p)==1)?SYS_GLO:((U1(p)==2)?SYS_GPS:((U1(p)==4)?SYS_SBS:SYS_NONE));
+        if (U1(p) == 1) {
+            sys = SYS_GLO;
+        } else if (U1(p) == 2) {
+            sys = SYS_GPS;
+        } else if (U1(p) == 4) {
+            sys = SYS_SBS;
+        } else {
+            sys = SYS_NONE;
+        }
         prn = U1(p+1);
-        if (sys == SYS_SBS) prn += 120; /* Correct this */
+        if (sys == SYS_SBS) {
+            prn += 120; /* Correct this */
+        }
         if (!(sat=satno(sys,prn))) {
             trace(NULL,2,"nvs xf5raw satellite number error: sys=%d prn=%d\n",sys,prn);
             continue;
@@ -304,7 +318,9 @@ static int decode_gpsephem(int sat, raw_t *raw)
     eph.ttr=raw->time;
     
     if (!strstr(raw->opt,"-EPHALL")) {
-        if (eph.iode==raw->nav.eph[sat-1].iode) return 0; /* unchanged */
+        if (eph.iode == raw->nav.eph[sat - 1].iode) {
+            return 0; /* unchanged */
+        }
     }
     eph.sat=sat;
     eph.type=0; /* ephemeris type = LNAV */
@@ -319,8 +335,11 @@ static gtime_t adjday(gtime_t time, double tod)
     double ep[6],tod_p;
     time2epoch(time,ep);
     tod_p=ep[3]*3600.0+ep[4]*60.0+ep[5];
-    if      (tod<tod_p-43200.0) tod+=86400.0;
-    else if (tod>tod_p+43200.0) tod-=86400.0;
+    if (tod < tod_p - 43200.0) {
+        tod += 86400.0;
+    } else if (tod > tod_p + 43200.0) {
+        tod -= 86400.0;
+    }
     ep[3]=ep[4]=ep[5]=0.0;
     return timeadd(epoch2time(ep),tod);
 }
@@ -357,8 +376,10 @@ static int decode_gloephem(int sat, raw_t *raw)
         trace(NULL,2,"nvs NE satellite error: prn=%d\n",prn);
         return -1;
     }
-    if (raw->time.time==0) return 0;
-    
+    if (raw->time.time == 0) {
+        return 0;
+    }
+
     geph.iode=(tb/900)&0x7F;
     geph.toe=utc2gpst(adjday(raw->time,tb-10800.0));
     geph.tof=utc2gpst(adjday(raw->time,tk-10800.0));
@@ -555,7 +576,9 @@ extern int input_nvs(raw_t *raw, uint8_t data)
         return 0;
     }
     /* This is all done to discard a double 0x10 */
-    if (data==NVSSYNC) raw->flag = (raw->flag +1) % 2;
+    if (data == NVSSYNC) {
+        raw->flag = (raw->flag + 1) % 2;
+    }
     if ((data!=NVSSYNC) || (raw->flag)) {
         
         /* Store the new byte */
@@ -590,35 +613,49 @@ extern int input_nvsf(raw_t *raw, FILE *fp)
     
     /* synchronize frame */
     for (i=0;;i++) {
-        if ((data=fgetc(fp))==EOF) return -2;
-        
+        if ((data = fgetc(fp)) == EOF) {
+            return -2;
+        }
+
         /* Search a 0x10 */
         if (data==NVSSYNC) {
             
             /* Store the frame begin */
             raw->buff[0] = data;
-            if ((data=fgetc(fp))==EOF) return -2;
-            
+            if ((data = fgetc(fp)) == EOF) {
+                return -2;
+            }
+
             /* Discard double 0x10 and 0x10 0x03 */
             if ((data != NVSSYNC) && (data != NVSENDMSG)) {
                 raw->buff[1]=data;
                 break;
             }
         }
-        if (i>=4096) return 0;
+        if (i >= 4096) {
+            return 0;
+        }
     }
     raw->nbyte = 2;
     for (i=0;;i++) {
-        if ((data=fgetc(fp))==EOF) return -2;
-        if (data==NVSSYNC) odd=(odd+1)%2;
+        if ((data = fgetc(fp)) == EOF) {
+            return -2;
+        }
+        if (data == NVSSYNC) {
+            odd = (odd + 1) % 2;
+        }
         if ((data!=NVSSYNC) || odd) {
             
             /* Store the new byte */
             raw->buff[(raw->nbyte++)] = data;
         }
         /* Detect ending sequence */
-        if ((data==NVSENDMSG) && odd) break;
-        if (i>=4096) return 0;
+        if ((data == NVSENDMSG) && odd) {
+            break;
+        }
+        if (i >= 4096) {
+            return 0;
+        }
     }
     raw->len = raw->nbyte;
     if ((raw->len) > MAXRAWLEN) {
@@ -687,11 +724,14 @@ extern int gen_nvs(const char *msg, uint8_t *buff)
     }
     else if (!strcmp(args[0],"CFG-BINR")) {
         for (n=1;(n<narg);n++) {
-            if (sscanf(args[n], "%2x",&byte)) *q++=(uint8_t)byte;
+            if (sscanf(args[n], "%2x", &byte)) {
+                *q++ = (uint8_t)byte;
+            }
         }
+    } else {
+        return 0;
     }
-    else return 0;
-    
+
     n=(int)(q-buff);
     
     *q++=0x10; /* ETX */

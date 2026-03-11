@@ -208,37 +208,79 @@ static int ubx_sys(int gnssid)
 static int ubx_sig(int sys, int sigid)
 {
     if (sys==SYS_GPS) {
-        if (sigid==0) return CODE_L1C; /* L1C/A */
-        if (sigid==3) return CODE_L2L; /* L2CL */
-        if (sigid==4) return CODE_L2S; /* L2CM */
-        if (sigid==7) return CODE_L5Q; /* L5Q  */
+        if (sigid == 0) {
+            return CODE_L1C; /* L1C/A */
+        }
+        if (sigid == 3) {
+            return CODE_L2L; /* L2CL */
+        }
+        if (sigid == 4) {
+            return CODE_L2S; /* L2CM */
+        }
+        if (sigid == 7) {
+            return CODE_L5Q; /* L5Q  */
+        }
     }
     else if (sys==SYS_GLO) {
-        if (sigid==0) return CODE_L1C; /* G1C/A (GLO L1 OF) */
-        if (sigid==2) return CODE_L2C; /* G2C/A (GLO L2 OF) */
+        if (sigid == 0) {
+            return CODE_L1C; /* G1C/A (GLO L1 OF) */
+        }
+        if (sigid == 2) {
+            return CODE_L2C; /* G2C/A (GLO L2 OF) */
+        }
     }
     else if (sys==SYS_GAL) {
-        if (sigid==0) return CODE_L1C; /* E1C */
-        if (sigid==1) return CODE_L1B; /* E1B */
-        if (sigid==4) return CODE_L5Q; /* E5aQ */
-        if (sigid==5) return CODE_L7I; /* E5bI */
-        if (sigid==6) return CODE_L7Q; /* E5bQ */
+        if (sigid == 0) {
+            return CODE_L1C; /* E1C */
+        }
+        if (sigid == 1) {
+            return CODE_L1B; /* E1B */
+        }
+        if (sigid == 4) {
+            return CODE_L5Q; /* E5aQ */
+        }
+        if (sigid == 5) {
+            return CODE_L7I; /* E5bI */
+        }
+        if (sigid == 6) {
+            return CODE_L7Q; /* E5bQ */
+        }
     }
     else if (sys==SYS_QZS) {
-        if (sigid==0) return CODE_L1C; /* L1C/A */
-        if (sigid==1) return CODE_L1Z; /* L1S */
-        if (sigid==4) return CODE_L2S; /* L2CM */
-        if (sigid==5) return CODE_L2L; /* L2CL */
-        if (sigid==9) return CODE_L5Q; /* L5Q */
+        if (sigid == 0) {
+            return CODE_L1C; /* L1C/A */
+        }
+        if (sigid == 1) {
+            return CODE_L1Z; /* L1S */
+        }
+        if (sigid == 4) {
+            return CODE_L2S; /* L2CM */
+        }
+        if (sigid == 5) {
+            return CODE_L2L; /* L2CL */
+        }
+        if (sigid == 9) {
+            return CODE_L5Q; /* L5Q */
+        }
     }
     else if (sys==SYS_CMP) {
-        if (sigid==0) return CODE_L2I; /* B1I D1 */
-        if (sigid==1) return CODE_L2I; /* B1I D2 */
-        if (sigid==2) return CODE_L7I; /* B2I D1 */
-        if (sigid==3) return CODE_L7I; /* B2I D2 */
+        if (sigid == 0) {
+            return CODE_L2I; /* B1I D1 */
+        }
+        if (sigid == 1) {
+            return CODE_L2I; /* B1I D2 */
+        }
+        if (sigid == 2) {
+            return CODE_L7I; /* B2I D1 */
+        }
+        if (sigid == 3) {
+            return CODE_L7I; /* B2I D2 */
+        }
     }
     else if (sys==SYS_SBS) {
-        if (sigid==0) return CODE_L1C; /* L1C/A */
+        if (sigid == 0) {
+            return CODE_L1C; /* L1C/A */
+        }
     }
     return CODE_NONE;
 }
@@ -248,15 +290,25 @@ static int sig_idx(int sys, uint8_t code)
     int idx=code2freq_idx(sys,code),nex=NEXOBS;
     
     if (sys==SYS_GPS) {
-        if (code==CODE_L2S) return (nex<1)?-1:NFREQ;   /* L2CM */
+        if (code == CODE_L2S) {
+            return (nex < 1) ? -1 : NFREQ; /* L2CM */
+        }
     }
     else if (sys==SYS_GAL) {
-        if (code==CODE_L1B) return (nex<1)?-1:NFREQ;   /* E1B */
-        if (code==CODE_L7I) return (nex<2)?-1:NFREQ+1; /* E5bI */
+        if (code == CODE_L1B) {
+            return (nex < 1) ? -1 : NFREQ; /* E1B */
+        }
+        if (code == CODE_L7I) {
+            return (nex < 2) ? -1 : NFREQ + 1; /* E5bI */
+        }
     }
     else if (sys==SYS_QZS) {
-        if (code==CODE_L2S) return (nex<1)?-1:NFREQ;   /* L2CM */
-        if (code==CODE_L1Z) return (nex<2)?-1:NFREQ+1; /* L1S */
+        if (code == CODE_L2S) {
+            return (nex < 1) ? -1 : NFREQ; /* L2CM */
+        }
+        if (code == CODE_L1Z) {
+            return (nex < 2) ? -1 : NFREQ + 1; /* L1S */
+        }
     }
     return (idx<NFREQ)?idx:-1;
 }
@@ -316,11 +368,15 @@ static int decode_rxmraw(raw_t *raw)
             continue;
         }
         raw->obs.data[n].sat=sat;
-        
-        if (raw->obs.data[n].LLI[0]&1) raw->lockt[sat-1][0]=0.0;
-        else if (tt<1.0||10.0<tt) raw->lockt[sat-1][0]=0.0;
-        else raw->lockt[sat-1][0]+=tt;
-        
+
+        if (raw->obs.data[n].LLI[0] & 1) {
+            raw->lockt[sat - 1][0] = 0.0;
+        } else if (tt < 1.0 || 10.0 < tt) {
+            raw->lockt[sat - 1][0] = 0.0;
+        } else {
+            raw->lockt[sat - 1][0] += tt;
+        }
+
         for (j=1;j<NFREQ+NEXOBS;j++) {
             raw->obs.data[n].L[j]=raw->obs.data[n].P[j]=0.0;
             raw->obs.data[n].D[j]=0.0;
@@ -393,9 +449,13 @@ static int decode_rxmrawx(raw_t *raw)
         cn0  =U1(p+26);    /* cn0 (dBHz) */
         cpstd=U1(p+28)&15; /* cpStdev (m) */
         tstat=U1(p+30);    /* trkStat */
-        if (!(tstat&1)) P=0.0;
-        if (!(tstat&2)||L==-0.5||cpstd>CPSTD_VALID) L=0.0;
-        
+        if (!(tstat & 1)) {
+            P = 0.0;
+        }
+        if (!(tstat & 2) || L == -0.5 || cpstd > CPSTD_VALID) {
+            L = 0.0;
+        }
+
         if (!(sys=ubx_sys(gnss))) {
             trace(NULL,2,"ubx rxmrawx: system error gnss=%d\n", gnss);
             continue;
@@ -440,7 +500,9 @@ static int decode_rxmrawx(raw_t *raw)
         LLI=(slip?LLI_SLIP:0)|(!halfv?LLI_HALFC:0)|(halfc?LLI_HALFS:0);
 
         for (j=0;j<n;j++) {
-            if (raw->obs.data[j].sat==sat) break;
+            if (raw->obs.data[j].sat == sat) {
+                break;
+            }
         }
         if (j>=n) {
             raw->obs.data[n].time=time;
@@ -525,8 +587,10 @@ static int decode_trkmeas(raw_t *raw)
     if (raw->outtype) {
         sprintf(raw->msgtype,"UBX TRK-MEAS  (%4d):",raw->len);
     }
-    if (!raw->time.time) return 0;
-    
+    if (!raw->time.time) {
+        return 0;
+    }
+
     /* number of channels */
     nch=U1(p+2);
     
@@ -536,17 +600,26 @@ static int decode_trkmeas(raw_t *raw)
     }
     /* time-tag = max(transmission time + 0.08) rounded by 100 ms */
     for (i=0,p=raw->buff+110;i<nch;i++,p+=56) {
-        if (U1(p+1)<4||ubx_sys(U1(p+4))!=SYS_GPS) continue;
-        if ((t=I8(p+24)*P2_32/1000.0)>tr) tr=t;
+        if (U1(p + 1) < 4 || ubx_sys(U1(p + 4)) != SYS_GPS) {
+            continue;
+        }
+        if ((t = I8(p + 24) * P2_32 / 1000.0) > tr) {
+            tr = t;
+        }
     }
-    if (tr<0.0) return 0;
-    
+    if (tr < 0.0) {
+        return 0;
+    }
+
     tr=ROUND((tr+0.08)/0.1)*0.1;
     
     /* adjust week handover */
     t=time2gpst(raw->time,&week);
-    if      (tr<t-302400.0) week++;
-    else if (tr>t+302400.0) week--;
+    if (tr < t - 302400.0) {
+        week++;
+    } else if (tr > t + 302400.0) {
+        week--;
+    }
     time=gpst2time(week,tr);
     
     utc_gpst=timediff(gpst2utc(time),time);
@@ -556,8 +629,10 @@ static int decode_trkmeas(raw_t *raw)
         /* quality indicator (0:idle,1:search,2:aquired,3:unusable, */
         /*                    4:code lock,5,6,7:code/carrier lock) */
         qi=U1(p+1);
-        if (qi<4||7<qi) continue;
-        
+        if (qi < 4 || 7 < qi) {
+            continue;
+        }
+
         /* system and satellite number */
         if (!(sys=ubx_sys(U1(p+4)))) {
             trace(NULL,2,"ubx trkmeas: system error\n");
@@ -570,14 +645,20 @@ static int decode_trkmeas(raw_t *raw)
         }
         /* transmission time */
         ts=I8(p+24)*P2_32/1000.0;
-        if      (sys==SYS_CMP) ts+=14.0;             /* bdt  -> gpst */
-        else if (sys==SYS_GLO) ts-=10800.0+utc_gpst; /* glot -> gpst */
-        
+        if (sys == SYS_CMP) {
+            ts += 14.0; /* bdt  -> gpst */
+        } else if (sys == SYS_GLO) {
+            ts -= 10800.0 + utc_gpst; /* glot -> gpst */
+        }
+
         /* signal travel time */
         tau=tr-ts;
-        if      (tau<-302400.0) tau+=604800.0;
-        else if (tau> 302400.0) tau-=604800.0;
-        
+        if (tau < -302400.0) {
+            tau += 604800.0;
+        } else if (tau > 302400.0) {
+            tau -= 604800.0;
+        }
+
         frq  =U1(p+ 7)-7; /* frequency */
         flag =U1(p+ 8);   /* tracking status */
         lock1=U1(p+16);   /* code lock count */
@@ -587,7 +668,9 @@ static int decode_trkmeas(raw_t *raw)
         dop  =I4(p+40)*P2_10*10.0;
         
         /* set slip flag */
-        if (lock2==0||lock2<raw->lockt[sat-1][0]) raw->lockt[sat-1][1]=1.0;
+        if (lock2 == 0 || lock2 < raw->lockt[sat - 1][0]) {
+            raw->lockt[sat - 1][1] = 1.0;
+        }
         raw->lockt[sat-1][0]=lock2;
         
 #if 0 /* for debug */
@@ -601,8 +684,10 @@ static int decode_trkmeas(raw_t *raw)
         adrs[sat-1]=adr;
         
         /* check phase lock */
-        if (!(flag&0x20)) continue;
-        
+        if (!(flag & 0x20)) {
+            continue;
+        }
+
         raw->obs.data[n].time=time;
         raw->obs.data[n].sat=sat;
         raw->obs.data[n].P[0]=tau*CLIGHT;
@@ -627,7 +712,9 @@ static int decode_trkmeas(raw_t *raw)
         }
         n++;
     }
-    if (n<=0) return 0;
+    if (n <= 0) {
+        return 0;
+    }
     raw->time=time;
     raw->obs.n=n;
     return 1;
@@ -646,8 +733,10 @@ static int decode_trkd5(raw_t *raw)
     if (raw->outtype) {
         sprintf(raw->msgtype,"UBX TRK-D5    (%4d):",raw->len);
     }
-    if (!raw->time.time) return 0;
-    
+    if (!raw->time.time) {
+        return 0;
+    }
+
     utc_gpst=timediff(gpst2utc(raw->time),raw->time);
     
     switch ((type=U1(p))) {
@@ -657,19 +746,28 @@ static int decode_trkd5(raw_t *raw)
     }
     for (i=0,p=raw->buff+off;p-raw->buff<raw->len-2;i++,p+=len) {
         qi=U1(p+41)&7;
-        if (qi<4||7<qi) continue;
+        if (qi < 4 || 7 < qi) {
+            continue;
+        }
         t=I8(p)*P2_32/1000.0;
-        if (ubx_sys(U1(p+56))==SYS_GLO) t-=10800.0+utc_gpst;
+        if (ubx_sys(U1(p + 56)) == SYS_GLO) {
+            t -= 10800.0 + utc_gpst;
+        }
         if (t>tr) {tr=t; break;}
     }
-    if (tr<0.0) return 0;
-    
+    if (tr < 0.0) {
+        return 0;
+    }
+
     tr=ROUND((tr+0.08)/0.1)*0.1;
     
     /* adjust week handover */
     t=time2gpst(raw->time,&week);
-    if      (tr<t-302400.0) week++;
-    else if (tr>t+302400.0) week--;
+    if (tr < t - 302400.0) {
+        week++;
+    } else if (tr > t + 302400.0) {
+        week--;
+    }
     time=gpst2time(week,tr);
     
     trace(NULL,4,"time=%s\n",time_str(time,0));
@@ -678,8 +776,10 @@ static int decode_trkd5(raw_t *raw)
         
         /* quality indicator */
         qi =U1(p+41)&7;
-        if (qi<4||7<qi) continue;
-        
+        if (qi < 4 || 7 < qi) {
+            continue;
+        }
+
         if (type==6) {
             if (!(sys=ubx_sys(U1(p+56)))) {
                 trace(NULL,2,"ubx trkd5: system error\n");
@@ -698,20 +798,34 @@ static int decode_trkd5(raw_t *raw)
         }
         /* transmission time */
         ts=I8(p)*P2_32/1000.0;
-        if (sys==SYS_GLO) ts-=10800.0+utc_gpst; /* glot -> gpst */
-        
+        if (sys == SYS_GLO) {
+            ts -= 10800.0 + utc_gpst; /* glot -> gpst */
+        }
+
         /* signal travel time */
         tau=tr-ts;
-        if      (tau<-302400.0) tau+=604800.0;
-        else if (tau> 302400.0) tau-=604800.0;
-        
+        if (tau < -302400.0) {
+            tau += 604800.0;
+        } else if (tau > 302400.0) {
+            tau -= 604800.0;
+        }
+
         flag=U1(p+54);   /* tracking status */
-        adr=qi<6?0.0:I8(p+8)*P2_32+(flag&0x01?0.5:0.0);
+        if (qi < 6) {
+            adr = 0.0;
+        } else {
+            adr = I8(p + 8) * P2_32;
+            if (flag & 0x01) {
+                adr += 0.5;
+            }
+        }
         dop=I4(p+16)*P2_10/4.0;
         snr=U2(p+32)/256.0;
-        
-        if (snr<=10.0) raw->lockt[sat-1][1]=1.0;
-        
+
+        if (snr <= 10.0) {
+            raw->lockt[sat - 1][1] = 1.0;
+        }
+
 #if 0 /* for debug */
         trace(NULL,2,"[%2d] qi=%d sys=%d prn=%3d frq=%2d flag=%02X ts=%1.3f "
               "snr=%4.1f dop=%9.3f adr=%13.3f %6.3f\n",U1(p+35),qi,U1(p+56),
@@ -721,8 +835,10 @@ static int decode_trkd5(raw_t *raw)
         adrs[sat-1]=adr;
         
         /* check phase lock */
-        if (!(flag&0x08)) continue;
-        
+        if (!(flag & 0x08)) {
+            continue;
+        }
+
         raw->obs.data[n].time=time;
         raw->obs.data[n].sat=sat;
         raw->obs.data[n].P[0]=tau*CLIGHT;
@@ -741,7 +857,9 @@ static int decode_trkd5(raw_t *raw)
         }
         n++;
     }
-    if (n<=0) return 0;
+    if (n <= 0) {
+        return 0;
+    }
     raw->time=time;
     raw->obs.n=n;
     return 1;
@@ -753,24 +871,33 @@ static void adj_utcweek(gtime_t time, double *utc)
     
     time2gpst(time,&week);
     utc[3]+=week/256*256;
-    if      (utc[3]<week-127) utc[3]+=256.0;
-    else if (utc[3]>week+127) utc[3]-=256.0;
+    if (utc[3] < week - 127) {
+        utc[3] += 256.0;
+    } else if (utc[3] > week + 127) {
+        utc[3] -= 256.0;
+    }
     utc[5]+=utc[3]/256*256;
-    if      (utc[5]<utc[3]-127) utc[5]+=256.0;
-    else if (utc[5]>utc[3]+127) utc[5]-=256.0;
+    if (utc[5] < utc[3] - 127) {
+        utc[5] += 256.0;
+    } else if (utc[5] > utc[3] + 127) {
+        utc[5] -= 256.0;
+    }
 }
 /* decode GPS/QZSS ephemeris -------------------------------------------------*/
 static int decode_eph(raw_t *raw, int sat)
 {
     eph_t eph={0};
-    
-    if (!decode_frame(raw->subfrm[sat-1],&eph,NULL,NULL,NULL)) return 0;
-    
+
+    if (!decode_frame(raw->subfrm[sat - 1], &eph, NULL, NULL, NULL)) {
+        return 0;
+    }
+
     if (!strstr(raw->opt,"-EPHALL")) {
-        if (eph.iode==raw->nav.eph[sat-1].iode&&
-            eph.iodc==raw->nav.eph[sat-1].iodc&&
-            timediff(eph.toe,raw->nav.eph[sat-1].toe)==0.0&&
-            timediff(eph.toc,raw->nav.eph[sat-1].toc)==0.0) return 0;
+        if (eph.iode == raw->nav.eph[sat - 1].iode && eph.iodc == raw->nav.eph[sat - 1].iodc &&
+            timediff(eph.toe, raw->nav.eph[sat - 1].toe) == 0.0 &&
+            timediff(eph.toc, raw->nav.eph[sat - 1].toc) == 0.0) {
+            return 0;
+        }
     }
     eph.sat=sat;
     raw->nav.eph[sat-1]=eph;
@@ -783,9 +910,11 @@ static int decode_ionutc(raw_t *raw, int sat)
 {
     double ion[8],utc[8];
     int sys=satsys(sat,NULL);
-    
-    if (!decode_frame(raw->subfrm[sat-1],NULL,NULL,ion,utc)) return 0;
-    
+
+    if (!decode_frame(raw->subfrm[sat - 1], NULL, NULL, ion, utc)) {
+        return 0;
+    }
+
     adj_utcweek(raw->time,utc);
     if (sys==SYS_QZS) {
         matcpy(raw->nav.ion_qzs,ion,8,1);
@@ -855,19 +984,27 @@ static int decode_enav(raw_t *raw, int sat, int off)
         trace(NULL,3,"ubx rxmsfrbx enav page even/odd error: sat=%d\n",sat);
         return -1;
     }
-    if (page1==1||page2==1) return 0; /* alert page */
-    
+    if (page1 == 1 || page2 == 1) {
+        return 0; /* alert page */
+    }
+
     /* test crc (4(pad) + 114 + 82 bits) */
-    for (i=0,j=  4;i<15;i++,j+=8) setbitu(crc_buff,j,8,getbitu(buff,i*8    ,8));
-    for (i=0,j=118;i<11;i++,j+=8) setbitu(crc_buff,j,8,getbitu(buff,i*8+128,8));
+    for (i = 0, j = 4; i < 15; i++, j += 8) {
+        setbitu(crc_buff, j, 8, getbitu(buff, i * 8, 8));
+    }
+    for (i = 0, j = 118; i < 11; i++, j += 8) {
+        setbitu(crc_buff, j, 8, getbitu(buff, i * 8 + 128, 8));
+    }
     if (rtk_crc24q(crc_buff,25)!=getbitu(buff,128+82,24)) {
         trace(NULL,2,"ubx rxmsfrbx enav crc error: sat=%d\n",sat);
         return -1;
     }
     type=getbitu(buff,2,6); /* word type */
-    
-    if (type>6) return 0;
-    
+
+    if (type > 6) {
+        return 0;
+    }
+
     /* save 128 (112:even+16:odd) bits word */
     for (i=0,j=2;i<14;i++,j+=8) {
         raw->subfrm[sat-1][type*16+i]=getbitu(buff,j,8);
@@ -875,9 +1012,13 @@ static int decode_enav(raw_t *raw, int sat, int off)
     for (i=14,j=130;i<16;i++,j+=8) {
         raw->subfrm[sat-1][type*16+i]=getbitu(buff,j,8);
     }
-    if (type!=5) return 0;
-    if (!decode_gal_inav(raw->subfrm[sat-1],&eph,ion,utc)) return 0;
-        
+    if (type != 5) {
+        return 0;
+    }
+    if (!decode_gal_inav(raw->subfrm[sat - 1], &eph, ion, utc)) {
+        return 0;
+    }
+
     if (eph.sat!=sat) {
         trace(NULL,2,"ubx rxmsfrbx enav satellite error: sat=%d %d\n",sat,eph.sat);
         return -1;
@@ -889,9 +1030,10 @@ static int decode_enav(raw_t *raw, int sat, int off)
     matcpy(raw->nav.utc_gal,utc,8,1);
     
     if (!strstr(raw->opt,"-EPHALL")) {
-        if (eph.iode==raw->nav.eph[sat-1].iode&&
-            timediff(eph.toe,raw->nav.eph[sat-1].toe)==0.0&&
-            timediff(eph.toc,raw->nav.eph[sat-1].toc)==0.0) return 0;
+        if (eph.iode == raw->nav.eph[sat - 1].iode && timediff(eph.toe, raw->nav.eph[sat - 1].toe) == 0.0 &&
+            timediff(eph.toc, raw->nav.eph[sat - 1].toc) == 0.0) {
+            return 0;
+        }
     }
     raw->nav.eph[sat-1]=eph;
     raw->ephsat=sat;
@@ -924,34 +1066,48 @@ static int decode_cnav(raw_t *raw, int sat, int off)
         memcpy(raw->subfrm[sat-1]+(id-1)*38,buff,38);
         
         if (id==3) {
-            if (!decode_bds_d1(raw->subfrm[sat-1],&eph,NULL,NULL)) return 0;
+            if (!decode_bds_d1(raw->subfrm[sat - 1], &eph, NULL, NULL)) {
+                return 0;
+            }
         }
         else if (id==5) {
-            if (!decode_bds_d1(raw->subfrm[sat-1],NULL,ion,utc)) return 0;
+            if (!decode_bds_d1(raw->subfrm[sat - 1], NULL, ion, utc)) {
+                return 0;
+            }
             matcpy(raw->nav.ion_cmp,ion,8,1);
             matcpy(raw->nav.utc_cmp,utc,8,1);
             return 9;
+        } else {
+            return 0;
         }
-        else return 0;
     }
     else { /* GEO */
         pgn=getbitu(buff,42,4); /* page numuber */
         
         if (id==1&&pgn>=1&&pgn<=10) {
             memcpy(raw->subfrm[sat-1]+(pgn-1)*38,buff,38);
-            if (pgn!=10) return 0;
-            if (!decode_bds_d2(raw->subfrm[sat-1],&eph,NULL)) return 0;
+            if (pgn != 10) {
+                return 0;
+            }
+            if (!decode_bds_d2(raw->subfrm[sat - 1], &eph, NULL)) {
+                return 0;
+            }
         }
         else if (id==5&&pgn==102) {
             memcpy(raw->subfrm[sat-1]+10*38,buff,38);
-            if (!decode_bds_d2(raw->subfrm[sat-1],NULL,utc)) return 0;
+            if (!decode_bds_d2(raw->subfrm[sat - 1], NULL, utc)) {
+                return 0;
+            }
             matcpy(raw->nav.utc_cmp,utc,8,1);
             return 9;
+        } else {
+            return 0;
         }
-        else return 0;
     }
     if (!strstr(raw->opt,"-EPHALL")) {
-        if (timediff(eph.toe,raw->nav.eph[sat-1].toe)==0.0) return 0;
+        if (timediff(eph.toe, raw->nav.eph[sat - 1].toe) == 0.0) {
+            return 0;
+        }
     }
     eph.sat=sat;
     raw->nav.eph[sat-1]=eph;
@@ -973,8 +1129,10 @@ static int decode_gnav(raw_t *raw, int sat, int off, int frq)
         trace(NULL,2,"ubx rxmsfrbx gnav length error: len=%d\n",raw->len);
         return -1;
     }
-    for (i=k=0;i<4;i++,p+=4) for (j=0;j<4;j++) {
-        buff[k++]=p[3-j];
+    for (i = k = 0; i < 4; i++, p += 4) {
+        for (j = 0; j < 4; j++) {
+            buff[k++] = p[3 - j];
+        }
     }
     /* test hamming of GLONASS string */
     if (!test_glostr(buff)) {
@@ -989,7 +1147,9 @@ static int decode_gnav(raw_t *raw, int sat, int off, int frq)
     /* flush frame buffer if frame-ID changed */
     fid=raw->subfrm[sat-1]+150;
     if (fid[0]!=buff[12]||fid[1]!=buff[13]) {
-        for (i=0;i<4;i++) memset(raw->subfrm[sat-1]+i*10,0,10);
+        for (i = 0; i < 4; i++) {
+            memset(raw->subfrm[sat - 1] + i * 10, 0, 10);
+        }
         memcpy(fid,buff+12,2); /* save frame-id */
     }
     memcpy(raw->subfrm[sat-1]+(m-1)*10,buff,10);
@@ -1003,7 +1163,9 @@ static int decode_gnav(raw_t *raw, int sat, int off, int frq)
         geph.frq=frq-7;
         
         if (!strstr(raw->opt,"-EPHALL")) {
-            if (geph.iode==raw->nav.geph[prn-1].iode) return 0;
+            if (geph.iode == raw->nav.geph[prn - 1].iode) {
+                return 0;
+            }
         }
         raw->nav.geph[prn-1]=geph;
         raw->ephsat=sat;
@@ -1011,7 +1173,9 @@ static int decode_gnav(raw_t *raw, int sat, int off, int frq)
         return 2;
     }
     else if (m==5) {
-        if (!decode_glostr(raw->subfrm[sat-1],NULL,utc_glo)) return 0;
+        if (!decode_glostr(raw->subfrm[sat - 1], NULL, utc_glo)) {
+            return 0;
+        }
         matcpy(raw->nav.utc_glo,utc_glo,8,1);
         return 9;
     }
@@ -1125,17 +1289,26 @@ static int decode_rxmsfrb(raw_t *raw)
         return -1;
     }
     if (sys==SYS_GPS) {
-        for (i=0,p+=2;i<10;i++,p+=4) setbitu(buff,24*i,24,U4(p));
+        for (i = 0, p += 2; i < 10; i++, p += 4) {
+            setbitu(buff, 24 * i, 24, U4(p));
+        }
         id=getbitu(buff,43,3);
         if (id>=1&&id<=5) {
             memcpy(raw->subfrm[sat-1]+(id-1)*30,buff,30);
-            if      (id==3) return decode_eph   (raw,sat);
-            else if (id==4) return decode_ionutc(raw,sat);
+            if (id == 3) {
+                return decode_eph(raw, sat);
+            } else if (id == 4) {
+                return decode_ionutc(raw, sat);
+            }
         }
     }
     else {
-        for (i=0,p+=2;i<10;i++,p+=4) words[i]=U4(p);
-        if (!sbsdecodemsg(raw->time,prn,words,&raw->sbsmsg)) return 0;
+        for (i = 0, p += 2; i < 10; i++, p += 4) {
+            words[i] = U4(p);
+        }
+        if (!sbsdecodemsg(raw->time, prn, words, &raw->sbsmsg)) {
+            return 0;
+        }
         return 3;
     }
     return 0;
@@ -1260,7 +1433,9 @@ extern int input_ubx(raw_t *raw, rtcm_t *rtcm, uint8_t data)
     
     /* synchronize frame */
     if (raw->nbyte==0) {
-        if (!sync_ubx(raw->buff,data)) return 0;
+        if (!sync_ubx(raw->buff, data)) {
+            return 0;
+        }
         raw->nbyte=2;
         return 0;
     }
@@ -1273,7 +1448,9 @@ extern int input_ubx(raw_t *raw, rtcm_t *rtcm, uint8_t data)
             return -1;
         }
     }
-    if (raw->nbyte<6||raw->nbyte<raw->len) return 0;
+    if (raw->nbyte < 6 || raw->nbyte < raw->len) {
+        return 0;
+    }
     raw->nbyte=0;
     
     /* decode ublox raw message */
@@ -1295,12 +1472,20 @@ extern int input_ubxf(raw_t *raw, rtcm_t *rtcm, FILE *fp)
     /* synchronize frame */
     if (raw->nbyte==0) {
         for (i=0;;i++) {
-            if ((data=fgetc(fp))==EOF) return -2;
-            if (sync_ubx(raw->buff,(uint8_t)data)) break;
-            if (i>=4096) return 0;
+            if ((data = fgetc(fp)) == EOF) {
+                return -2;
+            }
+            if (sync_ubx(raw->buff, (uint8_t)data)) {
+                break;
+            }
+            if (i >= 4096) {
+                return 0;
+            }
         }
     }
-    if (fread(raw->buff+2,1,4,fp)<4) return -2;
+    if (fread(raw->buff + 2, 1, 4, fp) < 4) {
+        return -2;
+    }
     raw->nbyte=6;
     
     if ((raw->len=U2(raw->buff+4)+8)>MAXRAWLEN) {
@@ -1308,7 +1493,9 @@ extern int input_ubxf(raw_t *raw, rtcm_t *rtcm, FILE *fp)
         raw->nbyte=0;
         return -1;
     }
-    if (fread(raw->buff+6,1,raw->len-6,fp)<(size_t)(raw->len-6)) return -2;
+    if (fread(raw->buff + 6, 1, raw->len - 6, fp) < (size_t)(raw->len - 6)) {
+        return -2;
+    }
     raw->nbyte=0;
     
     /* decode ubx raw message */
@@ -1318,7 +1505,9 @@ extern int input_ubxf(raw_t *raw, rtcm_t *rtcm, FILE *fp)
 static int stoi(const char *s)
 {
     uint32_t n;
-    if (sscanf(s,"0x%X",&n)==1) return (int)n; /* hex (0xXXXX) */
+    if (sscanf(s, "0x%X", &n) == 1) {
+        return (int)n; /* hex (0xXXXX) */
+    }
     return atoi(s);
 }
 /* generate ublox binary message -----------------------------------------------
@@ -1436,13 +1625,19 @@ extern int gen_ubx(const char *msg, uint8_t *buff)
     for (p=strtok(mbuff," ");p&&narg<32;p=strtok(NULL," ")) {
         args[narg++]=p;
     }
-    if (narg<1||strncmp(args[0],"CFG-",4)) return 0;
-    
-    for (i=0;*cmd[i];i++) {
-        if (!strcmp(args[0]+4,cmd[i])) break;
+    if (narg < 1 || strncmp(args[0], "CFG-", 4)) {
+        return 0;
     }
-    if (!*cmd[i]) return 0;
-    
+
+    for (i=0;*cmd[i];i++) {
+        if (!strcmp(args[0] + 4, cmd[i])) {
+            break;
+        }
+    }
+    if (!*cmd[i]) {
+        return 0;
+    }
+
     *q++=UBXSYNC1;
     *q++=UBXSYNC2;
     *q++=UBXCFG;

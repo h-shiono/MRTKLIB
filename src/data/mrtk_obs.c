@@ -127,7 +127,9 @@ static int code2freq_GLO(uint8_t code, int fcn, double *freq)
 {
     char *obs=code2obs(code);
 
-    if (fcn<-7||fcn>6) return -1;
+    if (fcn < -7 || fcn > 6) {
+        return -1;
+    }
 
     switch (obs[0]) {
         case '1': *freq=FREQ1_GLO+DFRQ1_GLO*fcn; return 0; /* G1 */
@@ -207,8 +209,12 @@ static int cmpobs(const void *p1, const void *p2)
 {
     obsd_t *q1=(obsd_t *)p1,*q2=(obsd_t *)p2;
     double tt=timediff(q1->time,q2->time);
-    if (fabs(tt)>DTTOL) return tt<0?-1:1;
-    if (q1->rcv!=q2->rcv) return (int)q1->rcv-(int)q2->rcv;
+    if (fabs(tt) > DTTOL) {
+        return tt < 0 ? -1 : 1;
+    }
+    if (q1->rcv != q2->rcv) {
+        return (int)q1->rcv - (int)q2->rcv;
+    }
     return (int)q1->sat-(int)q2->sat;
 }
 
@@ -231,13 +237,19 @@ extern int testsnr(int base, int idx, double el, double snr,
     double minsnr,a;
     int i;
 
-    if (!mask->ena[base]||idx<0||idx>=NFREQ) return 0;
+    if (!mask->ena[base] || idx < 0 || idx >= NFREQ) {
+        return 0;
+    }
 
     a=(el*R2D+5.0)/10.0;
     i=(int)floor(a); a-=i;
-    if      (i<1) minsnr=mask->mask[idx][0];
-    else if (i>8) minsnr=mask->mask[idx][8];
-    else minsnr=(1.0-a)*mask->mask[idx][i-1]+a*mask->mask[idx][i];
+    if (i < 1) {
+        minsnr = mask->mask[idx][0];
+    } else if (i > 8) {
+        minsnr = mask->mask[idx][8];
+    } else {
+        minsnr = (1.0 - a) * mask->mask[idx][i - 1] + a * mask->mask[idx][i];
+    }
 
     return snr<minsnr;
 }
@@ -267,7 +279,9 @@ extern uint8_t obs2code(const char *obs)
     int i;
 
     for (i=1;*obscodes[i];i++) {
-        if (strcmp(obscodes[i],obs)) continue;
+        if (strcmp(obscodes[i], obs)) {
+            continue;
+        }
         return (uint8_t)i;
     }
     return CODE_NONE;
@@ -280,7 +294,9 @@ extern uint8_t obs2code(const char *obs)
 *-----------------------------------------------------------------------------*/
 extern char *code2obs(uint8_t code)
 {
-    if (code<=CODE_NONE||MAXCODE<code) return "";
+    if (code <= CODE_NONE || MAXCODE < code) {
+        return "";
+    }
     return obscodes[code];
 }
 /* system and obs code to frequency index --------------------------------------
@@ -323,7 +339,9 @@ extern int code2freq_num(uint8_t code)
 {
     char str[2]={0};
     char *obs=code2obs(code);
-    if (strlen(obs)<2) return 0;
+    if (strlen(obs) < 2) {
+        return 0;
+    }
     str[0]=obs[0];
     return atoi(str);
 }
@@ -372,17 +390,22 @@ extern double sat2freq(int sat, uint8_t code, const nav_t *nav)
     sys=satsys_bd2(sat,&prn);
 
     if (sys==SYS_GLO) {
-        if (!nav) return 0.0;
+        if (!nav) {
+            return 0.0;
+        }
         for (i=0;i<nav->ng;i++) {
-            if (nav->geph[i].sat==sat) break;
+            if (nav->geph[i].sat == sat) {
+                break;
+            }
         }
         if (i<nav->ng) {
             fcn=nav->geph[i].frq;
         }
         else if (nav->glo_fcn[prn-1]>0) {
             fcn=nav->glo_fcn[prn-1]-8;
+        } else {
+            return 0.0;
         }
-        else return 0.0;
     }
     return code2freq(sys,code,fcn);
 }
@@ -398,14 +421,30 @@ extern void setcodepri(int sys, int idx, const char *pri)
 {
     trace(NULL,3,"setcodepri:sys=%d idx=%d pri=%s\n",sys,idx,pri);
 
-    if (idx<0||idx>=MAXFREQ) return;
-    if (sys&SYS_GPS) strcpy(codepris[0][idx],pri);
-    if (sys&SYS_GLO) strcpy(codepris[1][idx],pri);
-    if (sys&SYS_GAL) strcpy(codepris[2][idx],pri);
-    if (sys&SYS_QZS) strcpy(codepris[3][idx],pri);
-    if (sys&SYS_SBS) strcpy(codepris[4][idx],pri);
-    if (sys&SYS_CMP) strcpy(codepris[5][idx],pri);
-    if (sys&SYS_IRN) strcpy(codepris[6][idx],pri);
+    if (idx < 0 || idx >= MAXFREQ) {
+        return;
+    }
+    if (sys & SYS_GPS) {
+        strcpy(codepris[0][idx], pri);
+    }
+    if (sys & SYS_GLO) {
+        strcpy(codepris[1][idx], pri);
+    }
+    if (sys & SYS_GAL) {
+        strcpy(codepris[2][idx], pri);
+    }
+    if (sys & SYS_QZS) {
+        strcpy(codepris[3][idx], pri);
+    }
+    if (sys & SYS_SBS) {
+        strcpy(codepris[4][idx], pri);
+    }
+    if (sys & SYS_CMP) {
+        strcpy(codepris[5][idx], pri);
+    }
+    if (sys & SYS_IRN) {
+        strcpy(codepris[6][idx], pri);
+    }
 }
 /* get code priority -----------------------------------------------------------
 * get code priority for multiple codes in a frequency
@@ -431,18 +470,23 @@ extern int getcodepri(int sys, uint8_t code, const char *opt)
         case SYS_BD2: i=5; optstr="-CL%2s"; break;
         default: return 0;
     }
-    if ((j=code2freq_idx(sys,code))<0) return 0;
+    if ((j = code2freq_idx(sys, code)) < 0) {
+        return 0;
+    }
     obs=code2obs(code);
 
     /* parse code options */
     for (p=opt;p&&(p=strchr(p,'-'));p++) {
-        if (sscanf(p,optstr,str)<1||str[0]!=obs[0]) continue;
+        if (sscanf(p, optstr, str) < 1 || str[0] != obs[0]) {
+            continue;
+        }
         return str[1]==obs[1]?15:0;
     }
     /* search code priority (use obsdef table for current frequency order) */
     {
         const char *pri=get_codepris(sys,j);
-        return (p=strchr(pri,obs[1]))?14-(int)(p-pri):0;
+        p = strchr(pri, obs[1]);
+        return p ? 14 - (int)(p - pri) : 0;
     }
 }
 /* sort and unique observation data --------------------------------------------
@@ -456,7 +500,9 @@ extern int sortobs(obs_t *obs)
 
     trace(NULL,3,"sortobs: nobs=%d\n",obs->n);
 
-    if (obs->n<=0) return 0;
+    if (obs->n <= 0) {
+        return 0;
+    }
 
     qsort(obs->data,obs->n,sizeof(obsd_t),cmpobs);
 
@@ -472,7 +518,9 @@ extern int sortobs(obs_t *obs)
 
     for (i=n=0;i<obs->n;i=j,n++) {
         for (j=i+1;j<obs->n;j++) {
-            if (timediff(obs->data[j].time,obs->data[i].time)>DTTOL) break;
+            if (timediff(obs->data[j].time, obs->data[i].time) > DTTOL) {
+                break;
+            }
         }
     }
     return n;
@@ -493,8 +541,14 @@ extern void signal_replace(obsd_t *obs, int idx, char f, char *c)
 
     for(i=0;i<NFREQ+NEXOBS;i++){
         code=code2obs(obs->code[i]);
-        for(j=0;c[j]!='\0';j++) if(code[0]==f && code[1]==c[j])break;
-        if(c[j]!='\0')break;
+        for (j = 0; c[j] != '\0'; j++) {
+            if (code[0] == f && code[1] == c[j]) {
+                break;
+            }
+        }
+        if (c[j] != '\0') {
+            break;
+        }
     }
     if(i<NFREQ+NEXOBS) {
         obs->SNR[idx]=obs->SNR[i];obs->LLI[idx]=obs->LLI[i];obs->code[idx]=obs->code[i];

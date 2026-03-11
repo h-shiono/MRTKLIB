@@ -80,9 +80,11 @@ static double geoidh_egm96(const double *pos)
     const int nlon=1440,nlat=721;
     double a,b,y[4];
     int i1,i2,j1,j2;
-    
-    if (!fp_geoid) return 0.0;
-    
+
+    if (!fp_geoid) {
+        return 0.0;
+    }
+
     a=(pos[1]-lon0)/dlon;
     b=(pos[0]-lat0)/dlat;
     i1=(int)a; a-=i1; i2=i1<nlon-1?i1+1:0;
@@ -110,9 +112,11 @@ static double geoidh_egm08(const double *pos, int model)
     double a,b,y[4];
     int i1,i2,j1,j2;
     int nlon,nlat;
-    
-    if (!fp_geoid) return 0.0;
-    
+
+    if (!fp_geoid) {
+        return 0.0;
+    }
+
     if (model==GEOID_EGM2008_M25) { /* 2.5 x 2.5" grid */
         dlon= 2.5/60.0;
         dlat=-2.5/60.0;
@@ -240,8 +244,10 @@ int opengeoid(int model, const char *file)
 void closegeoid(void)
 {
     trace(NULL,3,"closegoid:\n");
-    
-    if (fp_geoid) fclose(fp_geoid);
+
+    if (fp_geoid) {
+        fclose(fp_geoid);
+    }
     fp_geoid=NULL;
     model_geoid=GEOID_EMBEDDED;
 }
@@ -256,9 +262,13 @@ void closegeoid(void)
 double geoidh(const double *pos)
 {
     double posd[2],h;
-    
-    posd[1]=pos[1]*R2D; posd[0]=pos[0]*R2D; if (posd[1]<0.0) posd[1]+=360.0;
-    
+
+    posd[1] = pos[1] * R2D;
+    posd[0] = pos[0] * R2D;
+    if (posd[1] < 0.0) {
+        posd[1] += 360.0;
+    }
+
     if (posd[1]<0.0||360.0-1E-12<posd[1]||posd[0]<-90.0||90.0<posd[0]) {
         trace(NULL,2,"out of range for geoid model: lat=%.3f lon=%.3f\n",posd[0],posd[1]);
         return 0.0;

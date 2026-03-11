@@ -240,10 +240,14 @@ static void ast_args(double t, double *f)
     double tt[4];
     int i,j;
 
-    for (tt[0]=t,i=1;i<4;i++) tt[i]=tt[i-1]*t;
+    for (tt[0] = t, i = 1; i < 4; i++) {
+        tt[i] = tt[i - 1] * t;
+    }
     for (i=0;i<5;i++) {
         f[i]=fc[i][0]*3600.0;
-        for (j=0;j<4;j++) f[i]+=fc[i][j+1]*tt[j];
+        for (j = 0; j < 4; j++) {
+            f[i] += fc[i][j + 1] * tt[j];
+        }
         f[i]=fmod(f[i]*AS2R,2.0*PI);
     }
 }
@@ -365,7 +369,9 @@ static void nut_iau1980(double t, const double *f, double *dpsi, double *deps)
 
     for (i=0;i<106;i++) {
         ang=0.0;
-        for (j=0;j<5;j++) ang+=nut[i][j]*f[j];
+        for (j = 0; j < 5; j++) {
+            ang += nut[i][j] * f[j];
+        }
         *dpsi+=(nut[i][6]+nut[i][7]*t)*sin(ang);
         *deps+=(nut[i][8]+nut[i][9]*t)*cos(ang);
     }
@@ -396,8 +402,12 @@ extern void eci2ecef(gtime_t tutc, const double *erpv, double *U, double *gmst)
     trace(NULL,4,"eci2ecef: tutc=%s\n",time_str(tutc,3));
 
     if (fabs(timediff(tutc,tutc_))<0.01) { /* read cache */
-        for (i=0;i<9;i++) U[i]=U_[i];
-        if (gmst) *gmst=gmst_;
+        for (i = 0; i < 9; i++) {
+            U[i] = U_[i];
+        }
+        if (gmst) {
+            *gmst = gmst_;
+        }
         return;
     }
     tutc_=tutc;
@@ -437,8 +447,12 @@ extern void eci2ecef(gtime_t tutc, const double *erpv, double *U, double *gmst)
     matmul("NN",3,3,3,1.0,N ,P ,0.0,NP);
     matmul("NN",3,3,3,1.0,R ,NP,0.0,U_); /* U=W*Rz(gast)*N*P */
 
-    for (i=0;i<9;i++) U[i]=U_[i];
-    if (gmst) *gmst=gmst_;
+    for (i = 0; i < 9; i++) {
+        U[i] = U_[i];
+    }
+    if (gmst) {
+        *gmst = gmst_;
+    }
 
     trace(NULL,5,"gmst=%.12f gast=%.12f\n",gmst_,gast);
     trace(NULL,5,"P=\n"); tracemat(NULL,5,P,3,3,15,12);
@@ -464,10 +478,16 @@ extern double geodist(const double *rs, const double *rr, double *e)
     double r;
     int i;
 
-    if (norm(rs,3)<RE_WGS84) return -1.0;
-    for (i=0;i<3;i++) e[i]=rs[i]-rr[i];
+    if (norm(rs, 3) < RE_WGS84) {
+        return -1.0;
+    }
+    for (i = 0; i < 3; i++) {
+        e[i] = rs[i] - rr[i];
+    }
     r=norm(e,3);
-    for (i=0;i<3;i++) e[i]/=r;
+    for (i = 0; i < 3; i++) {
+        e[i] /= r;
+    }
     return r+OMGE*(rs[0]*rr[1]-rs[1]*rr[0])/CLIGHT;
 }
 /* satellite azimuth/elevation angle -------------------------------------------
@@ -485,7 +505,9 @@ extern double satazel(const double *pos, const double *e, double *azel)
     if (pos[2]>-RE_WGS84) {
         ecef2enu(pos,e,enu);
         az=dot(enu,enu,2)<1E-12?0.0:atan2(enu[0],enu[1]);
-        if (az<0.0) az+=2*PI;
+        if (az < 0.0) {
+            az += 2 * PI;
+        }
         el=asin(enu[2]);
     }
     if (azel) {azel[0]=az; azel[1]=el;}
@@ -507,9 +529,13 @@ extern void dops(int ns, const double *azel, double elmin, double *dop)
     double H[4*MAXSAT],Q[16],cosel,sinel;
     int i,n;
 
-    for (i=0;i<4;i++) dop[i]=0.0;
+    for (i = 0; i < 4; i++) {
+        dop[i] = 0.0;
+    }
     for (i=n=0;i<ns&&i<MAXSAT;i++) {
-        if (azel[1+i*2]<elmin||azel[1+i*2]<=0.0) continue;
+        if (azel[1 + i * 2] < elmin || azel[1 + i * 2] <= 0.0) {
+            continue;
+        }
         cosel=cos(azel[1+i*2]);
         sinel=sin(azel[1+i*2]);
         H[  4*n]=cosel*sin(azel[i*2]);
@@ -517,7 +543,9 @@ extern void dops(int ns, const double *azel, double elmin, double *dop)
         H[2+4*n]=sinel;
         H[3+4*n++]=1.0;
     }
-    if (n<4) return;
+    if (n < 4) {
+        return;
+    }
 
     matmul("NT",4,4,n,1.0,H,H,0.0,Q);
     if (!matinv(Q,4)) {

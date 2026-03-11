@@ -70,16 +70,23 @@ extern double ionmodel(gtime_t t, const double *ion, const double *pos,
     double tt,f,psi,phi,lam,amp,per,x;
     int week;
 
-    if (pos[2]<-1E3||azel[1]<=0) return 0.0;
-    if (norm(ion,8)<=0.0) ion=ion_default;
+    if (pos[2] < -1E3 || azel[1] <= 0) {
+        return 0.0;
+    }
+    if (norm(ion, 8) <= 0.0) {
+        ion = ion_default;
+    }
 
     /* earth centered angle (semi-circle) */
     psi=0.0137/(azel[1]/PI+0.11)-0.022;
 
     /* subionospheric latitude/longitude (semi-circle) */
     phi=pos[0]/PI+psi*cos(azel[0]);
-    if      (phi> 0.416) phi= 0.416;
-    else if (phi<-0.416) phi=-0.416;
+    if (phi > 0.416) {
+        phi = 0.416;
+    } else if (phi < -0.416) {
+        phi = -0.416;
+    }
     lam=pos[1]/PI+psi*sin(azel[0])/cos(phi*PI);
 
     /* geomagnetic latitude (semi-circle) */
@@ -109,7 +116,9 @@ extern double ionmodel(gtime_t t, const double *ion, const double *pos,
 *-----------------------------------------------------------------------------*/
 extern double ionmapf(const double *pos, const double *azel)
 {
-    if (pos[2]>=HION) return 1.0;
+    if (pos[2] >= HION) {
+        return 1.0;
+    }
     return 1.0/cos(asin((RE_WGS84+pos[2])/(RE_WGS84+HION)*sin(PI/2.0-azel[1])));
 }
 /* ionospheric pierce point position -------------------------------------------
@@ -163,7 +172,9 @@ extern double tropmodel(gtime_t time, const double *pos, const double *azel,
     const double temp0=15.0; /* temparature at sea level */
     double hgt,pres,temp,e,z,trph,trpw;
 
-    if (pos[2]<-100.0||1E4<pos[2]||azel[1]<=0) return 0.0;
+    if (pos[2] < -100.0 || 1E4 < pos[2] || azel[1] <= 0) {
+        return 0.0;
+    }
 
     /* standard atmosphere */
     hgt=pos[2]<0.0?0.0:pos[2];
@@ -183,7 +194,11 @@ extern double tropmodel(gtime_t time, const double *pos, const double *azel,
 static double interpc(const double coef[], double lat)
 {
     int i=(int)(lat/15.0);
-    if (i<1) return coef[0]; else if (i>4) return coef[4];
+    if (i < 1) {
+        return coef[0];
+    } else if (i > 4) {
+        return coef[4];
+    }
     return coef[i-1]*(1.0-lat/15.0+i)+coef[i]*(lat/15.0-i);
 }
 static double mapf(double el, double a, double b, double c)
@@ -215,7 +230,9 @@ static double nmf(gtime_t time, const double pos[], const double azel[],
     int i;
 
     if (el<=0.0) {
-        if (mapfw) *mapfw=0.0;
+        if (mapfw) {
+            *mapfw = 0.0;
+        }
         return 0.0;
     }
     /* year from doy 28, added half a year for southern latitudes */
@@ -231,7 +248,9 @@ static double nmf(gtime_t time, const double pos[], const double azel[],
     /* ellipsoidal height is used instead of height above sea level */
     dm=(1.0/sin(el)-mapf(el,aht[0],aht[1],aht[2]))*hgt/1E3;
 
-    if (mapfw) *mapfw=mapf(el,aw[0],aw[1],aw[2]);
+    if (mapfw) {
+        *mapfw = mapf(el, aw[0], aw[1], aw[2]);
+    }
 
     return mapf(el,ah[0],ah[1],ah[2])+dm;
 }
@@ -260,7 +279,9 @@ extern double tropmapf(gtime_t time, const double pos[], const double azel[],
           pos[0]*R2D,pos[1]*R2D,pos[2],azel[0]*R2D,azel[1]*R2D);
 
     if (pos[2]<-1000.0||pos[2]>20000.0) {
-        if (mapfw) *mapfw=0.0;
+        if (mapfw) {
+            *mapfw = 0.0;
+        }
         return 0.0;
     }
 #ifdef IERS_MODEL

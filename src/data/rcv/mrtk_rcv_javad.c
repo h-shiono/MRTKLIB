@@ -123,8 +123,12 @@ static float R4(uint8_t *p)
     float value;
     uint8_t *q=(uint8_t *)&value;
     int i;
-    if (U4(p)==0x7FC00000) return 0.0f; /* quiet nan */
-    for (i=0;i<4;i++) *q++=*p++;
+    if (U4(p) == 0x7FC00000) {
+        return 0.0f; /* quiet nan */
+    }
+    for (i = 0; i < 4; i++) {
+        *q++ = *p++;
+    }
     return value;
 }
 static double R8(uint8_t *p)
@@ -132,16 +136,24 @@ static double R8(uint8_t *p)
     double value;
     uint8_t *q=(uint8_t *)&value;
     int i;
-    if (U4(p+4)==0x7FF80000&&U4(p)==0) return 0.0; /* quiet nan */
-    for (i=0;i<8;i++) *q++=*p++;
+    if (U4(p + 4) == 0x7FF80000 && U4(p) == 0) {
+        return 0.0; /* quiet nan */
+    }
+    for (i = 0; i < 8; i++) {
+        *q++ = *p++;
+    }
     return value;
 }
 /* decode message length -----------------------------------------------------*/
 static int decodelen(const uint8_t *buff)
 {
     uint32_t len;
-    if (!ISHEX(buff[0])||!ISHEX(buff[1])||!ISHEX(buff[2])) return 0;
-    if (sscanf((char *)buff,"%3X",&len)==1) return (int)len;
+    if (!ISHEX(buff[0]) || !ISHEX(buff[1]) || !ISHEX(buff[2])) {
+        return 0;
+    }
+    if (sscanf((char*)buff, "%3X", &len) == 1) {
+        return (int)len;
+    }
     return 0;
 }
 /* test measurement data -----------------------------------------------------*/
@@ -185,7 +197,9 @@ static int sig2idx(int sys, char sig, int *code)
         case SYS_IRN: j=6; break;
         default: return -1;
     }
-    if (!(*code=codes[j][i])) return -1;
+    if (!(*code = codes[j][i])) {
+        return -1;
+    }
     idx=code2freq_idx(sys,(uint8_t)*code);
     return idx<NFREQ?idx:-1;
 }
@@ -195,24 +209,52 @@ static int checkpri(int sys, int code, const char *opt, int idx)
     int nex=NEXOBS; /* number of extended obs data */
     
     if (sys==SYS_GPS) {
-        if (strstr(opt,"-GL1W")&&idx==0) return code==CODE_L1W?0:-1;
-        if (strstr(opt,"-GL1X")&&idx==0) return code==CODE_L1X?0:-1;
-        if (strstr(opt,"-GL2X")&&idx==1) return code==CODE_L2X?1:-1;
-        if (code==CODE_L1W) return nex<1?-1:NFREQ;
-        if (code==CODE_L2X) return nex<2?-1:NFREQ+1;
-        if (code==CODE_L1X) return nex<3?-1:NFREQ+2;
+        if (strstr(opt, "-GL1W") && idx == 0) {
+            return code == CODE_L1W ? 0 : -1;
+        }
+        if (strstr(opt, "-GL1X") && idx == 0) {
+            return code == CODE_L1X ? 0 : -1;
+        }
+        if (strstr(opt, "-GL2X") && idx == 1) {
+            return code == CODE_L2X ? 1 : -1;
+        }
+        if (code == CODE_L1W) {
+            return nex < 1 ? -1 : NFREQ;
+        }
+        if (code == CODE_L2X) {
+            return nex < 2 ? -1 : NFREQ + 1;
+        }
+        if (code == CODE_L1X) {
+            return nex < 3 ? -1 : NFREQ + 2;
+        }
     }
     else if (sys==SYS_GLO) {
-        if (strstr(opt,"-RL1P")&&idx==0) return code==CODE_L1P?0:-1;
-        if (strstr(opt,"-RL2C")&&idx==1) return code==CODE_L2C?1:-1;
-        if (code==CODE_L1P) return nex<1?-1:NFREQ;
-        if (code==CODE_L2C) return nex<2?-1:NFREQ+1;
+        if (strstr(opt, "-RL1P") && idx == 0) {
+            return code == CODE_L1P ? 0 : -1;
+        }
+        if (strstr(opt, "-RL2C") && idx == 1) {
+            return code == CODE_L2C ? 1 : -1;
+        }
+        if (code == CODE_L1P) {
+            return nex < 1 ? -1 : NFREQ;
+        }
+        if (code == CODE_L2C) {
+            return nex < 2 ? -1 : NFREQ + 1;
+        }
     }
     else if (sys==SYS_QZS) {
-        if (strstr(opt,"-JL1Z")&&idx==0) return code==CODE_L1Z?0:-1;
-        if (strstr(opt,"-JL1X")&&idx==0) return code==CODE_L1X?0:-1;
-        if (code==CODE_L1Z) return nex<1?-1:NFREQ;
-        if (code==CODE_L1X) return nex<2?-1:NFREQ+1;
+        if (strstr(opt, "-JL1Z") && idx == 0) {
+            return code == CODE_L1Z ? 0 : -1;
+        }
+        if (strstr(opt, "-JL1X") && idx == 0) {
+            return code == CODE_L1X ? 0 : -1;
+        }
+        if (code == CODE_L1Z) {
+            return nex < 1 ? -1 : NFREQ;
+        }
+        if (code == CODE_L1X) {
+            return nex < 2 ? -1 : NFREQ + 1;
+        }
     }
     return idx;
 }
@@ -233,8 +275,11 @@ static gtime_t adjweek(gtime_t time, double tow)
     double tow_p;
     int week;
     tow_p=time2gpst(time,&week);
-    if      (tow<tow_p-302400.0) tow+=604800.0;
-    else if (tow>tow_p+302400.0) tow-=604800.0;
+    if (tow < tow_p - 302400.0) {
+        tow += 604800.0;
+    } else if (tow > tow_p + 302400.0) {
+        tow -= 604800.0;
+    }
     return gpst2time(week,tow);
 }
 /* adjust daily rollover of time ---------------------------------------------*/
@@ -243,8 +288,11 @@ static gtime_t adjday(gtime_t time, double tod)
     double ep[6],tod_p;
     time2epoch(time,ep);
     tod_p=ep[3]*3600.0+ep[4]*60.0+ep[5];
-    if      (tod<tod_p-43200.0) tod+=86400.0;
-    else if (tod>tod_p+43200.0) tod-=86400.0;
+    if (tod < tod_p - 43200.0) {
+        tod += 86400.0;
+    } else if (tod > tod_p + 43200.0) {
+        tod -= 86400.0;
+    }
     ep[3]=ep[4]=ep[5]=0.0;
     return timeadd(epoch2time(ep),tod);
 }
@@ -271,8 +319,12 @@ static int flushobuf(raw_t *raw)
     
     /* copy observation data buffer */
     for (i=0;i<raw->obuf.n&&i<MAXOBS;i++) {
-        if (!satsys(raw->obuf.data[i].sat,NULL)) continue;
-        if (raw->obuf.data[i].time.time==0) continue;
+        if (!satsys(raw->obuf.data[i].sat, NULL)) {
+            continue;
+        }
+        if (raw->obuf.data[i].time.time == 0) {
+            continue;
+        }
         raw->obs.data[n++]=raw->obuf.data[i];
     }
     raw->obs.n=n;
@@ -287,7 +339,9 @@ static int flushobuf(raw_t *raw)
             raw->obuf.data[i].code[j]=CODE_NONE;
         }
     }
-    for (i=0;i<MAXSAT;i++) raw->prCA[i]=raw->dpCA[i]=0.0;
+    for (i = 0; i < MAXSAT; i++) {
+        raw->prCA[i] = raw->dpCA[i] = 0.0;
+    }
     return n>0?1:0;
 }
 /* decode [~~] receiver time -------------------------------------------------*/
@@ -306,14 +360,20 @@ static int decode_RT(raw_t *raw)
         return -1;
     }
     raw->tod=U4(p);
-    
-    if (raw->time.time==0) return 0;
-    
+
+    if (raw->time.time == 0) {
+        return 0;
+    }
+
     /* update receiver time */
     time=raw->time;
-    if (raw->tbase>=1) time=gpst2utc(time); /* GPST->UTC */
+    if (raw->tbase >= 1) {
+        time = gpst2utc(time); /* GPST->UTC */
+    }
     time=adjday(time,raw->tod*0.001);
-    if (raw->tbase>=1) time=utc2gpst(time); /* UTC->GPST */
+    if (raw->tbase >= 1) {
+        time = utc2gpst(time); /* UTC->GPST */
+    }
     raw->time=time;
     
     trace(NULL,3,"decode_RT: time=%s\n",time_str(time,3));
@@ -376,8 +436,10 @@ static int decode_RD(raw_t *raw)
         return 0;
     }
     raw->time=timeadd(epoch2time(ep),raw->tod*0.001);
-    if (raw->tbase>=1) raw->time=utc2gpst(raw->time); /* UTC->GPST */
-    
+    if (raw->tbase >= 1) {
+        raw->time = utc2gpst(raw->time); /* UTC->GPST */
+    }
+
     trace(NULL,3,"decode_RD: time=%s\n",time_str(raw->time,3));
     
     return 0;
@@ -397,24 +459,38 @@ static int decode_SI(raw_t *raw)
     
     for (i=0;i<raw->obuf.n&&i<MAXOBS;i++) {
         usi=U1(p); p+=1;
-        
-        if      (usi<=  0) sat=0;                      /* ref [5] table 3-6 */
-        else if (usi<= 37) sat=satno(SYS_GPS,usi);     /*   1- 37: GPS */
-        else if (usi<= 70) sat=255;                    /*  38- 70: GLONASS */
-        else if (usi<=119) sat=satno(SYS_GAL,usi-70);  /*  71-119: GALILEO */
-        else if (usi<=142) sat=satno(SYS_SBS,usi);     /* 120-142: SBAS */
-        else if (usi<=192) sat=0;
-        else if (usi<=197) sat=satno(SYS_QZS,usi);     /* 193-197: QZSS */
-        else if (usi<=210) sat=0;
-        else if (usi<=240) sat=satno(SYS_CMP,usi-210); /* 211-240: BeiDou */
-        else if (usi<=247) sat=satno(SYS_IRN,usi-240); /* 241-247: IRNSS */
-        else               sat=0;
-        
+
+        if (usi <= 0) {
+            sat = 0; /* ref [5] table 3-6 */
+        } else if (usi <= 37) {
+            sat = satno(SYS_GPS, usi); /*   1- 37: GPS */
+        } else if (usi <= 70) {
+            sat = 255; /*  38- 70: GLONASS */
+        } else if (usi <= 119) {
+            sat = satno(SYS_GAL, usi - 70); /*  71-119: GALILEO */
+        } else if (usi <= 142) {
+            sat = satno(SYS_SBS, usi); /* 120-142: SBAS */
+        } else if (usi <= 192) {
+            sat = 0;
+        } else if (usi <= 197) {
+            sat = satno(SYS_QZS, usi); /* 193-197: QZSS */
+        } else if (usi <= 210) {
+            sat = 0;
+        } else if (usi <= 240) {
+            sat = satno(SYS_CMP, usi - 210); /* 211-240: BeiDou */
+        } else if (usi <= 247) {
+            sat = satno(SYS_IRN, usi - 240); /* 241-247: IRNSS */
+        } else {
+            sat = 0;
+        }
+
         raw->obuf.data[i].time=raw->time;
         raw->obuf.data[i].sat=sat;
         
         /* glonass fcn (frequency channel number) */
-        if (sat==255) raw->freqn[i]=usi-45;
+        if (sat == 255) {
+            raw->freqn[i] = usi - 45;
+        }
     }
     trace(NULL,4,"decode_SI: nsat=raw->obuf.n\n");
     
@@ -436,7 +512,9 @@ static int decode_NN(raw_t *raw)
         return -1;
     }
     for (i=n=0;i<raw->obuf.n&&i<MAXOBS;i++) {
-        if (raw->obuf.data[i].sat==255) index[n++]=i;
+        if (raw->obuf.data[i].sat == 255) {
+            index[n++] = i;
+        }
     }
     ns=raw->len-6;
     
@@ -511,10 +589,14 @@ static int decode_eph(raw_t *raw, int sys)
     uint8_t *p=raw->buff+5;
     
     trace(NULL,3,"decode_eph: sys=%2d prn=%3d\n",sys,U1(p));
-    
-    if (strstr(raw->opt,"-GALINAV")) eph_sel=1;
-    if (strstr(raw->opt,"-GALFNAV")) eph_sel=2;
-    
+
+    if (strstr(raw->opt, "-GALINAV")) {
+        eph_sel = 1;
+    }
+    if (strstr(raw->opt, "-GALFNAV")) {
+        eph_sel = 2;
+    }
+
     prn       =U1(p);        p+=1;
     tow       =U4(p);        p+=4;
     flag      =U1(p);        p+=1;
@@ -565,8 +647,11 @@ static int decode_eph(raw_t *raw, int sys)
         
         /* for week-handover problem */
         tt=timediff(eph.toe,raw->time);
-        if      (tt<-302400.0) eph.week++;
-        else if (tt> 302400.0) eph.week--;
+        if (tt < -302400.0) {
+            eph.week++;
+        } else if (tt > 302400.0) {
+            eph.week--;
+        }
         eph.toe=gpst2time(eph.week,eph.toes);
         
         eph.toc=gpst2time(eph.week,toc);
@@ -583,8 +668,12 @@ static int decode_eph(raw_t *raw, int sys)
                                    /*          3:GIOVE E1B,4:GIOVE E5A */
         
         set=(navtype==1)?1:0; /* 0:I/NAV,1:F/NAV */
-        if (!(eph_sel&1)&&set==0) return 0;
-        if (!(eph_sel&2)&&set==1) return 0; 
+        if (!(eph_sel & 1) && set == 0) {
+            return 0;
+        }
+        if (!(eph_sel & 2) && set == 1) {
+            return 0;
+        }
         eph.code=set?(1<<1)+(1<<8):(1<<0)+(1<<2)+(1<<9);
         eph.type=set; /* ephemeris type = I/NAV or F/NAV */
         
@@ -594,8 +683,11 @@ static int decode_eph(raw_t *raw, int sys)
         
         /* for week-handover problem */
         tt=timediff(eph.toe,raw->time);
-        if      (tt<-302400.0) eph.week++;
-        else if (tt> 302400.0) eph.week--;
+        if (tt < -302400.0) {
+            eph.week++;
+        } else if (tt > 302400.0) {
+            eph.week--;
+        }
         eph.toe=gpst2time(eph.week,eph.toes);
         
         eph.toc=gpst2time(eph.week,toc);
@@ -609,18 +701,34 @@ static int decode_eph(raw_t *raw, int sys)
         eph.type=(prn>=6&&prn<=58)?0:1; /* ephemeris type = D1 or D2 */
         eph.tgd[1]=R4(p); p+=4;    /* TGD2 (s) */
         sigtype   =U1(p);          /* signal type: 0:B1,1:B2,2:B3 */
-        eph.code=(sigtype==0)?1:((sigtype==1)?3:((sigtype==2)?5:0));
+        switch (sigtype) {
+            case 0:
+                eph.code = 1;
+                break;
+            case 1:
+                eph.code = 3;
+                break;
+            case 2:
+                eph.code = 5;
+                break;
+            default:
+                eph.code = 0;
+                break;
+        }
         eph.week=week;
         eph.toe=bdt2time(week,eph.toes); /* BDT -> GPST */
         eph.toc=bdt2time(week,toc);      /* BDT -> GPST */
         eph.ttr=adjweek(eph.toe,tow);
+    } else {
+        return 0;
     }
-    else return 0;
-    
+
     if (!strstr(raw->opt,"-EPHALL")) {
-        if (timediff(raw->nav.eph[sat-1+MAXSAT*set].toe,eph.toe)==0.0&&
-            raw->nav.eph[sat-1+MAXSAT*set].iode==eph.iode&&
-            raw->nav.eph[sat-1+MAXSAT*set].iodc==eph.iodc) return 0; /* unchanged */
+        if (timediff(raw->nav.eph[sat - 1 + MAXSAT * set].toe, eph.toe) == 0.0 &&
+            raw->nav.eph[sat - 1 + MAXSAT * set].iode == eph.iode &&
+            raw->nav.eph[sat - 1 + MAXSAT * set].iodc == eph.iodc) {
+            return 0; /* unchanged */
+        }
     }
     eph.sat=sat;
     raw->nav.eph[sat-1]=eph;
@@ -689,7 +797,9 @@ static int decode_NE(raw_t *raw)
         trace(NULL,2,"javad NE satellite error: prn=%d\n",prn);
         return 0;
     }
-    if (raw->time.time==0) return 0;
+    if (raw->time.time == 0) {
+        return 0;
+    }
     geph.iode=(tb/900)&0x7F;
     geph.toe=utc2gpst(adjday(raw->time,tb-10800.0));
     geph.tof=utc2gpst(adjday(raw->time,tk-10800.0));
@@ -707,8 +817,9 @@ static int decode_NE(raw_t *raw)
         return -1;
     }
     if (!strstr(raw->opt,"-EPHALL")) {
-        if (fabs(timediff(geph.toe,raw->nav.geph[prn-1].toe))<1.0&&
-            geph.svh==raw->nav.geph[prn-1].svh) return 0; /* unchanged */
+        if (fabs(timediff(geph.toe, raw->nav.geph[prn - 1].toe)) < 1.0 && geph.svh == raw->nav.geph[prn - 1].svh) {
+            return 0; /* unchanged */
+        }
     }
     raw->nav.geph[prn-1]=geph;
     raw->ephsat=geph.sat;
@@ -767,8 +878,10 @@ static int decode_WE(raw_t *raw)
     seph.t0=adjday(seph.tof,tod);
     
     if (!strstr(raw->opt,"-EPHALL")) {
-        if (fabs(timediff(seph.t0,raw->nav.seph[prn-MINPRNSBS].t0))<1.0&&
-            seph.sva==raw->nav.seph[prn-MINPRNSBS].sva) return 0; /* unchanged */
+        if (fabs(timediff(seph.t0, raw->nav.seph[prn - MINPRNSBS].t0)) < 1.0 &&
+            seph.sva == raw->nav.seph[prn - MINPRNSBS].sva) {
+            return 0; /* unchanged */
+        }
     }
     raw->nav.seph[prn-MINPRNSBS]=seph;
     raw->ephsat=seph.sat;
@@ -885,12 +998,15 @@ static int decode_IO(raw_t *raw)
 static int decode_L1eph(int sat, raw_t *raw)
 {
     eph_t eph={0};
-    
-    if (!decode_frame(raw->subfrm[sat-1],&eph,NULL,NULL,NULL)) return 0;
-    
+
+    if (!decode_frame(raw->subfrm[sat - 1], &eph, NULL, NULL, NULL)) {
+        return 0;
+    }
+
     if (!strstr(raw->opt,"-EPHALL")) {
-        if (eph.iode==raw->nav.eph[sat-1].iode&&
-            eph.iodc==raw->nav.eph[sat-1].iodc) return 0;
+        if (eph.iode == raw->nav.eph[sat - 1].iode && eph.iodc == raw->nav.eph[sat - 1].iodc) {
+            return 0;
+        }
     }
     eph.sat=sat;
     raw->nav.eph[sat-1]=eph;
@@ -905,11 +1021,17 @@ static void adj_utcweek(gtime_t time, double *utc)
     
     time2gpst(time,&week);
     utc[3]+=week/256*256;
-    if      (utc[3]<week-127) utc[3]+=256.0;
-    else if (utc[3]>week+127) utc[3]-=256.0;
+    if (utc[3] < week - 127) {
+        utc[3] += 256.0;
+    } else if (utc[3] > week + 127) {
+        utc[3] -= 256.0;
+    }
     utc[5]+=utc[3]/256*256;
-    if      (utc[5]<utc[3]-127) utc[5]+=256.0;
-    else if (utc[5]>utc[3]+127) utc[5]-=256.0;
+    if (utc[5] < utc[3] - 127) {
+        utc[5] += 256.0;
+    } else if (utc[5] > utc[3] + 127) {
+        utc[5] -= 256.0;
+    }
 }
 /* decode L1 ION/UTC parameters ----------------------------------------------*/
 static int decode_L1ionutc(int sat, raw_t *raw)
@@ -917,8 +1039,10 @@ static int decode_L1ionutc(int sat, raw_t *raw)
     double ion[8],utc[8];
     int sys=satsys(sat,NULL);
 
-    if (!decode_frame(raw->subfrm[sat-1],NULL,NULL,ion,utc)) return 0;
-    
+    if (!decode_frame(raw->subfrm[sat - 1], NULL, NULL, ion, utc)) {
+        return 0;
+    }
+
     adj_utcweek(raw->time,utc);
     if (sys==SYS_QZS) {
         matcpy(raw->nav.ion_qzs,ion,8,1);
@@ -969,9 +1093,11 @@ static int decode_L2nav(uint8_t *buff, int len, int sat, raw_t *raw)
     int i,j,preamb,prn,msgid,tow,alert;
     
     trace(NULL,3,"decode_L2nav len=%2d sat=%2d L5 CNAV\n",len,sat);
-    
-    for (i=0;i<len;i++) for (j=0;j<4;j++) {
-        msg[3-j+i*4]=buff[j+i*4];
+
+    for (i = 0; i < len; i++) {
+        for (j = 0; j < 4; j++) {
+            msg[3 - j + i * 4] = buff[j + i * 4];
+        }
     }
     i=0;
     preamb=getbitu(msg,i, 8); i+= 8;
@@ -996,9 +1122,11 @@ static int decode_L5nav(uint8_t *buff, int len, int sat, raw_t *raw)
     int i,j,preamb,prn,msgid,tow,alert;
     
     trace(NULL,3,"decode_L5nav len=%2d sat=%2d L5 CNAV\n",len,sat);
-    
-    for (i=0;i<len;i++) for (j=0;j<4;j++) {
-        msg[3-j+i*4]=buff[j+i*4];
+
+    for (i = 0; i < len; i++) {
+        for (j = 0; j < 4; j++) {
+            msg[3 - j + i * 4] = buff[j + i * 4];
+        }
     }
     i=0;
     preamb=getbitu(msg,i, 8); i+= 8;
@@ -1134,22 +1262,30 @@ static int decode_lD(raw_t *raw)
         trace(NULL,3,"javad lD type unsupported: type=%d\n",type);
         return 0;
     }
-    if ((id=(U4(p)>>20)&0xF)<1) return 0;
-    
+    if ((id = (U4(p) >> 20) & 0xF) < 1) {
+        return 0;
+    }
+
     /* get 77 bit (25x3+2) in frame without hamming and time mark */
     for (i=0;i<4;i++) {
         setbitu(raw->subfrm[sat-1]+(id-1)*10,i*25,i<3?25:2,
                 U4(p+4*i)>>(i<3?0:23));
     }
-    if (id!=4) return 0;
-    
+    if (id != 4) {
+        return 0;
+    }
+
     /* decode glonass ephemeris strings */
     geph.tof=raw->time;
-    if (!decode_glostr(raw->subfrm[sat-1],&geph,NULL)||geph.sat!=sat) return -1;
+    if (!decode_glostr(raw->subfrm[sat - 1], &geph, NULL) || geph.sat != sat) {
+        return -1;
+    }
     geph.frq=frq;
     
     if (!strstr(raw->opt,"-EPHALL")) {
-        if (geph.iode==raw->nav.geph[prn-1].iode) return 0; /* unchanged */
+        if (geph.iode == raw->nav.geph[prn - 1].iode) {
+            return 0; /* unchanged */
+        }
     }
     raw->nav.geph[prn-1]=geph;
     raw->ephsat=sat;
@@ -1215,11 +1351,16 @@ static int decode_WD(raw_t *raw)
     }
     else {
         tow_p=(int)time2gpst(raw->time,&week);
-        if      (tow<tow_p-302400.0) week++;
-        else if (tow>tow_p+302400.0) week--;
+        if (tow < tow_p - 302400.0) {
+            week++;
+        } else if (tow > tow_p + 302400.0) {
+            week--;
+        }
         raw->sbsmsg.week=week;
     }
-    for (i=0;i<29;i++) raw->sbsmsg.msg[i]=*p++;
+    for (i = 0; i < 29; i++) {
+        raw->sbsmsg.msg[i] = *p++;
+    }
     raw->sbsmsg.msg[28]&=0xC0;
     return 3;
 }
@@ -1229,9 +1370,11 @@ static int decode_Rx(raw_t *raw, char sig)
     uint8_t *p=raw->buff+5;
     double pr,prm;
     int i,idx,code,sat,sys;
-    
-    if (!is_meas(sig)||raw->tod<0||raw->obuf.n==0) return 0;
-    
+
+    if (!is_meas(sig) || raw->tod < 0 || raw->obuf.n == 0) {
+        return 0;
+    }
+
     if (!checksum(raw->buff,raw->len)) {
         trace(NULL,2,"javad R%c checksum error: len=%d\n",sig,raw->len);
         return -1;
@@ -1241,19 +1384,31 @@ static int decode_Rx(raw_t *raw, char sig)
         return -1;
     }
     for (i=0;i<raw->obuf.n&&i<MAXOBS;i++) {
-        pr=R8(p); p+=8; if (pr==0.0) continue;
-        
+        pr = R8(p);
+        p += 8;
+        if (pr == 0.0) {
+            continue;
+        }
+
         sat=raw->obuf.data[i].sat;
-        if (!(sys=satsys(sat,NULL))) continue;
-        
+        if (!(sys = satsys(sat, NULL))) {
+            continue;
+        }
+
         prm=pr*CLIGHT;
-        
-        if (sig=='C') raw->prCA[sat-1]=prm;
-        
-        if ((idx=sig2idx(sys,sig,&code))<0) continue;
-        
+
+        if (sig == 'C') {
+            raw->prCA[sat - 1] = prm;
+        }
+
+        if ((idx = sig2idx(sys, sig, &code)) < 0) {
+            continue;
+        }
+
         if ((idx=checkpri(sys,code,raw->opt,idx))>=0) {
-            if (!settag(raw->obuf.data+i,raw->time)) continue;
+            if (!settag(raw->obuf.data + i, raw->time)) {
+                continue;
+            }
             raw->obuf.data[i].P[idx]=prm;
             raw->obuf.data[i].code[idx]=code;
         }
@@ -1266,9 +1421,11 @@ static int decode_rx(raw_t *raw, char sig)
     uint8_t *p=raw->buff+5;
     double prm;
     int i,idx,code,pr,sat,sys;
-    
-    if (!is_meas(sig)||raw->tod<0||raw->obuf.n==0) return 0;
-    
+
+    if (!is_meas(sig) || raw->tod < 0 || raw->obuf.n == 0) {
+        return 0;
+    }
+
     if (!checksum(raw->buff,raw->len)) {
         trace(NULL,2,"javad r%c checksum error: len=%d\n",sig,raw->len);
         return -1;
@@ -1280,26 +1437,41 @@ static int decode_rx(raw_t *raw, char sig)
     for (i=0;i<raw->obuf.n&&i<MAXOBS;i++) {
         pr=I4(p); p+=4;
         sat=raw->obuf.data[i].sat;
-        if (!(sys=satsys(sat,NULL))) continue;
-        
+        if (!(sys = satsys(sat, NULL))) {
+            continue;
+        }
+
         if (pr==0x7FFFFFFF) {
             trace(NULL,3,"javad r%c value missing: sat=%2d\n",sig,sat);
             continue;
         }
         /*                             Ksys  Asys */
-        if      (sys==SYS_SBS) prm=(pr*1E-11+0.125)*CLIGHT; /* [6] */
-        else if (sys==SYS_QZS) prm=(pr*2E-11+0.125)*CLIGHT; /* [3] */
-        else if (sys==SYS_CMP) prm=(pr*2E-11+0.105)*CLIGHT; /* [4] */
-        else if (sys==SYS_GAL) prm=(pr*2E-11+0.085)*CLIGHT; /* [7] */
-        else if (sys==SYS_IRN) prm=(pr*2E-11+0.105)*CLIGHT; /* [6] */
-        else                   prm=(pr*1E-11+0.075)*CLIGHT;
-        
-        if (sig=='c') raw->prCA[sat-1]=prm;
-        
-        if ((idx=sig2idx(sys,sig,&code))<0) continue;
-        
+        if (sys == SYS_SBS) {
+            prm = (pr * 1E-11 + 0.125) * CLIGHT; /* [6] */
+        } else if (sys == SYS_QZS) {
+            prm = (pr * 2E-11 + 0.125) * CLIGHT; /* [3] */
+        } else if (sys == SYS_CMP) {
+            prm = (pr * 2E-11 + 0.105) * CLIGHT; /* [4] */
+        } else if (sys == SYS_GAL) {
+            prm = (pr * 2E-11 + 0.085) * CLIGHT; /* [7] */
+        } else if (sys == SYS_IRN) {
+            prm = (pr * 2E-11 + 0.105) * CLIGHT; /* [6] */
+        } else {
+            prm = (pr * 1E-11 + 0.075) * CLIGHT;
+        }
+
+        if (sig == 'c') {
+            raw->prCA[sat - 1] = prm;
+        }
+
+        if ((idx = sig2idx(sys, sig, &code)) < 0) {
+            continue;
+        }
+
         if ((idx=checkpri(sys,code,raw->opt,idx))>=0) {
-            if (!settag(raw->obuf.data+i,raw->time)) continue;
+            if (!settag(raw->obuf.data + i, raw->time)) {
+                continue;
+            }
             raw->obuf.data[i].P[idx]=prm;
             raw->obuf.data[i].code[idx]=(uint8_t)code;
         }
@@ -1312,9 +1484,11 @@ static int decode_xR(raw_t *raw, char sig)
     uint8_t *p=raw->buff+5;
     float pr;
     int i,idx,code,sat,sys;
-    
-    if (!is_meas(sig)||raw->tod<0||raw->obuf.n==0) return 0;
-    
+
+    if (!is_meas(sig) || raw->tod < 0 || raw->obuf.n == 0) {
+        return 0;
+    }
+
     if (!checksum(raw->buff,raw->len)) {
         trace(NULL,2,"javad %cR checksum error: len=%d\n",sig,raw->len);
         return -1;
@@ -1324,15 +1498,25 @@ static int decode_xR(raw_t *raw, char sig)
         return -1;
     }
     for (i=0;i<raw->obuf.n&&i<MAXOBS;i++) {
-        pr=R4(p); p+=4; if (pr==0.0) continue;
-        
+        pr = R4(p);
+        p += 4;
+        if (pr == 0.0) {
+            continue;
+        }
+
         sat=raw->obuf.data[i].sat;
-        if (!(sys=satsys(sat,NULL))||raw->prCA[sat-1]==0.0) continue;
-        
-        if ((idx=sig2idx(sys,sig,&code))<0) continue;
-        
+        if (!(sys = satsys(sat, NULL)) || raw->prCA[sat - 1] == 0.0) {
+            continue;
+        }
+
+        if ((idx = sig2idx(sys, sig, &code)) < 0) {
+            continue;
+        }
+
         if ((idx=checkpri(sys,code,raw->opt,idx))>=0) {
-            if (!settag(raw->obuf.data+i,raw->time)) continue;
+            if (!settag(raw->obuf.data + i, raw->time)) {
+                continue;
+            }
             raw->obuf.data[i].P[idx]=pr*CLIGHT+raw->prCA[sat-1];
             raw->obuf.data[i].code[idx]=(uint8_t)code;
         }
@@ -1346,9 +1530,11 @@ static int decode_xr(raw_t *raw, char sig)
     double prm;
     int16_t pr;
     int i,idx,code,sat,sys;
-    
-    if (!is_meas(sig)||raw->tod<0||raw->obuf.n==0) return 0;
-    
+
+    if (!is_meas(sig) || raw->tod < 0 || raw->obuf.n == 0) {
+        return 0;
+    }
+
     if (!checksum(raw->buff,raw->len)) {
         trace(NULL,2,"javad %cr checksum error: len=%d\n",sig,raw->len);
         return -1;
@@ -1358,17 +1544,27 @@ static int decode_xr(raw_t *raw, char sig)
         return -1;
     }
     for (i=0;i<raw->obuf.n&&i<MAXOBS;i++) {
-        pr=I2(p); p+=2; if (pr==(int16_t)0x7FFF) continue;
-        
+        pr = I2(p);
+        p += 2;
+        if (pr == (int16_t)0x7FFF) {
+            continue;
+        }
+
         sat=raw->obuf.data[i].sat;
-        if (!(sys=satsys(sat,NULL))||raw->prCA[sat-1]==0.0) continue;
-        
+        if (!(sys = satsys(sat, NULL)) || raw->prCA[sat - 1] == 0.0) {
+            continue;
+        }
+
         prm=(pr*1E-11+2E-7)*CLIGHT+raw->prCA[sat-1];
-        
-        if ((idx=sig2idx(sys,sig,&code))<0) continue;
-        
+
+        if ((idx = sig2idx(sys, sig, &code)) < 0) {
+            continue;
+        }
+
         if ((idx=checkpri(sys,code,raw->opt,idx))>=0) {
-            if (!settag(raw->obuf.data+i,raw->time)) continue;
+            if (!settag(raw->obuf.data + i, raw->time)) {
+                continue;
+            }
             raw->obuf.data[i].P[idx]=prm;
             raw->obuf.data[i].code[idx]=(uint8_t)code;
         }
@@ -1381,9 +1577,11 @@ static int decode_Px(raw_t *raw, char sig)
     uint8_t *p=raw->buff+5;
     double cp;
     int i,idx,code,sys;
-    
-    if (!is_meas(sig)||raw->tod<0||raw->obuf.n==0) return 0;
-    
+
+    if (!is_meas(sig) || raw->tod < 0 || raw->obuf.n == 0) {
+        return 0;
+    }
+
     if (!checksum(raw->buff,raw->len)) {
         trace(NULL,2,"javad P%c checksum error: len=%d\n",sig,raw->len);
         return -1;
@@ -1393,14 +1591,24 @@ static int decode_Px(raw_t *raw, char sig)
         return -1;
     }
     for (i=0;i<raw->obuf.n&&i<MAXOBS;i++) {
-        cp=R8(p); p+=8; if (cp==0.0) continue;
-        
-        if (!(sys=satsys(raw->obuf.data[i].sat,NULL))) continue;
-        
-        if ((idx=sig2idx(sys,sig,&code))<0) continue;
-        
+        cp = R8(p);
+        p += 8;
+        if (cp == 0.0) {
+            continue;
+        }
+
+        if (!(sys = satsys(raw->obuf.data[i].sat, NULL))) {
+            continue;
+        }
+
+        if ((idx = sig2idx(sys, sig, &code)) < 0) {
+            continue;
+        }
+
         if ((idx=checkpri(sys,code,raw->opt,idx))>=0) {
-            if (!settag(raw->obuf.data+i,raw->time)) continue;
+            if (!settag(raw->obuf.data + i, raw->time)) {
+                continue;
+            }
             raw->obuf.data[i].L[idx]=cp;
             raw->obuf.data[i].code[idx]=(uint8_t)code;
         }
@@ -1413,9 +1621,11 @@ static int decode_px(raw_t *raw, char sig)
     uint8_t *p=raw->buff+5;
     uint32_t cp;
     int i,idx,code,sys;
-    
-    if (!is_meas(sig)||raw->tod<0||raw->obuf.n==0) return 0;
-    
+
+    if (!is_meas(sig) || raw->tod < 0 || raw->obuf.n == 0) {
+        return 0;
+    }
+
     if (!checksum(raw->buff,raw->len)) {
         trace(NULL,2,"javad p%c checksum error: len=%d\n",sig,raw->len);
         return -1;
@@ -1425,14 +1635,24 @@ static int decode_px(raw_t *raw, char sig)
         return -1;
     }
     for (i=0;i<raw->obuf.n&&i<MAXOBS;i++) {
-        cp=U4(p); p+=4; if (cp==0xFFFFFFFF) continue;
-        
-        if (!(sys=satsys(raw->obuf.data[i].sat,NULL))) continue;
-        
-        if ((idx=sig2idx(sys,sig,&code))<0) continue;
-        
+        cp = U4(p);
+        p += 4;
+        if (cp == 0xFFFFFFFF) {
+            continue;
+        }
+
+        if (!(sys = satsys(raw->obuf.data[i].sat, NULL))) {
+            continue;
+        }
+
+        if ((idx = sig2idx(sys, sig, &code)) < 0) {
+            continue;
+        }
+
         if ((idx=checkpri(sys,code,raw->opt,idx))>=0) {
-            if (!settag(raw->obuf.data+i,raw->time)) continue;
+            if (!settag(raw->obuf.data + i, raw->time)) {
+                continue;
+            }
             raw->obuf.data[i].L[idx]=cp/1024.0;
             raw->obuf.data[i].code[idx]=(uint8_t)code;
         }
@@ -1445,9 +1665,11 @@ static int decode_xP(raw_t *raw, char sig)
     uint8_t *p=raw->buff+5;
     double cp,rcp,freq;
     int i,idx,code,sat,sys;
-    
-    if (!is_meas(sig)||raw->tod<0||raw->obuf.n==0) return 0;
-    
+
+    if (!is_meas(sig) || raw->tod < 0 || raw->obuf.n == 0) {
+        return 0;
+    }
+
     if (!checksum(raw->buff,raw->len)) {
         trace(NULL,2,"javad %cP checksum error: len=%d\n",sig,raw->len);
         return -1;
@@ -1457,16 +1679,26 @@ static int decode_xP(raw_t *raw, char sig)
         return -1;
     }
     for (i=0;i<raw->obuf.n&&i<MAXOBS;i++) {
-        rcp=R4(p); p+=4; if (rcp==0.0) continue;
-        
+        rcp = R4(p);
+        p += 4;
+        if (rcp == 0.0) {
+            continue;
+        }
+
         sat=raw->obuf.data[i].sat;
-        if (!(sys=satsys(sat,NULL))||raw->prCA[sat-1]==0.0) continue;
-        
-        if ((idx=sig2idx(sys,sig,&code))<0) continue;
-        
+        if (!(sys = satsys(sat, NULL)) || raw->prCA[sat - 1] == 0.0) {
+            continue;
+        }
+
+        if ((idx = sig2idx(sys, sig, &code)) < 0) {
+            continue;
+        }
+
         if ((idx=checkpri(sys,code,raw->opt,idx))>=0) {
-            if (!settag(raw->obuf.data+i,raw->time)) continue;
-            
+            if (!settag(raw->obuf.data + i, raw->time)) {
+                continue;
+            }
+
             freq=code2freq(sys,code,raw->freqn[i]);
             cp=(rcp+raw->prCA[sat-1]/CLIGHT)*freq;
             
@@ -1482,9 +1714,11 @@ static int decode_xp(raw_t *raw, char sig)
     uint8_t *p=raw->buff+5;
     double cp,freq;
     int i,idx,code,rcp,sat,sys;
-    
-    if (!is_meas(sig)||raw->tod<0||raw->obuf.n==0) return 0;
-    
+
+    if (!is_meas(sig) || raw->tod < 0 || raw->obuf.n == 0) {
+        return 0;
+    }
+
     if (!checksum(raw->buff,raw->len)) {
         trace(NULL,2,"javad %cp checksum error: len=%d\n",sig,raw->len);
         return -1;
@@ -1494,16 +1728,26 @@ static int decode_xp(raw_t *raw, char sig)
         return -1;
     }
     for (i=0;i<raw->obuf.n&&i<MAXOBS;i++) {
-        rcp=I4(p); p+=4; if (rcp==0x7FFFFFFF) continue;
-        
+        rcp = I4(p);
+        p += 4;
+        if (rcp == 0x7FFFFFFF) {
+            continue;
+        }
+
         sat=raw->obuf.data[i].sat;
-        if (!(sys=satsys(sat,NULL))||raw->prCA[sat-1]==0.0) continue;
-        
-        if ((idx=sig2idx(sys,sig,&code))<0) continue;
-        
+        if (!(sys = satsys(sat, NULL)) || raw->prCA[sat - 1] == 0.0) {
+            continue;
+        }
+
+        if ((idx = sig2idx(sys, sig, &code)) < 0) {
+            continue;
+        }
+
         if ((idx=checkpri(sys,code,raw->opt,idx))>=0) {
-            if (!settag(raw->obuf.data+i,raw->time)) continue;
-            
+            if (!settag(raw->obuf.data + i, raw->time)) {
+                continue;
+            }
+
             freq=code2freq(sys,(uint8_t)code,raw->freqn[i]);
             cp=(rcp*P2_40+raw->prCA[sat-1]/CLIGHT)*freq;
             
@@ -1519,9 +1763,11 @@ static int decode_Dx(raw_t *raw, char sig)
     uint8_t *p=raw->buff+5;
     double dop;
     int i,idx,code,dp,sat,sys;
-    
-    if (!is_meas(sig)||raw->tod<0||raw->obuf.n==0) return 0;
-    
+
+    if (!is_meas(sig) || raw->tod < 0 || raw->obuf.n == 0) {
+        return 0;
+    }
+
     if (!checksum(raw->buff,raw->len)) {
         trace(NULL,2,"javad D%c checksum error: len=%d\n",sig,raw->len);
         return -1;
@@ -1531,19 +1777,31 @@ static int decode_Dx(raw_t *raw, char sig)
         return -1;
     }
     for (i=0;i<raw->obuf.n&&i<MAXOBS;i++) {
-        dp=I4(p); p+=4; if (dp==0x7FFFFFFF) continue;
-        
+        dp = I4(p);
+        p += 4;
+        if (dp == 0x7FFFFFFF) {
+            continue;
+        }
+
         sat=raw->obuf.data[i].sat;
-        if (!(sys=satsys(sat,NULL))) continue;
-        
+        if (!(sys = satsys(sat, NULL))) {
+            continue;
+        }
+
         dop=-dp*1E-4;
-        
-        if (sig=='C') raw->dpCA[sat-1]=dop;
-        
-        if ((idx=sig2idx(sys,sig,&code))<0) continue;
-        
+
+        if (sig == 'C') {
+            raw->dpCA[sat - 1] = dop;
+        }
+
+        if ((idx = sig2idx(sys, sig, &code)) < 0) {
+            continue;
+        }
+
         if ((idx=checkpri(sys,code,raw->opt,idx))>=0) {
-            if (!settag(raw->obuf.data+i,raw->time)) continue;
+            if (!settag(raw->obuf.data + i, raw->time)) {
+                continue;
+            }
             raw->obuf.data[i].D[idx]=(float)dop;
         }
     }
@@ -1556,9 +1814,11 @@ static int decode_xd(raw_t *raw, char sig)
     double dop,f1,fn;
     int16_t rdp;
     int i,idx,code,sat,sys;
-    
-    if (!is_meas(sig)||raw->tod<0||raw->obuf.n==0) return 0;
-    
+
+    if (!is_meas(sig) || raw->tod < 0 || raw->obuf.n == 0) {
+        return 0;
+    }
+
     if (!checksum(raw->buff,raw->len)) {
         trace(NULL,2,"javad %cd checksum error: len=%d\n",sig,raw->len);
         return -1;
@@ -1568,15 +1828,25 @@ static int decode_xd(raw_t *raw, char sig)
         return -1;
     }
     for (i=0;i<raw->obuf.n&&i<MAXOBS;i++) {
-        rdp=I2(p); p+=2; if (rdp==(int16_t)0x7FFF) continue;
-        
+        rdp = I2(p);
+        p += 2;
+        if (rdp == (int16_t)0x7FFF) {
+            continue;
+        }
+
         sat=raw->obuf.data[i].sat;
-        if (!(sys=satsys(sat,NULL))||raw->dpCA[sat-1]==0.0) continue;
-        
-        if ((idx=sig2idx(sys,sig,&code))<0) continue;
-        
+        if (!(sys = satsys(sat, NULL)) || raw->dpCA[sat - 1] == 0.0) {
+            continue;
+        }
+
+        if ((idx = sig2idx(sys, sig, &code)) < 0) {
+            continue;
+        }
+
         if ((idx=checkpri(sys,code,raw->opt,idx))>=0) {
-            if (!settag(raw->obuf.data+i,raw->time)) continue;
+            if (!settag(raw->obuf.data + i, raw->time)) {
+                continue;
+            }
             f1=code2freq(sys,CODE_L1X,raw->freqn[i]);
             fn=code2freq(sys,code    ,raw->freqn[i]);
             dop=(-rdp+raw->dpCA[sat-1]*1E4)*fn/f1*1E-4;
@@ -1592,9 +1862,11 @@ static int decode_Ex(raw_t *raw, char sig)
     uint8_t *p=raw->buff+5;
     uint8_t cnr;
     int i,idx,code,sys;
-    
-    if (!is_meas(sig)||raw->tod<0||raw->obuf.n==0) return 0;
-    
+
+    if (!is_meas(sig) || raw->tod < 0 || raw->obuf.n == 0) {
+        return 0;
+    }
+
     if (!checksum(raw->buff,raw->len)) {
         trace(NULL,2,"javad E%c checksum error: len=%d\n",sig,raw->len);
         return -1;
@@ -1604,14 +1876,24 @@ static int decode_Ex(raw_t *raw, char sig)
         return -1;
     }
     for (i=0;i<raw->obuf.n&&i<MAXOBS;i++) {
-        cnr=U1(p); p+=1; if (cnr==255) continue;
-        
-        if (!(sys=satsys(raw->obuf.data[i].sat,NULL))) continue;
-        
-        if ((idx=sig2idx(sys,sig,&code))<0) continue;
-        
+        cnr = U1(p);
+        p += 1;
+        if (cnr == 255) {
+            continue;
+        }
+
+        if (!(sys = satsys(raw->obuf.data[i].sat, NULL))) {
+            continue;
+        }
+
+        if ((idx = sig2idx(sys, sig, &code)) < 0) {
+            continue;
+        }
+
         if ((idx=checkpri(sys,code,raw->opt,idx))>=0) {
-            if (!settag(raw->obuf.data+i,raw->time)) continue;
+            if (!settag(raw->obuf.data + i, raw->time)) {
+                continue;
+            }
             raw->obuf.data[i].SNR[idx]=(uint16_t)(cnr/SNR_UNIT+0.5);
         }
     }
@@ -1623,9 +1905,11 @@ static int decode_xE(raw_t *raw, char sig)
     uint8_t *p=raw->buff+5;
     uint8_t cnr;
     int i,idx,code,sys;
-    
-    if (!is_meas(sig)||raw->tod<0||raw->obuf.n==0) return 0;
-    
+
+    if (!is_meas(sig) || raw->tod < 0 || raw->obuf.n == 0) {
+        return 0;
+    }
+
     if (!checksum(raw->buff,raw->len)) {
         trace(NULL,2,"javad %cE checksum error: len=%d\n",sig,raw->len);
         return -1;
@@ -1635,14 +1919,24 @@ static int decode_xE(raw_t *raw, char sig)
         return -1;
     }
     for (i=0;i<raw->obuf.n&&i<MAXOBS;i++) {
-        cnr=U1(p); p+=1; if (cnr==255) continue;
-        
-        if (!(sys=satsys(raw->obuf.data[i].sat,NULL))) continue;
-        
-        if ((idx=sig2idx(sys,sig,&code))<0) continue;
-        
+        cnr = U1(p);
+        p += 1;
+        if (cnr == 255) {
+            continue;
+        }
+
+        if (!(sys = satsys(raw->obuf.data[i].sat, NULL))) {
+            continue;
+        }
+
+        if ((idx = sig2idx(sys, sig, &code)) < 0) {
+            continue;
+        }
+
         if ((idx=checkpri(sys,code,raw->opt,idx))>=0) {
-            if (!settag(raw->obuf.data+i,raw->time)) continue;
+            if (!settag(raw->obuf.data + i, raw->time)) {
+                continue;
+            }
             raw->obuf.data[i].SNR[idx]=(uint16_t)(cnr*0.25/SNR_UNIT+0.5);
         }
     }
@@ -1654,9 +1948,11 @@ static int decode_Fx(raw_t *raw, char sig)
     uint8_t *p=raw->buff+5;
     uint16_t flags;
     int i,idx,code,sat,sys;
-    
-    if (!is_meas(sig)||raw->tod<0||raw->obuf.n==0) return 0;
-    
+
+    if (!is_meas(sig) || raw->tod < 0 || raw->obuf.n == 0) {
+        return 0;
+    }
+
     if (!checksum(raw->buff,raw->len)) {
         trace(NULL,2,"javad F%c checksum error: len=%d\n",sig,raw->len);
         return -1;
@@ -1666,15 +1962,25 @@ static int decode_Fx(raw_t *raw, char sig)
         return -1;
     }
     for (i=0;i<raw->obuf.n&&i<MAXOBS;i++) {
-        flags=U2(p); p+=1; if (flags==0xFFFF) continue;
-        
+        flags = U2(p);
+        p += 1;
+        if (flags == 0xFFFF) {
+            continue;
+        }
+
         sat=raw->obuf.data[i].sat;
-        if (!(sys=satsys(sat,NULL))) continue;
-        
-        if ((idx=sig2idx(sys,sig,&code))<0) continue;
-        
+        if (!(sys = satsys(sat, NULL))) {
+            continue;
+        }
+
+        if ((idx = sig2idx(sys, sig, &code)) < 0) {
+            continue;
+        }
+
         if ((idx=checkpri(sys,code,raw->opt,idx))>=0) {
-            if (!settag(raw->obuf.data+i,raw->time)) continue;
+            if (!settag(raw->obuf.data + i, raw->time)) {
+                continue;
+            }
 #if 0 /* disable to suppress overdetection of cycle-slips */
             if (flags&0x20) { /* loss-of-lock potential */
                 raw->obuf.data[i].LLI[idx]|=1;
@@ -1693,9 +1999,11 @@ static int decode_TC(raw_t *raw)
     uint16_t tt,tt_p;
     int i,sat;
     uint8_t *p=raw->buff+5;
-    
-    if (raw->obuf.n==0) return 0;
-    
+
+    if (raw->obuf.n == 0) {
+        return 0;
+    }
+
     if (!checksum(raw->buff,raw->len)) {
         trace(NULL,2,"javad TC checksum error: len=%d\n",raw->len);
         return -1;
@@ -1705,10 +2013,16 @@ static int decode_TC(raw_t *raw)
         return -1;
     }
     for (i=0;i<raw->obuf.n&&i<MAXOBS;i++) {
-        tt=U2(p); p+=2; if (tt==0xFFFF) continue;
-        
-        if (!settag(raw->obuf.data+i,raw->time)) continue;
-        
+        tt = U2(p);
+        p += 2;
+        if (tt == 0xFFFF) {
+            continue;
+        }
+
+        if (!settag(raw->obuf.data + i, raw->time)) {
+            continue;
+        }
+
         sat=raw->obuf.data[i].sat;
         tt_p=(uint16_t)raw->lockt[sat-1][0];
         
@@ -1734,64 +2048,162 @@ static int decode_javad(raw_t *raw)
     if (raw->outtype) {
         sprintf(raw->msgtype,"JAVAD %2.2s (%4d)",p,raw->len);
     }
-    if (!strncmp(p,"~~",2)) return decode_RT(raw); /* receiver time */
-    
-    if (strstr(raw->opt,"-NOET")) {
-        if (!strncmp(p,"::",2)) return decode_ET(raw); /* epoch time */
+    if (!strncmp(p, "~~", 2)) {
+        return decode_RT(raw); /* receiver time */
     }
-    if (!strncmp(p,"RD",2)) return decode_RD(raw); /* receiver date */
-    if (!strncmp(p,"SI",2)) return decode_SI(raw); /* satellite indices */
-    if (!strncmp(p,"NN",2)) return decode_NN(raw); /* GLONASS slot numbers */
-    if (!strncmp(p,"GA",2)) return decode_GA(raw); /* GPS almanac */
-    if (!strncmp(p,"NA",2)) return decode_NA(raw); /* GLONASS almanac */
-    if (!strncmp(p,"EA",2)) return decode_EA(raw); /* Galileo almanac */
-    if (!strncmp(p,"WA",2)) return decode_WA(raw); /* SBAS almanac */
-    if (!strncmp(p,"QA",2)) return decode_QA(raw); /* QZSS almanac */
-    if (!strncmp(p,"CA",2)) return decode_CA(raw); /* Beidou almanac */
-    if (!strncmp(p,"IA",2)) return decode_IA(raw); /* IRNSS almanac */
-    
-    if (!strncmp(p,"GE",2)) return decode_GE(raw); /* GPS ephemeris */
-    if (!strncmp(p,"NE",2)) return decode_NE(raw); /* GLONASS ephemeris */
-    if (!strncmp(p,"EN",2)) return decode_EN(raw); /* Galileo ephemeris */
-    if (!strncmp(p,"WE",2)) return decode_WE(raw); /* SBAS ephemeris */
-    if (!strncmp(p,"QE",2)) return decode_QE(raw); /* QZSS ephemeris */
-    if (!strncmp(p,"CN",2)) return decode_CN(raw); /* Beidou ephemeris */
-    if (!strncmp(p,"IE",2)) return decode_IE(raw); /* IRNSS ephemeris */
-    
-    if (!strncmp(p,"UO",2)) return decode_UO(raw); /* GPS UTC time parameters */
-    if (!strncmp(p,"NU",2)) return decode_NU(raw); /* GLONASS UTC and GPS time par */
-    if (!strncmp(p,"EU",2)) return decode_EU(raw); /* Galileo UTC and GPS time par */
-    if (!strncmp(p,"WU",2)) return decode_WU(raw); /* WAAS UTC time parameters */
-    if (!strncmp(p,"QU",2)) return decode_QU(raw); /* QZSS UTC and GPS time par */
-    if (!strncmp(p,"IO",2)) return decode_IO(raw); /* ionospheric parameters */
-    
-    if (!strncmp(p,"GD",2)) return decode_nD(raw,SYS_GPS); /* raw navigation data */
-    if (!strncmp(p,"QD",2)) return decode_nD(raw,SYS_QZS); /* raw navigation data */
-    if (!strncmp(p,"gd",2)) return decode_nd(raw,SYS_GPS); /* raw navigation data */
-    if (!strncmp(p,"qd",2)) return decode_nd(raw,SYS_QZS); /* raw navigation data */
-    if (!strncmp(p,"ED",2)) return decode_ED(raw); /* Galileo raw navigation data */
 
-    if (!strncmp(p,"cd",2)) return decode_cd(raw); /* Beidou raw navigation data */
-    if (!strncmp(p,"id",2)) return decode_id(raw); /* IRNSS raw navigation data */
-    if (!strncmp(p,"LD",2)) return decode_LD(raw); /* GLONASS raw navigation data */
-    if (!strncmp(p,"lD",2)) return decode_lD(raw); /* GLONASS raw navigation data */
-    if (!strncmp(p,"WD",2)) return decode_WD(raw); /* SBAS raw navigation data */
-    if (!strncmp(p,"TC",2)) return decode_TC(raw); /* CA/L1 continuous track time */
-    
-    if (p[0]=='R') return decode_Rx(raw,p[1]); /* pseudoranges */
-    if (p[0]=='r') return decode_rx(raw,p[1]); /* short pseudoranges */
-    if (p[1]=='R') return decode_xR(raw,p[0]); /* relative pseudoranges */
-    if (p[1]=='r') return decode_xr(raw,p[0]); /* short relative pseudoranges */
-    if (p[0]=='P') return decode_Px(raw,p[1]); /* carrier phases */
-    if (p[0]=='p') return decode_px(raw,p[1]); /* short carrier phases */
-    if (p[1]=='P') return decode_xP(raw,p[0]); /* relative carrier phases */
-    if (p[1]=='p') return decode_xp(raw,p[0]); /* relative carrier phases */
-    if (p[0]=='D') return decode_Dx(raw,p[1]); /* doppler */
-    if (p[1]=='d') return decode_xd(raw,p[0]); /* short relative doppler */
-    if (p[0]=='E') return decode_Ex(raw,p[1]); /* carrier to noise ratio */
-    if (p[1]=='E') return decode_xE(raw,p[0]); /* carrier to noise ratio x 4 */
-    if (p[0]=='F') return decode_Fx(raw,p[1]); /* signal lock loop flags */
-    
+    if (strstr(raw->opt,"-NOET")) {
+        if (!strncmp(p, "::", 2)) {
+            return decode_ET(raw); /* epoch time */
+        }
+    }
+    if (!strncmp(p, "RD", 2)) {
+        return decode_RD(raw); /* receiver date */
+    }
+    if (!strncmp(p, "SI", 2)) {
+        return decode_SI(raw); /* satellite indices */
+    }
+    if (!strncmp(p, "NN", 2)) {
+        return decode_NN(raw); /* GLONASS slot numbers */
+    }
+    if (!strncmp(p, "GA", 2)) {
+        return decode_GA(raw); /* GPS almanac */
+    }
+    if (!strncmp(p, "NA", 2)) {
+        return decode_NA(raw); /* GLONASS almanac */
+    }
+    if (!strncmp(p, "EA", 2)) {
+        return decode_EA(raw); /* Galileo almanac */
+    }
+    if (!strncmp(p, "WA", 2)) {
+        return decode_WA(raw); /* SBAS almanac */
+    }
+    if (!strncmp(p, "QA", 2)) {
+        return decode_QA(raw); /* QZSS almanac */
+    }
+    if (!strncmp(p, "CA", 2)) {
+        return decode_CA(raw); /* Beidou almanac */
+    }
+    if (!strncmp(p, "IA", 2)) {
+        return decode_IA(raw); /* IRNSS almanac */
+    }
+
+    if (!strncmp(p, "GE", 2)) {
+        return decode_GE(raw); /* GPS ephemeris */
+    }
+    if (!strncmp(p, "NE", 2)) {
+        return decode_NE(raw); /* GLONASS ephemeris */
+    }
+    if (!strncmp(p, "EN", 2)) {
+        return decode_EN(raw); /* Galileo ephemeris */
+    }
+    if (!strncmp(p, "WE", 2)) {
+        return decode_WE(raw); /* SBAS ephemeris */
+    }
+    if (!strncmp(p, "QE", 2)) {
+        return decode_QE(raw); /* QZSS ephemeris */
+    }
+    if (!strncmp(p, "CN", 2)) {
+        return decode_CN(raw); /* Beidou ephemeris */
+    }
+    if (!strncmp(p, "IE", 2)) {
+        return decode_IE(raw); /* IRNSS ephemeris */
+    }
+
+    if (!strncmp(p, "UO", 2)) {
+        return decode_UO(raw); /* GPS UTC time parameters */
+    }
+    if (!strncmp(p, "NU", 2)) {
+        return decode_NU(raw); /* GLONASS UTC and GPS time par */
+    }
+    if (!strncmp(p, "EU", 2)) {
+        return decode_EU(raw); /* Galileo UTC and GPS time par */
+    }
+    if (!strncmp(p, "WU", 2)) {
+        return decode_WU(raw); /* WAAS UTC time parameters */
+    }
+    if (!strncmp(p, "QU", 2)) {
+        return decode_QU(raw); /* QZSS UTC and GPS time par */
+    }
+    if (!strncmp(p, "IO", 2)) {
+        return decode_IO(raw); /* ionospheric parameters */
+    }
+
+    if (!strncmp(p, "GD", 2)) {
+        return decode_nD(raw, SYS_GPS); /* raw navigation data */
+    }
+    if (!strncmp(p, "QD", 2)) {
+        return decode_nD(raw, SYS_QZS); /* raw navigation data */
+    }
+    if (!strncmp(p, "gd", 2)) {
+        return decode_nd(raw, SYS_GPS); /* raw navigation data */
+    }
+    if (!strncmp(p, "qd", 2)) {
+        return decode_nd(raw, SYS_QZS); /* raw navigation data */
+    }
+    if (!strncmp(p, "ED", 2)) {
+        return decode_ED(raw); /* Galileo raw navigation data */
+    }
+
+    if (!strncmp(p, "cd", 2)) {
+        return decode_cd(raw); /* Beidou raw navigation data */
+    }
+    if (!strncmp(p, "id", 2)) {
+        return decode_id(raw); /* IRNSS raw navigation data */
+    }
+    if (!strncmp(p, "LD", 2)) {
+        return decode_LD(raw); /* GLONASS raw navigation data */
+    }
+    if (!strncmp(p, "lD", 2)) {
+        return decode_lD(raw); /* GLONASS raw navigation data */
+    }
+    if (!strncmp(p, "WD", 2)) {
+        return decode_WD(raw); /* SBAS raw navigation data */
+    }
+    if (!strncmp(p, "TC", 2)) {
+        return decode_TC(raw); /* CA/L1 continuous track time */
+    }
+
+    if (p[0] == 'R') {
+        return decode_Rx(raw, p[1]); /* pseudoranges */
+    }
+    if (p[0] == 'r') {
+        return decode_rx(raw, p[1]); /* short pseudoranges */
+    }
+    if (p[1] == 'R') {
+        return decode_xR(raw, p[0]); /* relative pseudoranges */
+    }
+    if (p[1] == 'r') {
+        return decode_xr(raw, p[0]); /* short relative pseudoranges */
+    }
+    if (p[0] == 'P') {
+        return decode_Px(raw, p[1]); /* carrier phases */
+    }
+    if (p[0] == 'p') {
+        return decode_px(raw, p[1]); /* short carrier phases */
+    }
+    if (p[1] == 'P') {
+        return decode_xP(raw, p[0]); /* relative carrier phases */
+    }
+    if (p[1] == 'p') {
+        return decode_xp(raw, p[0]); /* relative carrier phases */
+    }
+    if (p[0] == 'D') {
+        return decode_Dx(raw, p[1]); /* doppler */
+    }
+    if (p[1] == 'd') {
+        return decode_xd(raw, p[0]); /* short relative doppler */
+    }
+    if (p[0] == 'E') {
+        return decode_Ex(raw, p[1]); /* carrier to noise ratio */
+    }
+    if (p[1] == 'E') {
+        return decode_xE(raw, p[0]); /* carrier to noise ratio x 4 */
+    }
+    if (p[0] == 'F') {
+        return decode_Fx(raw, p[1]); /* signal lock loop flags */
+    }
+
     return 0;
 }
 /* sync JAVAD message --------------------------------------------------------*/
@@ -1810,7 +2222,9 @@ static int sync_javad(uint8_t *buff, uint8_t data)
 static void clearbuff(raw_t *raw)
 {
     int i;
-    for (i=0;i<5;i++) raw->buff[i]=0;
+    for (i = 0; i < 5; i++) {
+        raw->buff[i] = 0;
+    }
     raw->len=raw->nbyte=0;
 }
 /* input JAVAD raw message from stream -----------------------------------------
@@ -1844,7 +2258,9 @@ extern int input_javad(raw_t *raw, uint8_t data)
     
     /* synchronize message */
     if (raw->nbyte==0) {
-        if (!sync_javad(raw->buff,data)) return 0;
+        if (!sync_javad(raw->buff, data)) {
+            return 0;
+        }
         if (!(len=decodelen(raw->buff+2))||len>MAXRAWLEN-5) {
             trace(NULL,2,"javad message length error: len=%d\n",len);
             clearbuff(raw);
@@ -1855,9 +2271,11 @@ extern int input_javad(raw_t *raw, uint8_t data)
         return 0;
     }
     raw->buff[raw->nbyte++]=data;
-    
-    if (raw->nbyte<raw->len) return 0;
-    
+
+    if (raw->nbyte < raw->len) {
+        return 0;
+    }
+
     /* decode javad raw message */
     stat=decode_javad(raw);
     
@@ -1875,7 +2293,9 @@ static void startfile(raw_t *raw)
 static int endfile(raw_t *raw)
 {
     /* flush observation data buffer */
-    if (!flushobuf(raw)) return -2;
+    if (!flushobuf(raw)) {
+        return -2;
+    }
     raw->obuf.n=0;
     return 1;
 }
@@ -1899,9 +2319,15 @@ extern int input_javadf(raw_t *raw, FILE *fp)
     /* synchronize message */
     if (raw->nbyte==0) {
         for (i=0;;i++) {
-            if ((data=fgetc(fp))==EOF) return endfile(raw);
-            if (sync_javad(raw->buff,(uint8_t)data)) break;
-            if (i>=4096) return 0;
+            if ((data = fgetc(fp)) == EOF) {
+                return endfile(raw);
+            }
+            if (sync_javad(raw->buff, (uint8_t)data)) {
+                break;
+            }
+            if (i >= 4096) {
+                return 0;
+            }
         }
     }
     if (!(len=decodelen(raw->buff+2))||len>MAXRAWLEN-5) {

@@ -515,10 +515,11 @@ static void UnwrapGenout(rt17_t *rt17);
 void free_rt17(raw_t *Raw)
 {
     rt17_t *rt17 = NULL;
-    
-    if (Raw->format != STRFMT_RT17)
+
+    if (Raw->format != STRFMT_RT17) {
         return;
- 
+    }
+
     if ((rt17 = (rt17_t*) Raw->rcv_data))
     {
         if (rt17->MessageBuffer)
@@ -547,9 +548,10 @@ int init_rt17(raw_t *Raw)
 	rt17_t *rt17 = NULL;
     uint8_t *MessageBuffer = NULL, *PacketBuffer = NULL;
 
-    if (Raw->format != STRFMT_RT17)
-       return 0;
- 
+    if (Raw->format != STRFMT_RT17) {
+        return 0;
+    }
+
     if (!(rt17 = (rt17_t*) calloc(1, sizeof(rt17_t))))
     {
         tracet(NULL,0, "RT17: unable to allocate RT17 dependent private data structure.\n");
@@ -621,8 +623,9 @@ int input_rt17(raw_t *Raw, uint8_t Data)
     | Keep storing bytes into the current packet
     | until we have what we think are all of them.
     */
-    if (rt17->PacketBytes < rt17->PacketLength)
+    if (rt17->PacketBytes < rt17->PacketLength) {
         return 0;
+    }
 
     /*
     | At this point we think have an entire packet.
@@ -646,8 +649,9 @@ int input_rt17(raw_t *Raw, uint8_t Data)
         return 0;
     }
 
-    if (Raw->outtype)
+    if (Raw->outtype) {
         sprintf(Raw->msgtype, "RT17 0x%02X (%4d)", PacketBuffer[2], rt17->PacketLength);
+    }
 
     /* If this is a SVDATA packet, then process it immediately */
     if (PacketBuffer[2] == RETSVDATA)
@@ -805,8 +809,12 @@ int input_rt17f(raw_t *Raw, FILE *fp)
     
     for (i = 0; i < 4096; i++)
     {
-	if ((Data = fgetc(fp)) == EOF) return -2;
-	    if ((Ret = input_rt17(Raw, (uint8_t) Data))) return Ret;
+        if ((Data = fgetc(fp)) == EOF) {
+            return -2;
+        }
+        if ((Ret = input_rt17(Raw, (uint8_t)Data))) {
+            return Ret;
+        }
     }
 
     return 0; /* return at every 4k bytes */
@@ -851,9 +859,10 @@ static void ClearMessageBuffer(rt17_t *rt17)
 {
    uint8_t *MessageBuffer = rt17->MessageBuffer;
    int i;
-   
-   for (i = 0; i < 4; i++)
+
+   for (i = 0; i < 4; i++) {
        MessageBuffer[i] = 0;
+   }
 
     rt17->MessageLength = rt17->MessageBytes = 0;
     rt17->Reply = 0;
@@ -865,8 +874,9 @@ static void ClearPacketBuffer(rt17_t *rt17)
     uint8_t *PacketBuffer = rt17->PacketBuffer;
     int i;
 
-    for (i = 0; i < 4; i++)
+    for (i = 0; i < 4; i++) {
         PacketBuffer[i] = 0;
+    }
 
     rt17->PacketLength = rt17->PacketBytes = 0;
 }
@@ -1216,28 +1226,29 @@ static int DecodeGPSEphemeris(raw_t *Raw)
     */
     if (Flags & M_BIT10)  /* Subframe 2, word 10, bit 17 (fit flag) */
     {
-        if ((eph.iodc >= 240) && (eph.iodc <= 247))
+        if ((eph.iodc >= 240) && (eph.iodc <= 247)) {
             eph.fit = 8;
-        else if (((eph.iodc >= 248) && (eph.iodc <= 255)) || (eph.iodc == 496))
+        } else if (((eph.iodc >= 248) && (eph.iodc <= 255)) || (eph.iodc == 496)) {
             eph.fit = 14;
-        else if ((eph.iodc >= 497) && (eph.iodc <= 503))
+        } else if ((eph.iodc >= 497) && (eph.iodc <= 503)) {
             eph.fit = 26;
-        else if ((eph.iodc >= 504) && (eph.iodc <= 510))
+        } else if ((eph.iodc >= 504) && (eph.iodc <= 510)) {
             eph.fit = 50;
-        else if ((eph.iodc == 511) || ((eph.iodc >= 752) && (eph.iodc <= 756)))
+        } else if ((eph.iodc == 511) || ((eph.iodc >= 752) && (eph.iodc <= 756))) {
             eph.fit = 74;
-        else if ((eph.iodc >= 757) && (eph.iodc <= 763))
+        } else if ((eph.iodc >= 757) && (eph.iodc <= 763)) {
             eph.fit = 98;
-        else if (((eph.iodc >= 764) && (eph.iodc <= 767)) || ((eph.iodc >= 1008) && (eph.iodc <= 1010)))
+        } else if (((eph.iodc >= 764) && (eph.iodc <= 767)) || ((eph.iodc >= 1008) && (eph.iodc <= 1010))) {
             eph.fit = 122;
-        else if ((eph.iodc >= 1011) && (eph.iodc <= 1020))
+        } else if ((eph.iodc >= 1011) && (eph.iodc <= 1020)) {
             eph.fit = 146;
-        else
+        } else {
             eph.fit = 6;
-    }
-    else
+        }
+    } else {
         eph.fit = 4;
- 
+    }
+
     eph.flag  = (Flags & M_BIT0);   /* Subframe 1, word 4, bit 1, Data flag for L2 P-code */
     eph.code  = (Flags >> 1) & 3;   /* Subframe 1, word 3, bits 11-12, Codes on L2 channel */
     eph.svh   = (Flags >> 4) & 127; /* Subframe 1, word 3, bits 17-22, SV health from ephemeris */
@@ -1262,10 +1273,11 @@ static int DecodeGPSEphemeris(raw_t *Raw)
     {
         if (!rt17->Week || (rt17->Flags & M_WEEK_TIME) || (eph.week > rt17->Week))
         {
-            if (!rt17->Week)
+            if (!rt17->Week) {
                 tracet(NULL,2, "RT17: Initial GPS WEEK number unknown; WEEK number %d assumed for now.\n", eph.week);
-            else
+            } else {
                 tracet(NULL,2, "RT17: Changing assumed week number from %d to %d.\n", rt17->Week, eph.week);
+            }
             rt17->Flags &= ~M_WEEK_TIME;
             rt17->Flags |= M_WEEK_EPH;
             rt17->Week = eph.week;
@@ -1274,8 +1286,9 @@ static int DecodeGPSEphemeris(raw_t *Raw)
  
     if (!strstr(Raw->opt,"-EPHALL"))
     {
-        if (eph.iode == Raw->nav.eph[sat-1].iode)
+        if (eph.iode == Raw->nav.eph[sat - 1].iode) {
             return 0; /* unchanged */
+        }
     }
 
     eph.sat = sat;
@@ -1307,11 +1320,13 @@ static int DecodeGSOF(raw_t *Raw)
         RecordType = p[0];
         RecordLength = p[1];
 
-        if (RecordType < (sizeof(GSOFTable) / sizeof(char*)))
+        if (RecordType < (sizeof(GSOFTable) / sizeof(char*))) {
             RecordType_s = (char*) GSOFTable[RecordType];
+        }
 
-        if (!RecordType_s)
+        if (!RecordType_s) {
             RecordType_s = "Unknown";
+        }
 
         tracet(NULL,3, "RT17: Trimble packet type=0x40 (GENOUT), GSOF record type=%d (%s), Length=%d.\n", RecordType, RecordType_s, RecordLength);
       
@@ -1351,11 +1366,11 @@ static int DecodeGSOF(raw_t *Raw)
 /* DecodeGSOF1 - Decode a Position Time GSOF message */
 static int DecodeGSOF1(raw_t *Raw, uint8_t *p)
 {
-
-    if (p[1] < 6)
+    if (p[1] < 6) {
         tracet(NULL,2, "RT17: GSOF Position Time message record length %d < 6 bytes. Record discarded.\n", p[1]);
-    else
+    } else {
         SetWeek(Raw, I2(p+6), ((double) I4(p+2)) * 0.001);
+    }
 
     return 0;
 }
@@ -1364,11 +1379,10 @@ static int DecodeGSOF1(raw_t *Raw, uint8_t *p)
 static int DecodeGSOF3(raw_t *Raw, uint8_t *p)
 {
     sta_t *sta = &Raw->sta;
- 
-    if (p[1] < 24)
+
+    if (p[1] < 24) {
         tracet(NULL, 2, "RT17: GSOF ECEF Position record length %d < 24 bytes. Record discarded.\n", p[1] );
-    else
-    {
+    } else {
         sta->pos[0] = R8(p+2);
         sta->pos[1] = R8(p+10);
         sta->pos[2] = R8(p+18);
@@ -1385,10 +1399,11 @@ static int DecodeGSOF3(raw_t *Raw, uint8_t *p)
 /* DecodeGSOF15 - Decode a Receiver Serial Number GSOF message  */
 static int DecodeGSOF15(raw_t *Raw, uint8_t *p)
 {
-    if (p[1] < 15)
+    if (p[1] < 15) {
         tracet(NULL,2, "RT17: GSOF Receiver Serial Number record length %d < 15 bytes. Record discarded.\n", p[1]);
-    else
+    } else {
         sprintf(Raw->sta.recsno, "%u", U4(p+2));
+    }
 
     return 0;
 }
@@ -1396,10 +1411,11 @@ static int DecodeGSOF15(raw_t *Raw, uint8_t *p)
 /* DecodeGSOF16 - Decode a Current Time GSOF message */
 static int DecodeGSOF16(raw_t *Raw, uint8_t *p)
 {
-    if (p[1] < 9)
+    if (p[1] < 9) {
         tracet(NULL, 2, "RT17: GSOF Current Time message record length %d < 9 bytes. Record discarded.\n", p[1] );
-    else if (U1(p+10) & M_BIT0) /* If week and milliseconds of week are valid */
+    } else if (U1(p + 10) & M_BIT0) { /* If week and milliseconds of week are valid */
         SetWeek(Raw, I2(p+6), ((double) I4(p+2)) * 0.001);
+    }
 
     return 0;
 }
@@ -1407,10 +1423,11 @@ static int DecodeGSOF16(raw_t *Raw, uint8_t *p)
 /* DecodeGSOF26 - Decode a Position Time UTC GSOF message */
 static int DecodeGSOF26(raw_t *Raw, uint8_t *p)
 {
-    if (p[1] < 6)
+    if (p[1] < 6) {
         tracet(NULL,2, "RT17: GSOF Position Time UTC message record length %d < 6 bytes. Record discarded.\n", p[1]);
-    else
+    } else {
         SetWeek(Raw, I2(p+6), ((double) I4(p+2)) * 0.001);
+    }
 
     return 0;
 }
@@ -1418,10 +1435,11 @@ static int DecodeGSOF26(raw_t *Raw, uint8_t *p)
 /* DecodeGSOF41 - Decode a Base Position and Quality Indicator GSOF message */
 static int DecodeGSOF41(raw_t *raw, uint8_t *p)
 {
-    if (p[1] < 6)
+    if (p[1] < 6) {
         tracet(NULL,2, "RT17: GSOF Base Position and Quality Indicator message record length %d < 6 bytes. Record discarded.\n", p[1]);
-    else 
+    } else {
         SetWeek(raw, I2(p+6), ((double) I4(p+2)) * 0.001);
+    }
 
     return 0;
 }
@@ -1632,13 +1650,15 @@ static int DecodeRawdata(raw_t *Raw)
     uint32_t rif;
     char *RecordType_s = NULL;
     uint8_t RecordType = MessageBuffer[4];
- 
-    if (RecordType < (sizeof(RawdataTable) / sizeof(char*)))
-        RecordType_s = (char*) RawdataTable[RecordType];
 
-    if (!RecordType_s)
+    if (RecordType < (sizeof(RawdataTable) / sizeof(char*))) {
+        RecordType_s = (char*) RawdataTable[RecordType];
+    }
+
+    if (!RecordType_s) {
         RecordType_s = "Unknown";
-  
+    }
+
     tracet(NULL,3, "RT17: Trimble packet type=0x57 (RAWDATA), Recordtype=%d (%s), Length=%d.\n", RecordType, RecordType_s, rt17->MessageLength);
       
     /*
@@ -1681,12 +1701,14 @@ static int DecodeRetsvdata(raw_t *Raw)
     char *Subtype_s = NULL;
     uint8_t Subtype = PacketBuffer[4];
 
-    if (Subtype < (sizeof(RetsvdataTable) / sizeof(char*)))
+    if (Subtype < (sizeof(RetsvdataTable) / sizeof(char*))) {
         Subtype_s = (char*) RetsvdataTable[Subtype];
-  
-    if (!Subtype_s)
+    }
+
+    if (!Subtype_s) {
         Subtype_s = "Unknown";
- 
+    }
+
     tracet(NULL,3, "RT17: Trimble packet type=0x55 (RETSVDATA), Subtype=%d (%s), Length=%d.\n", Subtype, Subtype_s, rt17->PacketLength);
       
     /* Process (or possibly ignore) the message */
@@ -1783,8 +1805,9 @@ static int DecodeType17(raw_t *Raw, uint32_t rif)
                 p += 8;
         
                 /*  L1 Continuous Phase (cycles) */
-                if (Flags1 & M_BIT4) /* L1 phase valid */
+                if (Flags1 & M_BIT4) { /* L1 phase valid */
                     obs->L[0] = -R8(p);
+                }
                 p += 8;
 
                 /* L1 Doppler (Hz) */
@@ -1799,13 +1822,15 @@ static int DecodeType17(raw_t *Raw, uint32_t rif)
                 p++;
                 
                 /* L2 Continuous Phase (cycles) */
-                if (Flags1 & M_BIT5)
+                if (Flags1 & M_BIT5) {
                     obs->L[1] = -R8(p);
+                }
                 p += 8; 
 
-                /* L2 P-Code or L2 Encrypted Code */              
-                if (Flags1 & M_BIT5) /* L2 range valid */
+                /* L2 P-Code or L2 Encrypted Code */
+                if (Flags1 & M_BIT5) { /* L2 range valid */
                     obs->P[1] = obs->P[0] + R4(p);
+                }
                 p += 4;
             }
         
@@ -1848,9 +1873,10 @@ static int DecodeType17(raw_t *Raw, uint32_t rif)
             | for RAWDATA. If this bit is not set, then we're lost and cannot
             | process this message any further.
             */
-            if (!(FlagStatus & M_BIT0)) /* Flags invalid */
+            if (!(FlagStatus & M_BIT0)) { /* Flags invalid */
                 return 0;
-          
+            }
+
             if (Flags1 & M_BIT6) /* L1 data valid */
             {           
                 /* Measure of satellite signal strength (dB) */
@@ -1862,8 +1888,9 @@ static int DecodeType17(raw_t *Raw, uint32_t rif)
                 p += 8;
 
                 /* L1 Continuous Phase (cycles) */
-                if (Flags1 & M_BIT4) /* L1 phase valid */
+                if (Flags1 & M_BIT4) { /* L1 phase valid */
                     obs->L[0] = -R8(p);
+                }
                 p += 8;
 
                 /* L1 Doppler (Hz) */
@@ -1880,14 +1907,16 @@ static int DecodeType17(raw_t *Raw, uint32_t rif)
                 obs->SNR[1] = (uint16_t)(R8(p)/SNR_UNIT+0.5);
                 p += 8;
 
-                /* L2 Continuous Phase (cycles) */                
-                if (Flags1 & M_BIT5) /* L2 phase valid */
+                /* L2 Continuous Phase (cycles) */
+                if (Flags1 & M_BIT5) { /* L2 phase valid */
                     obs->L[1] = -R8(p);
+                }
                 p += 8;
 
-                /* L2 P-Code or L2 Encrypted Code */              
-                if (Flags1 & M_BIT5) /* L2 pseudorange valid */
+                /* L2 P-Code or L2 Encrypted Code */
+                if (Flags1 & M_BIT5) { /* L2 pseudorange valid */
                     obs->P[1] = obs->P[0] + R8(p);
+                }
                 p += 8;
             }   
                 
@@ -1908,16 +1937,34 @@ static int DecodeType17(raw_t *Raw, uint32_t rif)
             }
         }
 
-        obs->code[0] = (obs->P[0] == 0.0) ? CODE_NONE : (Flags2 & M_BIT0) ? CODE_L1P : CODE_L1C;
-        obs->code[1] = (obs->P[1] == 0.0) ? CODE_NONE : (Flags2 & M_BIT2) ? CODE_L2W : (Flags2 & M_BIT1) ? CODE_L2P : CODE_L2C;
+        if (obs->P[0] == 0.0) {
+            obs->code[0] = CODE_NONE;
+        } else if (Flags2 & M_BIT0) {
+            obs->code[0] = CODE_L1P;
+        } else {
+            obs->code[0] = CODE_L1C;
+        }
 
-        if (Flags1 & M_BIT1)
+        if (obs->P[1] == 0.0) {
+            obs->code[1] = CODE_NONE;
+        } else if (Flags2 & M_BIT2) {
+            obs->code[1] = CODE_L2W;
+        } else if (Flags2 & M_BIT1) {
+            obs->code[1] = CODE_L2P;
+        } else {
+            obs->code[1] = CODE_L2C;
+        }
+
+        if (Flags1 & M_BIT1) {
             obs->LLI[0] |= 1;  /* L1 cycle slip */
+        }
 
-        if (Flags1 & M_BIT2)
+        if (Flags1 & M_BIT2) {
             obs->LLI[1] |= 1;  /* L2 cycle slip */
-        if ((Flags2 & M_BIT2) && (obs->P[1] != 0.0))
+        }
+        if ((Flags2 & M_BIT2) && (obs->P[1] != 0.0)) {
             obs->LLI[1] |= 4; /* Tracking encrypted code */
+        }
 
         if (!(obs->sat = satno(SYS_GPS, prn)))
         {
@@ -1956,10 +2003,11 @@ static int DecodeType29(raw_t *Raw)
     rt17_t *rt17 = (rt17_t*) Raw->rcv_data;
     uint8_t *p = rt17->MessageBuffer;
 
-    if (*p < 7)
+    if (*p < 7) {
         tracet(NULL,2, "RT17: Enhanced Position record block #1 length %d < 7 bytes. Record discarded.\n", *p);
-    else
+    } else {
         SetWeek(Raw, I2(p+1), ((double) I4(p+3)) * 0.001);
+    }
 
     return 0;
 }
@@ -1986,8 +2034,9 @@ static int GetWeek(raw_t *Raw, double Tow)
             rt17->Week++;
         }
 
-        if (Tow != 0.0)
+        if (Tow != 0.0) {
             rt17->Tow = Tow;
+        }
     }
     else if (!(rt17->Flags & M_WEEK_SCAN))
     {
@@ -1997,10 +2046,9 @@ static int GetWeek(raw_t *Raw, double Tow)
 
         if (opt)
         {
-            if (!sscanf(opt+6, "%d", &Week) || (Week <= 0))
+            if (!sscanf(opt + 6, "%d", &Week) || (Week <= 0)) {
                 tracet(NULL,0, "RT17: Invalid -WEEK=n receiver option value.\n");
-            else
-            {
+            } else {
                 rt17->Week = Week;
                 rt17->Flags |= M_WEEK_OPTION;
                 tracet(NULL,2, "RT17: Initial GPS WEEK explicitly set to %d by user.\n", Week, Week);
@@ -2012,13 +2060,15 @@ static int GetWeek(raw_t *Raw, double Tow)
 
     if (!Week && !(rt17->Flags & (M_WEEK_OPTION|M_WEEK_EPH)))
     {
-        if ((Raw->time.time == 0) && (Raw->time.sec == 0.0))
+        if ((Raw->time.time == 0) && (Raw->time.sec == 0.0)) {
             Raw->time = timeget();
-        
+        }
+
         time2gpst(Raw->time, &Week);
 
-        if (Tow != 0.0)
+        if (Tow != 0.0) {
             Raw->time = gpst2time(Week, Tow);
+        }
 
         rt17->Week = Week;
         rt17->Flags |= M_WEEK_TIME; 
@@ -2141,21 +2191,23 @@ static void SetWeek(raw_t *Raw, int Week, double Tow)
         {
             if (Week != rt17->Week)
             {
-                if (Week == (rt17->Week + 1))
+                if (Week == (rt17->Week + 1)) {
                     tracet(NULL,2, "RT17: GPS WEEK rolled over from %d to %d.\n", rt17->Week, Week);
-                else
+                } else {
                     tracet(NULL,2, "RT17: GPS WEEK changed from %d to %d.\n", rt17->Week, Week);
+                }
             }
-        }
-        else
+        } else {
             tracet(NULL,2, "RT17: GPS WEEK initially set to %d.\n", Week);
+        }
 
         rt17->Week = Week;
     }
 
     /* Also update the time if we can */
-    if (Week && (Tow != 0.0))
+    if (Week && (Tow != 0.0)) {
         Raw->time = gpst2time(Week, Tow);
+    }
 }
 
 /* SyncPacket - Synchronize the raw data stream to the start of a series of RT-17 packets */
@@ -2231,8 +2283,9 @@ static void UnwrapRawdata(rt17_t *rt17, uint32_t *rif)
 
     while (InputLengthTotal > 0)
     {
-        if ((uint32_t)p_in[7] != *rif)
-           tracet(NULL,2, "RT17: Inconsistent Record Interpretation Flags within a single RAWDATA message.\n");
+        if ((uint32_t)p_in[7] != *rif) {
+            tracet(NULL, 2, "RT17: Inconsistent Record Interpretation Flags within a single RAWDATA message.\n");
+        }
 
         InputLength = p_in[3] + 6;
         OutputLength = p_in[3] - 4;

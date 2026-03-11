@@ -133,7 +133,9 @@ static uint16_t U2(uint8_t *p)
     uint16_t value;
     uint8_t *q=(uint8_t *)&value+1;
     int i;
-    for (i=0;i<2;i++) *q--=*p++;
+    for (i = 0; i < 2; i++) {
+        *q-- = *p++;
+    }
     return value;
 }
 static uint32_t U4(uint8_t *p)
@@ -141,7 +143,9 @@ static uint32_t U4(uint8_t *p)
     uint32_t value;
     uint8_t *q=(uint8_t *)&value+3;
     int i;
-    for (i=0;i<4;i++) *q--=*p++;
+    for (i = 0; i < 4; i++) {
+        *q-- = *p++;
+    }
     return value;
 }
 static int32_t I4(uint8_t *p)
@@ -153,7 +157,9 @@ static float R4(uint8_t *p)
     float value;
     uint8_t *q=(uint8_t *)&value+3;
     int i;
-    for (i=0;i<4;i++) *q--=*p++;
+    for (i = 0; i < 4; i++) {
+        *q-- = *p++;
+    }
     return value;
 }
 static double R8(uint8_t *p)
@@ -161,7 +167,9 @@ static double R8(uint8_t *p)
     double value;
     uint8_t *q=(uint8_t *)&value+7;
     int i;
-    for (i=0;i<8;i++) *q--=*p++;
+    for (i = 0; i < 8; i++) {
+        *q-- = *p++;
+    }
     return value;
 }
 /* get BINEX 1-4 byte unsigned integer (big endian) --------------------------*/
@@ -171,7 +179,9 @@ static int getbnxi(uint8_t *p, uint32_t *val)
     
     for (*val=0,i=0;i<3;i++) {
         *val=(*val<<7)+(p[i]&0x7F);
-        if (!(p[i]&0x80)) return i+1;
+        if (!(p[i] & 0x80)) {
+            return i + 1;
+        }
     }
     *val=(*val<<8)+p[i];
     return 4;
@@ -193,8 +203,11 @@ static gtime_t adjweek(gtime_t time, double tow)
     double tow_p;
     int week;
     tow_p=time2gpst(time,&week);
-    if      (tow<tow_p-302400.0) tow+=604800.0;
-    else if (tow>tow_p+302400.0) tow-=604800.0;
+    if (tow < tow_p - 302400.0) {
+        tow += 604800.0;
+    } else if (tow > tow_p + 302400.0) {
+        tow -= 604800.0;
+    }
     return gpst2time(week,tow);
 }
 /* adjust daily rollover of time ---------------------------------------------*/
@@ -203,8 +216,11 @@ static gtime_t adjday(gtime_t time, double tod)
     double ep[6],tod_p;
     time2epoch(time,ep);
     tod_p=ep[3]*3600.0+ep[4]*60.0+ep[5];
-    if      (tod<tod_p-43200.0) tod+=86400.0;
-    else if (tod>tod_p+43200.0) tod-=86400.0;
+    if (tod < tod_p - 43200.0) {
+        tod += 86400.0;
+    } else if (tod > tod_p + 43200.0) {
+        tod -= 86400.0;
+    }
     ep[3]=ep[4]=ep[5]=0.0;
     return timeadd(epoch2time(ep),tod);
 }
@@ -212,16 +228,28 @@ static gtime_t adjday(gtime_t time, double tod)
 static int uraindex(double value)
 {
     int i;
-    for (i=0;i<15;i++) if (ura_eph[i]>=value) break;
+    for (i = 0; i < 15; i++) {
+        if (ura_eph[i] >= value) {
+            break;
+        }
+    }
     return i;
 }
 /* Galileo SISA value (m) to SISA index --------------------------------------*/
 static int sisaindex(double value)
 {
-    if (value< 0.5) return (int)((value    )/0.01);
-    if (value< 1.0) return (int)((value-0.5)/0.02)+ 50;
-    if (value< 2.0) return (int)((value-1.0)/0.04)+ 75;
-    if (value<=6.0) return (int)((value-2.0)/0.16)+100;
+    if (value < 0.5) {
+        return (int)((value) / 0.01);
+    }
+    if (value < 1.0) {
+        return (int)((value - 0.5) / 0.02) + 50;
+    }
+    if (value < 2.0) {
+        return (int)((value - 1.0) / 0.04) + 75;
+    }
+    if (value <= 6.0) {
+        return (int)((value - 2.0) / 0.16) + 100;
+    }
     return 255; /* NAPA */
 }
 /* decode BINEX mesaage 0x00: site metadata ----------------------------------*/
@@ -245,8 +273,10 @@ static int decode_bnx_00(raw_t *raw, uint8_t *buff, int len)
     }
     while (p-buff<len) {
         p+=getbnxi(p,&fid);
-        if (p-buff>=len) break;
-        
+        if (p - buff >= len) {
+            break;
+        }
+
         if (fid<=0x0c||(fid>=0x0f&&fid<=0x1c)||(fid>=0x20&&fid<=0x22)||
             fid==0x7f) {
             p+=getbnxi(p,&flen); /* field length*/
@@ -255,13 +285,21 @@ static int decode_bnx_00(raw_t *raw, uint8_t *buff, int len)
             if (raw->outtype) {
                 msg+=sprintf(msg," [%02x]%s",fid,str);
             }
-            if      (fid==0x08) strcpy(raw->sta.name   ,str);
-            else if (fid==0x09) strcpy(raw->sta.marker ,str);
-            else if (fid==0x17) strcpy(raw->sta.antdes ,str);
-            else if (fid==0x18) strcpy(raw->sta.antsno ,str);
-            else if (fid==0x19) strcpy(raw->sta.rectype,str);
-            else if (fid==0x1a) strcpy(raw->sta.recsno ,str);
-            else if (fid==0x1b) strcpy(raw->sta.recver ,str);
+            if (fid == 0x08) {
+                strcpy(raw->sta.name, str);
+            } else if (fid == 0x09) {
+                strcpy(raw->sta.marker, str);
+            } else if (fid == 0x17) {
+                strcpy(raw->sta.antdes, str);
+            } else if (fid == 0x18) {
+                strcpy(raw->sta.antsno, str);
+            } else if (fid == 0x19) {
+                strcpy(raw->sta.rectype, str);
+            } else if (fid == 0x1a) {
+                strcpy(raw->sta.recsno, str);
+            } else if (fid == 0x1b) {
+                strcpy(raw->sta.recver, str);
+            }
             ret=5;
         }
         else if (fid==0x1d||fid==0x1e||fid==0x1f) {
@@ -364,8 +402,9 @@ static int decode_bnx_01_01(raw_t *raw, uint8_t *buff, int len)
     eph.sva=uraindex(ura);
     
     if (!strstr(raw->opt,"-EPHALL")) {
-        if (raw->nav.eph[eph.sat-1].iode==eph.iode&&
-            raw->nav.eph[eph.sat-1].iodc==eph.iodc) return 0; /* unchanged */
+        if (raw->nav.eph[eph.sat - 1].iode == eph.iode && raw->nav.eph[eph.sat - 1].iodc == eph.iodc) {
+            return 0; /* unchanged */
+        }
     }
     raw->nav.eph[sat-1]=eph;
     raw->ephsat=sat;
@@ -413,15 +452,19 @@ static int decode_bnx_01_02(raw_t *raw, uint8_t *buff, int len)
         trace(NULL,2,"BINEX 0x01-02: satellite error prn=%d\n",prn);
         return -1;
     }
-    if (raw->time.time==0) return 0;
+    if (raw->time.time == 0) {
+        return 0;
+    }
     geph.sat=sat;
     geph.toe=utc2gpst(adjday(raw->time,tod-10800.0));
     geph.tof=utc2gpst(adjday(raw->time,tof-10800.0));
     geph.iode=(int)(fmod(tod,86400.0)/900.0+0.5);
     
     if (!strstr(raw->opt,"-EPHALL")) {
-        if (fabs(timediff(geph.toe,raw->nav.geph[prn-MINPRNGLO].toe))<1.0&&
-            geph.svh==raw->nav.geph[prn-MINPRNGLO].svh) return 0;
+        if (fabs(timediff(geph.toe, raw->nav.geph[prn - MINPRNGLO].toe)) < 1.0 &&
+            geph.svh == raw->nav.geph[prn - MINPRNGLO].svh) {
+            return 0;
+        }
     }
     raw->nav.geph[prn-1]=geph;
     raw->ephsat=sat;
@@ -471,8 +514,10 @@ static int decode_bnx_01_03(raw_t *raw, uint8_t *buff, int len)
     seph.tof=adjweek(seph.t0,tof);
     
     if (!strstr(raw->opt,"-EPHALL")) {
-        if (fabs(timediff(seph.t0,raw->nav.seph[prn-MINPRNSBS].t0))<1.0&&
-            seph.sva==raw->nav.seph[prn-MINPRNSBS].sva) return 0;
+        if (fabs(timediff(seph.t0, raw->nav.seph[prn - MINPRNSBS].t0)) < 1.0 &&
+            seph.sva == raw->nav.seph[prn - MINPRNSBS].sva) {
+            return 0;
+        }
     }
     raw->nav.seph[prn-MINPRNSBS]=seph;
     raw->ephsat=sat;
@@ -488,10 +533,14 @@ static int decode_bnx_01_04(raw_t *raw, uint8_t *buff, int len)
     int prn,sat,set,eph_sel=3; /* ephemeris selection (1:I/NAV+2:F/NAV) */
     
     trace(NULL,4,"BINEX 0x01-04: len=%d\n",len);
-    
-    if (strstr(raw->opt,"-GALFNAV")) eph_sel=1;
-    if (strstr(raw->opt,"-GALINAV")) eph_sel=2;
-    
+
+    if (strstr(raw->opt, "-GALFNAV")) {
+        eph_sel = 1;
+    }
+    if (strstr(raw->opt, "-GALINAV")) {
+        eph_sel = 2;
+    }
+
     if (len>=127) {
         prn       =U1(p)+1;      p+=1;
         eph.week  =U2(p);        p+=2; /* gal-week = gps-week */
@@ -531,9 +580,13 @@ static int decode_bnx_01_04(raw_t *raw, uint8_t *buff, int len)
         return -1;
     }
     set=(eph.code&(1<<8))?1:0; /* 0:I/NAV,1:F/NAV */
-    if (!(eph_sel&1)&&set==0) return 0;
-    if (!(eph_sel&2)&&set==1) return 0;
-    
+    if (!(eph_sel & 1) && set == 0) {
+        return 0;
+    }
+    if (!(eph_sel & 2) && set == 1) {
+        return 0;
+    }
+
     eph.sat=sat;
     eph.type=set; /* ephemeris type = I/NAV or F/NAV */
     eph.A=SQR(sqrtA);
@@ -622,7 +675,9 @@ static int decode_bnx_01_05(raw_t *raw, uint8_t *buff, int len)
         /* message source (0:unknown,1:B1I,2:B1Q,3:B2I,4:B2Q,5:B3I,6:B3Q)*/
     
     if (!strstr(raw->opt,"-EPHALL")) {
-        if (fabs(timediff(raw->nav.eph[sat-1].toe,eph.toe))<1.0) return 0;
+        if (fabs(timediff(raw->nav.eph[sat - 1].toe, eph.toe)) < 1.0) {
+            return 0;
+        }
     }
     raw->nav.eph[sat-1]=eph;
     raw->ephsat=sat;
@@ -688,8 +743,9 @@ static int decode_bnx_01_06(raw_t *raw, uint8_t *buff, int len)
     eph.code=2; /* codes on L2 channel */
     
     if (!strstr(raw->opt,"-EPHALL")) {
-        if (raw->nav.eph[sat-1].iode==eph.iode&&
-            raw->nav.eph[sat-1].iodc==eph.iodc) return 0;
+        if (raw->nav.eph[sat - 1].iode == eph.iode && raw->nav.eph[sat - 1].iodc == eph.iodc) {
+            return 0;
+        }
     }
     raw->nav.eph[sat-1]=eph;
     raw->ephsat=sat;
@@ -753,9 +809,10 @@ static int decode_bnx_01_07(raw_t *raw, uint8_t *buff, int len)
     eph.tgd[0]=(int8_t)(iodec>>8)*P2_31;
     
     if (!strstr(raw->opt,"-EPHALL")) {
-        if (raw->nav.eph[sat-1].iode==eph.iode&&
-            fabs(timediff(raw->nav.eph[sat-1].toe,eph.toe))<1.0&&
-            fabs(timediff(raw->nav.eph[sat-1].toc,eph.toc))<1.0) return 0;
+        if (raw->nav.eph[sat - 1].iode == eph.iode && fabs(timediff(raw->nav.eph[sat - 1].toe, eph.toe)) < 1.0 &&
+            fabs(timediff(raw->nav.eph[sat - 1].toc, eph.toc)) < 1.0) {
+            return 0;
+        }
     }
     raw->nav.eph[sat-1]=eph;
     raw->ephsat=sat;
@@ -771,10 +828,14 @@ static int decode_bnx_01_14(raw_t *raw, uint8_t *buff, int len)
     int prn,sat,tocs,set,eph_sel=3;
     
     trace(NULL,4,"BINEX 0x01-14: len=%d\n",len);
-    
-    if (strstr(raw->opt,"-GALFNAV")) eph_sel=1;
-    if (strstr(raw->opt,"-GALINAV")) eph_sel=2;
-    
+
+    if (strstr(raw->opt, "-GALFNAV")) {
+        eph_sel = 1;
+    }
+    if (strstr(raw->opt, "-GALINAV")) {
+        eph_sel = 2;
+    }
+
     if (len>=135) {
         prn       =U1(p)+1;      p+=1;
         eph.week  =U2(p);        p+=2; /* gal-week = gps-week */
@@ -815,9 +876,13 @@ static int decode_bnx_01_14(raw_t *raw, uint8_t *buff, int len)
         return -1;
     }
     set=(eph.code&(1<<8))?1:0; /* 0:I/NAV,1:F/NAV */
-    if (!(eph_sel&1)&&set==0) return 0;
-    if (!(eph_sel&2)&&set==1) return 0;
-    
+    if (!(eph_sel & 1) && set == 0) {
+        return 0;
+    }
+    if (!(eph_sel & 2) && set == 1) {
+        return 0;
+    }
+
     eph.sat=sat;
     eph.type=set; /* ephemeris type = I/NAV or F/NAV */
     eph.A=SQR(sqrtA);
@@ -992,9 +1057,11 @@ static uint8_t *decode_bnx_7f_05_obs(raw_t *raw, uint8_t *buff, int sat,
         flag   =getbitu(p,0,1);
         slip[i]=getbitu(p,2,1);
         code[i]=getbitu(p,3,5); p++;
-        
-        for (j=0;j<4;j++) flags[j]=0;
-        
+
+        for (j = 0; j < 4; j++) {
+            flags[j] = 0;
+        }
+
         for (j=0;flag&&j<4;j++) {
             flag=U1(p++);
             flags[flag&0x03]=flag&0x7F;
@@ -1058,7 +1125,9 @@ static uint8_t *decode_bnx_7f_05_obs(raw_t *raw, uint8_t *buff, int sat,
     }
     for (i=0;i<NFREQ;i++) {
         for (j=0,k=-1;j<nobs;j++) {
-            if (idx[j]==i&&(k<0||pri[j]>pri[k])) k=j;
+            if (idx[j] == i && (k < 0 || pri[j] > pri[k])) {
+                k = j;
+            }
         }
         if (k<0) {
             data->P[i]=data->L[i]=0.0;
@@ -1079,7 +1148,9 @@ static uint8_t *decode_bnx_7f_05_obs(raw_t *raw, uint8_t *buff, int sat,
     }
     for (;i<NFREQ+NEXOBS;i++) {
         for (k=0;k<nobs;k++) {
-            if (!mask[k]) break;
+            if (!mask[k]) {
+                break;
+            }
         }
         if (k>=nobs) {
             data->P[i]=data->L[i]=0.0;
@@ -1146,8 +1217,10 @@ static int decode_bnx_7f_05(raw_t *raw, uint8_t *buff, int len)
             default: sat=0; break;
         }
         /* decode BINEX mesaage 0x7F-05 obs data */
-        if (!(p=decode_bnx_7f_05_obs(raw,p,sat,nobs,&data))) return -1;
-        
+        if (!(p = decode_bnx_7f_05_obs(raw, p, sat, nobs, &data))) {
+            return -1;
+        }
+
         if ((int)(p-buff)>len) {
             trace(NULL,2,"BINEX 0x7F-05 length error: nsat=%2d len=%d\n",nsat,len);
             return -1;
@@ -1283,13 +1356,17 @@ extern int input_bnx(raw_t *raw, uint8_t data)
     
     /* synchronize BINEX message */
     if (raw->nbyte==0) {
-        if (!sync_bnx(raw->buff,data)) return 0;
+        if (!sync_bnx(raw->buff, data)) {
+            return 0;
+        }
         raw->nbyte=2;
         return 0;
     }
     raw->buff[raw->nbyte++]=data;
-    if (raw->nbyte<4) return 0;
-    
+    if (raw->nbyte < 4) {
+        return 0;
+    }
+
     len_h=getbnxi(raw->buff+2,&len);
     
     raw->len=len+len_h+2; /* length without CRC */
@@ -1300,8 +1377,10 @@ extern int input_bnx(raw_t *raw, uint8_t data)
         return -1;
     }
     len_c=(raw->len-1<128)?1:2;
-    
-    if (raw->nbyte<(int)(raw->len+len_c)) return 0;
+
+    if (raw->nbyte < (int)(raw->len + len_c)) {
+        return 0;
+    }
     raw->nbyte=0;
     
     /* decode BINEX message */
@@ -1322,12 +1401,20 @@ extern int input_bnxf(raw_t *raw, FILE *fp)
 
     if (raw->nbyte==0) {
         for (i=0;;i++) {
-            if ((data=fgetc(fp))==EOF) return -2;
-            if (sync_bnx(raw->buff,(uint8_t)data)) break;
-            if (i>=4096) return 0;
+            if ((data = fgetc(fp)) == EOF) {
+                return -2;
+            }
+            if (sync_bnx(raw->buff, (uint8_t)data)) {
+                break;
+            }
+            if (i >= 4096) {
+                return 0;
+            }
         }
     }
-    if (fread(raw->buff+2,1,4,fp)<4) return -2;
+    if (fread(raw->buff + 2, 1, 4, fp) < 4) {
+        return -2;
+    }
 
     len_h=getbnxi(raw->buff+2,&len);
 
@@ -1362,16 +1449,22 @@ static void setstr_bnx(char *dst, const char *src, int n)
 {
     char *p=dst;
     const char *q=src;
-    while (*q&&q<src+n) *p++=*q++;
+    while (*q && q < src + n) {
+        *p++ = *q++;
+    }
     *p--='\0';
-    while (p>=dst&&*p==' ') *p--='\0';
+    while (p >= dst && *p == ' ') {
+        *p-- = '\0';
+    }
 }
 /* save cycle-slip flags -----------------------------------------------------*/
 static void saveslips(unsigned char slips[][NFREQ], obsd_t *data)
 {
     int i;
     for (i=0;i<NFREQ;i++) {
-        if (data->LLI[i]&1) slips[data->sat-1][i]|=1;
+        if (data->LLI[i] & 1) {
+            slips[data->sat - 1][i] |= 1;
+        }
     }
 }
 /* restore cycle-slip flags --------------------------------------------------*/
@@ -1379,7 +1472,9 @@ static void restslips(unsigned char slips[][NFREQ], obsd_t *data)
 {
     int i;
     for (i=0;i<NFREQ;i++) {
-        if (slips[data->sat-1][i]&1) data->LLI[i]|=1;
+        if (slips[data->sat - 1][i] & 1) {
+            data->LLI[i] |= 1;
+        }
         slips[data->sat-1][i]=0;
     }
 }
@@ -1389,7 +1484,11 @@ static int addobsdata(obs_t *obs, const obsd_t *data)
     obsd_t *obs_data;
 
     if (obs->nmax<=obs->n) {
-        if (obs->nmax<=0) obs->nmax=NINCOBS; else obs->nmax*=2;
+        if (obs->nmax <= 0) {
+            obs->nmax = NINCOBS;
+        } else {
+            obs->nmax *= 2;
+        }
         if (!(obs_data=(obsd_t *)realloc(obs->data,sizeof(obsd_t)*obs->nmax))) {
             trace(NULL,1,"addobsdata: memalloc error n=%dx%d\n",
                   (int)sizeof(obsd_t),obs->nmax);
@@ -1469,10 +1568,16 @@ static int readbnxfp(FILE *fp, gtime_t ts, gtime_t te, double tint,
     mask=popt->navsys;
 
     while (1) {
-        if ((data=fgetc(fp))==EOF) break;
-        if (!sync_bnx(raw.buff,(unsigned char)data)) continue;
+        if ((data = fgetc(fp)) == EOF) {
+            break;
+        }
+        if (!sync_bnx(raw.buff, (unsigned char)data)) {
+            continue;
+        }
 
-        if (fread(raw.buff+2,1,4,fp)<4) break;
+        if (fread(raw.buff + 2, 1, 4, fp) < 4) {
+            break;
+        }
 
         len_h=getbnxi(raw.buff+2,&len);
         raw.len=len+len_h+2;
@@ -1500,23 +1605,30 @@ static int readbnxfp(FILE *fp, gtime_t ts, gtime_t te, double tint,
                     for (i=0;i<raw.obs.n;i++) {
                         saveslips(slips,raw.obs.data+i);
                     }
-                    if (raw.obs.n>0&&!screent(raw.obs.data[0].time,ts,te,tint))
+                    if (raw.obs.n > 0 && !screent(raw.obs.data[0].time, ts, te, tint)) {
                         continue;
+                    }
 
                     for (i=0;i<raw.obs.n;i++) {
                         restslips(slips,raw.obs.data+i);
                         raw.obs.data[i].rcv=(unsigned char)index;
 
-                        if (!(satsys(raw.obs.data[i].sat,NULL)&mask)) continue;
+                        if (!(satsys(raw.obs.data[i].sat, NULL) & mask)) {
+                            continue;
+                        }
 
-                        if ((stat=addobsdata(obs,raw.obs.data+i))<0) break;
+                        if ((stat = addobsdata(obs, raw.obs.data + i)) < 0) {
+                            break;
+                        }
                     }
                     break;
                 case 2: /* ephemeris data */
                     sat=raw.ephsat;
                     sys=satsys(sat,&prn);
 
-                    if (!(sys&mask)) break;
+                    if (!(sys & mask)) {
+                        break;
+                    }
 
                     switch (sys) {
                         case SYS_GLO:
@@ -1567,7 +1679,9 @@ static int readbnxfile(const char *file, gtime_t ts, gtime_t te, double tint,
     stat=readbnxfp(fp,ts,te,tint,opt,flag,index,type,obs,nav,sta,popt);
 
     fclose(fp);
-    if (cstat) remove(tmpfile);
+    if (cstat) {
+        remove(tmpfile);
+    }
 
     return stat;
 }
@@ -1600,13 +1714,17 @@ extern int readbnxt(const char *file, int rcv, gtime_t ts, gtime_t te,
     }
     for (i=0;i<MAXEXFILE;i++) {
         if (!(files[i]=(char *)malloc(1024))) {
-            for (i--;i>=0;i--) free(files[i]);
+            for (i--; i >= 0; i--) {
+                free(files[i]);
+            }
             return -1;
         }
     }
     /* expand wild-card */
     if ((n=expath(file,files,MAXEXFILE))<=0) {
-        for (i=0;i<MAXEXFILE;i++) free(files[i]);
+        for (i = 0; i < MAXEXFILE; i++) {
+            free(files[i]);
+        }
         return 0;
     }
     for (i=0;i<n&&stat>=0;i++) {
@@ -1614,10 +1732,16 @@ extern int readbnxt(const char *file, int rcv, gtime_t ts, gtime_t te,
     }
     /* if station name empty, set 4-char name from file head */
     if (sta) {
-        if (!(p=strrchr(file,FILEPATHSEP))) p=file-1;
-        if (!*sta->name) setstr_bnx(sta->name,p+1,4);
+        if (!(p = strrchr(file, FILEPATHSEP))) {
+            p = file - 1;
+        }
+        if (!*sta->name) {
+            setstr_bnx(sta->name, p + 1, 4);
+        }
     }
-    for (i=0;i<MAXEXFILE;i++) free(files[i]);
+    for (i = 0; i < MAXEXFILE; i++) {
+        free(files[i]);
+    }
 
     return stat;
 }

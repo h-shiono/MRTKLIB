@@ -49,7 +49,9 @@ int getsysno(int sat)
 
     satno2id(sat, satid);
     for(i = 0; i < MAXBSNXSYS; i++) {
-        if(satid[0] == syscode[i]) return i;
+        if (satid[0] == syscode[i]) {
+            return i;
+        }
     }
     return -1;
 }
@@ -152,7 +154,9 @@ int readbsnx(const char *file)
     freebiass();
 
     while(fgets(buff, sizeof(buff), fp)) {
-        if(buff[0] == '*') continue;
+        if (buff[0] == '*') {
+            continue;
+        }
         if(strstr(buff, "+BIAS/DESCRIPTION")) { state = 1; continue; }
         if(strstr(buff, "-BIAS/DESCRIPTION")) { state = 0; continue; }
         if(strstr(buff, "+BIAS/SOLUTION"))    { state = 2; continue; }
@@ -162,22 +166,29 @@ int readbsnx(const char *file)
             case 1: /* BIAS/DESCRIPTION */
                 dscrpt[0] = strtok(buff + 1, " \n");
                 for(n = 1; n < 4; n++) {
-                    if((p = strtok(NULL, " \n"))) dscrpt[n] = p;
-                    else                          dscrpt[n] = "";
+                    if ((p = strtok(NULL, " \n"))) {
+                        dscrpt[n] = p;
+                    } else {
+                        dscrpt[n] = "";
+                    }
                 }
                 trace(NULL,4, "readbsnx KEYWORD, %-39s, %s, %s, %s\n",
                     dscrpt[0], dscrpt[1], dscrpt[2], dscrpt[3]);
                 break;
 
             case 2: /* BIAS/SOLUTION */
-                if(strlen(buff) < 92) continue;
+                if (strlen(buff) < 92) {
+                    continue;
+                }
                 for(i = 0; i < 3; i++) {
                     if(strncmp(buff + 1, typeid[i], 4) == 0) { /* BIAS */
                         bia.type = i;
                         break;
                     }
                 }
-                if(i >= 3) continue;
+                if (i >= 3) {
+                    continue;
+                }
                 strncpy(satid, buff + 11, 3);    /* PRN */
                 sat = satid2no(satid);
                 strncpy(sta, buff + 15, 9);      /* STATION__ */
@@ -223,7 +234,9 @@ int readbsnx(const char *file)
                     bia.slp = bia.slpstd = 0.0;
                 }
                 if(strlen(sta) == 0) {  /* satellite */
-                    if(sat == 0) continue;
+                    if (sat == 0) {
+                        continue;
+                    }
                     if(sig1[0] == 'C') {/* code bias */
                         addbia(&bia, &biass.sat.cb[sat - 1],
                             &biass.sat.ncb[sat - 1], &biass.sat.ncbmax[sat - 1]);
@@ -235,7 +248,9 @@ int readbsnx(const char *file)
                 }
                 else {                  /* station */
                     for(i = 0; (i < MAXSTA) && (i < biass.nsta); i++) {
-                        if(strcmp(sta, biass.sta[i].name) == 0) break;
+                        if (strcmp(sta, biass.sta[i].name) == 0) {
+                            break;
+                        }
                     }
                     if(i >= MAXSTA) {
                         trace(NULL,2, "readbsnx %s has exceeded the station limit of %d.\n",
@@ -248,9 +263,13 @@ int readbsnx(const char *file)
                     }
                     if(sat == 0) {      /* system code bias */
                         for(j = 0; j < MAXBSNXSYS; j++) {
-                            if(satid[0] == syscode[j]) break;
+                            if (satid[0] == syscode[j]) {
+                                break;
+                            }
                         }
-                        if(j >= MAXBSNXSYS) continue;
+                        if (j >= MAXBSNXSYS) {
+                            continue;
+                        }
                         addbia(&bia, &biass.sta[i].syscb[j],
                             &biass.sta[i].nsyscb[j],
                             &biass.sta[i].nsyscbmax[j]);
@@ -321,7 +340,9 @@ void outbsnxh(FILE *fp, gtime_t ts, gtime_t te, const char *agency)
     double year, doy, tod, ep[6];
     gtime_t nt = timeget();
 
-    if(fp == NULL) return;
+    if (fp == NULL) {
+        return;
+    }
     trace(NULL,3, "outbsnxh: \n");
 
     time2epoch(nt, ep);
@@ -342,7 +363,9 @@ void outbsnxh(FILE *fp, gtime_t ts, gtime_t te, const char *agency)
 *-----------------------------------------------------------------------------*/
 void outbsnxrefh(FILE *fp)
 {
-    if(fp == NULL) return;
+    if (fp == NULL) {
+        return;
+    }
     trace(NULL,3, "outbsnxrefh: \n");
 
     fprintf(fp, "*-------------------------------------------------------------------------------\n");
@@ -360,7 +383,9 @@ void outbsnxrefh(FILE *fp)
 void outbsnxrefb(FILE *fp, int type, char *reftext)
 {
     char *inft[6] = {"DESCRIPTION","OUTPUT","CONTACT","SOFTWARE","HARDWARE","INPUT"};
-    if(fp == NULL) return;
+    if (fp == NULL) {
+        return;
+    }
     if(type < 0 || type >= 6) {
         trace(NULL,2, "outbsnxrefb error: type=%d is out of range.[0-5]\n", type);
         return;
@@ -381,7 +406,9 @@ void outbsnxrefb(FILE *fp, int type, char *reftext)
 *-----------------------------------------------------------------------------*/
 void outbsnxreff(FILE *fp)
 {
-    if(fp == NULL) return;
+    if (fp == NULL) {
+        return;
+    }
     trace(NULL,3, "outbsnxreff: \n");
     fprintf(fp, "-FILE/REFERENCE\n");
 }
@@ -393,7 +420,9 @@ void outbsnxreff(FILE *fp)
 *-----------------------------------------------------------------------------*/
 void outbsnxcomh(FILE *fp)
 {
-    if(fp == NULL) return;
+    if (fp == NULL) {
+        return;
+    }
     trace(NULL,3, "outbsnxcomh: \n");
     fprintf(fp, "*-------------------------------------------------------------------------------\n");
     fprintf(fp, "+FILE/COMMENT\n");
@@ -407,7 +436,9 @@ void outbsnxcomh(FILE *fp)
 *-----------------------------------------------------------------------------*/
 void outbsnxcomb(FILE *fp, char *comtext)
 {
-    if(fp == NULL) return;
+    if (fp == NULL) {
+        return;
+    }
     if(strlen(comtext) > 79) {
         trace(NULL,2, "outbsnxcomb error: comment length over %d[79]\n",
             strlen(comtext));
@@ -424,7 +455,9 @@ void outbsnxcomb(FILE *fp, char *comtext)
 *-----------------------------------------------------------------------------*/
 void outbsnxcomf(FILE *fp)
 {
-    if(fp == NULL) return;
+    if (fp == NULL) {
+        return;
+    }
     trace(NULL,3, "outbsnxcomf: \n");
     fprintf(fp, "-FILE/COMMENT\n");
 }
@@ -466,7 +499,9 @@ void outbsnxsol(FILE *fp)
     int i, j;
     char satid[8];
 
-    if(fp == NULL) return;
+    if (fp == NULL) {
+        return;
+    }
     trace(NULL,3, "outbsnxsol: \n");
 
     biass = getbiass();
@@ -533,7 +568,9 @@ int udosb_sat(osb_t *osb, gtime_t gt, int mode)
     for(i = 0; i < MAXSAT; i++) {
         for(j = 0; j < biass->sat.ncb[i]; j++) {
             bias = &biass->sat.cb[i][j];
-            if(bias->code[0] == CODE_NONE) continue;
+            if (bias->code[0] == CODE_NONE) {
+                continue;
+            }
             if(mode || ((timediff(bias->t0, gt) <= 0.0) &&
                         (timediff(bias->t1, gt) >= 0.0))) {
                 osb->vscb[i][bias->code[0] - 1] = 1;
@@ -543,7 +580,9 @@ int udosb_sat(osb_t *osb, gtime_t gt, int mode)
         }
         for(j = 0; j < biass->sat.npb[i]; j++) {
             bias = &biass->sat.pb[i][j];
-            if(bias->code[0] == CODE_NONE) continue;
+            if (bias->code[0] == CODE_NONE) {
+                continue;
+            }
             if(mode || ((timediff(bias->t0, gt) <= 0.0) &&
                         (timediff(bias->t1, gt) >= 0.0))) {
                 osb->vspb[i][bias->code[0] - 1] = 1;
@@ -574,9 +613,13 @@ int udosb_station(osb_t *osb, gtime_t gt, int mode, char *name)
     biass = getbiass();
 
     for(k = 0; k < biass->nsta; k++) {
-        if(strcmp(name, biass->sta[k].name) == 0) break;
+        if (strcmp(name, biass->sta[k].name) == 0) {
+            break;
+        }
     }
-    if(k >= biass->nsta) return 0;
+    if (k >= biass->nsta) {
+        return 0;
+    }
 
     for(j = 0; j < MAXCODE; j++) {
         for(i = 0; i < MAXBSNXSYS; i++) {
@@ -589,7 +632,9 @@ int udosb_station(osb_t *osb, gtime_t gt, int mode, char *name)
     for(i = 0; i < MAXBSNXSYS; i++) {
         for(j = 0; j < biass->sta[k].nsyscb[i]; j++) {
             bias = &biass->sta[k].syscb[i][j];
-            if(bias->code[0] == CODE_NONE) continue;
+            if (bias->code[0] == CODE_NONE) {
+                continue;
+            }
             if(mode ||
                 ((timediff(bias->t0, gt) <= 0.0) &&
                  (timediff(bias->t1, gt) >= 0.0))) {
@@ -602,7 +647,9 @@ int udosb_station(osb_t *osb, gtime_t gt, int mode, char *name)
     for(i = 0; i < MAXSAT; i++) {
         for(j = 0; j < biass->sta[k].nsatcb[i]; j++) {
             bias = &biass->sta[k].satcb[i][j];
-            if(bias->code[0] == CODE_NONE) continue;
+            if (bias->code[0] == CODE_NONE) {
+                continue;
+            }
             if(mode || ((timediff(bias->t0, gt) <= 0.0) &&
                 (timediff(bias->t1, gt) >= 0.0))) {
                 osb->vrsatcb[i][bias->code[0] - 1] = 1;

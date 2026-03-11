@@ -76,7 +76,11 @@ static double Interp1(const double *x, const double *y, int nx, int ny,
     int i;
     double dx;
 
-    for (i = 0; i < nx - 1; i++) if (xi < x[i + 1]) break;
+    for (i = 0; i < nx - 1; i++) {
+        if (xi < x[i + 1]) {
+            break;
+        }
+    }
     dx = (xi - x[i]) / (x[i + 1] - x[i]);
 
     return y[i] * (1.0 - dx) + y[i + 1] * dx;
@@ -172,7 +176,9 @@ int get_stTv(gtime_t t, const double lat, const double hs,
 
     doy = time2doy(t);
 
-    if (get_mops(lat, doy, &P0, &T0, &e0, &beta0, &lambda0)) return 1;
+    if (get_mops(lat, doy, &P0, &T0, &e0, &beta0, &lambda0)) {
+        return 1;
+    }
 
     Hs = hs - hg; /* elevation = ellipsoidal height - geoid height */
 
@@ -183,7 +189,9 @@ int get_stTv(gtime_t t, const double lat, const double hs,
     t0 = 273.15; tk = Ts; tc = tk - t0;
     ET = 6.11 * pow(tk / t0, -5.3) * exp(25.2 * tc / tk);
 
-    if (es > ET) es = ET;
+    if (es > ET) {
+        es = ET;
+    }
 
     *tdv = get_Tdv(lat, Hs + hg, Ps); /* dry */
     *twv = get_Twv(Ts, es);           /* wet */
@@ -242,8 +250,14 @@ static int pickup_candidates_of_grid(const clas_ctx_t *ctx,
                 gridinfo[n].index   = i;
                 ++n;
             } else {
-                for (j = 0; j < n; j++) if (d < gridinfo[j].weight) break;
-                if (j >= MAX_GRID_CACHE) continue;
+                for (j = 0; j < n; j++) {
+                    if (d < gridinfo[j].weight) {
+                        break;
+                    }
+                }
+                if (j >= MAX_GRID_CACHE) {
+                    continue;
+                }
                 for (k = MIN(n, MAX_GRID_CACHE - 1); k > j; k--) {
                     gridinfo[k] = gridinfo[k - 1];
                 }
@@ -253,7 +267,9 @@ static int pickup_candidates_of_grid(const clas_ctx_t *ctx,
                 gridinfo[j].network = inet;
                 gridinfo[j].weight  = d;
                 gridinfo[j].index   = i;
-                if (n < MAX_GRID_CACHE) n++;
+                if (n < MAX_GRID_CACHE) {
+                    n++;
+                }
             }
         }
     }
@@ -370,7 +386,9 @@ static void calc_3points_weight(double *weight, const double *pos,
     trace(NULL, 5, "Umat=\n");
     tracemat(NULL, 5, U, 2, 2, 10, 5);
 
-    if (matinv(U, 2)) trace(NULL, 2, "calculation error of G inverse\n");
+    if (matinv(U, 2)) {
+        trace(NULL, 2, "calculation error of G inverse\n");
+    }
     trace(NULL, 5, "Umat=\n");
     tracemat(NULL, 5, U, 2, 2, 10, 5);
 
@@ -419,8 +437,12 @@ static void calc_grid_weight(double *weight, const double *pos, int n,
 
     if (n != 3) {
         sum = 0.0;
-        for (i = 0; i < n; i++) sum += 1.0 / gridindex[i]->weight;
-        for (i = 0; i < n; i++) weight[i] = 1.0 / (gridindex[i]->weight * sum);
+        for (i = 0; i < n; i++) {
+            sum += 1.0 / gridindex[i]->weight;
+        }
+        for (i = 0; i < n; i++) {
+            weight[i] = 1.0 / (gridindex[i]->weight * sum);
+        }
     } else {
         calc_3points_weight(weight, pos, gridindex);
     }
@@ -443,7 +465,9 @@ static void output_selected_grid(const double *pos, int n,
             break;
         }
     }
-    if (savenum == n && !flag) return;
+    if (savenum == n && !flag) {
+        return;
+    }
 
     trace(NULL, 1, "pos est: pos=%6.3f %6.3f\n", pos[0] / D2R, pos[1] / D2R);
     for (i = 0; i < n; i++) {
@@ -528,8 +552,9 @@ extern int clas_get_grid_index(clas_ctx_t *ctx, const double *pos,
         trace(NULL, 5, "Umat=\n");
         tracemat(NULL, 5, U, 4, n, 10, 5);
 
-        if (matinv(U, n))
+        if (matinv(U, n)) {
             trace(NULL, 2, "calculation error of G inverse\n");
+        }
         matcpy(grid->Gmat, U, n, n);
         trace(NULL, 5, "Gmat=\n");
         tracemat(NULL, 5, grid->Gmat, 4, n, 10, 5);
@@ -564,7 +589,9 @@ static int stec_data(stec_t *stec, gtime_t time, int sat, double *iono,
     int k, flag;
     double tt;
 
-    if (stec->n <= 0) return 0;
+    if (stec->n <= 0) {
+        return 0;
+    }
 
     /* search by satellite */
     for (k = flag = 0; k < stec->n; k++) {
@@ -620,7 +647,9 @@ extern int clas_stec_grid_data(clas_corr_t *corr, const int *index,
     double *ionos, *rates, *rms, *quals;
     double *ionos_, *rates_, *sqrms, *sqrms_, *quals_;
 
-    if (n <= 0) return 0;
+    if (n <= 0) {
+        return 0;
+    }
 
     ionos  = mat(n, 1); rates  = mat(n, 1); rms   = mat(n, 1); quals  = mat(n, 1);
     ionos_ = mat(n, 1); rates_ = mat(n, 1); sqrms = mat(n, 1); sqrms_ = mat(n, 1);
@@ -633,7 +662,9 @@ extern int clas_stec_grid_data(clas_corr_t *corr, const int *index,
             free(ionos_); free(rates_); free(sqrms); free(sqrms_); free(quals_);
             return 0;
         }
-        if (slip) *brk = 1;
+        if (slip) {
+            *brk = 1;
+        }
         *var = SQR(rms[0]);
         free(ionos); free(rates); free(rms); free(quals);
         free(ionos_); free(rates_); free(sqrms); free(sqrms_); free(quals_);
@@ -648,14 +679,18 @@ extern int clas_stec_grid_data(clas_corr_t *corr, const int *index,
             free(ionos_); free(rates_); free(sqrms); free(sqrms_); free(quals_);
             return 0;
         }
-        if (slip) *brk = 1;
+        if (slip) {
+            *brk = 1;
+        }
     }
 
     *iono = *rate = *var = 0.0;
 
     if (n == 4 && Gmat && Emat) {
         /* bilinear polynomial interpolation */
-        for (i = 0; i < n; i++) sqrms[i] = SQR(rms[i]);
+        for (i = 0; i < n; i++) {
+            sqrms[i] = SQR(rms[i]);
+        }
         matmul("NN", n, 1, n, 1.0, Gmat, ionos, 0.0, ionos_);
         matmul("NN", n, 1, n, 1.0, Gmat, rates, 0.0, rates_);
         matmul("NN", n, 1, n, 1.0, Gmat, sqrms, 0.0, sqrms_);
@@ -706,7 +741,9 @@ static int trop_data(zwd_t *z, gtime_t time, double *ztd, double *zwd,
     pos[0] = z->pos[0] * D2R;
     pos[1] = z->pos[1] * D2R;
     gh = geoidh(pos);
-    if (get_stTv(time, pos[0], 0.0, gh, &tdvd, &twvd)) return 0;
+    if (get_stTv(time, pos[0], 0.0, gh, &tdvd, &twvd)) {
+        return 0;
+    }
 
     if (z->data[k].ztd == CSSR_INVALID_VALUE ||
         z->data[k].zwd == CSSR_INVALID_VALUE) {
@@ -744,7 +781,9 @@ extern int clas_trop_grid_data(clas_corr_t *corr, const int *index,
     int i, *valid, valid_ = 0, ret = 0;
     double *zwds, *ztds, *zwds_, *ztds_, *quals, *quals_;
 
-    if (n <= 0) return 0;
+    if (n <= 0) {
+        return 0;
+    }
 
     zwds = mat(n, 1); ztds = mat(n, 1); quals = mat(n, 1);
     valid = imat(n, 1);
@@ -784,7 +823,9 @@ extern int clas_trop_grid_data(clas_corr_t *corr, const int *index,
         }
     }
 
-    for (i = 0; i < n; i++) valid_ += valid[i];
+    for (i = 0; i < n; i++) {
+        valid_ += valid[i];
+    }
     *tbrk = valid_ == n ? 0 : 1;
 
     free(zwds); free(ztds); free(quals); free(valid);
@@ -826,14 +867,20 @@ extern int readblqgrid(const char *file, clas_ctx_t *ctx)
         return 0;
     }
     while (fgets(buff, sizeof(buff), fp)) {
-        if (!strncmp(buff, "$$", 2) || strlen(buff) < 2) continue;
+        if (!strncmp(buff, "$$", 2) || strlen(buff) < 2) {
+            continue;
+        }
 
         /* parse "net-gridno" format (e.g., "1-1", "10-23") */
         str = strtok(buff, "-");
-        if (!str) continue;
+        if (!str) {
+            continue;
+        }
         net = atoi(str);
         str = strtok(NULL, "-");
-        if (!str) continue;
+        if (!str) {
+            continue;
+        }
         gridno = atoi(str);
 
         if (net < 1 || net > CLAS_MAX_NETWORK ||
@@ -845,9 +892,13 @@ extern int readblqgrid(const char *file, clas_ctx_t *ctx)
 
         /* skip 3 comment/header lines; the 3rd contains lon/lat */
         for (i = 0; i < 3; i++) {
-            if (!fgets(buff, sizeof(buff), fp)) break;
+            if (!fgets(buff, sizeof(buff), fp)) {
+                break;
+            }
         }
-        if (i < 3) break;
+        if (i < 3) {
+            break;
+        }
 
         /* parse lon/lat from last comment line:
          * "$$ 1-1, ... lon/lat: 125.3700 24.7500 0.000" */
@@ -855,9 +906,13 @@ extern int readblqgrid(const char *file, clas_ctx_t *ctx)
         str = strtok(NULL, ":");
         if (str) {
             str2 = strtok(str, " ");
-            if (str2) ctx->oload[net - 1].pos[gridno - 1][0] = atof(str2);
+            if (str2) {
+                ctx->oload[net - 1].pos[gridno - 1][0] = atof(str2);
+            }
             str2 = strtok(NULL, " ");
-            if (str2) ctx->oload[net - 1].pos[gridno - 1][1] = atof(str2);
+            if (str2) {
+                ctx->oload[net - 1].pos[gridno - 1][1] = atof(str2);
+            }
         }
 
         /* read 6-line BLQ record (11 constituents x 6 components) */

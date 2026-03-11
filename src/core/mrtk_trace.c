@@ -31,7 +31,9 @@
 extern void traceopen(mrtk_ctx_t *ctx, const char *file)
 {
     mrtk_ctx_t *c = CTX(ctx);
-    if (!c) return;
+    if (!c) {
+        return;
+    }
 
     /* Close existing trace file if any */
     if (c->trace_fp && c->trace_fp != stdout && c->trace_fp != stderr) {
@@ -47,7 +49,9 @@ extern void traceopen(mrtk_ctx_t *ctx, const char *file)
 extern void traceclose(mrtk_ctx_t *ctx)
 {
     mrtk_ctx_t *c = CTX(ctx);
-    if (!c) return;
+    if (!c) {
+        return;
+    }
 
     if (c->trace_fp && c->trace_fp != stdout && c->trace_fp != stderr) {
         fclose(c->trace_fp);
@@ -57,7 +61,9 @@ extern void traceclose(mrtk_ctx_t *ctx)
 extern void tracelevel(mrtk_ctx_t *ctx, int level)
 {
     mrtk_ctx_t *c = CTX(ctx);
-    if (!c) return;
+    if (!c) {
+        return;
+    }
     c->trace_level = level;
 }
 extern void trace(mrtk_ctx_t *ctx, int level, const char *format, ...)
@@ -65,7 +71,9 @@ extern void trace(mrtk_ctx_t *ctx, int level, const char *format, ...)
     mrtk_ctx_t *c = CTX(ctx);
     va_list ap;
 
-    if (!c || !c->trace_fp || level < 1 || level > c->trace_level) return;
+    if (!c || !c->trace_fp || level < 1 || level > c->trace_level) {
+        return;
+    }
 
     va_start(ap, format);
     vfprintf(c->trace_fp, format, ap);
@@ -77,7 +85,9 @@ extern void tracet(mrtk_ctx_t *ctx, int level, const char *format, ...)
     mrtk_ctx_t *c = CTX(ctx);
     va_list ap;
 
-    if (!c || !c->trace_fp || level < 1 || level > c->trace_level) return;
+    if (!c || !c->trace_fp || level < 1 || level > c->trace_level) {
+        return;
+    }
 
     fprintf(c->trace_fp, "%d %9.3f: ", level,
             (tickget() - c->tick_trace) / 1000.0);
@@ -93,7 +103,9 @@ extern void tracemat(mrtk_ctx_t *ctx, int level, const double *A, int n, int m,
     mrtk_ctx_t *c = CTX(ctx);
     int i, j;
 
-    if (!c || !c->trace_fp || level < 1 || level > c->trace_level) return;
+    if (!c || !c->trace_fp || level < 1 || level > c->trace_level) {
+        return;
+    }
 
     for (i = 0; i < n; i++) {
         for (j = 0; j < m; j++) {
@@ -109,7 +121,9 @@ extern void traceobs(mrtk_ctx_t *ctx, int level, const obsd_t *obs, int n)
     char str[64], id[16];
     int i;
 
-    if (!c || !c->trace_fp || level < 1 || level > c->trace_level) return;
+    if (!c || !c->trace_fp || level < 1 || level > c->trace_level) {
+        return;
+    }
 
     for (i = 0; i < n; i++) {
         time2str(obs[i].time, str, 3);
@@ -130,7 +144,9 @@ extern void tracenav(mrtk_ctx_t *ctx, int level, const nav_t *nav)
     char s1[64], s2[64], id[16];
     int i;
 
-    if (!c || !c->trace_fp || level < 1 || level > c->trace_level) return;
+    if (!c || !c->trace_fp || level < 1 || level > c->trace_level) {
+        return;
+    }
 
     for (i = 0; i < nav->n; i++) {
         time2str(nav->eph[i].toe, s1, 0);
@@ -157,7 +173,9 @@ extern void tracegnav(mrtk_ctx_t *ctx, int level, const nav_t *nav)
     char s1[64], s2[64], id[16];
     int i;
 
-    if (!c || !c->trace_fp || level < 1 || level > c->trace_level) return;
+    if (!c || !c->trace_fp || level < 1 || level > c->trace_level) {
+        return;
+    }
 
     for (i = 0; i < nav->ng; i++) {
         time2str(nav->geph[i].toe, s1, 0);
@@ -176,7 +194,9 @@ extern void tracehnav(mrtk_ctx_t *ctx, int level, const nav_t *nav)
     char s1[64], s2[64], id[16];
     int i;
 
-    if (!c || !c->trace_fp || level < 1 || level > c->trace_level) return;
+    if (!c || !c->trace_fp || level < 1 || level > c->trace_level) {
+        return;
+    }
 
     for (i = 0; i < nav->ns; i++) {
         time2str(nav->seph[i].t0, s1, 0);
@@ -194,7 +214,9 @@ extern void tracepeph(mrtk_ctx_t *ctx, int level, const nav_t *nav)
     char s[64], id[16];
     int i, j;
 
-    if (!c || !c->trace_fp || level < 1 || level > c->trace_level) return;
+    if (!c || !c->trace_fp || level < 1 || level > c->trace_level) {
+        return;
+    }
 
     for (i = 0; i < nav->ne; i++) {
         time2str(nav->peph[i].time, s, 0);
@@ -218,7 +240,9 @@ extern void tracepclk(mrtk_ctx_t *ctx, int level, const nav_t *nav)
     char s[64], id[16];
     int i, j;
 
-    if (!c || !c->trace_fp || level < 1 || level > c->trace_level) return;
+    if (!c || !c->trace_fp || level < 1 || level > c->trace_level) {
+        return;
+    }
 
     for (i = 0; i < nav->nc; i++) {
         time2str(nav->pclk[i].time, s, 0);
@@ -238,7 +262,9 @@ extern void traceb(mrtk_ctx_t *ctx, int level, const uint8_t *p, int n)
     mrtk_ctx_t *c = CTX(ctx);
     int i;
 
-    if (!c || !c->trace_fp || level < 1 || level > c->trace_level) return;
+    if (!c || !c->trace_fp || level < 1 || level > c->trace_level) {
+        return;
+    }
 
     for (i = 0; i < n; i++) {
         fprintf(c->trace_fp, "%02X%s", *p++, i % 8 == 7 ? " " : "");

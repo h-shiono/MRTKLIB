@@ -5,6 +5,35 @@ All notable changes to MRTKLIB are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v0.5.2] - 2026-03-10
+
+**Code quality release** — Enforces mandatory braces on all control flow
+statements and eliminates nested/complex ternary operators across 67 source
+files.  No functional or algorithmic changes.
+
+### Changed
+
+- **Mandatory braces on control flow** — 4,053 single-statement `if`/`for`/
+  `while`/`else` blocks wrapped in explicit `{}` braces, enforced by Clang-Tidy
+  `readability-braces-around-statements`.
+- **Nested ternary elimination** — 19 nested ternary operators (`a ? b ? c : d : e`)
+  converted to `if`-`else` chains or `switch`-`case` statements.  Three
+  `#define NT()` / `NT_RTK()` macros replaced by `static inline` functions.
+- **Complex ternary cleanup** — 8 ternary operators with side-effect assignments
+  or function-call branches refactored to explicit `if`-`else`.
+- **Changed-line formatting** — All modified lines formatted with
+  `git clang-format` (Google style, 4-space indent, 120-column limit).
+
+### Scope
+
+67 files, +12,727 / -5,085 lines.  Excludes vendored `src/core/tomlc99/`.
+
+### Test Results
+
+56/56 non-realtime tests pass — unchanged from v0.5.1.
+
+---
+
 ## [v0.5.1] - 2026-03-10
 
 **Dual-channel CLAS fix rate bug fix** — Resolves a significant performance
@@ -710,6 +739,7 @@ Initial release — MALIB structural migration complete.
 - **MALIB integration** — Structural base from JAXA MALIB feature/1.2.0
   (directory layout, threading, stream I/O).
 
+[v0.5.2]: https://github.com/h-shiono/MRTKLIB/compare/v0.5.1...v0.5.2
 [v0.5.1]: https://github.com/h-shiono/MRTKLIB/compare/v0.5.0...v0.5.1
 [v0.5.0]: https://github.com/h-shiono/MRTKLIB/compare/v0.4.4...v0.5.0
 [v0.4.4]: https://github.com/h-shiono/MRTKLIB/compare/v0.4.3...v0.4.4

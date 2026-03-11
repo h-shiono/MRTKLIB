@@ -43,8 +43,11 @@ static void fatalerr(const char *format, ...)
     char msg[1024];
     va_list ap;
     va_start(ap,format); vsprintf(msg,format,ap); va_end(ap);
-    if (fatalfunc) fatalfunc(msg);
-    else fprintf(stderr,"%s",msg);
+    if (fatalfunc) {
+        fatalfunc(msg);
+    } else {
+        fprintf(stderr, "%s", msg);
+    }
     exit(-9);
 }
 
@@ -76,7 +79,9 @@ extern double *mat(int n, int m)
 {
     double *p;
 
-    if (n<=0||m<=0) return NULL;
+    if (n <= 0 || m <= 0) {
+        return NULL;
+    }
     if (!(p=(double *)malloc(sizeof(double)*n*m))) {
         fatalerr("matrix memory allocation error: n=%d,m=%d\n",n,m);
     }
@@ -91,7 +96,9 @@ extern int *imat(int n, int m)
 {
     int *p;
 
-    if (n<=0||m<=0) return NULL;
+    if (n <= 0 || m <= 0) {
+        return NULL;
+    }
     if (!(p=(int *)malloc(sizeof(int)*n*m))) {
         fatalerr("integer matrix memory allocation error: n=%d,m=%d\n",n,m);
     }
@@ -109,7 +116,9 @@ extern double *zeros(int n, int m)
 #if NOCALLOC
     if ((p=mat(n,m))) for (n=n*m-1;n>=0;n--) p[n]=0.0;
 #else
-    if (n<=0||m<=0) return NULL;
+    if (n <= 0 || m <= 0) {
+        return NULL;
+    }
     if (!(p=(double *)calloc(sizeof(double),n*m))) {
         fatalerr("matrix memory allocation error: n=%d,m=%d\n",n,m);
     }
@@ -126,7 +135,11 @@ extern double *eye(int n)
     double *p;
     int i;
 
-    if ((p=zeros(n,n))) for (i=0;i<n;i++) p[i+i*n]=1.0;
+    if ((p = zeros(n, n))) {
+        for (i = 0; i < n; i++) {
+            p[i + i * n] = 1.0;
+        }
+    }
     return p;
 }
 
@@ -144,7 +157,9 @@ extern double dot(const double *a, const double *b, int n)
 {
     double c=0.0;
 
-    while (--n>=0) c+=a[n]*b[n];
+    while (--n >= 0) {
+        c += a[n] * b[n];
+    }
     return c;
 }
 /* euclid norm -----------------------------------------------------------------
@@ -178,7 +193,9 @@ extern void cross3(const double *a, const double *b, double *c)
 extern int normv3(const double *a, double *b)
 {
     double r;
-    if ((r=norm(a,3))<=0.0) return 0;
+    if ((r = norm(a, 3)) <= 0.0) {
+        return 0;
+    }
     b[0]=a[0]/r;
     b[1]=a[1]/r;
     b[2]=a[2]/r;
@@ -233,7 +250,9 @@ extern void matmul(const char *tr, int n, int k, int m, double alpha,
 {
     int lda,ldb;
 
-    if (n<=0||k<=0||m<=0) return;
+    if (n <= 0 || k <= 0 || m <= 0) {
+        return;
+    }
     lda=tr[0]=='T'?m:n; ldb=tr[1]=='T'?k:m;
 
     dgemm_((char *)tr,(char *)tr+1,&n,&k,&m,&alpha,(double *)A,&lda,(double *)B,
@@ -252,7 +271,9 @@ extern int matinv(double *A, int n)
 
     work=mat(lwork,1);
     dgetrf_(&n,&n,A,&n,ipiv,&info);
-    if (!info) dgetri_(&n,A,&n,ipiv,work,&lwork,&info);
+    if (!info) {
+        dgetri_(&n, A, &n, ipiv, work, &lwork, &info);
+    }
     free(ipiv); free(work);
     return info;
 }
@@ -276,7 +297,9 @@ extern int solve(const char *tr, const double *A, const double *Y, int n,
     matcpy(B,A,n,n);
     matcpy(X,Y,n,m);
     dgetrf_(&n,&n,B,&n,ipiv,&info);
-    if (!info) dgetrs_((char *)tr,&n,&m,B,&n,ipiv,X,&n,&info);
+    if (!info) {
+        dgetrs_((char*)tr, &n, &m, B, &n, ipiv, X, &n, &info);
+    }
     free(ipiv); free(B);
     return info;
 }
@@ -288,7 +311,13 @@ extern void matmul(const char *tr, int n, int k, int m, double alpha,
                    const double *A, const double *B, double beta, double *C)
 {
     double d;
-    int i,j,x,f=tr[0]=='N'?(tr[1]=='N'?1:2):(tr[1]=='N'?3:4);
+    int i, j, x, f;
+
+    if (tr[0] == 'N') {
+        f = tr[1] == 'N' ? 1 : 2;
+    } else {
+        f = tr[1] == 'N' ? 3 : 4;
+    }
 
     for (i=0;i<n;i++) for (j=0;j<k;j++) {
         d=0.0;
@@ -403,11 +432,15 @@ extern int lsq(const double *A, const double *y, int n, int m, double *x,
     double *Ay;
     int info;
 
-    if (m<n) return -1;
+    if (m < n) {
+        return -1;
+    }
     Ay=mat(n,1);
     matmul("NN",n,1,m,1.0,A,y,0.0,Ay); /* Ay=A*y */
     matmul("NT",n,n,m,1.0,A,A,0.0,Q);  /* Q=A*A' */
-    if (!(info=matinv(Q,n))) matmul("NN",n,1,n,1.0,Q,Ay,0.0,x); /* x=Q^-1*Ay */
+    if (!(info = matinv(Q, n))) {
+        matmul("NN", n, 1, n, 1.0, Q, Ay, 0.0, x); /* x=Q^-1*Ay */
+    }
     free(Ay);
     return info;
 }
@@ -454,17 +487,28 @@ extern int filter(double *x, double *P, const double *H, const double *v,
     double *x_,*xp_,*P_,*Pp_,*H_;
     int i,j,k,info,*ix;
 
-    ix=imat(n,1); for (i=k=0;i<n;i++) if (x[i]!=0.0&&P[i+i*n]>0.0) ix[k++]=i;
+    ix = imat(n, 1);
+    for (i = k = 0; i < n; i++) {
+        if (x[i] != 0.0 && P[i + i * n] > 0.0) {
+            ix[k++] = i;
+        }
+    }
     x_=mat(k,1); xp_=mat(k,1); P_=mat(k,k); Pp_=mat(k,k); H_=mat(k,m);
     for (i=0;i<k;i++) {
         x_[i]=x[ix[i]];
-        for (j=0;j<k;j++) P_[i+j*k]=P[ix[i]+ix[j]*n];
-        for (j=0;j<m;j++) H_[i+j*k]=H[ix[i]+j*n];
+        for (j = 0; j < k; j++) {
+            P_[i + j * k] = P[ix[i] + ix[j] * n];
+        }
+        for (j = 0; j < m; j++) {
+            H_[i + j * k] = H[ix[i] + j * n];
+        }
     }
     info=filter_(x_,P_,H_,v,R,k,m,xp_,Pp_);
     for (i=0;i<k;i++) {
         x[ix[i]]=xp_[i];
-        for (j=0;j<k;j++) P[ix[i]+ix[j]*n]=Pp_[i+j*k];
+        for (j = 0; j < k; j++) {
+            P[ix[i] + ix[j] * n] = Pp_[i + j * k];
+        }
     }
     free(ix); free(x_); free(xp_); free(P_); free(Pp_); free(H_);
     return info;
@@ -494,7 +538,9 @@ extern int smoother(const double *xf, const double *Qf, const double *xb,
     matcpy(invQf,Qf,n,n);
     matcpy(invQb,Qb,n,n);
     if (!matinv(invQf,n)&&!matinv(invQb,n)) {
-        for (i=0;i<n*n;i++) Qs[i]=invQf[i]+invQb[i];
+        for (i = 0; i < n * n; i++) {
+            Qs[i] = invQf[i] + invQb[i];
+        }
         if (!(info=matinv(Qs,n))) {
             matmul("NN",n,1,n,1.0,invQf,xf,0.0,xx);
             matmul("NN",n,1,n,1.0,invQb,xb,1.0,xx);
@@ -523,7 +569,9 @@ extern void matfprint(const double A[], int n, int m, int p, int q, FILE *fp)
     int i,j;
 
     for (i=0;i<n;i++) {
-        for (j=0;j<m;j++) fprintf(fp," %*.*f",p,q,A[i+j*n]);
+        for (j = 0; j < m; j++) {
+            fprintf(fp, " %*.*f", p, q, A[i + j * n]);
+        }
         fprintf(fp,"\n");
     }
 }

@@ -31,7 +31,9 @@ mrtk_ctx_t *g_mrtk_ctx = NULL;
 mrtk_ctx_t *mrtk_ctx_create(void)
 {
     mrtk_ctx_t *ctx = (mrtk_ctx_t *)calloc(1, sizeof(mrtk_ctx_t));
-    if (!ctx) return NULL;
+    if (!ctx) {
+        return NULL;
+    }
 
     ctx->is_running       = 0;
     ctx->cancel_requested = 0;
@@ -48,7 +50,9 @@ mrtk_ctx_t *mrtk_ctx_create(void)
 
 void mrtk_ctx_destroy(mrtk_ctx_t *ctx)
 {
-    if (!ctx) return;
+    if (!ctx) {
+        return;
+    }
 
     /* Close trace file if not stdout/stderr */
     if (ctx->trace_fp && ctx->trace_fp != stdout && ctx->trace_fp != stderr) {

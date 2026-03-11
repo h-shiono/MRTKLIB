@@ -122,13 +122,17 @@ extern uint32_t getbitu(const uint8_t *buff, int pos, int len)
 {
     uint32_t bits=0;
     int i;
-    for (i=pos;i<pos+len;i++) bits=(bits<<1)+((buff[i/8]>>(7-i%8))&1u);
+    for (i = pos; i < pos + len; i++) {
+        bits = (bits << 1) + ((buff[i / 8] >> (7 - i % 8)) & 1u);
+    }
     return bits;
 }
 extern int32_t getbits(const uint8_t *buff, int pos, int len)
 {
     uint32_t bits=getbitu(buff,pos,len);
-    if (len<=0||32<=len||!(bits&(1u<<(len-1)))) return (int32_t)bits;
+    if (len <= 0 || 32 <= len || !(bits & (1u << (len - 1)))) {
+        return (int32_t)bits;
+    }
     return (int32_t)(bits|(~0u<<len)); /* extend sign */
 }
 /* set unsigned/signed bits ----------------------------------------------------
@@ -143,14 +147,24 @@ extern void setbitu(uint8_t *buff, int pos, int len, uint32_t data)
 {
     uint32_t mask=1u<<(len-1);
     int i;
-    if (len<=0||32<len) return;
+    if (len <= 0 || 32 < len) {
+        return;
+    }
     for (i=pos;i<pos+len;i++,mask>>=1) {
-        if (data&mask) buff[i/8]|=1u<<(7-i%8); else buff[i/8]&=~(1u<<(7-i%8));
+        if (data & mask) {
+            buff[i / 8] |= 1u << (7 - i % 8);
+        } else {
+            buff[i / 8] &= ~(1u << (7 - i % 8));
+        }
     }
 }
 extern void setbits(uint8_t *buff, int pos, int len, int32_t data)
 {
-    if (data<0) data|=1<<(len-1); else data&=~(1<<(len-1)); /* set sign bit */
+    if (data < 0) {
+        data |= 1 << (len - 1);
+    } else {
+        data &= ~(1 << (len - 1)); /* set sign bit */
+    }
     setbitu(buff,pos,len,(uint32_t)data);
 }
 
@@ -175,7 +189,11 @@ extern uint32_t rtk_crc32(const uint8_t *buff, int len)
     for (i=0;i<len;i++) {
         crc^=buff[i];
         for (j=0;j<8;j++) {
-            if (crc&1) crc=(crc>>1)^POLYCRC32; else crc>>=1;
+            if (crc & 1) {
+                crc = (crc >> 1) ^ POLYCRC32;
+            } else {
+                crc >>= 1;
+            }
         }
     }
     return crc;
@@ -194,7 +212,9 @@ extern uint32_t rtk_crc24q(const uint8_t *buff, int len)
 
     trace(NULL,4,"rtk_crc24q: len=%d\n",len);
 
-    for (i=0;i<len;i++) crc=((crc<<8)&0xFFFFFF)^tbl_CRC24Q[(crc>>16)^buff[i]];
+    for (i = 0; i < len; i++) {
+        crc = ((crc << 8) & 0xFFFFFF) ^ tbl_CRC24Q[(crc >> 16) ^ buff[i]];
+    }
     return crc;
 }
 /* crc-16 parity ---------------------------------------------------------------
@@ -240,14 +260,22 @@ extern int decode_word(uint32_t word, uint8_t *data)
 
     trace(NULL,5,"decodeword: word=%08x\n",word);
 
-    if (word&0x40000000) word^=0x3FFFFFC0;
+    if (word & 0x40000000) {
+        word ^= 0x3FFFFFC0;
+    }
 
     for (i=0;i<6;i++) {
         parity<<=1;
-        for (w=(word&hamming[i])>>6;w;w>>=1) parity^=w&1;
+        for (w = (word & hamming[i]) >> 6; w; w >>= 1) {
+            parity ^= w & 1;
+        }
     }
-    if (parity!=(word&0x3F)) return 0;
+    if (parity != (word & 0x3F)) {
+        return 0;
+    }
 
-    for (i=0;i<3;i++) data[i]=(uint8_t)(word>>(22-i*8));
+    for (i = 0; i < 3; i++) {
+        data[i] = (uint8_t)(word >> (22 - i * 8));
+    }
     return 1;
 }

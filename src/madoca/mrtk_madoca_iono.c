@@ -109,10 +109,15 @@ static void adjweek(gtime_t *gt, double tow)
     int week;
 
     /* if no time, get cpu time */
-    if (gt->time == 0) *gt = utc2gpst(timeget());
+    if (gt->time == 0) {
+        *gt = utc2gpst(timeget());
+    }
     tow_p = time2gpst(*gt, &week);
-    if      (tow < tow_p - 302400.0) tow+=604800.0;
-    else if (tow > tow_p + 302400.0) tow-=604800.0;
+    if (tow < tow_p - 302400.0) {
+        tow += 604800.0;
+    } else if (tow > tow_p + 302400.0) {
+        tow -= 604800.0;
+    }
     *gt = gpst2time(week, tow);
 }
 
@@ -200,7 +205,9 @@ static int decode_miono_correction(miono_t *mi, miono_region_t *re, int i,
         apply=0;
     }
     else {
-        if(mi->ep0 > ep) ep += 3600;
+        if (mi->ep0 > ep) {
+            ep += 3600;
+        }
         adjweek(&mi->gt, mi->tow0 + ep);
         if(mi->iod != iod) {
             trace(NULL,2,"decode_miono_correction: %s,iod mismatch %d != %d\n",
@@ -218,7 +225,9 @@ static int decode_miono_correction(miono_t *mi, miono_region_t *re, int i,
 
     for(j = 0; j < MIONO_MAX_SYS; j++) {
         for(k = 0; k < ns[j]; k++) {
-            for(l = 1; l < 6; l++) coef[l] = 0;
+            for (l = 1; l < 6; l++) {
+                coef[l] = 0;
+            }
             id          = getbitu(mi->buff, i,  6); i+= 6; /* GNSS Satellite ID */
             sqi         = getbitu(mi->buff, i,  6); i+= 6; /* SSR STEC Quality Indicator */
             coef[0]     = getbits(mi->buff, i, 14); i+=14; /* STEC Polynomial Coefficients C00 */
@@ -242,13 +251,14 @@ static int decode_miono_correction(miono_t *mi, miono_region_t *re, int i,
                 time_str(mi->gt,3),i,rid,anum,type,j,k,id,satid,sqi,coef[0],coef[1],coef[2],coef[3],coef[4],coef[5],
                 coef[0]*0.05,coef[1]*0.02,coef[2]*0.02,coef[3]*0.02,coef[4]*0.005,coef[5]*0.005);
 
-            if(sat == 0) continue;                       /* unsupported sat */
-            if((coef[0] == MIONO_INVALID_14BIT) ||
-               (coef[1] == MIONO_INVALID_12BIT) ||
-               (coef[2] == MIONO_INVALID_12BIT) ||
-               (coef[3] == MIONO_INVALID_10BIT) ||
-               (coef[4] == MIONO_INVALID_8BIT)  ||
-               (coef[5] == MIONO_INVALID_8BIT)) continue;/* invalid value */
+            if (sat == 0) {
+                continue; /* unsupported sat */
+            }
+            if ((coef[0] == MIONO_INVALID_14BIT) || (coef[1] == MIONO_INVALID_12BIT) ||
+                (coef[2] == MIONO_INVALID_12BIT) || (coef[3] == MIONO_INVALID_10BIT) ||
+                (coef[4] == MIONO_INVALID_8BIT) || (coef[5] == MIONO_INVALID_8BIT)) {
+                continue; /* invalid value */
+            }
 
             if(apply) {
                 re->area[anum].type               = type;
@@ -263,7 +273,9 @@ static int decode_miono_correction(miono_t *mi, miono_region_t *re, int i,
             }
         }
     }
-    if(apply)re->area[anum].avalid = 1;
+    if (apply) {
+        re->area[anum].avalid = 1;
+    }
     return i;
 }
 
@@ -321,7 +333,9 @@ extern int decode_qzss_l6dmsg(mdcl6d_t *mdcl6d)
         }
     }
 
-    if(vid != 2) return 0;                 /* unsupport vendor ID */
+    if (vid != 2) {
+        return 0; /* unsupport vendor ID */
+    }
 
     if ((str = strstr(mdcl6d->opt,"-MIONO_PRN"))) {
         optprn = atoi(strstr(str,"=")+1);
@@ -331,7 +345,9 @@ extern int decode_qzss_l6dmsg(mdcl6d_t *mdcl6d)
         }
     }
 
-    if(si == 1) _miono[j].maxframe = 0;    /* Subframe Indicator : First Data */
+    if (si == 1) {
+        _miono[j].maxframe = 0; /* Subframe Indicator : First Data */
+    }
 
     /* frame recognition */
     if(_miono[j].maxframe <= 0) {
@@ -373,7 +389,9 @@ extern int decode_qzss_l6dmsg(mdcl6d_t *mdcl6d)
     }
     _miono[j].buff[ibuff - 1] &= mask;
 
-    if(_miono[j].frame != _miono[j].maxframe) return 0; /* no message */
+    if (_miono[j].frame != _miono[j].maxframe) {
+        return 0; /* no message */
+    }
 
     ret=10; /* input MADOCA-PPP iono. messages */
     i=0;
@@ -406,7 +424,9 @@ extern int decode_qzss_l6dmsg(mdcl6d_t *mdcl6d)
             break;
         }
         mdcl6d->time = _miono[j].gt;
-        if (i >= imax) break;
+        if (i >= imax) {
+            break;
+        }
     }
     _miono[j].maxframe = 0;
     trace(NULL,4,"decode_qzss_l6dmsg: %s,frames=%d\n",
@@ -444,10 +464,10 @@ extern int input_qzssl6d(mdcl6d_t *mdcl6d, const uint8_t data)
     trace(NULL,5,"input_qzssl6d: data=0x%02X,%d\n",data,mdcl6d->nbyte);
 
     /* synchronize frame with L6 preamble */
-    if       ((mdcl6d->nbyte == 0) && (data != 0x1A)) return 0;
-    else if (((mdcl6d->nbyte == 1) && (data != 0xCF)) ||
-             ((mdcl6d->nbyte == 2) && (data != 0xFC)) ||
-             ((mdcl6d->nbyte == 3) && (data != 0x1D))) {
+    if ((mdcl6d->nbyte == 0) && (data != 0x1A)) {
+        return 0;
+    } else if (((mdcl6d->nbyte == 1) && (data != 0xCF)) || ((mdcl6d->nbyte == 2) && (data != 0xFC)) ||
+               ((mdcl6d->nbyte == 3) && (data != 0x1D))) {
         mdcl6d->nbyte=0;
         if (data != 0x1A) {
             return 0;
@@ -455,7 +475,9 @@ extern int input_qzssl6d(mdcl6d_t *mdcl6d, const uint8_t data)
     }
     mdcl6d->buff[mdcl6d->nbyte++]=data;
 
-    if (mdcl6d->nbyte<L6BYTELEN) return 0;
+    if (mdcl6d->nbyte < L6BYTELEN) {
+        return 0;
+    }
 
     mdcl6d->nbyte=0;
     return decode_qzss_l6dmsg(mdcl6d);
@@ -475,8 +497,12 @@ extern int input_qzssl6df(mdcl6d_t *mdcl6d, FILE *fp)
     trace(NULL,4,"input_qzssl6df\n");
 
     for (i = 0; i < 4096; i++) {
-        if ((data = fgetc(fp)) == EOF) return -2;
-        if ((ret = input_qzssl6d(mdcl6d, (uint8_t)data))) return ret;
+        if ((data = fgetc(fp)) == EOF) {
+            return -2;
+        }
+        if ((ret = input_qzssl6d(mdcl6d, (uint8_t)data))) {
+            return ret;
+        }
     }
     return 0; /* return at every 4k bytes */
 }

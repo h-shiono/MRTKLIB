@@ -136,7 +136,9 @@ static uint16_t U2(uint8_t *p)
     uint16_t value;
     uint8_t *q=(uint8_t *)&value+1;
     int i;
-    for (i=0;i<2;i++) *q--=*p++;
+    for (i = 0; i < 2; i++) {
+        *q-- = *p++;
+    }
     return value;
 }
 static uint32_t U4(uint8_t *p)
@@ -144,7 +146,9 @@ static uint32_t U4(uint8_t *p)
     uint32_t value;
     uint8_t *q=(uint8_t *)&value+3;
     int i;
-    for (i=0;i<4;i++) *q--=*p++;
+    for (i = 0; i < 4; i++) {
+        *q-- = *p++;
+    }
     return value;
 }
 static float R4(uint8_t *p)
@@ -152,7 +156,9 @@ static float R4(uint8_t *p)
     float value;
     uint8_t *q=(uint8_t *)&value+3;
     int i;
-    for (i=0;i<4;i++) *q--=*p++;
+    for (i = 0; i < 4; i++) {
+        *q-- = *p++;
+    }
     return value;
 }
 static double R8(uint8_t *p)
@@ -160,7 +166,9 @@ static double R8(uint8_t *p)
     double value;
     uint8_t *q=(uint8_t *)&value+7;
     int i;
-    for (i=0;i<8;i++) *q--=*p++;
+    for (i = 0; i < 8; i++) {
+        *q-- = *p++;
+    }
     return value;
 }
 /* checksum ------------------------------------------------------------------*/
@@ -178,12 +186,17 @@ static uint8_t checksum(uint8_t *buff, int len)
 static void adj_utcweek(gtime_t time, double *utc)
 {
     int week;
-    
-    if (utc[3]>=256.0) return;
+
+    if (utc[3] >= 256.0) {
+        return;
+    }
     time2gpst(time,&week);
     utc[3]+=week/256*256;
-    if      (utc[3]<week-128) utc[3]+=256.0;
-    else if (utc[3]>week+128) utc[3]-=256.0;
+    if (utc[3] < week - 128) {
+        utc[3] += 256.0;
+    } else if (utc[3] > week + 128) {
+        utc[3] -= 256.0;
+    }
 }
 /* decode skytraq measurement epoch (0xDC) -----------------------------------*/
 static int decode_stqtime(raw_t *raw)
@@ -440,9 +453,11 @@ static int save_subfrm(int sat, raw_t *raw)
         return 0;
     }
     q=raw->subfrm[sat-1]+(id-1)*30;
-    
-    for (i=0;i<30;i++) q[i]=p[i];
-    
+
+    for (i = 0; i < 30; i++) {
+        q[i] = p[i];
+    }
+
     return id;
 }
 /* decode ephemeris ----------------------------------------------------------*/
@@ -451,12 +466,15 @@ static int decode_ephem(int sat, raw_t *raw)
     eph_t eph={0};
     
     trace(NULL,4,"decode_ephem: sat=%2d\n",sat);
-    
-    if (!decode_frame(raw->subfrm[sat-1],&eph,NULL,NULL,NULL)) return 0;
-    
+
+    if (!decode_frame(raw->subfrm[sat - 1], &eph, NULL, NULL, NULL)) {
+        return 0;
+    }
+
     if (!strstr(raw->opt,"-EPHALL")) {
-        if (eph.iode==raw->nav.eph[sat-1].iode&&
-            eph.iodc==raw->nav.eph[sat-1].iodc) return 0; /* unchanged */
+        if (eph.iode == raw->nav.eph[sat - 1].iode && eph.iodc == raw->nav.eph[sat - 1].iodc) {
+            return 0; /* unchanged */
+        }
     }
     eph.sat=sat;
     raw->nav.eph[sat-1]=eph;
@@ -522,9 +540,15 @@ static int decode_stqgps(raw_t *raw)
         return -1;
     }
     id=save_subfrm(sat,raw);
-    if (id==3) return decode_ephem(sat,raw);
-    if (id==4) return decode_alm1 (sat,raw);
-    if (id==5) return decode_alm2 (sat,raw);
+    if (id == 3) {
+        return decode_ephem(sat, raw);
+    }
+    if (id == 4) {
+        return decode_alm1(sat, raw);
+    }
+    if (id == 5) {
+        return decode_alm2(sat, raw);
+    }
     return 0;
 }
 /* decode glonass string (0xE1) ----------------------------------------------*/
@@ -557,14 +581,20 @@ static int decode_stqglo(raw_t *raw)
     for (i=0;i<9;i++) {
         setbitu(raw->subfrm[sat-1]+(m-1)*10,5+i*8,8,p[3+i]);
     }
-    if (m!=4) return 0;
-    
+    if (m != 4) {
+        return 0;
+    }
+
     /* decode glonass ephemeris strings */
     geph.tof=raw->time;
-    if (!decode_glostr(raw->subfrm[sat-1],&geph,NULL)||geph.sat!=sat) return 0;
-    
+    if (!decode_glostr(raw->subfrm[sat - 1], &geph, NULL) || geph.sat != sat) {
+        return 0;
+    }
+
     if (!strstr(raw->opt,"-EPHALL")) {
-        if (geph.iode==raw->nav.geph[prn-1].iode) return 0; /* unchanged */
+        if (geph.iode == raw->nav.geph[prn - 1].iode) {
+            return 0; /* unchanged */
+        }
     }
     /* keep freq channel number */
     geph.frq=raw->nav.geph[prn-1].frq;
@@ -631,12 +661,18 @@ static int decode_stqbds(raw_t *raw)
             word=getbitu(p+3,j,22)<<8; j+=22;
             setbitu(raw->subfrm[sat-1]+(id-1)*38,i*30,30,word);
         }
-        if (id!=3) return 0;
-        if (!decode_bds_d1(raw->subfrm[sat-1],&eph,NULL,NULL)) return 0;
+        if (id != 3) {
+            return 0;
+        }
+        if (!decode_bds_d1(raw->subfrm[sat - 1], &eph, NULL, NULL)) {
+            return 0;
+        }
     }
     else { /* GEO */
-        if (id!=1) return 0;
-        
+        if (id != 1) {
+            return 0;
+        }
+
         pgn=getbitu(p+3,26+12,4); /* page number */
         if (pgn<1||10<pgn) {
             trace(NULL,2,"stq bds subframe page number error: prn=%2d pgn=%d\n",prn,pgn);
@@ -649,11 +685,17 @@ static int decode_stqbds(raw_t *raw)
             word=getbitu(p+3,j,22)<<8; j+=22;
             setbitu(raw->subfrm[sat-1]+(pgn-1)*38,i*30,30,word);
         }
-        if (pgn!=10) return 0;
-        if (!decode_bds_d2(raw->subfrm[sat-1],&eph,NULL)) return 0;
+        if (pgn != 10) {
+            return 0;
+        }
+        if (!decode_bds_d2(raw->subfrm[sat - 1], &eph, NULL)) {
+            return 0;
+        }
     }
     if (!strstr(raw->opt,"-EPHALL")) {
-        if (timediff(eph.toe,raw->nav.eph[sat-1].toe)==0.0) return 0; /* unchanged */
+        if (timediff(eph.toe, raw->nav.eph[sat - 1].toe) == 0.0) {
+            return 0; /* unchanged */
+        }
     }
     eph.sat=sat;
     raw->nav.eph[sat-1]=eph;
@@ -754,7 +796,9 @@ extern int input_stq(raw_t *raw, uint8_t data)
     
     /* synchronize frame */
     if (raw->nbyte==0) {
-        if (!sync_stq(raw->buff,data)) return 0;
+        if (!sync_stq(raw->buff, data)) {
+            return 0;
+        }
         raw->nbyte=2;
         return 0;
     }
@@ -767,7 +811,9 @@ extern int input_stq(raw_t *raw, uint8_t data)
             return -1;
         }
     }
-    if (raw->nbyte<4||raw->nbyte<raw->len) return 0;
+    if (raw->nbyte < 4 || raw->nbyte < raw->len) {
+        return 0;
+    }
     raw->nbyte=0;
     
     /* decode skytraq raw message */
@@ -788,12 +834,20 @@ extern int input_stqf(raw_t *raw, FILE *fp)
     /* synchronize frame */
     if (raw->nbyte==0) {
         for (i=0;;i++) {
-            if ((data=fgetc(fp))==EOF) return -2;
-            if (sync_stq(raw->buff,(uint8_t)data)) break;
-            if (i>=4096) return 0;
+            if ((data = fgetc(fp)) == EOF) {
+                return -2;
+            }
+            if (sync_stq(raw->buff, (uint8_t)data)) {
+                break;
+            }
+            if (i >= 4096) {
+                return 0;
+            }
         }
     }
-    if (fread(raw->buff+2,1,2,fp)<2) return -2;
+    if (fread(raw->buff + 2, 1, 2, fp) < 2) {
+        return -2;
+    }
     raw->nbyte=4;
     
     if ((raw->len=U2(raw->buff+2)+7)>MAXRAWLEN) {
@@ -801,7 +855,9 @@ extern int input_stqf(raw_t *raw, FILE *fp)
         raw->nbyte=0;
         return -1;
     }
-    if (fread(raw->buff+4,1,raw->len-4,fp)<(size_t)(raw->len-4)) return -2;
+    if (fread(raw->buff + 4, 1, raw->len - 4, fp) < (size_t)(raw->len - 4)) {
+        return -2;
+    }
     raw->nbyte=0;
     
     /* decode skytraq raw message */
@@ -843,50 +899,79 @@ extern int gen_stq(const char *msg, uint8_t *buff)
         *q++=15;
         *q++=ID_RESTART;
         *q++=narg>2?(uint8_t)atoi(args[1]):0;
-        for (i=1;i<15;i++) *q++=0; /* set all 0 */
+        for (i = 1; i < 15; i++) {
+            *q++ = 0; /* set all 0 */
+        }
     }
     else if (!strcmp(args[0],"CFG-SERI")) {
         *q++=0;
         *q++=4;
         *q++=ID_CFGSERI;
-        for (i=1;i<4;i++) *q++=narg>i+1?(uint8_t)atoi(args[i]):0;
+        for (i = 1; i < 4; i++) {
+            *q++ = narg > i + 1 ? (uint8_t)atoi(args[i]) : 0;
+        }
     }
     else if (!strcmp(args[0],"CFG-FMT")) {
         *q++=0;
         *q++=3;
         *q++=ID_CFGFMT;
-        for (i=1;i<3;i++) *q++=narg>i+1?(uint8_t)atoi(args[i]):0;
+        for (i = 1; i < 3; i++) {
+            *q++ = narg > i + 1 ? (uint8_t)atoi(args[i]) : 0;
+        }
     }
     else if (!strcmp(args[0],"CFG-RATE")) {
         *q++=0;
         *q++=8;
         *q++=ID_CFGRATE;
         if (narg>2) {
-            for (i=0;*hz[i];i++) if (!strcmp(args[1],hz[i])) break;
-            if (*hz[i]) *q++=i; else *q++=(uint8_t)atoi(args[1]);
+            for (i = 0; *hz[i]; i++) {
+                if (!strcmp(args[1], hz[i])) {
+                    break;
+                }
+            }
+            if (*hz[i]) {
+                *q++ = i;
+            } else {
+                *q++ = (uint8_t)atoi(args[1]);
+            }
+        } else {
+            *q++ = 0;
         }
-        else *q++=0;
-        for (i=2;i<8;i++) *q++=narg>i+1?(uint8_t)atoi(args[i]):0;
+        for (i = 2; i < 8; i++) {
+            *q++ = narg > i + 1 ? (uint8_t)atoi(args[i]) : 0;
+        }
     }
     else if (!strcmp(args[0],"CFG-BIN")) {
         *q++=0;
         *q++=9; /* F/W 1.4.32 */
         *q++=ID_CFGBIN;
         if (narg>2) {
-            for (i=0;*hz[i];i++) if (!strcmp(args[1],hz[i])) break;
-            if (*hz[i]) *q++=i; else *q++=(uint8_t)atoi(args[1]);
+            for (i = 0; *hz[i]; i++) {
+                if (!strcmp(args[1], hz[i])) {
+                    break;
+                }
+            }
+            if (*hz[i]) {
+                *q++ = i;
+            } else {
+                *q++ = (uint8_t)atoi(args[1]);
+            }
+        } else {
+            *q++ = 0;
         }
-        else *q++=0;
-        for (i=2;i<9;i++) *q++=narg>i+1?(uint8_t)atoi(args[i]):0;
+        for (i = 2; i < 9; i++) {
+            *q++ = narg > i + 1 ? (uint8_t)atoi(args[i]) : 0;
+        }
     }
     else if (!strcmp(args[0],"GET-GLOEPH")) {
         *q++=0;
         *q++=2;
         *q++=ID_GETGLOEPH;
         *q++=narg>=2?(uint8_t)atoi(args[1]):0;
+    } else {
+        return 0;
     }
-    else return 0;
-    
+
     n=(int)(q-buff);
     *q++=checksum(buff,n+3);
     *q++=0x0D;

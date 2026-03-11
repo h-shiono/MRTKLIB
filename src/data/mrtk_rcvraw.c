@@ -89,10 +89,11 @@ static uint32_t getbitu2(const uint8_t *buff, int p1, int l1, int p2, int l2)
 }
 static int32_t getbits2(const uint8_t *buff, int p1, int l1, int p2, int l2)
 {
-    if (getbitu(buff,p1,1))
+    if (getbitu(buff, p1, 1)) {
         return (int32_t)((getbits(buff,p1,l1)<<l2)+getbitu(buff,p2,l2));
-    else
+    } else {
         return (int32_t)getbitu2(buff,p1,l1,p2,l2);
+    }
 }
 /* get three component bits --------------------------------------------------*/
 static uint32_t getbitu3(const uint8_t *buff, int p1, int l1, int p2, int l2,
@@ -104,11 +105,12 @@ static uint32_t getbitu3(const uint8_t *buff, int p1, int l1, int p2, int l2,
 static int32_t getbits3(const uint8_t *buff, int p1, int l1, int p2, int l2,
                         int p3, int l3)
 {
-    if (getbitu(buff,p1,1))
+    if (getbitu(buff, p1, 1)) {
         return (int32_t)((getbits(buff,p1,l1)<<(l2+l3))+
                    (getbitu(buff,p2,l2)<<l3)+getbitu(buff,p3,l3));
-    else
+    } else {
         return (int32_t)getbitu3(buff,p1,l1,p2,l2,p3,l3);
+    }
 }
 /* merge two components ------------------------------------------------------*/
 static uint32_t merge_two_u(uint32_t a, uint32_t b, int n)
@@ -176,8 +178,11 @@ static int decode_irn_eph(const uint8_t *buff, eph_t *eph)
     week=adjgpsweek(week);
     eph_irn.week=week; /* week number consistent to toe */
     eph_irn.toe=eph_irn.toc=gpst2time(eph_irn.week,eph_irn.toes);
-    if      (tow1<eph_irn.toes-302400.0) week++;
-    else if (tow1>eph_irn.toes+302400.0) week--;
+    if (tow1 < eph_irn.toes - 302400.0) {
+        week++;
+    } else if (tow1 > eph_irn.toes + 302400.0) {
+        week--;
+    }
     eph_irn.ttr=gpst2time(week,tow1);
     eph_irn.type=0; /* ephemeris type = LNAV */
     *eph=eph_irn;
@@ -195,10 +200,14 @@ static int decode_irn_ion(const uint8_t *buff, double *ion)
     id4=getbitu(buff,8*37*3+30,6);
 
     /* 11: eop and ionosphere coefficients */
-    if      (id3==11) i=8*37*2+174;
-    else if (id4==11) i=8*37*3+174;
-    else return 0;
-    
+    if (id3 == 11) {
+        i = 8 * 37 * 2 + 174;
+    } else if (id4 == 11) {
+        i = 8 * 37 * 3 + 174;
+    } else {
+        return 0;
+    }
+
     ion[0]=getbits(buff,i,8)*P2_30; i+=8;
     ion[1]=getbits(buff,i,8)*P2_27; i+=8;
     ion[2]=getbits(buff,i,8)*P2_24; i+=8;
@@ -221,9 +230,13 @@ static int decode_irn_utc(const uint8_t *buff, double *utc)
     id4=getbitu(buff,8*37*3+30,6);
     
     /* 9 or 26: utc and time sync parameters */
-    if      (id3==9||id3==26) i=8*37*2+36;
-    else if (id4==9||id3==26) i=8*37*3+36;
-    else return 0;
+    if (id3 == 9 || id3 == 26) {
+        i = 8 * 37 * 2 + 36;
+    } else if (id4 == 9 || id3 == 26) {
+        i = 8 * 37 * 3 + 36;
+    } else {
+        return 0;
+    }
 
     utc[0]=getbits(buff,i,16)*P2_35; i+=16; /* A0 */
     utc[1]=getbits(buff,i,13)*P2_51; i+=13; /* A1 */
@@ -257,10 +270,16 @@ extern int decode_irn_nav(const uint8_t *buff, eph_t *eph, double *ion,
                           double *utc)
 {
     trace(NULL,4,"decode_irn_nav:\n");
-    
-    if (eph&&!decode_irn_eph(buff,eph)) return 0;
-    if (ion&&!decode_irn_ion(buff,ion)) return 0;
-    if (utc&&!decode_irn_utc(buff,utc)) return 0;
+
+    if (eph && !decode_irn_eph(buff, eph)) {
+        return 0;
+    }
+    if (ion && !decode_irn_ion(buff, ion)) {
+        return 0;
+    }
+    if (utc && !decode_irn_utc(buff, utc)) {
+        return 0;
+    }
     return 1;
 }
 /* decode Galileo I/NAV ephemeris --------------------------------------------*/
@@ -342,8 +361,11 @@ static int decode_gal_inav_eph(const uint8_t *buff, eph_t *eph)
     eph_gal.svh=(e5b_hs<<7)|(e5b_dvs<<6)|(e1b_hs<<1)|e1b_dvs;
     eph_gal.ttr=gst2time(week,tow);
     tt=timediff(gst2time(week,eph_gal.toes),eph_gal.ttr);
-    if      (tt> 302400.0) week--; /* week consistent with toe */
-    else if (tt<-302400.0) week++;
+    if (tt > 302400.0) {
+        week--; /* week consistent with toe */
+    } else if (tt < -302400.0) {
+        week++;
+    }
     eph_gal.toe=gst2time(week,eph_gal.toes);
     eph_gal.toc=gst2time(week,toc);
     eph_gal.week=week+1024; /* gal-week = gst-week + 1024 */
@@ -358,8 +380,10 @@ static int decode_gal_inav_ion(const uint8_t *buff, double *ion)
     int i=128*5; /* word type 5 */
 
     trace(NULL,4,"decode_gal_inav_ion:\n");
-    
-    if (getbitu(buff,i,6)!=5) return 0;
+
+    if (getbitu(buff, i, 6) != 5) {
+        return 0;
+    }
     i+=6;
     ion[0]=getbitu(buff,i,11)*0.25;  i+=11;
     ion[1]=getbits(buff,i,11)*P2_8;  i+=11;
@@ -373,8 +397,10 @@ static int decode_gal_inav_utc(const uint8_t *buff, double *utc)
     int i=128*6; /* word type 6 */
     
     trace(NULL,4,"decode_gal_inav_utc:\n");
-    
-    if (getbitu(buff,i,6)!=6) return 0;
+
+    if (getbitu(buff, i, 6) != 6) {
+        return 0;
+    }
     i+=6;
     utc[0]=getbits(buff,i,32)*P2_30;  i+=32; /* A0 */
     utc[1]=getbits(buff,i,24)*P2_50;  i+=24; /* A1 */
@@ -408,10 +434,16 @@ extern int decode_gal_inav(const uint8_t *buff, eph_t *eph, double *ion,
                            double *utc)
 {
     trace(NULL,4,"decode_gal_fnav:\n");
-    
-    if (eph&&!decode_gal_inav_eph(buff,eph)) return 0;
-    if (ion&&!decode_gal_inav_ion(buff,ion)) return 0;
-    if (utc&&!decode_gal_inav_utc(buff,utc)) return 0;
+
+    if (eph && !decode_gal_inav_eph(buff, eph)) {
+        return 0;
+    }
+    if (ion && !decode_gal_inav_ion(buff, ion)) {
+        return 0;
+    }
+    if (utc && !decode_gal_inav_utc(buff, utc)) {
+        return 0;
+    }
     return 1;
 }
 /* decode Galileo F/NAV ephemeris --------------------------------------------*/
@@ -492,8 +524,11 @@ static int decode_gal_fnav_eph(const uint8_t *buff, eph_t *eph)
     eph_gal.svh=(e5a_hs<<4)|(e5a_dvs<<3);
     eph_gal.ttr=gst2time(week[0],tow[0]);
     tt=timediff(gst2time(week[0],eph_gal.toes),eph_gal.ttr);
-    if      (tt> 302400.0) week[0]--; /* week consistent with toe */
-    else if (tt<-302400.0) week[0]++;
+    if (tt > 302400.0) {
+        week[0]--; /* week consistent with toe */
+    } else if (tt < -302400.0) {
+        week[0]++;
+    }
     eph_gal.toe=gst2time(week[0],eph_gal.toes);
     eph_gal.toc=gst2time(week[0],toc);
     eph_gal.week=week[0]+1024; /* gal-week = gst-week + 1024 */
@@ -508,8 +543,10 @@ static int decode_gal_fnav_ion(const uint8_t *buff, double *ion)
     int i=0; /* page type 1 */
     
     trace(NULL,4,"decode_gal_fnav_ion:\n");
-    
-    if (getbitu(buff,i,6)!=1) return 0;
+
+    if (getbitu(buff, i, 6) != 1) {
+        return 0;
+    }
     i+=6+6+10+14+31+21+6+8;
     ion[0]=getbitu(buff,i,11)*0.25;  i+=11;
     ion[1]=getbits(buff,i,11)*P2_8;  i+=11;
@@ -523,8 +560,10 @@ static int decode_gal_fnav_utc(const uint8_t *buff, double *utc)
     int i=93*8; /* page type 4 */
     
     trace(NULL,4,"decode_gal_fnav_utc:\n");
-    
-    if (getbitu(buff,i,6)!=4) return 0;
+
+    if (getbitu(buff, i, 6) != 4) {
+        return 0;
+    }
     i+=6+10+16+16;
     utc[0]=getbits(buff,i,32)*P2_30;  i+=32; /* A0 */
     utc[1]=getbits(buff,i,24)*P2_50;  i+=24; /* A1 */
@@ -558,9 +597,15 @@ extern int decode_gal_fnav(const uint8_t *buff, eph_t *eph, double *ion,
 {
     trace(NULL,4,"decode_gal_fnav:\n");
 
-    if (eph&&!decode_gal_fnav_eph(buff,eph)) return 0;    
-    if (ion&&!decode_gal_fnav_ion(buff,ion)) return 0;    
-    if (utc&&!decode_gal_fnav_utc(buff,utc)) return 0;
+    if (eph && !decode_gal_fnav_eph(buff, eph)) {
+        return 0;
+    }
+    if (ion && !decode_gal_fnav_ion(buff, ion)) {
+        return 0;
+    }
+    if (utc && !decode_gal_fnav_utc(buff, utc)) {
+        return 0;
+    }
     return 1; 
 }
 /* decode BDS D1 navigation data ---------------------------------------------*/
@@ -628,8 +673,11 @@ static int decode_bds_d1_eph(const uint8_t *buff, eph_t *eph)
         return 0;
     }
     eph_bds.ttr=bdt2gpst(bdt2time(eph_bds.week,sow1)); /* bdt -> gpst */
-    if      (eph_bds.toes>sow1+302400.0) eph_bds.week++;
-    else if (eph_bds.toes<sow1-302400.0) eph_bds.week--;
+    if (eph_bds.toes > sow1 + 302400.0) {
+        eph_bds.week++;
+    } else if (eph_bds.toes < sow1 - 302400.0) {
+        eph_bds.week--;
+    }
     eph_bds.toe=bdt2gpst(bdt2time(eph_bds.week,eph_bds.toes));
     eph_bds.toc=bdt2gpst(bdt2time(eph_bds.week,toc_bds));
     eph_bds.code=0; /* data source = unknown */
@@ -646,8 +694,10 @@ static int decode_bds_d1_ion(const uint8_t *buff, double *ion)
     trace(NULL,4,"decode_bds_d1_ion:\n");
     
     /* subframe 1 */
-    if (getbitu(buff,i+15,3)!=1) return 0;
-    
+    if (getbitu(buff, i + 15, 3) != 1) {
+        return 0;
+    }
+
     ion[0]=getbits (buff,i+126, 8)*P2_30;
     ion[1]=getbits (buff,i+134, 8)*P2_27;
     ion[2]=getbits (buff,i+150, 8)*P2_24;
@@ -664,12 +714,16 @@ static int decode_bds_d1_utc(const uint8_t *buff, double *utc)
     int i=8*38*4; /* subframe 5 */
     
     trace(NULL,4,"decode_bds_d1_utc:\n");
-    
-    if (getbitu(buff,15,3)!=1) return 0; /* subframe 1 */
-    
+
+    if (getbitu(buff, 15, 3) != 1) {
+        return 0; /* subframe 1 */
+    }
+
     /* subframe 5 page 10 */
-    if (getbitu(buff,i+15,3)!=5||getbitu(buff,i+43,7)!=10) return 0;
-    
+    if (getbitu(buff, i + 15, 3) != 5 || getbitu(buff, i + 43, 7) != 10) {
+        return 0;
+    }
+
     utc[4]=getbits2(buff,i+ 50, 2,i+ 60, 6); /* dt_LS */
     utc[7]=getbits (buff,i+ 66, 8);          /* dt_LSF */
     utc[5]=getbitu (buff,i+ 74, 8);          /* WN_LSF */
@@ -701,10 +755,16 @@ extern int decode_bds_d1(const uint8_t *buff, eph_t *eph, double *ion,
                          double *utc)
 {
     trace(NULL,4,"decode_bds_d1:\n");
-    
-    if (eph&&!decode_bds_d1_eph(buff,eph)) return 0;
-    if (ion&&!decode_bds_d1_ion(buff,ion)) return 0;
-    if (utc&&!decode_bds_d1_utc(buff,utc)) return 0;
+
+    if (eph && !decode_bds_d1_eph(buff, eph)) {
+        return 0;
+    }
+    if (ion && !decode_bds_d1_ion(buff, ion)) {
+        return 0;
+    }
+    if (utc && !decode_bds_d1_utc(buff, utc)) {
+        return 0;
+    }
     return 1;
 }
 /* decode BDS D2 ephemeris ---------------------------------------------------*/
@@ -817,8 +877,11 @@ static int decode_bds_d2_eph(const uint8_t *buff, eph_t *eph)
     eph_bds.omg =merge_two_s(omgp9 ,omgp10, 5)*P2_31*SC2RAD;
     
     eph_bds.ttr=bdt2gpst(bdt2time(eph_bds.week,sow1)); /* bdt -> gpst */
-    if      (eph_bds.toes>sow1+302400.0) eph_bds.week++;
-    else if (eph_bds.toes<sow1-302400.0) eph_bds.week--;
+    if (eph_bds.toes > sow1 + 302400.0) {
+        eph_bds.week++;
+    } else if (eph_bds.toes < sow1 - 302400.0) {
+        eph_bds.week--;
+    }
     eph_bds.toe=bdt2gpst(bdt2time(eph_bds.week,eph_bds.toes));
     eph_bds.toc=bdt2gpst(bdt2time(eph_bds.week,toc_bds));
     eph_bds.code=0; /* data source = unknown */
@@ -835,11 +898,15 @@ static int decode_bds_d2_utc(const uint8_t *buff, double *utc)
     trace(NULL,4,"decode_bds_d2_utc:\n");
     
     /* subframe 1 page 1 */
-    if (getbitu(buff,15,3)!=1||getbitu(buff,42,4)!=1) return 0;
-    
+    if (getbitu(buff, 15, 3) != 1 || getbitu(buff, 42, 4) != 1) {
+        return 0;
+    }
+
     /* subframe 5 page 102 */
-    if (getbitu(buff,i+15,3)!=5||getbitu(buff,i+43,7)!=102) return 0;
-    
+    if (getbitu(buff, i + 15, 3) != 5 || getbitu(buff, i + 43, 7) != 102) {
+        return 0;
+    }
+
     utc[4]=getbits2(buff,i+ 50, 2,i+ 60, 6); /* dt_LS */
     utc[7]=getbits (buff,i+ 66, 8);          /* dt_LSF */
     utc[5]=getbitu (buff,i+ 74, 8);          /* WN_LSF */
@@ -867,9 +934,13 @@ static int decode_bds_d2_utc(const uint8_t *buff, double *utc)
 extern int decode_bds_d2(const uint8_t *buff, eph_t *eph, double *utc)
 {
     trace(NULL,4,"decode_bds_d2:\n");
-    
-    if (eph&&!decode_bds_d2_eph(buff,eph)) return 0;
-    if (utc&&!decode_bds_d2_utc(buff,utc)) return 0;
+
+    if (eph && !decode_bds_d2_eph(buff, eph)) {
+        return 0;
+    }
+    if (utc && !decode_bds_d2_utc(buff, utc)) {
+        return 0;
+    }
     return 1;
 }
 /* test hamming code of GLONASS navigation string ------------------------------
@@ -910,7 +981,9 @@ extern int test_glostr(const uint8_t *buff)
         for (j=0,cs=0;j<11;j++) {
             cs^=xor_8bit[buff[j]&mask_hamming[i][j]];
         }
-        if (cs) n++;
+        if (cs) {
+            n++;
+        }
     }
     return n==0||(n==2&&cs);
 }
@@ -1031,12 +1104,18 @@ static int decode_glostr_eph(const uint8_t *buff, geph_t *geph)
     tow=time2gpst(gpst2utc(geph->tof),&week);
     tod=fmod(tow,86400.0); tow-=tod;
     tof=tk_h*3600.0+tk_m*60.0+tk_s-10800.0; /* lt->utc */
-    if      (tof<tod-43200.0) tof+=86400.0;
-    else if (tof>tod+43200.0) tof-=86400.0;
+    if (tof < tod - 43200.0) {
+        tof += 86400.0;
+    } else if (tof > tod + 43200.0) {
+        tof -= 86400.0;
+    }
     geph_glo.tof=utc2gpst(gpst2time(week,tow+tof));
     toe=tb*900.0-10800.0; /* lt->utc */
-    if      (toe<tod-43200.0) toe+=86400.0;
-    else if (toe>tod+43200.0) toe-=86400.0;
+    if (toe < tod - 43200.0) {
+        toe += 86400.0;
+    } else if (toe > tod + 43200.0) {
+        toe -= 86400.0;
+    }
     geph_glo.toe=utc2gpst(gpst2time(week,tow+toe)); /* utc->gpst */
     *geph=geph_glo;
     return 1;
@@ -1049,7 +1128,9 @@ static int decode_glostr_utc(const uint8_t *buff, double *utc)
     trace(NULL,4,"decode_glostr_utc:\n");
     
     /* string 5 */
-    if (getbitu(buff,i,4)!=5) return 0;
+    if (getbitu(buff, i, 4) != 5) {
+        return 0;
+    }
     i+=4+11;  
     utc[0]=getbits(buff,i,32)*P2_31; i+=32+1+6; /* tau_C */
     utc[1]=getbits(buff,i,22)*P2_30;            /* tau_GPS */
@@ -1079,9 +1160,13 @@ static int decode_glostr_utc(const uint8_t *buff, double *utc)
 extern int decode_glostr(const uint8_t *buff, geph_t *geph, double *utc)
 {
     trace(NULL,4,"decode_glostr:\n");
-    
-    if (geph&&!decode_glostr_eph(buff,geph)) return 0;
-    if (utc &&!decode_glostr_utc(buff,utc )) return 0;
+
+    if (geph && !decode_glostr_eph(buff, geph)) {
+        return 0;
+    }
+    if (utc && !decode_glostr_utc(buff, utc)) {
+        return 0;
+    }
     return 1;
 }
 /* decode GPS/QZSS ephemeris -------------------------------------------------*/
@@ -1153,8 +1238,11 @@ static int decode_frame_eph(const uint8_t *buff, eph_t *eph)
     }
     eph_sat.week=adjgpsweek(week);
     eph_sat.ttr=gpst2time(eph_sat.week,tow1);
-    if      (eph_sat.toes<tow1-302400.0) eph_sat.week++;
-    else if (eph_sat.toes>tow1+302400.0) eph_sat.week--;
+    if (eph_sat.toes < tow1 - 302400.0) {
+        eph_sat.week++;
+    } else if (eph_sat.toes > tow1 + 302400.0) {
+        eph_sat.week--;
+    }
     eph_sat.toe=gpst2time(eph_sat.week,eph_sat.toes);
     eph_sat.toc=gpst2time(eph_sat.week,toc);
     eph_sat.type=0; /* ephemeris type = LNAV */
@@ -1171,9 +1259,21 @@ static void decode_alm_sat(const uint8_t *buff, int type, alm_t *alm)
     trace(NULL,4,"decode_alm_sat:\n");
     
     /* type=0:GPS,1:QZS-QZO,2:QZS-GEO */
-    e_ref=(type==0)?0.0:((type==1)?0.06:0.0);
-    i_ref=(type==0)?0.3:((type==1)?0.25:0.0);
-    
+    if (type == 0) {
+        e_ref = 0.0;
+    } else if (type == 1) {
+        e_ref = 0.06;
+    } else {
+        e_ref = 0.0;
+    }
+    if (type == 0) {
+        i_ref = 0.3;
+    } else if (type == 1) {
+        i_ref = 0.25;
+    } else {
+        i_ref = 0.0;
+    }
+
     alm->e   =getbits(buff,i,16)*P2_21+e_ref;  i+=16;
     alm->toas=getbitu(buff,i, 8)*4096.0;       i+= 8;
     deltai   =getbits(buff,i,16)*P2_19;        i+=16;
@@ -1199,7 +1299,9 @@ static int decode_alm_gps(const uint8_t *buff, int frm, alm_t *alm)
     trace(NULL,4,"decode_alm_gps:\n");
     
     if ((frm==5&&svid>=1&&svid<=24)||(frm==4&&svid>=25&&svid<=32)) {
-        if (!(sat=satno(SYS_GPS,svid))) return 0;
+        if (!(sat = satno(SYS_GPS, svid))) {
+            return 0;
+        }
         alm[sat-1].sat=sat;
         decode_alm_sat(buff,0,alm+sat);
         return 1;
@@ -1209,12 +1311,15 @@ static int decode_alm_gps(const uint8_t *buff, int frm, alm_t *alm)
         toas=getbitu(buff,i,8)*4096; i+=8;
         week=getbitu(buff,i,8);      i+=8;
         for (j=0;j<24;j++,i+=6) {
-            if (!(sat=satno(SYS_GPS,j+1))) continue;
+            if (!(sat = satno(SYS_GPS, j + 1))) {
+                continue;
+            }
             alm[sat-1].svh=getbitu(buff,i,6);
         }
         for (j=0;j<32;j++) {
-            if (!(sat=satno(SYS_GPS,j+1))||alm[sat-1].sat!=sat||
-                alm[sat-1].toas!=toas) continue;
+            if (!(sat = satno(SYS_GPS, j + 1)) || alm[sat - 1].sat != sat || alm[sat - 1].toas != toas) {
+                continue;
+            }
             alm[sat-1].week=adjgpsweek(week);
             alm[sat-1].toa=gpst2time(alm[sat-1].week,toas);
         }
@@ -1223,7 +1328,9 @@ static int decode_alm_gps(const uint8_t *buff, int frm, alm_t *alm)
     else if (frm==4&&svid==63) { /* subframe 4 page 25 */
         i=186;
         for (j=0;j<8;j++,i+=6) {
-            if (!(sat=satno(SYS_GPS,j+25))) continue;
+            if (!(sat = satno(SYS_GPS, j + 25))) {
+                continue;
+            }
             alm[sat-1].svh=getbitu(buff,i,6);
         }
         return 1;
@@ -1238,7 +1345,9 @@ static int decode_alm_qzs(const uint8_t *buff, alm_t *alm)
     trace(NULL,4,"decode_alm_qzs:\n");
     
     if (svid>=1&&svid<=9) {
-        if (!(sat=satno(SYS_QZS,192+svid))) return 0;
+        if (!(sat = satno(SYS_QZS, 192 + svid))) {
+            return 0;
+        }
         alm[sat-1].sat=sat;
         decode_alm_sat(buff,(svid<=6)?1:2,alm+sat);
         return 1;
@@ -1248,12 +1357,15 @@ static int decode_alm_qzs(const uint8_t *buff, alm_t *alm)
         toas=getbitu(buff,i,8)*4096; i+=8;
         week=getbitu(buff,i,8);      i+=8;
         for (j=0;j<10;j++,i+=6) {
-            if (!(sat=satno(SYS_QZS,193+j))) continue;
+            if (!(sat = satno(SYS_QZS, 193 + j))) {
+                continue;
+            }
             alm[sat-1].svh=getbitu(buff,i,6);
         }
         for (j=0;j<10;j++) {
-            if (!(sat=satno(SYS_QZS,193+j))||alm[sat-1].sat!=sat||
-                alm[sat-1].toas!=toas) continue;
+            if (!(sat = satno(SYS_QZS, 193 + j)) || alm[sat - 1].sat != sat || alm[sat - 1].toas != toas) {
+                continue;
+            }
             alm[sat-1].week=adjgpsweek(week);
             alm[sat-1].toa=gpst2time(alm[sat-1].week,toas);
         }
@@ -1269,7 +1381,9 @@ static int decode_frame_alm(const uint8_t *buff, alm_t *alm)
     trace(NULL,4,"decode_frame_alm:\n");
     
     for (frm=4,buff+=90;frm<=5;frm++,buff+=30) { /* subframe 4/5 */
-        if (getbitu(buff,43,3)!=frm) continue;
+        if (getbitu(buff, 43, 3) != frm) {
+            continue;
+        }
         dataid=getbitu(buff,48,2);
         
         if (dataid==1) { /* GPS */
@@ -1290,8 +1404,12 @@ static int decode_frame_ion(const uint8_t *buff, double *ion)
     
     /* subframe 4/5 and svid=56 (page18) (wide area for QZSS) */
     for (frm=4,buff+=90;frm<=5;frm++,buff+=30) {
-        if (frm==5&&getbitu(buff,48,2)==1) continue;
-        if (getbitu(buff,43,3)!=frm||getbitu(buff,50,6)!=56) continue;
+        if (frm == 5 && getbitu(buff, 48, 2) == 1) {
+            continue;
+        }
+        if (getbitu(buff, 43, 3) != frm || getbitu(buff, 50, 6) != 56) {
+            continue;
+        }
         i=56;
         ion[0]=getbits(buff,i,8)*P2_30; i+=8;
         ion[1]=getbits(buff,i,8)*P2_27; i+=8;
@@ -1314,8 +1432,12 @@ static int decode_frame_utc(const uint8_t *buff, double *utc)
     
     /* subframe 4/5 and svid=56 (page18) */
     for (frm=4,buff+=90;frm<=5;frm++,buff+=30) {
-        if (frm==5&&getbitu(buff,48,2)==1) continue;
-        if (getbitu(buff,43,3)!=frm||getbitu(buff,50,6)!=56) continue;
+        if (frm == 5 && getbitu(buff, 48, 2) == 1) {
+            continue;
+        }
+        if (getbitu(buff, 43, 3) != frm || getbitu(buff, 50, 6) != 56) {
+            continue;
+        }
         i=120;
         utc[1]=getbits(buff,i,24)*P2_50; i+=24; /* A1 (s) */
         utc[0]=getbits(buff,i,32)*P2_30; i+=32; /* A0 (s) */
@@ -1354,11 +1476,19 @@ extern int decode_frame(const uint8_t *buff, eph_t *eph, alm_t *alm,
                         double *ion, double *utc)
 {
     trace(NULL,4,"decode_frame:\n");
-    
-    if (eph&&!decode_frame_eph(buff,eph)) return 0;
-    if (alm&&!decode_frame_alm(buff,alm)) return 0;
-    if (ion&&!decode_frame_ion(buff,ion)) return 0;
-    if (utc&&!decode_frame_utc(buff,utc)) return 0;
+
+    if (eph && !decode_frame_eph(buff, eph)) {
+        return 0;
+    }
+    if (alm && !decode_frame_alm(buff, alm)) {
+        return 0;
+    }
+    if (ion && !decode_frame_ion(buff, ion)) {
+        return 0;
+    }
+    if (utc && !decode_frame_utc(buff, utc)) {
+        return 0;
+    }
     return 1;
 }
 /* initialize receiver raw data control ----------------------------------------
@@ -1386,7 +1516,9 @@ extern int init_raw(raw_t *raw, int format)
     raw->sbsmsg=sbsmsg0;
     raw->msgtype[0]='\0';
     for (i=0;i<MAXSAT;i++) {
-        for (j=0;j<380;j++) raw->subfrm[i][j]=0;
+        for (j = 0; j < 380; j++) {
+            raw->subfrm[i][j] = 0;
+        }
         for (j=0;j<NFREQ+NEXOBS;j++) {
             raw->tobs [i][j]=time0;
             raw->lockt[i][j]=0.0;
@@ -1394,12 +1526,16 @@ extern int init_raw(raw_t *raw, int format)
         }
         raw->icpp[i]=raw->off[i]=raw->prCA[i]=raw->dpCA[i]=0.0;
     }
-    for (i=0;i<MAXOBS;i++) raw->freqn[i]=0;
+    for (i = 0; i < MAXOBS; i++) {
+        raw->freqn[i] = 0;
+    }
     raw->icpc=0.0;
     raw->nbyte=raw->len=0;
     raw->iod=raw->flag=raw->tbase=raw->outtype=0;
     raw->tod=-1;
-    for (i=0;i<MAXRAWLEN;i++) raw->buff[i]=0;
+    for (i = 0; i < MAXRAWLEN; i++) {
+        raw->buff[i] = 0;
+    }
     raw->opt[0]='\0';
     raw->format=-1;
     
@@ -1426,12 +1562,24 @@ extern int init_raw(raw_t *raw, int format)
     raw->nav.na=MAXSAT;
     raw->nav.ng=NSATGLO;
     raw->nav.ns=NSATSBS*2;
-    for (i=0;i<MAXOBS   ;i++) raw->obs.data [i]=data0;
-    for (i=0;i<MAXOBS   ;i++) raw->obuf.data[i]=data0;
-    for (i=0;i<MAXSAT*2 ;i++) raw->nav.eph  [i]=eph0;
-    for (i=0;i<MAXSAT   ;i++) raw->nav.alm  [i]=alm0;
-    for (i=0;i<NSATGLO  ;i++) raw->nav.geph [i]=geph0;
-    for (i=0;i<NSATSBS*2;i++) raw->nav.seph [i]=seph0;
+    for (i = 0; i < MAXOBS; i++) {
+        raw->obs.data[i] = data0;
+    }
+    for (i = 0; i < MAXOBS; i++) {
+        raw->obuf.data[i] = data0;
+    }
+    for (i = 0; i < MAXSAT * 2; i++) {
+        raw->nav.eph[i] = eph0;
+    }
+    for (i = 0; i < MAXSAT; i++) {
+        raw->nav.alm[i] = alm0;
+    }
+    for (i = 0; i < NSATGLO; i++) {
+        raw->nav.geph[i] = geph0;
+    }
+    for (i = 0; i < NSATSBS * 2; i++) {
+        raw->nav.seph[i] = seph0;
+    }
     raw->sta.name[0]=raw->sta.marker[0]='\0';
     raw->sta.antdes[0]=raw->sta.antsno[0]='\0';
     raw->sta.rectype[0]=raw->sta.recver[0]=raw->sta.recsno[0]='\0';

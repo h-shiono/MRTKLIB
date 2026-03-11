@@ -323,7 +323,9 @@ static toml_table_t *navigate_table(toml_table_t *root, const char *path)
     char *p, *tok;
     toml_table_t *tbl = root;
 
-    if (!path || !*path) return root;
+    if (!path || !*path) {
+        return root;
+    }
 
     strncpy(buf, path, sizeof(buf) - 1);
     buf[sizeof(buf) - 1] = '\0';
@@ -331,7 +333,9 @@ static toml_table_t *navigate_table(toml_table_t *root, const char *path)
     for (tok = buf; (p = strchr(tok, '.')) != NULL; tok = p + 1) {
         *p = '\0';
         tbl = toml_table_in(tbl, tok);
-        if (!tbl) return NULL;
+        if (!tbl) {
+            return NULL;
+        }
     }
     /* last segment */
     if (*tok) {
@@ -398,12 +402,16 @@ static int toml_val_to_str(toml_table_t *tbl, const char *key,
         for (i = 0; i < n && p - buf < bufsz - 20; i++) {
             d = toml_double_at(arr, i);
             if (d.ok) {
-                if (i > 0) *p++ = ',';
+                if (i > 0) {
+                    *p++ = ',';
+                }
                 p += snprintf(p, bufsz - (p - buf), "%.0f", d.u.d);
             } else {
                 d = toml_int_at(arr, i);
                 if (d.ok) {
-                    if (i > 0) *p++ = ',';
+                    if (i > 0) {
+                        *p++ = ',';
+                    }
                     p += snprintf(p, bufsz - (p - buf), "%lld",
                                  (long long)d.u.i);
                 }
@@ -449,11 +457,14 @@ extern int loadopts_toml(const char *file, opt_t *opts)
     for (m = toml_mapping; m->toml_section; m++) {
         /* Navigate to the TOML section */
         tbl = navigate_table(root, m->toml_section);
-        if (!tbl) continue;
+        if (!tbl) {
+            continue;
+        }
 
         /* Read the value */
-        if (!toml_val_to_str(tbl, m->toml_key, valbuf, sizeof(valbuf)))
+        if (!toml_val_to_str(tbl, m->toml_key, valbuf, sizeof(valbuf))) {
             continue;
+        }
 
         /* Find the legacy option and set it */
         opt = searchopt(m->legacy_name, opts);
@@ -496,16 +507,22 @@ extern int saveopts_toml(const char *file, const char *comment,
     }
 
     fprintf(fp, "# MRTKLIB Configuration (TOML v1.0.0)\n");
-    if (comment) fprintf(fp, "# %s\n", comment);
+    if (comment) {
+        fprintf(fp, "# %s\n", comment);
+    }
     fprintf(fp, "\n");
 
     for (m = toml_mapping; m->toml_section; m++) {
         opt = searchopt(m->legacy_name, (opt_t *)opts);
-        if (!opt) continue;
+        if (!opt) {
+            continue;
+        }
 
         /* Section header */
         if (strcmp(m->toml_section, prev_section) != 0) {
-            if (*prev_section) fprintf(fp, "\n");
+            if (*prev_section) {
+                fprintf(fp, "\n");
+            }
             fprintf(fp, "[%s]\n", m->toml_section);
             prev_section = m->toml_section;
         }

@@ -1,6 +1,6 @@
 # MRTKLIB : Modernized RTKLIB for Next-Generation GNSS
 
-[![License](https://img.shields.io/badge/License-BSD_2--Clause-blue.svg)](LICENSE.txt)
+[![License](https://img.shields.io/badge/License-BSD_2--Clause-blue.svg)](LICENSE)
 [![Build](https://img.shields.io/badge/build-CMake-success.svg)]()
 [![C11](https://img.shields.io/badge/standard-C11-blue.svg)]()
 
@@ -46,6 +46,7 @@ incrementally back-ported to each engine:
 | **v0.4.4** | PPP-RTK | Dual-channel CLAS real-time via `rtkrcv` (base stream slot repurposed for L6 ch2) | ✅ Released |
 | **v0.5.0** | All | TOML configuration (replaces legacy `.conf`); legacy `doc/` removed | ✅ Released |
 | **v0.5.1** | PPP-RTK | Bug fix: dual-channel CLAS RT fix rate degradation ([#35](https://github.com/h-shiono/MRTKLIB/issues/35)); `gen_l6_tag.py` tick_scale fix | ✅ Released |
+| **v0.5.2** | All | Code quality: mandatory braces on control flow, nested/complex ternary elimination (67 files) | ✅ Released |
 | **v0.5.x** | PPP-RTK | Bug fix: CLAS real-time positioning does not work properly ([#31](https://github.com/h-shiono/MRTKLIB/issues/31)) | 🔜 Planned |
 | **v0.5.x** | All | Signals update: frequency / physical band separation and structuring | 🔜 Planned |
 | **TBD** | — | Port remaining RTKLIB console apps: `convbin` (RINEX converter), `str2str` (stream relay) | 💭 Backlog |
@@ -153,7 +154,7 @@ This project stands on the shoulders of giants:
 | **Cabinet Office, Japan** | MADOCALIB — PPP/PPP-AR positioning algorithms |
 | **Lighthouse Technology & Consulting** | MADOCALIB — system integration and L6E/L6D decoder |
 
-For detailed licensing information, please refer to [LICENSE.txt](LICENSE.txt).
+For detailed licensing information, please refer to [LICENSE](LICENSE).
 
 ## 🗄️ Benchmark Dataset
 

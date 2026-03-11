@@ -105,8 +105,12 @@ static FILE *open_L6(char **infile, int n)
     int i;
 
     for (i = 0; i < n; i++) {
-        if (!(ext = strrchr(infile[i], '.'))) continue;
-        if (!strcmp(ext, ".l6") || !strcmp(ext, ".L6")) break;
+        if (!(ext = strrchr(infile[i], '.'))) {
+            continue;
+        }
+        if (!strcmp(ext, ".l6") || !strcmp(ext, ".L6")) {
+            break;
+        }
     }
     if (i >= n) {
         fprintf(stderr, "No L6 message file in input files.\n");
@@ -141,9 +145,13 @@ static void set_rnxopt(rnxopt_t *opt, char **infile, int n,
     opt->tstart = opt->tend = time;
 
     for (i = 0; i < 4; i++) {
-        if (!(sys[i] & opt->navsys)) continue;
+        if (!(sys[i] & opt->navsys)) {
+            continue;
+        }
         for (j = nobs = 0; j < OSR_NFREQ; j++) {
-            if (tobs[i][j] == NULL) continue;
+            if (tobs[i][j] == NULL) {
+                continue;
+            }
             sprintf(opt->tobs[i][nobs++], "C%s", tobs[i][j]);
             sprintf(opt->tobs[i][nobs++], "L%s", tobs[i][j]);
         }
@@ -221,25 +229,33 @@ static void write_rtcm3(FILE *fp, const obs_t *obs, nav_t *nav,
     rtcm_t *rtcm;
     int i, j, k, sys, sync;
 
-    if (obs->n <= 0) return;
-    if (!(rtcm = (rtcm_t *)calloc(1, sizeof(rtcm_t)))) return;
+    if (obs->n <= 0) {
+        return;
+    }
+    if (!(rtcm = (rtcm_t*)calloc(1, sizeof(rtcm_t)))) {
+        return;
+    }
     if (!init_rtcm(rtcm)) { free(rtcm); return; }
     rtcm->time = obs->data[0].time;
     matcpy(rtcm->sta.pos, prcopt->ru, 3, 1);
 
     /* station coordinates message (1005); sync=1 — MSM follows */
-    if (gen_rtcm3(rtcm, 1005, 0, 1))
+    if (gen_rtcm3(rtcm, 1005, 0, 1)) {
         fwrite(rtcm->buff, rtcm->nbyte, 1, fp);
+    }
 
     /* MSM4 per constellation — copy filtered obs into init_rtcm's heap buffer */
     for (k = 0; rtcm3_msm_sys[k]; k++) {
         sys = rtcm3_msm_sys[k];
         rtcm->obs.n = 0;
         for (i = 0; i < obs->n && rtcm->obs.n < MAXOBS; i++) {
-            if (satsys(obs->data[i].sat, NULL) & sys)
+            if (satsys(obs->data[i].sat, NULL) & sys) {
                 rtcm->obs.data[rtcm->obs.n++] = obs->data[i];
+            }
         }
-        if (rtcm->obs.n <= 0) continue;
+        if (rtcm->obs.n <= 0) {
+            continue;
+        }
 
         /* sync=1 if any later constellation has data */
         sync = 0;
@@ -250,8 +266,9 @@ static void write_rtcm3(FILE *fp, const obs_t *obs, nav_t *nav,
                 }
             }
         }
-        if (gen_rtcm3(rtcm, rtcm3_msm_types[k], 0, sync))
+        if (gen_rtcm3(rtcm, rtcm3_msm_types[k], 0, sync)) {
             fwrite(rtcm->buff, rtcm->nbyte, 1, fp);
+        }
     }
     free_rtcm(rtcm);
     free(rtcm);
@@ -268,16 +285,23 @@ static int actualdist(gtime_t time, obs_t *obs, nav_t *nav, const double *x)
     int svh1;
 
     obs->n = 0;
-    for (i = 0; i < MAXOBS; i++) obsd[i].time = time;
+    for (i = 0; i < MAXOBS; i++) {
+        obsd[i].time = time;
+    }
 
     for (i = n = 0; i < MAXSAT; i++) {
-        if (!nav->ssr_ch[0][i].t0[0].time || !nav->ssr_ch[0][i].t0[1].time)
+        if (!nav->ssr_ch[0][i].t0[0].time || !nav->ssr_ch[0][i].t0[1].time) {
             continue;
+        }
         lsat[n++] = i + 1;
     }
 
-    for (i = 0; i < 3; i++) rr[i] = x[i];
-    if (norm(rr, 3) <= 0.0) return -1;
+    for (i = 0; i < 3; i++) {
+        rr[i] = x[i];
+    }
+    if (norm(rr, 3) <= 0.0) {
+        return -1;
+    }
 
     /* compute pseudorange via iterative light-time correction */
     for (i = 0; i < n; i++) {
@@ -374,7 +398,9 @@ static int gen_osr(gtime_t ts, gtime_t te, double ti, int mode,
     /* read RINEX NAV files */
     for (i = 0; i < n; i++) {
         char *ext = strrchr(infile[i], '.');
-        if (ext && (!strcmp(ext, ".l6") || !strcmp(ext, ".L6"))) continue;
+        if (ext && (!strcmp(ext, ".l6") || !strcmp(ext, ".L6"))) {
+            continue;
+        }
         reppath(infile[i], path, ts, "", "");
         readrnx(path, 0, "", NULL, nav, NULL);
     }
@@ -420,7 +446,9 @@ static int gen_osr(gtime_t ts, gtime_t te, double ti, int mode,
         /* read compact SSR from L6 message file until current time */
         while (timediff(clas->l6buf[ch].time, time) < 1E-3) {
             ret = clas_input_cssrf(clas, fp_in, ch);
-            if (ret < -1) break; /* EOF */
+            if (ret < -1) {
+                break; /* EOF */
+            }
             if (ret == 10) {
                 /* subtype 10 (service info) received — update corrections */
                 int net = clas->grid[ch].network;
@@ -459,14 +487,16 @@ static int gen_osr(gtime_t ts, gtime_t te, double ti, int mode,
         obs.n = clas_ssr2osr(&rtk, obs.data, obs.n, nav, osr, 0, clas);
 
         if (obs.n > 0) {
-            if (mode == OSR_RTCM3)
+            if (mode == OSR_RTCM3) {
                 write_rtcm3(fp_out, &obs, nav, prcopt);
-            else
+            } else {
                 write_osr(fp_out, mode, &obs, nav);
+            }
             if (fp_csv) {
-                for (j = 0; j < obs.n; j++)
+                for (j = 0; j < obs.n; j++) {
                     output_osr_csv(fp_csv, obs.data[j].time,
                                    obs.data[j].sat, &osr[j], &first_csv);
+                }
             }
         }
     }
@@ -541,22 +571,30 @@ int main(int argc, char **argv)
             sscanf(argv[++i], "%lf/%lf/%lf", ee, ee + 1, ee + 2);
             sscanf(argv[++i], "%lf:%lf:%lf", ee + 3, ee + 4, ee + 5);
             te = epoch2time(ee);
-        }
-        else if (!strcmp(argv[i], "-ti") && i + 1 < argc) ti = atof(argv[++i]);
-        else if (!strcmp(argv[i], "-p") && i + 1 < argc) {
+        } else if (!strcmp(argv[i], "-ti") && i + 1 < argc) {
+            ti = atof(argv[++i]);
+        } else if (!strcmp(argv[i], "-p") && i + 1 < argc) {
             sscanf(argv[++i], "%lf,%lf,%lf", pos, pos + 1, pos + 2);
-        }
-        else if (!strcmp(argv[i], "-k") && i + 1 < argc) conffile = argv[++i];
-        else if (!strcmp(argv[i], "-o") && i + 1 < argc) outfile = argv[++i];
-        else if (!strcmp(argv[i], "-c") && i + 1 < argc) csvfile = argv[++i];
-        else if (!strcmp(argv[i], "-x") && i + 1 < argc) solopt.trace = atoi(argv[++i]);
-        else if (!strcmp(argv[i], "-r")) mode = OSR_RINEX;
-        else if (!strcmp(argv[i], "-b")) mode = OSR_RTCM3;
-        else if (!strncmp(argv[i], "-", 1)) {
-            for (j = 0; usage[j]; j++) fprintf(stderr, "%s\n", usage[j]);
+        } else if (!strcmp(argv[i], "-k") && i + 1 < argc) {
+            conffile = argv[++i];
+        } else if (!strcmp(argv[i], "-o") && i + 1 < argc) {
+            outfile = argv[++i];
+        } else if (!strcmp(argv[i], "-c") && i + 1 < argc) {
+            csvfile = argv[++i];
+        } else if (!strcmp(argv[i], "-x") && i + 1 < argc) {
+            solopt.trace = atoi(argv[++i]);
+        } else if (!strcmp(argv[i], "-r")) {
+            mode = OSR_RINEX;
+        } else if (!strcmp(argv[i], "-b")) {
+            mode = OSR_RTCM3;
+        } else if (!strncmp(argv[i], "-", 1)) {
+            for (j = 0; usage[j]; j++) {
+                fprintf(stderr, "%s\n", usage[j]);
+            }
             return 0;
+        } else if (n < MAXFILE) {
+            infile[n++] = argv[i];
         }
-        else if (n < MAXFILE) infile[n++] = argv[i];
     }
 
     if (norm(es, 3) <= 0.0) {
@@ -566,7 +604,9 @@ int main(int argc, char **argv)
     if (norm(ee, 3) <= 0.0) {
         te = timeadd(epoch2time(es), 3599.0);
     }
-    if (!set_prcopt(conffile, &prcopt, &solopt, &filopt, pos)) return -1;
+    if (!set_prcopt(conffile, &prcopt, &solopt, &filopt, pos)) {
+        return -1;
+    }
 
     if (solopt.trace > 0) {
         traceopen(NULL, "ssr2obs.trace");
@@ -579,7 +619,9 @@ int main(int argc, char **argv)
 
     stat = gen_osr(ts, te, ti, mode, &prcopt, &filopt, infile, n, outfile, fp_csv);
 
-    if (fp_csv) fclose(fp_csv);
+    if (fp_csv) {
+        fclose(fp_csv);
+    }
     traceclose(NULL);
     return stat;
 }

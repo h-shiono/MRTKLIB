@@ -55,7 +55,9 @@ static const double ssrudint[16] = {
 extern int clas_ctx_init(clas_ctx_t *ctx)
 {
     int i;
-    if (!ctx) return -1;
+    if (!ctx) {
+        return -1;
+    }
 
     memset(ctx, 0, sizeof(clas_ctx_t));
 
@@ -85,7 +87,9 @@ extern int clas_ctx_init(clas_ctx_t *ctx)
 extern void clas_ctx_free(clas_ctx_t *ctx)
 {
     int i;
-    if (!ctx) return;
+    if (!ctx) {
+        return;
+    }
 
     for (i = 0; i < CLAS_CH_NUM; i++) {
         free(ctx->bank[i]);
@@ -97,7 +101,9 @@ extern void clas_ctx_free(clas_ctx_t *ctx)
 extern void clas_bank_init(clas_ctx_t *ctx, int ch)
 {
     clas_bank_ctrl_t *bank;
-    if (!ctx || ch < 0 || ch >= CLAS_CH_NUM || !ctx->bank[ch]) return;
+    if (!ctx || ch < 0 || ch >= CLAS_CH_NUM || !ctx->bank[ch]) {
+        return;
+    }
 
     bank = ctx->bank[ch];
     memset(&bank->LatestTrop, 0, sizeof(clas_latest_trop_t));
@@ -136,15 +142,27 @@ static double decode_sval(const uint8_t *buff, int i, int n, double lsb)
 extern int cssr_sys2gnss(int sys, int *prn0)
 {
     int id = CSSR_SYS_NONE;
-    if (prn0) *prn0 = 1;
+    if (prn0) {
+        *prn0 = 1;
+    }
 
     switch (sys) {
         case SYS_GPS: id = CSSR_SYS_GPS; break;
         case SYS_GLO: id = CSSR_SYS_GLO; break;
         case SYS_GAL: id = CSSR_SYS_GAL; break;
         case SYS_CMP: id = CSSR_SYS_BDS; break;
-        case SYS_SBS: id = CSSR_SYS_SBS; if (prn0) *prn0 = 120; break;
-        case SYS_QZS: id = CSSR_SYS_QZS; if (prn0) *prn0 = 193; break;
+        case SYS_SBS:
+            id = CSSR_SYS_SBS;
+            if (prn0) {
+                *prn0 = 120;
+            }
+            break;
+        case SYS_QZS:
+            id = CSSR_SYS_QZS;
+            if (prn0) {
+                *prn0 = 193;
+            }
+            break;
     }
     return id;
 }
@@ -152,15 +170,27 @@ extern int cssr_sys2gnss(int sys, int *prn0)
 extern int cssr_gnss2sys(int gnss, int *prn0)
 {
     int sys = SYS_NONE;
-    if (prn0) *prn0 = 1;
+    if (prn0) {
+        *prn0 = 1;
+    }
 
     switch (gnss) {
         case CSSR_SYS_GPS: sys = SYS_GPS; break;
         case CSSR_SYS_GLO: sys = SYS_GLO; break;
         case CSSR_SYS_GAL: sys = SYS_GAL; break;
         case CSSR_SYS_BDS: sys = SYS_CMP; break;
-        case CSSR_SYS_SBS: sys = SYS_SBS; if (prn0) *prn0 = 120; break;
-        case CSSR_SYS_QZS: sys = SYS_QZS; if (prn0) *prn0 = 193; break;
+        case CSSR_SYS_SBS:
+            sys = SYS_SBS;
+            if (prn0) {
+                *prn0 = 120;
+            }
+            break;
+        case CSSR_SYS_QZS:
+            sys = SYS_QZS;
+            if (prn0) {
+                *prn0 = 193;
+            }
+            break;
     }
     return sys;
 }
@@ -169,7 +199,9 @@ static int svmask2nsat(uint64_t svmask)
 {
     int j, nsat = 0;
     for (j = 0; j < CSSR_MAX_SV_GNSS; j++) {
-        if ((svmask >> (CSSR_MAX_SV_GNSS - 1 - j)) & 1) nsat++;
+        if ((svmask >> (CSSR_MAX_SV_GNSS - 1 - j)) & 1) {
+            nsat++;
+        }
     }
     return nsat;
 }
@@ -178,7 +210,9 @@ static int sigmask2nsig(uint16_t sigmask)
 {
     int j, nsig = 0;
     for (j = 0; j < CSSR_MAX_SIG; j++) {
-        if ((sigmask >> j) & 1) nsig++;
+        if ((sigmask >> j) & 1) {
+            nsig++;
+        }
     }
     return nsig;
 }
@@ -202,7 +236,9 @@ static int svmask2sat(uint64_t *svmask, int *sat)
         sys = cssr_gnss2sys(id, &prn_min);
         for (j = 0; j < CSSR_MAX_SV_GNSS; j++) {
             if ((svmask[id] >> (CSSR_MAX_SV_GNSS - 1 - j)) & 1) {
-                if (sat) sat[nsat] = satno(sys, prn_min + j);
+                if (sat) {
+                    sat[nsat] = satno(sys, prn_min + j);
+                }
                 nsat++;
             }
         }
@@ -212,13 +248,17 @@ static int svmask2sat(uint64_t *svmask, int *sat)
 
 static float decode_cssr_quality_stec(int a, int b)
 {
-    if ((a == 0 && b == 0) || (a == 7 && b == 7)) return 9999.0f * 1000.0f;
+    if ((a == 0 && b == 0) || (a == 7 && b == 7)) {
+        return 9999.0f * 1000.0f;
+    }
     return (float)((1.0 + b * 0.25) * pow(3.0, a) - 1.0);
 }
 
 static float decode_cssr_quality_trop(int a, int b)
 {
-    if ((a == 0 && b == 0) || (a == 7 && b == 7)) return 9999.0f;
+    if ((a == 0 && b == 0) || (a == 7 && b == 7)) {
+        return 9999.0f;
+    }
     return (float)((1.0 + b * 0.25) * pow(3.0, a) - 1.0);
 }
 
@@ -252,14 +292,17 @@ static int sigmask2sig_p(int nsat, int *sat, uint16_t *sigmask,
         if (sys != sys_p) {
             id = cssr_sys2gnss(sys, NULL);
             for (k = 0, nsig_s = 0; k < CSSR_MAX_SIG; k++) {
-                if ((sigmask[id] >> (CSSR_MAX_SIG - 1 - k)) & 1)
+                if ((sigmask[id] >> (CSSR_MAX_SIG - 1 - k)) & 1) {
                     code[nsig_s++] = k;
+                }
             }
         }
         sys_p = sys;
         for (k = 0, nsig[j] = 0; k < nsig_s; k++) {
             if ((cellmask[j] >> (nsig_s - 1 - k)) & 1) {
-                if (sig) sig[j * CSSR_MAX_SIG + nsig[j]] = code[k];
+                if (sig) {
+                    sig[j * CSSR_MAX_SIG + nsig[j]] = code[k];
+                }
                 nsig[j]++;
             }
         }
@@ -312,14 +355,17 @@ static int sigmask2sig(int nsat, int *sat, uint16_t *sigmask,
                 default: codes=NULL; csize=0; break;
             }
             for (k = 0, nsig_s = 0; k < csize && k < CSSR_MAX_SIG; k++) {
-                if ((sigmask[id] >> (CSSR_MAX_SIG - 1 - k)) & 1)
+                if ((sigmask[id] >> (CSSR_MAX_SIG - 1 - k)) & 1) {
                     code[nsig_s++] = codes[k];
+                }
             }
         }
         sys_p = sys;
         for (k = 0, nsig[j] = 0; k < nsig_s; k++) {
             if ((cellmask[j] >> (nsig_s - 1 - k)) & 1) {
-                if (sig) sig[j * CSSR_MAX_SIG + nsig[j]] = code[k];
+                if (sig) {
+                    sig[j * CSSR_MAX_SIG + nsig[j]] = code[k];
+                }
                 nsig[j]++;
             }
         }
@@ -336,8 +382,9 @@ static clas_orbit_bank_t *get_same_orbit(clas_bank_ctrl_t *bank, gtime_t time, i
     int i;
     for (i = 0; i < CLAS_BANK_NUM; i++) {
         if (bank->OrbitBank[i].use && bank->OrbitBank[i].network == network &&
-            timediff(bank->OrbitBank[i].time, time) == 0.0)
+            timediff(bank->OrbitBank[i].time, time) == 0.0) {
             return &bank->OrbitBank[i];
+        }
     }
     return NULL;
 }
@@ -347,8 +394,9 @@ static clas_clock_bank_t *get_same_clock(clas_bank_ctrl_t *bank, gtime_t time, i
     int i;
     for (i = 0; i < CLAS_BANK_NUM; i++) {
         if (bank->ClockBank[i].use && bank->ClockBank[i].network == network &&
-            timediff(bank->ClockBank[i].time, time) == 0.0)
+            timediff(bank->ClockBank[i].time, time) == 0.0) {
             return &bank->ClockBank[i];
+        }
     }
     return NULL;
 }
@@ -358,8 +406,9 @@ static clas_bias_bank_t *get_same_bias(clas_bank_ctrl_t *bank, gtime_t time, int
     int i;
     for (i = 0; i < CLAS_BANK_NUM; i++) {
         if (bank->BiasBank[i].use && bank->BiasBank[i].network == network &&
-            timediff(bank->BiasBank[i].time, time) == 0.0)
+            timediff(bank->BiasBank[i].time, time) == 0.0) {
             return &bank->BiasBank[i];
+        }
     }
     return NULL;
 }
@@ -368,8 +417,9 @@ static clas_trop_bank_t *get_same_trop(clas_bank_ctrl_t *bank, gtime_t time)
 {
     int i;
     for (i = 0; i < CLAS_BANK_NUM; i++) {
-        if (bank->TropBank[i].use && timediff(bank->TropBank[i].time, time) == 0.0)
+        if (bank->TropBank[i].use && timediff(bank->TropBank[i].time, time) == 0.0) {
             return &bank->TropBank[i];
+        }
     }
     return NULL;
 }
@@ -385,12 +435,19 @@ static clas_orbit_bank_t *get_close_orbit(clas_bank_ctrl_t *bank, gtime_t time,
     int pos = -1, i;
 
     for (i = 0; i < CLAS_BANK_NUM; i++) {
-        if (!bank->OrbitBank[i].use || bank->OrbitBank[i].network != search)
+        if (!bank->OrbitBank[i].use || bank->OrbitBank[i].network != search) {
             continue;
-        if (fabs(timediff(bank->OrbitBank[i].time, time)) > age) continue;
-        if (pos != -1 && fabs(timediff(bank->OrbitBank[pos].time, time)) <
-            fabs(timediff(bank->OrbitBank[i].time, time))) continue;
-        if (timediff(bank->OrbitBank[i].time, time) > 0.0) continue;
+        }
+        if (fabs(timediff(bank->OrbitBank[i].time, time)) > age) {
+            continue;
+        }
+        if (pos != -1 &&
+            fabs(timediff(bank->OrbitBank[pos].time, time)) < fabs(timediff(bank->OrbitBank[i].time, time))) {
+            continue;
+        }
+        if (timediff(bank->OrbitBank[i].time, time) > 0.0) {
+            continue;
+        }
         pos = i;
     }
     return (pos != -1) ? &bank->OrbitBank[pos] : NULL;
@@ -403,12 +460,18 @@ static clas_clock_bank_t *get_close_clock(clas_bank_ctrl_t *bank, gtime_t obstim
     int pos = -1, i;
 
     for (i = 0; i < CLAS_BANK_NUM; i++) {
-        if (!bank->ClockBank[i].use || bank->ClockBank[i].network != search)
+        if (!bank->ClockBank[i].use || bank->ClockBank[i].network != search) {
             continue;
-        if (timediff(bank->ClockBank[i].time, time) >= age) continue;
-        if (pos != -1 && timediff(bank->ClockBank[pos].time, bank->ClockBank[i].time) > 0.0)
+        }
+        if (timediff(bank->ClockBank[i].time, time) >= age) {
             continue;
-        if (timediff(bank->ClockBank[i].time, obstime) > 0.0) continue;
+        }
+        if (pos != -1 && timediff(bank->ClockBank[pos].time, bank->ClockBank[i].time) > 0.0) {
+            continue;
+        }
+        if (timediff(bank->ClockBank[i].time, obstime) > 0.0) {
+            continue;
+        }
         pos = i;
     }
     return (pos != -1) ? &bank->ClockBank[pos] : NULL;
@@ -418,15 +481,23 @@ static clas_bias_bank_t *get_close_cbias(clas_bank_ctrl_t *bank, gtime_t time,
                                          int network, double age)
 {
     int pos = -1, i;
-    if (network < 0 || network >= CLAS_MAX_NETWORK) return NULL;
+    if (network < 0 || network >= CLAS_MAX_NETWORK) {
+        return NULL;
+    }
 
     for (i = 0; i < CLAS_BANK_NUM; i++) {
-        if (!bank->BiasBank[i].use || bank->BiasBank[i].network != network)
+        if (!bank->BiasBank[i].use || bank->BiasBank[i].network != network) {
             continue;
-        if (timediff(bank->BiasBank[i].time, time) > age) continue;
-        if (pos != -1 && timediff(bank->BiasBank[pos].time, bank->BiasBank[i].time) > 0.0)
+        }
+        if (timediff(bank->BiasBank[i].time, time) > age) {
             continue;
-        if ((bank->BiasBank[i].bflag & 0x01) == 0x01) pos = i;
+        }
+        if (pos != -1 && timediff(bank->BiasBank[pos].time, bank->BiasBank[i].time) > 0.0) {
+            continue;
+        }
+        if ((bank->BiasBank[i].bflag & 0x01) == 0x01) {
+            pos = i;
+        }
     }
     return (pos != -1) ? &bank->BiasBank[pos] : NULL;
 }
@@ -435,15 +506,23 @@ static clas_bias_bank_t *get_close_pbias(clas_bank_ctrl_t *bank, gtime_t time,
                                          int network, double age)
 {
     int pos = -1, i;
-    if (network < 0 || network >= CLAS_MAX_NETWORK) return NULL;
+    if (network < 0 || network >= CLAS_MAX_NETWORK) {
+        return NULL;
+    }
 
     for (i = 0; i < CLAS_BANK_NUM; i++) {
-        if (!bank->BiasBank[i].use || bank->BiasBank[i].network != network)
+        if (!bank->BiasBank[i].use || bank->BiasBank[i].network != network) {
             continue;
-        if (timediff(bank->BiasBank[i].time, time) > age) continue;
-        if (pos != -1 && timediff(bank->BiasBank[pos].time, bank->BiasBank[i].time) > 0.0)
+        }
+        if (timediff(bank->BiasBank[i].time, time) > age) {
             continue;
-        if ((bank->BiasBank[i].bflag & 0x02) == 0x02) pos = i;
+        }
+        if (pos != -1 && timediff(bank->BiasBank[pos].time, bank->BiasBank[i].time) > 0.0) {
+            continue;
+        }
+        if ((bank->BiasBank[i].bflag & 0x02) == 0x02) {
+            pos = i;
+        }
     }
     return (pos != -1) ? &bank->BiasBank[pos] : NULL;
 }
@@ -452,10 +531,11 @@ static clas_bias_bank_t *get_close_net_cbias(clas_bank_ctrl_t *bank, gtime_t tim
                                              int network, double age)
 {
     clas_bias_bank_t *cb;
-    if (network != 0 && !(cb = get_close_cbias(bank, time, network, age)))
+    if (network != 0 && !(cb = get_close_cbias(bank, time, network, age))) {
         cb = get_close_cbias(bank, time, 0, age);
-    else
+    } else {
         cb = get_close_cbias(bank, time, (network == 0) ? 0 : network, age);
+    }
     return cb;
 }
 
@@ -463,10 +543,11 @@ static clas_bias_bank_t *get_close_net_pbias(clas_bank_ctrl_t *bank, gtime_t tim
                                              int network, double age)
 {
     clas_bias_bank_t *pb;
-    if (network != 0 && !(pb = get_close_pbias(bank, time, network, age)))
+    if (network != 0 && !(pb = get_close_pbias(bank, time, network, age))) {
         pb = get_close_pbias(bank, time, 0, age);
-    else
+    } else {
         pb = get_close_pbias(bank, time, (network == 0) ? 0 : network, age);
+    }
     return pb;
 }
 
@@ -474,15 +555,26 @@ static clas_trop_bank_t *get_close_trop(clas_bank_ctrl_t *bank, gtime_t obstime,
                                         gtime_t time, int network, double age, int tropless)
 {
     int pos = -1, i;
-    if (network < 1 || network >= CLAS_MAX_NETWORK) return NULL;
+    if (network < 1 || network >= CLAS_MAX_NETWORK) {
+        return NULL;
+    }
 
     for (i = 0; i < CLAS_BANK_NUM; i++) {
-        if (!bank->TropBank[i].use) continue;
-        if (fabs(timediff(time, bank->TropBank[i].time)) > age) continue;
-        if (pos != -1 && timediff(bank->TropBank[pos].time, bank->TropBank[i].time) > 0.0)
+        if (!bank->TropBank[i].use) {
             continue;
-        if (tropless && timediff(obstime, bank->TropBank[i].time) < 0.0) continue;
-        if (bank->TropBank[i].gridnum[network - 1] > 0) pos = i;
+        }
+        if (fabs(timediff(time, bank->TropBank[i].time)) > age) {
+            continue;
+        }
+        if (pos != -1 && timediff(bank->TropBank[pos].time, bank->TropBank[i].time) > 0.0) {
+            continue;
+        }
+        if (tropless && timediff(obstime, bank->TropBank[i].time) < 0.0) {
+            continue;
+        }
+        if (bank->TropBank[i].gridnum[network - 1] > 0) {
+            pos = i;
+        }
     }
     return (pos != -1) ? &bank->TropBank[pos] : NULL;
 }
@@ -491,10 +583,14 @@ static int get_bias_save_point(clas_bias_bank_t *bias, int prn, int mode)
 {
     int i;
     for (i = 0; i < MAXCODE; i++) {
-        if (bias->smode[prn - 1][i] == mode) return i;
+        if (bias->smode[prn - 1][i] == mode) {
+            return i;
+        }
     }
     for (i = 0; i < MAXCODE; i++) {
-        if (bias->smode[prn - 1][i] == 0) return i;
+        if (bias->smode[prn - 1][i] == 0) {
+            return i;
+        }
     }
     return -1;
 }
@@ -532,12 +628,16 @@ static void set_cssr_bank_orbit(clas_ctx_t *ctx, int ch, gtime_t time, int netwo
         orbit->network = network;
         orbit->time = time;
         orbit->use = 1;
-        if (++bank->NextOrbit >= CLAS_BANK_NUM) bank->NextOrbit = 0;
+        if (++bank->NextOrbit >= CLAS_BANK_NUM) {
+            bank->NextOrbit = 0;
+        }
         memset(orbit->prn, 0, sizeof(orbit->prn));
     } else {
         /* clear existing entries */
         for (i = 0; i < MAXSAT; i++) {
-            if (!orbit->prn[i]) continue;
+            if (!orbit->prn[i]) {
+                continue;
+            }
             orbit->prn[i] = 0;
             orbit->udi[i] = 0.0;
             orbit->iod[i] = 0;
@@ -547,7 +647,9 @@ static void set_cssr_bank_orbit(clas_ctx_t *ctx, int ch, gtime_t time, int netwo
     }
     for (i = 0; i < MAXSAT; i++) {
         ssr = &ctx->dec_ssr[i];
-        if (ssr->update_oc != 1) continue;
+        if (ssr->update_oc != 1) {
+            continue;
+        }
         if (ssr->deph[0] != CSSR_INVALID_VALUE) {
             orbit->prn[i] = i + 1;
             orbit->udi[i] = ssr->udi[0];
@@ -574,11 +676,15 @@ static void set_cssr_bank_clock(clas_ctx_t *ctx, int ch, gtime_t time, int netwo
         clk->network = network;
         clk->time = time;
         clk->use = 1;
-        if (++bank->NextClock >= CLAS_BANK_NUM) bank->NextClock = 0;
+        if (++bank->NextClock >= CLAS_BANK_NUM) {
+            bank->NextClock = 0;
+        }
         memset(clk->prn, 0, sizeof(clk->prn));
     } else {
         for (i = 0; i < MAXSAT; i++) {
-            if (!clk->prn[i]) continue;
+            if (!clk->prn[i]) {
+                continue;
+            }
             clk->prn[i] = 0;
             clk->udi[i] = 0.0;
             clk->iod[i] = 0;
@@ -587,7 +693,9 @@ static void set_cssr_bank_clock(clas_ctx_t *ctx, int ch, gtime_t time, int netwo
     }
     for (i = 0; i < MAXSAT; i++) {
         ssr = &ctx->dec_ssr[i];
-        if (ssr->update_cc != 1) continue;
+        if (ssr->update_cc != 1) {
+            continue;
+        }
         if (ssr->dclk[0] != CSSR_INVALID_VALUE) {
             clk->prn[i] = i + 1;
             clk->udi[i] = ssr->udi[1];
@@ -612,7 +720,9 @@ static void set_cssr_bank_cbias(clas_ctx_t *ctx, int ch, gtime_t time, int netwo
         bias->bflag = 0;
         bias->time = time;
         bias->use = 1;
-        if (++bank->NextBias >= CLAS_BANK_NUM) bank->NextBias = 0;
+        if (++bank->NextBias >= CLAS_BANK_NUM) {
+            bank->NextBias = 0;
+        }
         memset(bias->smode, 0, sizeof(bias->smode));
         memset(bias->sflag, 0, sizeof(bias->sflag));
         memset(bias->prn, 0, sizeof(bias->prn));
@@ -631,7 +741,9 @@ static void set_cssr_bank_cbias(clas_ctx_t *ctx, int ch, gtime_t time, int netwo
     }
     for (i = 0; i < MAXSAT; i++) {
         ssr = &ctx->dec_ssr[i];
-        if (ssr->update_cb != 1 || ssr->nsig <= 0) continue;
+        if (ssr->update_cb != 1 || ssr->nsig <= 0) {
+            continue;
+        }
         bias->prn[i] = i + 1;
         bias->bflag |= 0x01;
         bias->udi[i] = ssr->udi[4];
@@ -660,7 +772,9 @@ static void set_cssr_bank_pbias(clas_ctx_t *ctx, int ch, gtime_t time, int netwo
         bias->bflag = 0;
         bias->time = time;
         bias->use = 1;
-        if (++bank->NextBias >= CLAS_BANK_NUM) bank->NextBias = 0;
+        if (++bank->NextBias >= CLAS_BANK_NUM) {
+            bank->NextBias = 0;
+        }
         memset(bias->smode, 0, sizeof(bias->smode));
         memset(bias->sflag, 0, sizeof(bias->sflag));
         memset(bias->prn, 0, sizeof(bias->prn));
@@ -679,7 +793,9 @@ static void set_cssr_bank_pbias(clas_ctx_t *ctx, int ch, gtime_t time, int netwo
     }
     for (i = 0; i < MAXSAT; i++) {
         ssr = &ctx->dec_ssr[i];
-        if (ssr->update_pb != 1 || ssr->nsig <= 0) continue;
+        if (ssr->update_pb != 1 || ssr->nsig <= 0) {
+            continue;
+        }
         bias->prn[i] = i + 1;
         bias->bflag |= 0x02;
         bias->udi[i] = ssr->udi[5];
@@ -771,7 +887,9 @@ static void set_cssr_bank_trop(clas_ctx_t *ctx, int ch, gtime_t time,
         trop = &bank->TropBank[bank->NextTrop];
         trop->time = time;
         trop->use = 1;
-        if (++bank->NextTrop >= CLAS_BANK_NUM) bank->NextTrop = 0;
+        if (++bank->NextTrop >= CLAS_BANK_NUM) {
+            bank->NextTrop = 0;
+        }
         memset(trop->gridnum, 0, sizeof(trop->gridnum));
         memset(trop->satnum, 0, sizeof(trop->satnum));
     }
@@ -820,9 +938,13 @@ static clas_bias_bank_t *add_base_value_to_cbias(clas_bank_ctrl_t *bank,
     if ((temp = get_same_bias(bank, basetime, network)) && (temp->bflag & 0x01)) {
         memcpy(&cbias, srcbias, sizeof(clas_bias_bank_t));
         for (i = 0; i < MAXSAT; i++) {
-            if (cbias.prn[i] == 0 || temp->prn[i] == 0) continue;
+            if (cbias.prn[i] == 0 || temp->prn[i] == 0) {
+                continue;
+            }
             for (j = 0; j < MAXCODE; j++) {
-                if (temp->smode[i][j] == 0 || !(temp->sflag[i][j] & 0x01)) continue;
+                if (temp->smode[i][j] == 0 || !(temp->sflag[i][j] & 0x01)) {
+                    continue;
+                }
                 if ((pos = get_bias_save_point(&cbias, cbias.prn[i], temp->smode[i][j])) != -1) {
                     if (cbias.cbias[i][pos] != CSSR_INVALID_VALUE &&
                         temp->cbias[i][j] != CSSR_INVALID_VALUE) {
@@ -852,9 +974,13 @@ static clas_bias_bank_t *add_base_value_to_pbias(clas_bank_ctrl_t *bank,
     if ((temp = get_same_bias(bank, basetime, network)) && (temp->bflag & 0x02)) {
         memcpy(&pbias, srcbias, sizeof(clas_bias_bank_t));
         for (i = 0; i < MAXSAT; i++) {
-            if (pbias.prn[i] == 0 || temp->prn[i] == 0) continue;
+            if (pbias.prn[i] == 0 || temp->prn[i] == 0) {
+                continue;
+            }
             for (j = 0; j < MAXCODE; j++) {
-                if (temp->smode[i][j] == 0 || !(temp->sflag[i][j] & 0x02)) continue;
+                if (temp->smode[i][j] == 0 || !(temp->sflag[i][j] & 0x02)) {
+                    continue;
+                }
                 if ((pos = get_bias_save_point(&pbias, pbias.prn[i], temp->smode[i][j])) != -1) {
                     if (pbias.pbias[i][pos] != CSSR_INVALID_VALUE &&
                         temp->pbias[i][j] != CSSR_INVALID_VALUE) {
@@ -902,7 +1028,9 @@ static void set_grid_data(clas_corr_t *corr, double *pos, int index)
 static int add_data_stec(stec_t *stec, gtime_t time, int sat, int slip,
                          double iono, double rate, double rms, double quality)
 {
-    if (stec->n >= stec->nmax) return 0;
+    if (stec->n >= stec->nmax) {
+        return 0;
+    }
     stec->data[stec->n].flag = 1;
     stec->data[stec->n].time = time;
     stec->data[stec->n].sat = (unsigned char)sat;
@@ -917,7 +1045,9 @@ static int add_data_stec(stec_t *stec, gtime_t time, int sat, int slip,
 static int add_data_trop(zwd_t *z, gtime_t time, double zwd, double ztd,
                          double quality, double rms, int valid)
 {
-    if (z->n >= z->nmax) return 0;
+    if (z->n >= z->nmax) {
+        return 0;
+    }
     z->data[z->n].time = time;
     z->data[z->n].valid = (unsigned char)valid;
     z->data[z->n].zwd = (float)zwd;
@@ -937,9 +1067,13 @@ static int sub_get_close_cssr(clas_bank_ctrl_t *bank, gtime_t time, int network,
                               clas_trop_bank_t **trop, int *flag)
 {
     *orbit = get_close_orbit(bank, time, network, 180.0);
-    if (!*orbit) return 0;
+    if (!*orbit) {
+        return 0;
+    }
     *pbias = get_close_net_pbias(bank, (*orbit)->time, network, 0.0);
-    if (!*pbias) return 0;
+    if (!*pbias) {
+        return 0;
+    }
     if (!(*trop = get_close_trop(bank, time, (*orbit)->time, network, 30.0,
           bank->fastfix[network] ? 0 : 1))) {
         return 0;
@@ -961,12 +1095,15 @@ static int sub_get_close_cssr(clas_bank_ctrl_t *bank, gtime_t time, int network,
         return 0;
     }
     /* temporal consistency checks */
-    if (timediff((*pbias)->time, (*cbias)->time) < -30.0 ||
-        timediff((*pbias)->time, (*cbias)->time) > 0.0) return 0;
-    if (timediff((*trop)->time, (*orbit)->time) < -30.0 ||
-        timediff((*trop)->time, (*orbit)->time) >= 30.0) return 0;
-    if (timediff((*trop)->time, (*pbias)->time) < 0.0 ||
-        timediff((*trop)->time, (*pbias)->time) >= 30.0) return 0;
+    if (timediff((*pbias)->time, (*cbias)->time) < -30.0 || timediff((*pbias)->time, (*cbias)->time) > 0.0) {
+        return 0;
+    }
+    if (timediff((*trop)->time, (*orbit)->time) < -30.0 || timediff((*trop)->time, (*orbit)->time) >= 30.0) {
+        return 0;
+    }
+    if (timediff((*trop)->time, (*pbias)->time) < 0.0 || timediff((*trop)->time, (*pbias)->time) >= 30.0) {
+        return 0;
+    }
 
     *cbias = add_base_value_to_cbias(bank, *cbias, ((*cbias)->network == 0) ? network : 0);
     *pbias = add_base_value_to_pbias(bank, *pbias, ((*pbias)->network == 0) ? network : 0);
@@ -984,10 +1121,13 @@ extern int clas_bank_get_close(const clas_ctx_t *ctx, gtime_t time,
     clas_trop_bank_t *trop;
     int i, j, sis;
 
-    if (!bank->use) return -1;
-
-    if (!sub_get_close_cssr(bank, time, network, &orbit, &clk, &cbias, &pbias, &trop, &sis))
+    if (!bank->use) {
         return -1;
+    }
+
+    if (!sub_get_close_cssr(bank, time, network, &orbit, &clk, &cbias, &pbias, &trop, &sis)) {
+        return -1;
+    }
 
     memset(corr, 0, sizeof(clas_corr_t));
     init_grid_index(corr);
@@ -1079,15 +1219,20 @@ extern void clas_check_grid_status(clas_ctx_t *ctx, const clas_corr_t *corr,
 {
     int i, valid, network, nvalid=0;
 
-    if (!corr->use) return;
+    if (!corr->use) {
+        return;
+    }
 
     network = corr->network;
-    if (network <= 0 || network >= CLAS_MAX_NETWORK) return;
+    if (network <= 0 || network >= CLAS_MAX_NETWORK) {
+        return;
+    }
 
     /* orbit + trop corrections must exist */
     if (corr->orbit_time.time == 0 || corr->trop_time.time == 0) {
-        for (i = 0; i < CLAS_MAX_GP; i++)
+        for (i = 0; i < CLAS_MAX_GP; i++) {
             ctx->grid_stat[ch][network][i] = 0;
+        }
         return;
     }
 
@@ -1101,13 +1246,16 @@ extern void clas_check_grid_status(clas_ctx_t *ctx, const clas_corr_t *corr,
         valid = corr->stec[i].n;
 
         ctx->grid_stat[ch][network][i] = (valid >= 8) ? 1 : 0;
-        if (valid >= 8) nvalid++;
+        if (valid >= 8) {
+            nvalid++;
+        }
     }
     trace(NULL, 4, "grid_status: ch=%d net=%d gridnum=%d nvalid=%d\n",
           ch, network, corr->gridnum, nvalid);
     /* clear remaining grid points */
-    for (i = corr->gridnum; i < CLAS_MAX_GP; i++)
+    for (i = corr->gridnum; i < CLAS_MAX_GP; i++) {
         ctx->grid_stat[ch][network][i] = 0;
+    }
 }
 
 /*============================================================================
@@ -1221,10 +1369,14 @@ static int check_bit_width_mask(clas_l6buf_t *l6, cssr_t *cssr, int i0)
     uint64_t svmask;
     uint16_t sigmask;
 
-    if (i0 + 49 > l6->havebit) return 0;
+    if (i0 + 49 > l6->havebit) {
+        return 0;
+    }
     ngnss = getbitu(l6->buff, i0 + 45, 4); i0 += 49;
     for (k = 0; k < ngnss; k++) {
-        if (i0 + 61 > l6->havebit) return 0;
+        if (i0 + 61 > l6->havebit) {
+            return 0;
+        }
         cmi = getbitu(l6->buff, i0 + 60, 1); i0 += 61;
         if (cmi) {
             svmask = (uint64_t)getbitu(l6->buff, i0, 8) << 32; i0 += 8;
@@ -1232,7 +1384,9 @@ static int check_bit_width_mask(clas_l6buf_t *l6, cssr_t *cssr, int i0)
             sigmask = getbitu(l6->buff, i0, 16); i0 += 16;
             nsat = svmask2nsat(svmask);
             nsig = sigmask2nsig(sigmask);
-            if (i0 + nsat * nsig > l6->havebit) return 0;
+            if (i0 + nsat * nsig > l6->havebit) {
+                return 0;
+            }
             i0 += nsat * nsig;
         }
     }
@@ -1243,11 +1397,15 @@ static int check_bit_width_oc(clas_l6buf_t *l6, cssr_t *cssr, int i0)
 {
     int k, sat[CSSR_MAX_SV], nsat, prn;
     i0 += 21;
-    if (i0 > l6->havebit) return 0;
+    if (i0 > l6->havebit) {
+        return 0;
+    }
     nsat = svmask2sat(cssr->svmask, sat);
     for (k = 0; k < nsat; k++) {
         i0 += (satsys(sat[k], &prn) == SYS_GAL) ? 51 : 49;
-        if (i0 > l6->havebit) return 0;
+        if (i0 > l6->havebit) {
+            return 0;
+        }
     }
     return 1;
 }
@@ -1263,7 +1421,9 @@ static int check_bit_width_cb(clas_l6buf_t *l6, cssr_t *cssr, int i0)
     int nsig[CSSR_MAX_SV], nsig_total = 0, k, sat[CSSR_MAX_SV], nsat;
     nsat = svmask2sat(cssr->svmask, sat);
     sigmask2sig(nsat, sat, cssr->sigmask, cssr->cellmask, nsig, NULL);
-    for (k = 0; k < nsat; k++) nsig_total += nsig[k];
+    for (k = 0; k < nsat; k++) {
+        nsig_total += nsig[k];
+    }
     return i0 + 21 + nsig_total * 11 <= l6->havebit;
 }
 
@@ -1272,7 +1432,9 @@ static int check_bit_width_pb(clas_l6buf_t *l6, cssr_t *cssr, int i0)
     int nsig[CSSR_MAX_SV], nsig_total = 0, k, sat[CSSR_MAX_SV], nsat;
     nsat = svmask2sat(cssr->svmask, sat);
     sigmask2sig(nsat, sat, cssr->sigmask, cssr->cellmask, nsig, NULL);
-    for (k = 0; k < nsat; k++) nsig_total += nsig[k];
+    for (k = 0; k < nsat; k++) {
+        nsig_total += nsig[k];
+    }
     return i0 + 21 + nsig_total * 17 <= l6->havebit;
 }
 
@@ -1282,22 +1444,34 @@ static int check_bit_width_bias(clas_l6buf_t *l6, cssr_t *cssr, int i0)
     int sat[CSSR_MAX_SV], nsig[CSSR_MAX_SV];
     nsat = svmask2sat(cssr->svmask, sat);
     sigmask2sig(nsat, sat, cssr->sigmask, cssr->cellmask, nsig, NULL);
-    if (i0 + 24 > l6->havebit) return 0;
+    if (i0 + 24 > l6->havebit) {
+        return 0;
+    }
     i0 += 21;
     cbflag = getbitu(l6->buff, i0, 1); i0++;
     pbflag = getbitu(l6->buff, i0, 1); i0++;
     netflag = getbitu(l6->buff, i0, 1); i0++;
     if (netflag) {
-        if (i0 + 5 + nsat > l6->havebit) return 0;
+        if (i0 + 5 + nsat > l6->havebit) {
+            return 0;
+        }
         i0 += 5;
         netmask = getbitu(l6->buff, i0, nsat); i0 += nsat;
     }
-    if (cbflag) slen += 11;
-    if (pbflag) slen += 17;
+    if (cbflag) {
+        slen += 11;
+    }
+    if (pbflag) {
+        slen += 17;
+    }
     for (k = 0; k < nsat; k++) {
-        if (netflag && !((netmask >> (nsat - 1 - k)) & 1)) continue;
+        if (netflag && !((netmask >> (nsat - 1 - k)) & 1)) {
+            continue;
+        }
         for (j = 0; j < nsig[k]; j++) {
-            if (i0 + slen > l6->havebit) return 0;
+            if (i0 + slen > l6->havebit) {
+                return 0;
+            }
             i0 += slen;
         }
     }
@@ -1316,13 +1490,17 @@ static int check_bit_width_stec(clas_l6buf_t *l6, cssr_t *cssr, int i0)
     uint64_t net_svmask;
     static const int slen_t[4] = {20, 44, 54, 70};
     nsat = svmask2sat(cssr->svmask, sat);
-    if (i0 + 28 + nsat > l6->havebit) return 0;
+    if (i0 + 28 + nsat > l6->havebit) {
+        return 0;
+    }
     i0 += 21;
     stec_type = getbitu(l6->buff, i0, 2); i0 += 2;
     i0 += 5;
     net_svmask = getbitu(l6->buff, i0, nsat); i0 += nsat;
     for (j = 0; j < nsat; j++) {
-        if ((net_svmask >> (nsat - 1 - j)) & 1) nsat_local++;
+        if ((net_svmask >> (nsat - 1 - j)) & 1) {
+            nsat_local++;
+        }
     }
     return i0 + nsat_local * slen_t[stec_type] <= l6->havebit;
 }
@@ -1332,7 +1510,9 @@ static int check_bit_width_grid(clas_l6buf_t *l6, cssr_t *cssr, int i0)
     int k, nsat, trop_type, ngp, sz_trop, sz_idx, sz_stec, nsat_local = 0;
     uint64_t net_svmask;
     nsat = svmask2sat(cssr->svmask, NULL);
-    if (i0 + 41 + nsat > l6->havebit) return 0;
+    if (i0 + 41 + nsat > l6->havebit) {
+        return 0;
+    }
     i0 += 21;
     trop_type = getbitu(l6->buff, i0, 2); i0 += 2;
     sz_idx = getbitu(l6->buff, i0, 1); i0++;
@@ -1343,7 +1523,9 @@ static int check_bit_width_grid(clas_l6buf_t *l6, cssr_t *cssr, int i0)
     sz_trop = (trop_type == 0) ? 0 : 17;
     sz_stec = (sz_idx == 0) ? 7 : 16;
     for (k = 0; k < nsat; k++) {
-        if ((net_svmask >> (nsat - 1 - k)) & 1) nsat_local++;
+        if ((net_svmask >> (nsat - 1 - k)) & 1) {
+            nsat_local++;
+        }
     }
     return i0 + ngp * (sz_trop + nsat_local * sz_stec) <= l6->havebit;
 }
@@ -1353,25 +1535,35 @@ static int check_bit_width_combo(clas_l6buf_t *l6, cssr_t *cssr, int i0)
     int sat[CSSR_MAX_SV], nsat, j, flg_orbit, flg_clock, flg_net, sz;
     uint64_t net_svmask = 0;
     nsat = svmask2sat(cssr->svmask, sat);
-    if (i0 + 24 > l6->havebit) return 0;
+    if (i0 + 24 > l6->havebit) {
+        return 0;
+    }
     i0 += 21;
     flg_orbit = getbitu(l6->buff, i0, 1); i0++;
     flg_clock = getbitu(l6->buff, i0, 1); i0++;
     flg_net = getbitu(l6->buff, i0, 1); i0++;
     if (flg_net) {
-        if (i0 + 5 + nsat > l6->havebit) return 0;
+        if (i0 + 5 + nsat > l6->havebit) {
+            return 0;
+        }
         i0 += 5;
         net_svmask = getbitu(l6->buff, i0, nsat); i0 += nsat;
     }
     for (j = 0; j < nsat; j++) {
-        if (flg_net && !((net_svmask >> (nsat - 1 - j)) & 1)) continue;
+        if (flg_net && !((net_svmask >> (nsat - 1 - j)) & 1)) {
+            continue;
+        }
         if (flg_orbit) {
             sz = (satsys(sat[j], NULL) == SYS_GAL) ? 10 : 8;
             i0 += sz + 41;
-            if (i0 > l6->havebit) return 0;
+            if (i0 > l6->havebit) {
+                return 0;
+            }
         }
         if (flg_clock) {
-            if ((i0 += 15) > l6->havebit) return 0;
+            if ((i0 += 15) > l6->havebit) {
+                return 0;
+            }
         }
     }
     return 1;
@@ -1385,50 +1577,76 @@ static int check_bit_width_atmos(clas_l6buf_t *l6, cssr_t *cssr, int i0)
     static const int trop_sz_t[3] = {9, 23, 30};
     static const int stec_sz_t[4] = {14, 38, 48, 64};
     nsat = svmask2sat(cssr->svmask, NULL);
-    if (i0 + 36 > l6->havebit) return 0;
+    if (i0 + 36 > l6->havebit) {
+        return 0;
+    }
     i0 += 21;
     trop_avail = getbitu(l6->buff, i0, 2); i0 += 2;
     stec_avail = getbitu(l6->buff, i0, 2); i0 += 2;
     i0 += 5;
     ngp = getbitu(l6->buff, i0, 6); i0 += 6;
     if (trop_avail != 0) {
-        if (i0 + 6 > l6->havebit) return 0;
+        if (i0 + 6 > l6->havebit) {
+            return 0;
+        }
         i0 += 6;
     }
     if ((trop_avail & 0x01) == 0x01) {
-        if (i0 + 2 > l6->havebit) return 0;
+        if (i0 + 2 > l6->havebit) {
+            return 0;
+        }
         trop_type = getbitu(l6->buff, i0, 2); i0 += 2;
         sz = trop_sz_t[trop_type];
-        if (i0 + sz > l6->havebit) return 0;
+        if (i0 + sz > l6->havebit) {
+            return 0;
+        }
         i0 += sz;
     }
     if ((trop_avail & 0x02) == 0x02) {
-        if (i0 + 5 > l6->havebit) return 0;
+        if (i0 + 5 > l6->havebit) {
+            return 0;
+        }
         sz_idx = getbitu(l6->buff, i0, 1); i0++;
         i0 += 4;
         sz = (sz_idx == 0) ? 6 : 8;
-        if (i0 + sz * ngp > l6->havebit) return 0;
+        if (i0 + sz * ngp > l6->havebit) {
+            return 0;
+        }
         i0 += sz * ngp;
     }
     if (stec_avail != 0) {
-        if (i0 + nsat > l6->havebit) return 0;
+        if (i0 + nsat > l6->havebit) {
+            return 0;
+        }
         net_svmask = getbitu(l6->buff, i0, nsat); i0 += nsat;
         for (j = 0; j < nsat; j++) {
-            if (!((net_svmask >> (nsat - 1 - j)) & 1)) continue;
-            if (i0 + 6 > l6->havebit) return 0;
+            if (!((net_svmask >> (nsat - 1 - j)) & 1)) {
+                continue;
+            }
+            if (i0 + 6 > l6->havebit) {
+                return 0;
+            }
             i0 += 6;
             if ((stec_avail & 0x01) == 0x01) {
-                if (i0 + 2 > l6->havebit) return 0;
+                if (i0 + 2 > l6->havebit) {
+                    return 0;
+                }
                 stec_type = getbitu(l6->buff, i0, 2); i0 += 2;
                 sz = stec_sz_t[stec_type];
-                if (i0 + sz > l6->havebit) return 0;
+                if (i0 + sz > l6->havebit) {
+                    return 0;
+                }
                 i0 += sz;
             }
             if ((stec_avail & 0x02) == 0x02) {
-                if (i0 + 2 > l6->havebit) return 0;
+                if (i0 + 2 > l6->havebit) {
+                    return 0;
+                }
                 sz_idx = getbitu(l6->buff, i0, 2); i0 += 2;
                 i0 += ngp * dstec_sz_t[sz_idx];
-                if (i0 > l6->havebit) return 0;
+                if (i0 > l6->havebit) {
+                    return 0;
+                }
             }
         }
     }
@@ -1438,7 +1656,9 @@ static int check_bit_width_atmos(clas_l6buf_t *l6, cssr_t *cssr, int i0)
 static int check_bit_width_si(clas_l6buf_t *l6, cssr_t *cssr, int i0)
 {
     int data_sz;
-    if (i0 + 6 > l6->havebit) return 0;
+    if (i0 + 6 > l6->havebit) {
+        return 0;
+    }
     i0 += 4;
     data_sz = getbitu(l6->buff, i0, 2); i0 += 2;
     return i0 + 40 * (data_sz + 1) <= l6->havebit;
@@ -1465,7 +1685,9 @@ static int decode_cssr_mask(clas_ctx_t *ctx, int ch, clas_l6buf_t *l6, int i0)
         cssr->svmask[j] = 0;
         cssr->sigmask[j] = 0;
     }
-    for (j = 0; j < CSSR_MAX_SV; j++) cssr->cellmask[j] = 0;
+    for (j = 0; j < CSSR_MAX_SV; j++) {
+        cssr->cellmask[j] = 0;
+    }
 
     trace(NULL,2, "decode_cssr_mask: facility=%d tow=%d iod=%d\n",
           ctx->l6facility[ch] + 1, tow, cssr->iod);
@@ -1488,8 +1710,9 @@ static int decode_cssr_mask(clas_ctx_t *ctx, int ch, clas_l6buf_t *l6, int i0)
             }
         } else {
             for (j = 0; j < nsat_g; j++) {
-                for (l = 0; l < nsig; l++)
+                for (l = 0; l < nsig; l++) {
                     cssr->cellmask[ncell] |= ((uint16_t)1 << (nsig - 1 - l));
+                }
                 ncell++;
             }
         }
@@ -1518,8 +1741,12 @@ static int decode_cssr_oc(clas_ctx_t *ctx, int ch, clas_l6buf_t *l6, int i0)
 
     trace(NULL,2, "decode_cssr_oc: facility=%d tow=%d iod=%d\n",
           ctx->l6facility[ch] + 1, tow, iod);
-    if (cssr->l6facility != ctx->l6facility[ch]) return -1;
-    if (cssr->iod != iod) return -1;
+    if (cssr->l6facility != ctx->l6facility[ch]) {
+        return -1;
+    }
+    if (cssr->iod != iod) {
+        return -1;
+    }
 
     for (j = 0; j < MAXSAT; j++) {
         ssr = &ctx->dec_ssr[j];
@@ -1550,7 +1777,9 @@ static int decode_cssr_oc(clas_ctx_t *ctx, int ch, clas_l6buf_t *l6, int i0)
             ssr->deph[2] == CSSR_INVALID_VALUE) {
             ssr->deph[0] = ssr->deph[1] = ssr->deph[2] = CSSR_INVALID_VALUE;
         }
-        for (k = 0; k < 3; k++) ssr->ddeph[k] = 0.0;
+        for (k = 0; k < 3; k++) {
+            ssr->ddeph[k] = 0.0;
+        }
         ssr->update_oc = 1;
         ssr->update = 1;
     }
@@ -1579,8 +1808,12 @@ static int decode_cssr_cc(clas_ctx_t *ctx, int ch, clas_l6buf_t *l6, int i0)
 
     trace(NULL,2, "decode_cssr_cc: facility=%d tow=%d iod=%d\n",
           ctx->l6facility[ch] + 1, tow, iod);
-    if (cssr->l6facility != ctx->l6facility[ch]) return -1;
-    if (cssr->iod != iod) return -1;
+    if (cssr->l6facility != ctx->l6facility[ch]) {
+        return -1;
+    }
+    if (cssr->iod != iod) {
+        return -1;
+    }
 
     for (j = 0; j < MAXSAT; j++) {
         ssr = &ctx->dec_ssr[j];
@@ -1627,8 +1860,12 @@ static int decode_cssr_cb(clas_ctx_t *ctx, int ch, clas_l6buf_t *l6, int i0)
 
     trace(NULL,2, "decode_cssr_cb: facility=%d tow=%d iod=%d\n",
           ctx->l6facility[ch] + 1, tow, iod);
-    if (cssr->l6facility != ctx->l6facility[ch]) return -1;
-    if (cssr->iod != iod) return -1;
+    if (cssr->l6facility != ctx->l6facility[ch]) {
+        return -1;
+    }
+    if (cssr->iod != iod) {
+        return -1;
+    }
 
     for (k = 0; k < MAXSAT; k++) {
         ssr = &ctx->dec_ssr[k];
@@ -1682,8 +1919,12 @@ static int decode_cssr_pb(clas_ctx_t *ctx, int ch, clas_l6buf_t *l6, int i0)
 
     trace(NULL,2, "decode_cssr_pb: facility=%d tow=%d iod=%d\n",
           ctx->l6facility[ch] + 1, tow, iod);
-    if (cssr->l6facility != ctx->l6facility[ch]) return -1;
-    if (cssr->iod != iod) return -1;
+    if (cssr->l6facility != ctx->l6facility[ch]) {
+        return -1;
+    }
+    if (cssr->iod != iod) {
+        return -1;
+    }
 
     for (k = 0; k < MAXSAT; k++) {
         ssr = &ctx->dec_ssr[k];
@@ -1746,8 +1987,12 @@ static int decode_cssr_bias(clas_ctx_t *ctx, int ch, clas_l6buf_t *l6, int i0)
 
     trace(NULL,2, "decode_cssr_bias: facility=%d tow=%d iod=%d net=%d\n",
           ctx->l6facility[ch] + 1, tow, iod, network);
-    if (cssr->l6facility != ctx->l6facility[ch]) return -1;
-    if (cssr->iod != iod) return -1;
+    if (cssr->l6facility != ctx->l6facility[ch]) {
+        return -1;
+    }
+    if (cssr->iod != iod) {
+        return -1;
+    }
 
     for (k = 0; k < MAXSAT; k++) {
         ssr = &ctx->dec_ssr[k];
@@ -1768,7 +2013,9 @@ static int decode_cssr_bias(clas_ctx_t *ctx, int ch, clas_l6buf_t *l6, int i0)
     }
 
     for (k = 0; k < nsat; k++) {
-        if (netflag && !((netmask >> (nsat - 1 - k)) & 1)) continue;
+        if (netflag && !((netmask >> (nsat - 1 - k)) & 1)) {
+            continue;
+        }
         ssr = &ctx->dec_ssr[sat[k] - 1];
         if (cbflag) {
             ssr->t0[4] = l6->time; ssr->udi[4] = udint;
@@ -1822,8 +2069,12 @@ static int decode_cssr_ura(clas_ctx_t *ctx, int ch, clas_l6buf_t *l6, int i0)
 
     trace(NULL,3, "decode_cssr_ura: facility=%d tow=%d iod=%d\n",
           ctx->l6facility[ch] + 1, tow, iod);
-    if (cssr->l6facility != ctx->l6facility[ch]) return -1;
-    if (cssr->iod != iod) return -1;
+    if (cssr->l6facility != ctx->l6facility[ch]) {
+        return -1;
+    }
+    if (cssr->iod != iod) {
+        return -1;
+    }
 
     for (j = 0; j < nsat; j++) {
         ssr = &ctx->dec_ssr[sat[j] - 1];
@@ -1859,9 +2110,15 @@ static int decode_cssr_stec(clas_ctx_t *ctx, int ch, clas_l6buf_t *l6, int i0)
 
     trace(NULL,2, "decode_cssr_stec: facility=%d tow=%d iod=%d net=%d type=%d\n",
           ctx->l6facility[ch] + 1, tow, iod, inet, cssr->opt.stec_type);
-    if (cssr->l6facility != ctx->l6facility[ch]) return -1;
-    if (cssr->iod != iod) return -1;
-    if (inet >= CSSR_MAX_NET) return -1;
+    if (cssr->l6facility != ctx->l6facility[ch]) {
+        return -1;
+    }
+    if (cssr->iod != iod) {
+        return -1;
+    }
+    if (inet >= CSSR_MAX_NET) {
+        return -1;
+    }
 
     ssrn = &cssr->ssrn[inet];
     cssr->net_svmask[inet] = getbitu(l6->buff, i, nsat); i += nsat;
@@ -1876,7 +2133,9 @@ static int decode_cssr_stec(clas_ctx_t *ctx, int ch, clas_l6buf_t *l6, int i0)
             a = getbitu(l6->buff, i, 3); i += 3;
             b = getbitu(l6->buff, i, 3); i += 3;
             ssrn->quality_f[s] = decode_cssr_quality_stec(a, b);
-            for (k = 0; k < 4; k++) ssrn->a[s][k] = 0.0;
+            for (k = 0; k < 4; k++) {
+                ssrn->a[s][k] = 0.0;
+            }
 
             ssrn->a[s][0] = decode_sval(l6->buff, i, 14, 0.05); i += 14;
             if (cssr->opt.stec_type > 0) {
@@ -1917,7 +2176,9 @@ static int decode_cssr_grid(clas_ctx_t *ctx, int ch, clas_l6buf_t *l6, int i0)
     sz_idx = getbitu(l6->buff, i, 1); i++;
     inet = getbitu(l6->buff, i, 5); i += 5;
 
-    if (inet >= CSSR_MAX_NET) return -1;
+    if (inet >= CSSR_MAX_NET) {
+        return -1;
+    }
     ssrn = &cssr->ssrn[inet];
 
     cssr->net_svmask[inet] = getbitu(l6->buff, i, nsat); i += nsat;
@@ -1929,8 +2190,12 @@ static int decode_cssr_grid(clas_ctx_t *ctx, int ch, clas_l6buf_t *l6, int i0)
 
     trace(NULL,2, "decode_cssr_grid: facility=%d tow=%d iod=%d net=%d trop=%d ngp=%d\n",
           ctx->l6facility[ch] + 1, tow, iod, inet, trop_type, ssrn->ngp);
-    if (cssr->l6facility != ctx->l6facility[ch]) return -1;
-    if (cssr->iod != iod) return -1;
+    if (cssr->l6facility != ctx->l6facility[ch]) {
+        return -1;
+    }
+    if (cssr->iod != iod) {
+        return -1;
+    }
 
     for (j = 0; j < CSSR_MAX_GP; j++) {
         ssrn->grid[j][0] = ssrn->grid[j][1] = ssrn->grid[j][2] = 0.0;
@@ -1951,8 +2216,12 @@ static int decode_cssr_grid(clas_ctx_t *ctx, int ch, clas_l6buf_t *l6, int i0)
         case 1:
             hs = getbits(l6->buff, i, 9); i += 9;
             wet = getbits(l6->buff, i, 8); i += 8;
-            if (hs == (-P2_S9_MAX - 1)) valid = 0;
-            if (wet == (-P2_S8_MAX - 1)) valid = 0;
+            if (hs == (-P2_S9_MAX - 1)) {
+                valid = 0;
+            }
+            if (wet == (-P2_S8_MAX - 1)) {
+                valid = 0;
+            }
             if (valid) {
                 ssrn->trop_wet[j] = wet * 0.004 + 0.252;
                 ssrn->trop_total[j] = (hs + wet) * 0.004 + 0.252 + CSSR_TROP_HS_REF;
@@ -2043,8 +2312,12 @@ static int decode_cssr_combo(clas_ctx_t *ctx, int ch, clas_l6buf_t *l6, int i0)
 
     trace(NULL,2, "decode_cssr_combo: facility=%d tow=%d iod=%d net=%d flag=%d %d %d\n",
           ctx->l6facility[ch] + 1, tow, iod, netid, flg_orbit, flg_clock, flg_net);
-    if (cssr->l6facility != ctx->l6facility[ch]) return -1;
-    if (cssr->iod != iod) return -1;
+    if (cssr->l6facility != ctx->l6facility[ch]) {
+        return -1;
+    }
+    if (cssr->iod != iod) {
+        return -1;
+    }
 
     for (j = 0; j < MAXSAT; j++) {
         ssr = &ctx->dec_ssr[j];
@@ -2063,7 +2336,9 @@ static int decode_cssr_combo(clas_ctx_t *ctx, int ch, clas_l6buf_t *l6, int i0)
     }
 
     for (j = 0; j < nsat; j++) {
-        if (flg_net && !((net_svmask >> (nsat - 1 - j)) & 1)) continue;
+        if (flg_net && !((net_svmask >> (nsat - 1 - j)) & 1)) {
+            continue;
+        }
         ssr = &ctx->dec_ssr[sat[j] - 1];
 
         if (flg_orbit) {
@@ -2076,7 +2351,9 @@ static int decode_cssr_combo(clas_ctx_t *ctx, int ch, clas_l6buf_t *l6, int i0)
             ssr->deph[2] = decode_sval(l6->buff, i, 13, 0.0064); i += 13;
             ssr->iode = iode;
             ssr->t0[0] = l6->time; ssr->udi[0] = udint; ssr->iod[0] = cssr->iod;
-            for (k = 0; k < 3; k++) ssr->ddeph[k] = 0.0;
+            for (k = 0; k < 3; k++) {
+                ssr->ddeph[k] = 0.0;
+            }
             ssr->update_oc = 1; ssr->update = 1;
             if (ssr->deph[0] == CSSR_INVALID_VALUE || ssr->deph[1] == CSSR_INVALID_VALUE ||
                 ssr->deph[2] == CSSR_INVALID_VALUE) {
@@ -2092,9 +2369,15 @@ static int decode_cssr_combo(clas_ctx_t *ctx, int ch, clas_l6buf_t *l6, int i0)
     }
 
     check_cssr_changed_facility(ctx->bank[ch], cssr->l6facility);
-    if (flg_net) ctx->bank[ch]->separation |= (1 << (netid - 1));
-    if (flg_orbit) set_cssr_bank_orbit(ctx, ch, l6->time, flg_net ? netid : 0);
-    if (flg_clock) set_cssr_bank_clock(ctx, ch, l6->time, flg_net ? netid : 0);
+    if (flg_net) {
+        ctx->bank[ch]->separation |= (1 << (netid - 1));
+    }
+    if (flg_orbit) {
+        set_cssr_bank_orbit(ctx, ch, l6->time, flg_net ? netid : 0);
+    }
+    if (flg_clock) {
+        set_cssr_bank_clock(ctx, ch, l6->time, flg_net ? netid : 0);
+    }
 
     l6->nbit = i;
     return sync ? 0 : 10;
@@ -2127,9 +2410,15 @@ static int decode_cssr_atmos(clas_ctx_t *ctx, int ch, clas_l6buf_t *l6, int i0)
 
     trace(NULL,2, "decode_cssr_atmos: facility=%d tow=%d iod=%d net=%d\n",
           ctx->l6facility[ch] + 1, tow, iod, inet);
-    if (cssr->l6facility != ctx->l6facility[ch]) return -1;
-    if (cssr->iod != iod) return -1;
-    if (inet >= CSSR_MAX_NET) return -1;
+    if (cssr->l6facility != ctx->l6facility[ch]) {
+        return -1;
+    }
+    if (cssr->iod != iod) {
+        return -1;
+    }
+    if (inet >= CSSR_MAX_NET) {
+        return -1;
+    }
 
     ssrn = &cssr->ssrn[inet];
     ssrn->ngp = getbitu(l6->buff, i, 6); i += 6;
@@ -2150,7 +2439,9 @@ static int decode_cssr_atmos(clas_ctx_t *ctx, int ch, clas_l6buf_t *l6, int i0)
 
     if ((trop_avail & 0x01) == 0x01) {
         trop_type = getbitu(l6->buff, i, 2); i += 2;
-        for (k = 0; k < 4; k++) ct[k] = 0.0;
+        for (k = 0; k < 4; k++) {
+            ct[k] = 0.0;
+        }
         ct[0] = decode_sval(l6->buff, i, 9, 0.004); i += 9;
         if (trop_type > 0) {
             ct[1] = decode_sval(l6->buff, i, 7, 0.002); i += 7;
@@ -2170,8 +2461,12 @@ static int decode_cssr_atmos(clas_ctx_t *ctx, int ch, clas_l6buf_t *l6, int i0)
         dlon = (ssrn->grid[j][1] - ssrn->grid[0][1]) * R2D;
 
         ssrn->trop_total[j] = CSSR_TROP_HS_REF + ct[0];
-        if (trop_type > 0) ssrn->trop_total[j] += ct[1] * dlat + ct[2] * dlon;
-        if (trop_type > 1) ssrn->trop_total[j] += ct[3] * dlat * dlon;
+        if (trop_type > 0) {
+            ssrn->trop_total[j] += ct[1] * dlat + ct[2] * dlon;
+        }
+        if (trop_type > 1) {
+            ssrn->trop_total[j] += ct[3] * dlat * dlon;
+        }
     }
 
     if ((trop_avail & 0x02) == 0x02) {
@@ -2195,12 +2490,16 @@ static int decode_cssr_atmos(clas_ctx_t *ctx, int ch, clas_l6buf_t *l6, int i0)
     }
     for (j = s = 0; j < nsat; j++) {
         if (stec_avail != 0) {
-            if (!((cssr->net_svmask[inet] >> (nsat - 1 - j)) & 1)) continue;
+            if (!((cssr->net_svmask[inet] >> (nsat - 1 - j)) & 1)) {
+                continue;
+            }
             a = getbitu(l6->buff, i, 3); i += 3;
             b = getbitu(l6->buff, i, 3); i += 3;
             (void)decode_cssr_quality_stec(a, b);
         }
-        for (k = 0; k < 6; k++) ci[k] = 0.0;
+        for (k = 0; k < 6; k++) {
+            ci[k] = 0.0;
+        }
         if ((stec_avail & 0x01) == 0x01) {
             stec_type = getbitu(l6->buff, i, 2); i += 2;
             ci[0] = decode_sval(l6->buff, i, 14, 0.05); i += 14;
@@ -2235,9 +2534,15 @@ static int decode_cssr_atmos(clas_ctx_t *ctx, int ch, clas_l6buf_t *l6, int i0)
                 }
 
                 stec0 = ci[0];
-                if (stec_type > 0) stec0 += ci[1] * dlat + ci[2] * dlon;
-                if (stec_type > 1) stec0 += ci[3] * dlat * dlon;
-                if (stec_type > 2) stec0 += ci[4] * dlat * dlat + ci[5] * dlon * dlon;
+                if (stec_type > 0) {
+                    stec0 += ci[1] * dlat + ci[2] * dlon;
+                }
+                if (stec_type > 1) {
+                    stec0 += ci[3] * dlat * dlon;
+                }
+                if (stec_type > 2) {
+                    stec0 += ci[4] * dlat * dlat + ci[5] * dlon * dlon;
+                }
 
                 if (dstec == CSSR_INVALID_VALUE) {
                     ssrn->stec[k][s] = CSSR_INVALID_VALUE;
@@ -2273,10 +2578,14 @@ static int decode_qzs_msg(clas_ctx_t *ctx, int ch)
     clas_l6buf_t *l6 = &ctx->l6buf[ch];
     int startbit, i, ret = 0;
 
-    if (l6->frame == 0x00 || l6->nbit == -1) return 0;
+    if (l6->frame == 0x00 || l6->nbit == -1) {
+        return 0;
+    }
 
     i = startbit = l6->nbit;
-    if ((i + 16) > l6->havebit) return 0;
+    if ((i + 16) > l6->havebit) {
+        return 0;
+    }
 
     l6->ctype = getbitu(l6->buff, i, 12); i += 12;
     if (l6->ctype != 4073) {
@@ -2286,23 +2595,73 @@ static int decode_qzs_msg(clas_ctx_t *ctx, int ch)
     }
     l6->subtype = getbitu(l6->buff, i, 4); i += 4;
 
-    if (l6->subtype != CSSR_TYPE_MASK && !l6->decode_start) return 0;
+    if (l6->subtype != CSSR_TYPE_MASK && !l6->decode_start) {
+        return 0;
+    }
 
     /* bit width check */
     switch (l6->subtype) {
-    case CSSR_TYPE_MASK:  if (!check_bit_width_mask(l6, cssr, i)) return 0; break;
-    case CSSR_TYPE_OC:    if (!check_bit_width_oc(l6, cssr, i)) return 0; break;
-    case CSSR_TYPE_CC:    if (!check_bit_width_cc(l6, cssr, i)) return 0; break;
-    case CSSR_TYPE_CB:    if (!check_bit_width_cb(l6, cssr, i)) return 0; break;
-    case CSSR_TYPE_PB:    if (!check_bit_width_pb(l6, cssr, i)) return 0; break;
-    case CSSR_TYPE_BIAS:  if (!check_bit_width_bias(l6, cssr, i)) return 0; break;
-    case CSSR_TYPE_URA:   if (!check_bit_width_ura(l6, cssr, i)) return 0; break;
-    case CSSR_TYPE_STEC:  if (!check_bit_width_stec(l6, cssr, i)) return 0; break;
-    case CSSR_TYPE_GRID:  if (!check_bit_width_grid(l6, cssr, i)) return 0; break;
-    case CSSR_TYPE_COMBO: if (!check_bit_width_combo(l6, cssr, i)) return 0; break;
-    case CSSR_TYPE_ATMOS: if (!check_bit_width_atmos(l6, cssr, i)) return 0; break;
-    case CSSR_TYPE_SI:    if (!check_bit_width_si(l6, cssr, i)) return 0; break;
-    case 0: return 0;
+        case CSSR_TYPE_MASK:
+            if (!check_bit_width_mask(l6, cssr, i)) {
+                return 0;
+            }
+            break;
+        case CSSR_TYPE_OC:
+            if (!check_bit_width_oc(l6, cssr, i)) {
+                return 0;
+            }
+            break;
+        case CSSR_TYPE_CC:
+            if (!check_bit_width_cc(l6, cssr, i)) {
+                return 0;
+            }
+            break;
+        case CSSR_TYPE_CB:
+            if (!check_bit_width_cb(l6, cssr, i)) {
+                return 0;
+            }
+            break;
+        case CSSR_TYPE_PB:
+            if (!check_bit_width_pb(l6, cssr, i)) {
+                return 0;
+            }
+            break;
+        case CSSR_TYPE_BIAS:
+            if (!check_bit_width_bias(l6, cssr, i)) {
+                return 0;
+            }
+            break;
+        case CSSR_TYPE_URA:
+            if (!check_bit_width_ura(l6, cssr, i)) {
+                return 0;
+            }
+            break;
+        case CSSR_TYPE_STEC:
+            if (!check_bit_width_stec(l6, cssr, i)) {
+                return 0;
+            }
+            break;
+        case CSSR_TYPE_GRID:
+            if (!check_bit_width_grid(l6, cssr, i)) {
+                return 0;
+            }
+            break;
+        case CSSR_TYPE_COMBO:
+            if (!check_bit_width_combo(l6, cssr, i)) {
+                return 0;
+            }
+            break;
+        case CSSR_TYPE_ATMOS:
+            if (!check_bit_width_atmos(l6, cssr, i)) {
+                return 0;
+            }
+            break;
+        case CSSR_TYPE_SI:
+            if (!check_bit_width_si(l6, cssr, i)) {
+                return 0;
+            }
+            break;
+        case 0: return 0;
     }
 
     /* decode */
@@ -2382,7 +2741,9 @@ static void read_qzs_msg_l6(clas_l6buf_t *l6, uint8_t *pbuff)
     }
 
     for (j = 0, jn = jn0; j < 5; j++, jn++) {
-        if (jn >= 5) jn = 0;
+        if (jn >= 5) {
+            jn = 0;
+        }
         buff = pbuff + jn * BLEN_MSG;
         setbitu(l6->buff, i, 7, buff[6] & 0x7f); i += 7;
         for (k = 0; k < 211; k++) {
@@ -2425,7 +2786,9 @@ extern int clas_input_cssr(clas_ctx_t *ctx, uint8_t data, int ch)
     /* synchronize L6 frame preamble */
     if (l6->nbyte == 0) {
         l6->preamble = (l6->preamble << 8) | data;
-        if (l6->preamble != L6FRMPREAMB) return 0;
+        if (l6->preamble != L6FRMPREAMB) {
+            return 0;
+        }
         l6->preamble = 0;
         l6->fbuff[l6->nbyte++] = (L6FRMPREAMB >> 24) & 0xff;
         l6->fbuff[l6->nbyte++] = (L6FRMPREAMB >> 16) & 0xff;
@@ -2436,7 +2799,9 @@ extern int clas_input_cssr(clas_ctx_t *ctx, uint8_t data, int ch)
     l6->fbuff[l6->nbyte++] = data;
     l6->len = BLEN_MSG;
 
-    if (l6->nbyte < l6->len) return 0;
+    if (l6->nbyte < l6->len) {
+        return 0;
+    }
     l6->nbyte = 0;
 
     prn = l6->fbuff[4];
@@ -2482,9 +2847,15 @@ extern int clas_input_cssrf(clas_ctx_t *ctx, FILE *fp, int ch)
     int i, data, ret;
 
     for (i = 0; i < 4096; i++) {
-        if ((ret = decode_qzs_msg(ctx, ch))) return ret;
-        if ((data = fgetc(fp)) == EOF) return -2;
-        if ((ret = clas_input_cssr(ctx, (uint8_t)data, ch))) return ret;
+        if ((ret = decode_qzs_msg(ctx, ch))) {
+            return ret;
+        }
+        if ((data = fgetc(fp)) == EOF) {
+            return -2;
+        }
+        if ((ret = clas_input_cssr(ctx, (uint8_t)data, ch))) {
+            return ret;
+        }
     }
     return 0;
 }
@@ -2511,14 +2882,18 @@ extern int clas_read_grid_def(clas_ctx_t *ctx, const char *gridfile)
 
     trace(NULL,2, "clas_read_grid_def: gridfile=%s\n", gridfile);
     fp = fopen(gridfile, "r");
-    if (!fp) return -1;
+    if (!fp) {
+        return -1;
+    }
 
     while (fgets(buff, sizeof(buff), fp)) {
         if (strstr(buff, "<CSSR Grid Definition>")) {
             while (fgets(buff, sizeof(buff), fp)) {
                 if ((temp = strstr(buff, "<Version>"))) {
                     p = temp + 9;
-                    if ((temp = strstr(buff, "</Version>"))) *temp = '\0';
+                    if ((temp = strstr(buff, "</Version>"))) {
+                        *temp = '\0';
+                    }
                     ctx->gridsel = atoi(p);
                     break;
                 }
@@ -2536,7 +2911,9 @@ extern int clas_read_grid_def(clas_ctx_t *ctx, const char *gridfile)
     fclose(fp);
 
     fp = fopen(gridfile, "r");
-    if (!fp) return -1;
+    if (!fp) {
+        return -1;
+    }
 
     if (isqzss == 0) {
         while (fgets(buff, sizeof(buff), fp)) {

@@ -57,9 +57,13 @@ extern int getstano(stat_t *stat, const char* pntname)
 
     /* search point */
     for (i=0;i<stat->nst;i++){
-        if (!strcmp(stat->strp[i].site.name,pntname)) break;
+        if (!strcmp(stat->strp[i].site.name, pntname)) {
+            break;
+        }
     }
-    if (i>=MAXSITES) return 0;
+    if (i >= MAXSITES) {
+        return 0;
+    }
     /* new point */
     if (i>=stat->nst) {
         memset(&stat->strp[stat->nst],0x00,sizeof(sitetrp_t));
@@ -116,7 +120,9 @@ static int decode_stat(sstat_t *sstat, char *buff, int *nbyte)
     else if (sscanf(buff,"$TRPG,%d,%lf,%d,%d,%lf,%lf,%lf,%lf",&week,&tow,
                     &qflag,&rcv,grad,grad+1,std,std+1)>=8) {
             time=gpst2time(week,tow);
-        if (timediff(time,sstat->strp.trpd.time)!=0.0) return 0; /* no update */
+            if (timediff(time, sstat->strp.trpd.time) != 0.0) {
+                return 0; /* no update */
+            }
         sstat->strp.trpd.trp[1]=grad[0];
         sstat->strp.trpd.trp[2]=grad[1];
         sstat->strp.trpd.std[1]=std[0];
@@ -141,14 +147,18 @@ extern int input_stat(sstat_t *sstat, const char data, char* buff, int *nbyte)
 
     /* synchronize frame */
     if (*nbyte==0) {
-        if (data!='$') return 0;
+        if (data != '$') {
+            return 0;
+        }
         buff[*nbyte]=data;
         (*nbyte)++;
         return 0;
     }
     buff[(*nbyte)++]=data;
 
-    if(data!='\n') return 0;
+    if (data != '\n') {
+        return 0;
+    }
 
     return decode_stat(sstat,buff,nbyte);
 }
@@ -168,8 +178,12 @@ extern int input_statf(sstat_t *sstat, FILE *fp, char *buff, int *nbyte)
     trace(NULL,4,"input_statf:\n");
 
     for (i=0;i<4096;i++) {
-        if ((data=fgetc(fp))==EOF) return -2;
-        if ((ret=input_stat(sstat, (char)data, buff, nbyte))) return ret;
+        if ((data = fgetc(fp)) == EOF) {
+            return -2;
+        }
+        if ((ret = input_stat(sstat, (char)data, buff, nbyte))) {
+            return ret;
+        }
     }
     return 0; /* return at every 4k bytes */
 }
@@ -183,7 +197,9 @@ extern double posdist(const double *ecef1, const double *ecef2)
 {
     int i;
     double r[3];
-    for (i=0;i<3;i++) r[i]=ecef1[i]-ecef2[i];
+    for (i = 0; i < 3; i++) {
+        r[i] = ecef1[i] - ecef2[i];
+    }
     return norm(r,3);
 }
 /* get neighbour sites -------------------------------------------------------*/
@@ -220,7 +236,9 @@ static int get_site(const stat_t *stat, const double *llh, int iontrp,
         trace(NULL,4,"get_site:targetpos llh=%f,%f,%f site pos llh=%f,%f,%f dist=%f\n",
             llh[0]*R2D,llh[1]*R2D,llh[2],
             gllh[n][0]*R2D,gllh[n][1]*R2D,gllh[n][2],d);
-        if ((dist[n]=MAX(d/1E3,0.1))>maxdist) continue;
+        if ((dist[n] = MAX(d / 1E3, 0.1)) > maxdist) {
+            continue;
+        }
         siteno[n++]=i;
     }
     return n;
@@ -233,7 +251,9 @@ extern int get_trop_sta(gtime_t time, const trp_t *trpd, double *trp,
     int i;
 
     tt=timediff(trpd->time,time);
-    if (tt<-600.0 || tt>5.) return 0;
+    if (tt < -600.0 || tt > 5.) {
+        return 0;
+    }
 
     for (i=0;i<3;i++) {
         trp[i]=trpd->trp[i];
@@ -252,8 +272,12 @@ extern int get_iono_sta(gtime_t time, const ion_t *iond, double *ion,
 
     for (i=0;i<MAXSAT;i++) {
         tt=timediff(iond[i].time,time);
-        if (tt<-35.0) continue;
-        if (tt>5.) continue;
+        if (tt < -35.0) {
+            continue;
+        }
+        if (tt > 5.) {
+            continue;
+        }
         ion[i]=iond[i].ion;
         std[i]=iond[i].std;
         el[i]=iond[i].azel[1];
@@ -282,9 +306,13 @@ extern int corr_trop_distwgt(const stat_t *stat, gtime_t time,
      double var,wgt[3]={0},cof[3]={0},dist[MAXSITES],llh_s[MAXSITES][3];
      int i,j,n,siteno[MAXSITES];
 
-     for (i=0;i<3;i++) trp[i]=std[i]=0.0;
+     for (i = 0; i < 3; i++) {
+         trp[i] = std[i] = 0.0;
+     }
 
-     if (!(n=get_site(stat,llh,TYPE_TRP,siteno,maxdist,dist,llh_s))) return 0;
+     if (!(n = get_site(stat, llh, TYPE_TRP, siteno, maxdist, dist, llh_s))) {
+         return 0;
+     }
 
      for (i=0;i<n;i++) {
          /* get trop correction for a station */
@@ -302,7 +330,9 @@ extern int corr_trop_distwgt(const stat_t *stat, gtime_t time,
             cof[j]+=1.0/var;
         }
      }
-     if (wgt[0]==0.0) return 0;
+     if (wgt[0] == 0.0) {
+         return 0;
+     }
 
      for (i=0;i<3;i++) {
         trp[i]/=wgt[i];
@@ -339,12 +369,18 @@ extern int corr_iono_distwgt(const stat_t *stat, gtime_t time,
     int i,j,n,siteno[MAXSITES];
     double eltmp, res;
 
-    for (i=0;i<MAXSAT;i++) ion[i]=0.0;
+    for (i = 0; i < MAXSAT; i++) {
+        ion[i] = 0.0;
+    }
 
-    if (!(n=get_site(stat,llh,TYPE_ION,siteno,maxdist,dist,llh_s))) return 0;
+    if (!(n = get_site(stat, llh, TYPE_ION, siteno, maxdist, dist, llh_s))) {
+        return 0;
+    }
 
     for (i=0;i<n;i++) {
-        for (j=0;j<MAXSAT;j++) ion_s[i][j]=std_s[j]=el_s[j]=0.0;
+        for (j = 0; j < MAXSAT; j++) {
+            ion_s[i][j] = std_s[j] = el_s[j] = 0.0;
+        }
 
         /* get iono correction for a station */
         if(get_iono_sta(time, stat->sion[siteno[i]].iond, ion_s[i], std_s,
@@ -358,7 +394,9 @@ extern int corr_iono_distwgt(const stat_t *stat, gtime_t time,
             }else{
                 eltmp=el[j];
             }
-            if (ion_s[i][j]==0.0||eltmp<=0.0) continue;
+            if (ion_s[i][j] == 0.0 || eltmp <= 0.0) {
+                continue;
+            }
             var=SQR(std_s[j])+SQR(dist[i]*STD_VTEC_DIST/sin(eltmp));
             ion[j]+=ion_s[i][j]/dist[i];
             wgt[j]+=1.0/dist[i];
@@ -366,7 +404,9 @@ extern int corr_iono_distwgt(const stat_t *stat, gtime_t time,
         }
     }
     for (i=0;i<MAXSAT;i++) {
-        if (wgt[i]==0.0||(cof[i]<=0.0)) continue;
+        if (wgt[i] == 0.0 || (cof[i] <= 0.0)) {
+            continue;
+        }
         ion[i]/=wgt[i];
         std[i]=sqrt(1.0/cof[i]);
         trace(NULL,3,"interpolation ion  %s sat=%d ion=%f std=%f lat=%.2f lat=%.2f n=%d\n",
@@ -375,10 +415,14 @@ extern int corr_iono_distwgt(const stat_t *stat, gtime_t time,
     if(maxres > 0.0){
         for (i=0;i<n;i++) {
             for (j=0;j<MAXSAT;j++) {
-                if (ion_s[i][j]==0.0 || ion[j]==0.0) continue;
+                if (ion_s[i][j] == 0.0 || ion[j] == 0.0) {
+                    continue;
+                }
                 res = ion[j]-ion_s[i][j];
                 ncnt[siteno[i]]++;
-                if(fabs(res)>maxres) nrej[siteno[i]]++;
+                if (fabs(res) > maxres) {
+                    nrej[siteno[i]]++;
+                }
             }
         }
     }
@@ -395,7 +439,9 @@ extern int block2stat(rtcm_t *rtcm, stat_t *stat)
     int i, j, k, gp;
     double d;
 
-    if(rtcm->lclblk.tnum==0&&rtcm->lclblk.inum==0) return 0;
+    if (rtcm->lclblk.tnum == 0 && rtcm->lclblk.inum == 0) {
+        return 0;
+    }
 
     /* convert trop corrections */
     for (i=0;i<rtcm->lclblk.tnum;i++) {
@@ -409,7 +455,9 @@ extern int block2stat(rtcm_t *rtcm, stat_t *stat)
             for(k=0;k<stat->nst;k++){
                 d=posdist(rtcm->lclblk.tstat[i][gp].site.ecef,
                     stat->strp[k].site.ecef);
-                if(d<0.1) break;
+                if (d < 0.1) {
+                    break;
+                }
             }
             if(k>=stat->nst) {
                 stat->nst++;
@@ -432,7 +480,9 @@ extern int block2stat(rtcm_t *rtcm, stat_t *stat)
             for(k=0;k<stat->nsi;k++){
                 d=posdist(rtcm->lclblk.istat[i][gp].site.ecef,
                     stat->sion[k].site.ecef);
-                if(d<0.1) break;
+                if (d < 0.1) {
+                    break;
+                }
             }
             if(k>=stat->nsi) {
                 stat->nsi++;

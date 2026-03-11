@@ -67,8 +67,12 @@ extern double sat2freq(int sat, uint8_t code, const nav_t *nav);
 static double miono_std_stecura(int ura)
 {
     /* ref [1] 6.3.2.3 (5) */
-    if (ura<= 0) return 5.4665;     /* STEC URA undefined/unknown */
-    if (ura>=63) return 5.4665;
+    if (ura <= 0) {
+        return 5.4665; /* STEC URA undefined/unknown */
+    }
+    if (ura >= 63) {
+        return 5.4665;
+    }
     return (pow(3.0,(ura>>3)&7)*(1.0+(ura&7)/4.0)-1.0)*1E-3;
 }
 
@@ -84,9 +88,15 @@ static double miono_delay(const nav_t *nav, const int sat,
     /* ref [1] 6.3.2.3 (5) */
     fact = 40.31E16 / freq / freq;  /* TECU -> L1 ionospheric delay(m) */
     stec = c[0];                    /* STEC poly.coef.{C00,C01,C10,C11,C02,C20} */
-    if(a->type >= 1) stec += c[1] *    (ll[0] - a->ref[0]) + c[2] *    (ll[1] - a->ref[1]);
-    if(a->type >= 2) stec += c[3] *    (ll[0] - a->ref[0])        *    (ll[1] - a->ref[1]);
-    if(a->type >= 3) stec += c[4] * SQR(ll[0] - a->ref[0]) + c[2] * SQR(ll[1] - a->ref[1]);
+    if (a->type >= 1) {
+        stec += c[1] * (ll[0] - a->ref[0]) + c[2] * (ll[1] - a->ref[1]);
+    }
+    if (a->type >= 2) {
+        stec += c[3] * (ll[0] - a->ref[0]) * (ll[1] - a->ref[1]);
+    }
+    if (a->type >= 3) {
+        stec += c[4] * SQR(ll[0] - a->ref[0]) + c[2] * SQR(ll[1] - a->ref[1]);
+    }
 
     delay = fact * stec;
     trace(NULL,5,"miono_delay: sat=%d,fact=%5.3f,stec=%8.3f,delay=%7.3f,coef=%7.2f,%7.2f,%7.2f,%7.2f,%8.3f,%8.3f\n",
@@ -106,28 +116,44 @@ static miono_area_t *miono_sel_area(pppiono_t *pppiono, const double *rr,
 
     for (i = 0; i < MIONO_MAX_RID; i++) {
         re = &pppiono->re[i];
-        if(!re->rvalid) continue;
+        if (!re->rvalid) {
+            continue;
+        }
         trace(NULL,5,"miono_sel_area: region i=%d,ralert=%d\n",i,re->ralert);
-        if(re->ralert) continue;
+        if (re->ralert) {
+            continue;
+        }
 
         for (j = 0; j < MIONO_MAX_ANUM; j++) {
-            if(!re->area[j].avalid) continue;
-            for(k = 0; k < 2; k++) ref_llh[k] = re->area[j].ref[k] * D2R; /* deg -> rad */
+            if (!re->area[j].avalid) {
+                continue;
+            }
+            for (k = 0; k < 2; k++) {
+                ref_llh[k] = re->area[j].ref[k] * D2R; /* deg -> rad */
+            }
             pos2ecef(ref_llh, ref_ecef);
-            for(k = 0; k < 3; k++) diff[k] = rr[k] - ref_ecef[k];
+            for (k = 0; k < 3; k++) {
+                diff[k] = rr[k] - ref_ecef[k];
+            }
             dist=norm(diff, 3) / 1E3;  /* m -> km */
             trace(NULL,5,"miono_sel_area: area i=%d,j=%d,sid=%d,ref=%6.2f,%7.2f,dist=%10.3f,min_dist=%10.3f\n",
                 i,j,re->area[j].sid, re->area[j].ref[0], re->area[j].ref[1], dist, min_dist);
-            if(dist > min_dist) continue;
+            if (dist > min_dist) {
+                continue;
+            }
 
             if(re->area[j].sid == 0) { /* rectangle */
-                if((ll[0] < (re->area[j].ref[0] - re->area[j].span[0])) ||
-                   (ll[0] > (re->area[j].ref[0] + re->area[j].span[0])) ||
-                   (ll[1] < (re->area[j].ref[1] - re->area[j].span[1])) ||
-                   (ll[1] > (re->area[j].ref[1] + re->area[j].span[1]))) continue;
+                if ((ll[0] < (re->area[j].ref[0] - re->area[j].span[0])) ||
+                    (ll[0] > (re->area[j].ref[0] + re->area[j].span[0])) ||
+                    (ll[1] < (re->area[j].ref[1] - re->area[j].span[1])) ||
+                    (ll[1] > (re->area[j].ref[1] + re->area[j].span[1]))) {
+                    continue;
+                }
             }
             else {                     /* circle */
-                if(dist > re->area[j].span[0]) continue;
+                if (dist > re->area[j].span[0]) {
+                    continue;
+                }
             }
             trace(NULL,2,"miono_sel_area: closest RegionID=%d,AreaNo=%d,dist=%.3f\n", i, j, dist);
             min_i = i; min_j = j; min_dist = dist;
@@ -155,17 +181,23 @@ extern int miono_get_corr(const double *rr, nav_t *nav)
     int i;
     double pos[3],latlon[2];
 
-    if (!nav->pppiono) return 0;
+    if (!nav->pppiono) {
+        return 0;
+    }
 
     trace(NULL,4,"miono_get_corr: rr=%.3f,%.3f,%.3f\n",rr[0],rr[1],rr[2]);
 
-    if((rr[0] == 0.0) && (rr[1] == 0.0) && (rr[2] == 0.0)) return 0;
+    if ((rr[0] == 0.0) && (rr[1] == 0.0) && (rr[2] == 0.0)) {
+        return 0;
+    }
 
     ecef2pos(rr, pos);
     latlon[0]=pos[0]*R2D;
     latlon[1]=pos[1]*R2D;
 
-    if (!(area = miono_sel_area(nav->pppiono, rr, latlon))) return 0;
+    if (!(area = miono_sel_area(nav->pppiono, rr, latlon))) {
+        return 0;
+    }
 
     for(i = 0; i < MAXSAT; i++) {
         if (!area->sat[i].t0.time) {
@@ -198,14 +230,19 @@ extern int input_statcorr(pppiono_corr_t *corr, FILE *fp)
     */
 
     while (fgets(buff,sizeof(buff),fp)) {
-
-        for (p=buff;*p;p++) if (*p==',') *p=' ';
+        for (p = buff; *p; p++) {
+            if (*p == ',') {
+                *p = ' ';
+            }
+        }
 
         /* $POS record */
         if (sscanf(buff,"$POS%d%lf%d%lf%lf%lf%lf%lf%lf",
                 &week,&tow,&stat,pos,pos+1,pos+2,std,std+1,std+2)>=9) {
             time=gpst2time(week,tow);
-            if((corr->time.time != 0)&&(corr->time.time != time.time)) return ret;
+            if ((corr->time.time != 0) && (corr->time.time != time.time)) {
+                return ret;
+            }
         }
 
         /* $ION record */
@@ -240,7 +277,9 @@ extern int const_iono_corr(rtk_t *rtk, const obsd_t *obs, const nav_t *nav,
     char *p,*tstr,satid[8];
     const int sys[NSYS]={SYS_GPS,SYS_GLO,SYS_GAL,SYS_QZS,0};
 
-    if (!nav->pppiono) return 0;
+    if (!nav->pppiono) {
+        return 0;
+    }
 
     if ((p=strstr(rtk->opt.pppopt,"-IONOCORR_THRE_H="))) {
         sscanf(p,"-IONOCORR_THRE_H=%lf",&thre[0]);
@@ -282,27 +321,41 @@ extern int const_iono_corr(rtk_t *rtk, const obsd_t *obs, const nav_t *nav,
         ave=0.0;ns=0;
         for (i=0;i<n;i++) {
             sat=obs[i].sat;
-            if (satsys(sat,NULL)!=sys[s]) continue;
-            if(corr.t0[sat-1].time == 0.0) continue;
+            if (satsys(sat, NULL) != sys[s]) {
+                continue;
+            }
+            if (corr.t0[sat - 1].time == 0.0) {
+                continue;
+            }
             tt = fabs(timediff(time,corr.t0[sat-1]));
             tstr = time_str(corr.t0[sat-1],0);
 
             satno2id(sat, satid);
-            if (exc[i]) continue;
-            if (tt > MIONO_MAX_AGE) continue;
-            if (corr.std[sat-1] > rejstd) continue;
+            if (exc[i]) {
+                continue;
+            }
+            if (tt > MIONO_MAX_AGE) {
+                continue;
+            }
+            if (corr.std[sat - 1] > rejstd) {
+                continue;
+            }
 
             j=II(sat,&rtk->opt);
             ave+=(corr.dly[sat-1]-x[j]);
             ns++;
         }
-        if (ns>0) bsys[s]=ave/(double)ns;
+        if (ns > 0) {
+            bsys[s] = ave / (double)ns;
+        }
     }
 
     /* constraint to external ionosphere correction */
     for (i=0;i<n;i++) {
         sat=obs[i].sat;
-        if(corr.t0[sat-1].time == 0.0) continue;
+        if (corr.t0[sat - 1].time == 0.0) {
+            continue;
+        }
         tt = fabs(timediff(time,corr.t0[sat-1]));
         tstr = time_str(corr.t0[sat-1],0);
 
@@ -316,9 +369,15 @@ extern int const_iono_corr(rtk_t *rtk, const obsd_t *obs, const nav_t *nav,
             default:      continue;
         }
 
-        if (exc[i]) continue;
-        if (tt > MIONO_MAX_AGE) continue;
-        if (corr.std[sat-1] > rejstd) continue;
+        if (exc[i]) {
+            continue;
+        }
+        if (tt > MIONO_MAX_AGE) {
+            continue;
+        }
+        if (corr.std[sat - 1] > rejstd) {
+            continue;
+        }
 
         std = corr.std[sat-1];
         j=II(sat,&rtk->opt);
@@ -327,7 +386,9 @@ extern int const_iono_corr(rtk_t *rtk, const obsd_t *obs, const nav_t *nav,
         trace(NULL,2,"const_iono_corr: %s,%s,tt=%11d,az=%5.1f,el=%4.1f,sdly=%8.4f,std=%8.4f,v=%8.4f,x=%8.4f,bsys=%8.4f\n",
             satid,tstr,(int)tt,(azel+i*2)[0]*R2D,(azel+i*2)[1]*R2D,corr.dly[sat-1],corr.std[sat-1],v[nv],x[j],bsys[s]);
 
-        for (k=0;k<rtk->nx;k++) H[k+nv*rtk->nx]=k==j?1.0:0.0;
+        for (k = 0; k < rtk->nx; k++) {
+            H[k + nv * rtk->nx] = k == j ? 1.0 : 0.0;
+        }
         var[nv++]=SQR(std)*covratio;
     }
     return nv;

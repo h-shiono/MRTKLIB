@@ -123,8 +123,10 @@ static int chksum(const uint8_t *buff, int len)
 {
     int i;
     uint16_t sum=0;
-    
-    for (i=0;i<len-2;i++) sum+=buff[i];
+
+    for (i = 0; i < len - 2; i++) {
+        sum += buff[i];
+    }
     return (sum>>8)==buff[len-1]&&(sum&0xFF)==buff[len-2];
 }
 /* adjust week ---------------------------------------------------------------*/
@@ -132,11 +134,16 @@ static int adjweek(raw_t *raw, double sec)
 {
     double tow;
     int week;
-    
-    if (raw->time.time==0) return 0;
+
+    if (raw->time.time == 0) {
+        return 0;
+    }
     tow=time2gpst(raw->time,&week);
-    if      (sec<tow-302400.0) sec+=604800.0;
-    else if (sec>tow+302400.0) sec-=604800.0;
+    if (sec < tow - 302400.0) {
+        sec += 604800.0;
+    } else if (sec > tow + 302400.0) {
+        sec -= 604800.0;
+    }
     raw->time=gpst2time(week,sec);
     return 1;
 }
@@ -261,14 +268,18 @@ static int decode_ss2eph(raw_t *raw)
         buff[30*i+3]=(uint8_t)(tow>>9); /* add tow + subframe id */
         buff[30*i+4]=(uint8_t)(tow>>1);
         buff[30*i+5]=(uint8_t)(((tow&1)<<7)+((i+1)<<2));
-        for (j=0;j<24;j++) buff[30*i+6+j]=p[1+24*i+j];
+        for (j = 0; j < 24; j++) {
+            buff[30 * i + 6 + j] = p[1 + 24 * i + j];
+        }
     }
     if (!decode_frame(buff,&eph,NULL,NULL,NULL)) {
         trace(NULL,2,"ss2 id#22 subframe error: prn=%d\n",prn);
         return -1;
     }
     if (!strstr(raw->opt,"-EPHALL")) {
-        if (eph.iode==raw->nav.eph[sat-1].iode) return 0; /* unchanged */
+        if (eph.iode == raw->nav.eph[sat - 1].iode) {
+            return 0; /* unchanged */
+        }
     }
     eph.sat=sat;
     eph.ttr=raw->time;
@@ -299,7 +310,9 @@ static int decode_ss2sbas(raw_t *raw)
     raw->sbsmsg.tow=(int)R8(p+4);
     time=gpst2time(raw->sbsmsg.week,raw->sbsmsg.tow);
     raw->sbsmsg.prn=prn;
-    for (i=0;i<29;i++) raw->sbsmsg.msg[i]=p[16+i];
+    for (i = 0; i < 29; i++) {
+        raw->sbsmsg.msg[i] = p[16 + i];
+    }
     return 3;
 }
 /* decode superstar 2 raw message --------------------------------------------*/
@@ -348,7 +361,9 @@ extern int input_ss2(raw_t *raw, uint8_t data)
     
     /* synchronize frame */
     if (raw->nbyte==0) {
-        if (!sync_ss2(raw->buff,data)) return 0;
+        if (!sync_ss2(raw->buff, data)) {
+            return 0;
+        }
         raw->nbyte=3;
         return 0;
     }
@@ -361,7 +376,9 @@ extern int input_ss2(raw_t *raw, uint8_t data)
             return -1;
         }
     }
-    if (raw->nbyte<4||raw->nbyte<raw->len) return 0;
+    if (raw->nbyte < 4 || raw->nbyte < raw->len) {
+        return 0;
+    }
     raw->nbyte=0;
     
     /* decode superstar 2 raw message */
@@ -382,12 +399,20 @@ extern int input_ss2f(raw_t *raw, FILE *fp)
     /* synchronize frame */
     if (raw->nbyte==0) {
         for (i=0;;i++) {
-            if ((data=fgetc(fp))==EOF) return -2;
-            if (sync_ss2(raw->buff,(uint8_t)data)) break;
-            if (i>=4096) return 0;
+            if ((data = fgetc(fp)) == EOF) {
+                return -2;
+            }
+            if (sync_ss2(raw->buff, (uint8_t)data)) {
+                break;
+            }
+            if (i >= 4096) {
+                return 0;
+            }
         }
     }
-    if (fread(raw->buff+3,1,1,fp)<1) return -2;
+    if (fread(raw->buff + 3, 1, 1, fp) < 1) {
+        return -2;
+    }
     raw->nbyte=4;
     
     if ((raw->len=U1(raw->buff+3)+6)>MAXRAWLEN) {
@@ -395,7 +420,9 @@ extern int input_ss2f(raw_t *raw, FILE *fp)
         raw->nbyte=0;
         return -1;
     }
-    if (fread(raw->buff+4,1,raw->len-4,fp)<(size_t)(raw->len-4)) return -2;
+    if (fread(raw->buff + 4, 1, raw->len - 4, fp) < (size_t)(raw->len - 4)) {
+        return -2;
+    }
     raw->nbyte=0;
     
     /* decode superstar 2 raw message */

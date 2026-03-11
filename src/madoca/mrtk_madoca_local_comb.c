@@ -52,7 +52,9 @@ static int plane(const double p1[3], const double p2[3], const double p3[3],
     vsub(p2,p1,a2b);
     vsub(p3,p1,a2c);
     cross3(a2b, a2c, peq);
-    if(!normv3(peq, peq)) return 0;
+    if (!normv3(peq, peq)) {
+        return 0;
+    }
     peq[3]=-1*(peq[0]*p1[0]+peq[1]*p1[1]+peq[2]*p1[2]);
     return 1;
 }
@@ -61,7 +63,9 @@ static int intpt(const double p1[3], const double p2[3], const double p3[3],
                  double t[3])
 {
     double peq[4];
-    if(!plane(p1,p2,p3,peq)) return 0;
+    if (!plane(p1, p2, p3, peq)) {
+        return 0;
+    }
     t[2]=-1*(t[0]*peq[0]+t[1]*peq[1]+peq[3])/peq[2];
     return 1;
 }
@@ -94,7 +98,9 @@ static int selpersta(const stat_t *stat, const double *llh, int flag,
         }else{
             spos = &stat->sion[i].site;
         }
-        if(spos->ecef[0]==0.0) continue;
+        if (spos->ecef[0] == 0.0) {
+            continue;
+        }
 
         d = posdist(spos->ecef,ecef);
         ecef2pos(spos->ecef,tllh[0]);
@@ -102,10 +108,14 @@ static int selpersta(const stat_t *stat, const double *llh, int flag,
         trace(NULL,4,"get_site:targetpos llh=%f,%f,%f site pos llh=%f,%f,%f dist=%f\n",
             tllh[0][0]*R2D,tllh[0][1]*R2D,tllh[0][2],
             tllh[1][0]*R2D,tllh[1][1]*R2D,tllh[1][2],d);
-        if(d > maxdist*1E3) continue;
+        if (d > maxdist * 1E3) {
+            continue;
+        }
 
         for (j=0; j<MAXSITES; j++) {
-            if(sdist[j] < d) continue;
+            if (sdist[j] < d) {
+                continue;
+            }
             for(k=n; k>j&&k>0; k--) {
                 sdist[k]=sdist[k-1];
                 id[k]=id[k-1];
@@ -143,7 +153,9 @@ static int gettriangledd(const stat_t *stat, const double *llh, int flag,
     spos_t site[3];
 
     stanum = selpersta(stat, llh, flag, maxdist, id);
-    if(stanum<3) return 0;
+    if (stanum < 3) {
+        return 0;
+    }
 
     /* detect target including triangle */
     for(i=0; i<stanum && i<MAXSITES; i++) {
@@ -208,7 +220,9 @@ static int corr_trop_plane(const stat_t *stat, gtime_t time, const double *llh,
     double zazel[]={0.0,90.0*D2R}, zhd, trp_s[3][3]={{0.0}}, std_s[3][3]={{0.0}};
     double tri[9]={0.0}, trit[3];
 
-    if( gettriangledd(stat, llh, TYPE_TRP, maxdist, extp, staid) < 3) return 0;
+    if (gettriangledd(stat, llh, TYPE_TRP, maxdist, extp, staid) < 3) {
+        return 0;
+    }
 
     /* convert station position & time interpolation */
     for(i=0; i<3; i++) {
@@ -251,7 +265,9 @@ static int corr_iono_plane(const stat_t *stat, gtime_t time, const double *llh,
     double el_s[3][MAXSAT], ion_s[3][MAXSAT]={{0.0}}, std_s[3][MAXSAT]={{0.0}};
     double tri[9]={0.0}, trit[3], res;
 
-    if(gettriangledd(stat, llh, TYPE_ION, maxdist, extp, siteno) < 3) return 0;
+    if (gettriangledd(stat, llh, TYPE_ION, maxdist, extp, siteno) < 3) {
+        return 0;
+    }
 
     /* convert station position & time interpolation */
     for(i=0; i<3; i++) {
@@ -267,14 +283,20 @@ static int corr_iono_plane(const stat_t *stat, gtime_t time, const double *llh,
     /* space interpolation */
     for(i=0; i<MAXSAT; i++) {
         for(j=0; j<3; j++) {
-            if(ion_s[j][i]==0.0) break;
+            if (ion_s[j][i] == 0.0) {
+                break;
+            }
             tri[j*3+2]=ion_s[j][i];
         }
-        if(j < 3) continue;
+        if (j < 3) {
+            continue;
+        }
         intpt(&tri[0], &tri[3], &tri[6], &trit[0]);
         ion[i] = trit[2];
         for(j=0; j<3; j++) {
-            if(ion_s[j][i]==0.0) break;
+            if (ion_s[j][i] == 0.0) {
+                break;
+            }
             tri[j*3+2]=std_s[j][i];
         }
         intpt(&tri[0], &tri[3], &tri[6], &trit[0]);
@@ -283,10 +305,14 @@ static int corr_iono_plane(const stat_t *stat, gtime_t time, const double *llh,
     if(maxres > 0.0){
         for (i=0;i<3;i++) {
             for (j=0;j<MAXSAT;j++) {
-                if (ion_s[i][j]==0.0) continue;
+                if (ion_s[i][j] == 0.0) {
+                    continue;
+                }
                 res = ion[i]-ion_s[i][j];
                 ncnt[siteno[i]]++;
-                if(fabs(res)>maxres) nrej[siteno[i]]++;
+                if (fabs(res) > maxres) {
+                    nrej[siteno[i]]++;
+                }
             }
         }
     }
@@ -313,7 +339,9 @@ extern int initgridsta(const char *setfile, lclblock_t *lclblk, int btype)
         return 0;
     }
     while (fgets(buff,sizeof(buff),sfp)!=NULL) {
-        if (buff[0]=='#') continue;
+        if (buff[0] == '#') {
+            continue;
+        }
 
         strcpy(type,strtok(buff,","));
         if (strncmp(type,"I",1)==0) {
@@ -444,10 +472,18 @@ extern void sta_sel_trop(const gtime_t time, const stat_t *stat,
         bi->n=0;
         for (j=0;j<stat->nst;j++) {
             ecef2pos(stat->strp[j].site.ecef,llh);
-            if (llh[0]>=bi->bpos[0])           continue;
-            if (llh[0]<bi->bpos[0]-bi->bs*D2R) continue;
-            if (llh[1]<=bi->bpos[1])           continue;
-            if (llh[1]>bi->bpos[1]+bi->bs*D2R) continue;
+            if (llh[0] >= bi->bpos[0]) {
+                continue;
+            }
+            if (llh[0] < bi->bpos[0] - bi->bs * D2R) {
+                continue;
+            }
+            if (llh[1] <= bi->bpos[1]) {
+                continue;
+            }
+            if (llh[1] > bi->bpos[1] + bi->bs * D2R) {
+                continue;
+            }
 
             strp=&lslblk->tstat[i][bi->n];
             for (k=0;k<3;k++){
@@ -542,10 +578,18 @@ extern void sta_sel_iono(const gtime_t gt, const stat_t *stat,
 
         for (j=0;j<stat->nsi;j++) {
             ecef2pos(stat->sion[j].site.ecef,llh);
-            if (llh[0]>=bi->bpos[0])           continue;
-            if (llh[0]<bi->bpos[0]-bi->bs*D2R) continue;
-            if (llh[1]<=bi->bpos[1])           continue;
-            if (llh[1]>bi->bpos[1]+bi->bs*D2R) continue;
+            if (llh[0] >= bi->bpos[0]) {
+                continue;
+            }
+            if (llh[0] < bi->bpos[0] - bi->bs * D2R) {
+                continue;
+            }
+            if (llh[1] <= bi->bpos[1]) {
+                continue;
+            }
+            if (llh[1] > bi->bpos[1] + bi->bs * D2R) {
+                continue;
+            }
 
             sion=&lslblk->istat[i][bi->n];
             for (k=0;k<3;k++){
@@ -583,8 +627,9 @@ extern void output_lclcmb(rtcm_t *rtcm, int btype, struct stream_tag *ostr)
     }
     else if(btype==BTYPE_STA){
         basemt=2011;
+    } else {
+        return;
     }
-    else return;
 
     for(i=0; i < rtcm->lclblk.tnum; i++) {
         rtcm->lclblk.outtn=i;

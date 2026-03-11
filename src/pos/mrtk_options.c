@@ -275,8 +275,12 @@ opt_t sysopts[]={
 static void chop(char *str)
 {
     char *p;
-    if ((p=strchr(str,'#'))) *p='\0'; /* comment */
-    for (p=str+strlen(str)-1;p>=str&&!isgraph((int)*p);p--) *p='\0';
+    if ((p = strchr(str, '#'))) {
+        *p = '\0'; /* comment */
+    }
+    for (p = str + strlen(str) - 1; p >= str && !isgraph((int)*p); p--) {
+        *p = '\0';
+    }
 }
 /* enum to string ------------------------------------------------------------*/
 static int enum2str(char *s, const char *comment, int val)
@@ -302,9 +306,15 @@ static int str2enum(const char *str, const char *comment, int *val)
     char s[32];
     
     for (p=comment;;p++) {
-       if (!(p=strstr(p,str))) break;
-       if (p<=comment||*(p-1)!=':') continue;
-       for (p-=2;p>=comment&&'0'<=*p&&*p<='9';p--) ;
+        if (!(p = strstr(p, str))) {
+            break;
+        }
+        if (p <= comment || *(p - 1) != ':') {
+            continue;
+        }
+        for (p -= 2; p >= comment && '0' <= *p && *p <= '9'; p--) {
+            /* find start of numeric id */
+        }
        return sscanf(p+1,"%d",val)==1;
     }
     sprintf(s,"%.30s:",str);
@@ -327,7 +337,9 @@ extern opt_t *searchopt(const char *name, const opt_t *opts)
     trace(NULL,3,"searchopt: name=%s\n",name);
     
     for (i=0;*opts[i].name;i++) {
-        if (strstr(opts[i].name,name)) return (opt_t *)(opts+i);
+        if (strstr(opts[i].name, name)) {
+            return (opt_t*)(opts + i);
+        }
     }
     return NULL;
 }
@@ -384,7 +396,9 @@ extern int opt2buf(const opt_t *opt, char *buff)
     p+=sprintf(p,"%-18s =",opt->name);
     p+=opt2str(opt,p);
     if (*opt->comment) {
-        if ((n=(int)(buff+30-p))>0) p+=sprintf(p,"%*s",n,"");
+        if ((n = (int)(buff + 30 - p)) > 0) {
+            p += sprintf(p, "%*s", n, "");
+        }
         p+=sprintf(p," # (%s)",opt->comment);
     }
     return (int)(p-buff);
@@ -421,16 +435,22 @@ extern int loadopts(const char *file, opt_t *opts)
         n++;
         chop(buff);
 
-        if (buff[0]=='\0') continue;
+        if (buff[0] == '\0') {
+            continue;
+        }
 
         if (!(p=strstr(buff,"="))) {
             fprintf(stderr,"invalid option %s (%s:%d)\n",buff,file,n);
             continue;
         }
         *p++='\0';
-        while (*p==' '||*p=='\t') p++; /* skip leading whitespace in value */
+        while (*p == ' ' || *p == '\t') {
+            p++; /* skip leading whitespace in value */
+        }
         chop(buff);
-        if (!(opt=searchopt(buff,opts))) continue;
+        if (!(opt = searchopt(buff, opts))) {
+            continue;
+        }
 
         if (!str2opt(opt,p)) {
             fprintf(stderr,"invalid option value %s (%s:%d)\n",buff,file,n);
@@ -474,8 +494,10 @@ extern int saveopts(const char *file, const char *mode, const char *comment,
         trace(NULL,1,"saveopts: options file open error (%s)\n",file);
         return 0;
     }
-    if (comment) fprintf(fp,"# %s\n\n",comment);
-    
+    if (comment) {
+        fprintf(fp, "# %s\n\n", comment);
+    }
+
     for (i=0;*opts[i].name;i++) {
         opt2buf(opts+i,buff);
         fprintf(fp,"%s\n",buff);
@@ -510,22 +532,33 @@ static void buff2sysopts(void)
             rr[0]=antpos_[i][0];
             rr[1]=antpos_[i][1];
             rr[2]=antpos_[i][2];
+        } else {
+            *ps = antpostype_[i] - 1;
         }
-        else *ps=antpostype_[i]-1;
     }
     /* excluded satellites */
-    for (i=0;i<MAXSAT;i++) prcopt_.exsats[i]=0;
+    for (i = 0; i < MAXSAT; i++) {
+        prcopt_.exsats[i] = 0;
+    }
     if (exsats_[0]!='\0') {
         strcpy(buff,exsats_);
         for (p=strtok(buff," ");p;p=strtok(NULL," ")) {
-            if (*p=='+') id=p+1; else id=p;
-            if (!(sat=satid2no(id))) continue;
+            if (*p == '+') {
+                id = p + 1;
+            } else {
+                id = p;
+            }
+            if (!(sat = satid2no(id))) {
+                continue;
+            }
             prcopt_.exsats[sat-1]=*p=='+'?2:1;
         }
     }
     /* snrmask */
     for (i=0;i<NFREQ;i++) {
-        for (j=0;j<9;j++) prcopt_.snrmask.mask[i][j]=0.0;
+        for (j = 0; j < 9; j++) {
+            prcopt_.snrmask.mask[i][j] = 0.0;
+        }
         strcpy(buff,snrmask_[i]);
         for (p=strtok(buff,","),j=0;p&&j<9;p=strtok(NULL,",")) {
             prcopt_.snrmask.mask[i][j++]=atof(p);
@@ -553,8 +586,9 @@ static void sysopts2buff(void)
             antpos_[i][0]=pos[0]*R2D;
             antpos_[i][1]=pos[1]*R2D;
             antpos_[i][2]=pos[2];
+        } else {
+            antpostype_[i] = *ps + 1;
         }
-        else antpostype_[i]=*ps+1;
     }
     /* excluded satellites */
     exsats_[0]='\0';
@@ -595,12 +629,16 @@ extern void resetsysopts(void)
     filopt_.blq    [0]='\0';
     filopt_.solstat[0]='\0';
     filopt_.trace  [0]='\0';
-    for (i=0;i<2;i++) antpostype_[i]=0;
+    for (i = 0; i < 2; i++) {
+        antpostype_[i] = 0;
+    }
     elmask_=15.0;
     elmaskar_=0.0;
     elmaskhold_=0.0;
-    for (i=0;i<2;i++) for (j=0;j<3;j++) {
-        antpos_[i][j]=0.0;
+    for (i = 0; i < 2; i++) {
+        for (j = 0; j < 3; j++) {
+            antpos_[i][j] = 0.0;
+        }
     }
     exsats_[0] ='\0';
 }
@@ -617,9 +655,15 @@ extern void getsysopts(prcopt_t *popt, solopt_t *sopt, filopt_t *fopt)
     trace(NULL,3,"getsysopts:\n");
     
     buff2sysopts();
-    if (popt) *popt=prcopt_;
-    if (sopt) *sopt=solopt_;
-    if (fopt) *fopt=filopt_;
+    if (popt) {
+        *popt = prcopt_;
+    }
+    if (sopt) {
+        *sopt = solopt_;
+    }
+    if (fopt) {
+        *fopt = filopt_;
+    }
 }
 /* set system options ----------------------------------------------------------
 * set system options
@@ -635,8 +679,14 @@ extern void setsysopts(const prcopt_t *prcopt, const solopt_t *solopt,
     trace(NULL,3,"setsysopts:\n");
     
     resetsysopts();
-    if (prcopt) prcopt_=*prcopt;
-    if (solopt) solopt_=*solopt;
-    if (filopt) filopt_=*filopt;
+    if (prcopt) {
+        prcopt_ = *prcopt;
+    }
+    if (solopt) {
+        solopt_ = *solopt;
+    }
+    if (filopt) {
+        filopt_ = *filopt;
+    }
     sysopts2buff();
 }

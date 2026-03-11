@@ -119,13 +119,19 @@ static int checkbrk(const char *format, ...)
 {
     va_list arg;
     char buff[1024],*p=buff;
-    if (!*format) return showmsg("");
+    if (!*format) {
+        return showmsg("");
+    }
     va_start(arg,format);
     p+=vsprintf(p,format,arg);
     va_end(arg);
-    if (*proc_rov&&*proc_base) sprintf(p," (%s-%s)",proc_rov,proc_base);
-    else if (*proc_rov ) sprintf(p," (%s)",proc_rov );
-    else if (*proc_base) sprintf(p," (%s)",proc_base);
+    if (*proc_rov && *proc_base) {
+        sprintf(p, " (%s-%s)", proc_rov, proc_base);
+    } else if (*proc_rov) {
+        sprintf(p, " (%s)", proc_rov);
+    } else if (*proc_base) {
+        sprintf(p, " (%s)", proc_base);
+    }
     return showmsg(buff);
 }
 /* output reference position -------------------------------------------------*/
@@ -179,17 +185,33 @@ static void outheader(FILE *fp, char **file, int n, const prcopt_t *popt,
         for (i=0;i<n;i++) {
             fprintf(fp,"%s inp file  : %s\n",COMMENTH,file[i]);
         }
-        for (i=0;i<obss.n;i++)    if (obss.data[i].rcv==1) break;
-        for (j=obss.n-1;j>=0;j--) if (obss.data[j].rcv==1) break;
+        for (i = 0; i < obss.n; i++) {
+            if (obss.data[i].rcv == 1) {
+                break;
+            }
+        }
+        for (j = obss.n - 1; j >= 0; j--) {
+            if (obss.data[j].rcv == 1) {
+                break;
+            }
+        }
         if (j<i) {fprintf(fp,"\n%s no rover obs data\n",COMMENTH); return;}
         ts=obss.data[i].time;
         te=obss.data[j].time;
         t1=time2gpst(ts,&w1);
         t2=time2gpst(te,&w2);
-        if (sopt->times>=1) ts=gpst2utc(ts);
-        if (sopt->times>=1) te=gpst2utc(te);
-        if (sopt->times==2) ts=timeadd(ts,9*3600.0);
-        if (sopt->times==2) te=timeadd(te,9*3600.0);
+        if (sopt->times >= 1) {
+            ts = gpst2utc(ts);
+        }
+        if (sopt->times >= 1) {
+            te = gpst2utc(te);
+        }
+        if (sopt->times == 2) {
+            ts = timeadd(ts, 9 * 3600.0);
+        }
+        if (sopt->times == 2) {
+            te = timeadd(te, 9 * 3600.0);
+        }
         time2str(ts,s2,1);
         time2str(te,s3,1);
         fprintf(fp,"%s obs start : %s %s (week%04d %8.1fs)\n",COMMENTH,s2,s1[sopt->times],w1,t1);
@@ -203,8 +225,10 @@ static void outheader(FILE *fp, char **file, int n, const prcopt_t *popt,
         outrpos(fp,popt->rb,sopt);
         fprintf(fp,"\n");
     }
-    if (sopt->outhead||sopt->outopt) fprintf(fp,"%s\n",COMMENTH);
-    
+    if (sopt->outhead || sopt->outopt) {
+        fprintf(fp, "%s\n", COMMENTH);
+    }
+
     outsolhead(fp,sopt);
 }
 /* search next observation data index ----------------------------------------*/
@@ -212,11 +236,17 @@ static int nextobsf(const obs_t *obs, int *i, int rcv)
 {
     double tt;
     int n;
-    
-    for (;*i<obs->n;(*i)++) if (obs->data[*i].rcv==rcv) break;
+
+    for (; *i < obs->n; (*i)++) {
+        if (obs->data[*i].rcv == rcv) {
+            break;
+        }
+    }
     for (n=0;*i+n<obs->n;n++) {
         tt=timediff(obs->data[*i+n].time,obs->data[*i].time);
-        if (obs->data[*i+n].rcv!=rcv||tt>DTTOL) break;
+        if (obs->data[*i + n].rcv != rcv || tt > DTTOL) {
+            break;
+        }
     }
     return n;
 }
@@ -224,11 +254,17 @@ static int nextobsb(const obs_t *obs, int *i, int rcv)
 {
     double tt;
     int n;
-    
-    for (;*i>=0;(*i)--) if (obs->data[*i].rcv==rcv) break;
+
+    for (; *i >= 0; (*i)--) {
+        if (obs->data[*i].rcv == rcv) {
+            break;
+        }
+    }
     for (n=0;*i-n>=0;n++) {
         tt=timediff(obs->data[*i-n].time,obs->data[*i].time);
-        if (obs->data[*i-n].rcv!=rcv||tt<-DTTOL) break;
+        if (obs->data[*i - n].rcv != rcv || tt < -DTTOL) {
+            break;
+        }
     }
     return n;
 }
@@ -243,8 +279,10 @@ static void update_rtcm(gtime_t time)
     
     if (strcmp(path,rtcm_path)) {
         strcpy(rtcm_path,path);
-        
-        if (fp_rtcm) fclose(fp_rtcm);
+
+        if (fp_rtcm) {
+            fclose(fp_rtcm);
+        }
         fp_rtcm=fopen(path,"rb");
         if (fp_rtcm) {
             rtcm.time=time;
@@ -252,19 +290,24 @@ static void update_rtcm(gtime_t time)
             trace(NULL,2,"rtcm file open: %s\n",path);
         }
     }
-    if (!fp_rtcm) return;
-    
+    if (!fp_rtcm) {
+        return;
+    }
+
     /* read rtcm file until current time */
     while (timediff(rtcm.time,time)<1E-3) {
         strcpy(tstr,time_str(rtcm.time, 3));
-        if (input_rtcm3f(&rtcm,fp_rtcm)<-1) break;
+        if (input_rtcm3f(&rtcm, fp_rtcm) < -1) {
+            break;
+        }
         trace(NULL,3, "update_rtcm: %s %s\n", time_str(time, 3), tstr);
         
         /* update ssr corrections */
         for (i=0;i<MAXSAT;i++) {
-            if (!rtcm.ssr[i].update||
-                rtcm.ssr[i].iod[0]!=rtcm.ssr[i].iod[1]||
-                timediff(time,rtcm.ssr[i].t0[0])<-1E-3) continue;
+            if (!rtcm.ssr[i].update || rtcm.ssr[i].iod[0] != rtcm.ssr[i].iod[1] ||
+                timediff(time, rtcm.ssr[i].t0[0]) < -1E-3) {
+                continue;
+            }
             navs.ssr_ch[0][i]=rtcm.ssr[i];
             rtcm.ssr[i].update=0;
         }
@@ -285,13 +328,17 @@ static void update_qzssl6e(gtime_t time)
     if (strcmp(path, qzssl6e_path)) {
         strcpy(qzssl6e_path, path);
 
-        if (fp_qzssl6e) fclose(fp_qzssl6e);
+        if (fp_qzssl6e) {
+            fclose(fp_qzssl6e);
+        }
         fp_qzssl6e=fopen(path, "rb");
         if (fp_qzssl6e) {
             trace(NULL,2, "qzssl6e file open: %s\n", path);
         }
     }
-    if (!fp_qzssl6e) return;
+    if (!fp_qzssl6e) {
+        return;
+    }
 
     if(init_flg){
         init_mcssr(time);
@@ -304,14 +351,17 @@ static void update_qzssl6e(gtime_t time)
 
         /* update QZSS L6E MADOCA-PPP corrections */
         for (i = 0; i < MAXSAT; i++) {
-            if (!l6e.ssr[i].update ||
-                l6e.ssr[i].iod[0]!=l6e.ssr[i].iod[1]||
-                timediff(time,l6e.ssr[i].t0[0])<-1E-3) continue;
+            if (!l6e.ssr[i].update || l6e.ssr[i].iod[0] != l6e.ssr[i].iod[1] ||
+                timediff(time, l6e.ssr[i].t0[0]) < -1E-3) {
+                continue;
+            }
             navs.ssr_ch[0][i]=l6e.ssr[i];
             l6e.ssr[i].update=0;
         }
 
-        if (input_qzssl6ef(&l6e, fp_qzssl6e)<-1) break;
+        if (input_qzssl6ef(&l6e, fp_qzssl6e) < -1) {
+            break;
+        }
     }
 }
 /* initialize QZSS L6D control struct ----------------------------------------*/
@@ -346,7 +396,9 @@ static void update_qzssl6d(gtime_t time, int n, const char *pppopt)
     if (strcmp(path, qzssl6d_path[n])) {
         strcpy(qzssl6d_path[n], path);
 
-        if (fp_qzssl6d[n]) fclose(fp_qzssl6d[n]);
+        if (fp_qzssl6d[n]) {
+            fclose(fp_qzssl6d[n]);
+        }
         fp_qzssl6d[n]=fopen(path, "rb");
         if (fp_qzssl6d[n]) {
             trace(NULL,2, "qzssl6d file open: %s\n", path);
@@ -355,7 +407,9 @@ static void update_qzssl6d(gtime_t time, int n, const char *pppopt)
             trace(NULL,2, "qzssl6d file open error: %s\n", path);
         }
     }
-    if (!fp_qzssl6d[n]) return;
+    if (!fp_qzssl6d[n]) {
+        return;
+    }
 
     if (init_flg) {
         init_mdcl6d(time,pppopt);
@@ -377,7 +431,9 @@ static void update_qzssl6d(gtime_t time, int n, const char *pppopt)
             }
         }
 
-        if (input_qzssl6df(&mdcl6d[n], fp_qzssl6d[n])<-1) break;
+        if (input_qzssl6df(&mdcl6d[n], fp_qzssl6d[n]) < -1) {
+            break;
+        }
     }
 }
 /* update stat corrections ---------------------------------------------------*/
@@ -393,7 +449,9 @@ static void update_stat(gtime_t time)
     reppath(stat_file,path,time,"", "");
 
     if (strcmp(path, cstat_file)!=0) {
-        if (fp_stat) fclose(fp_stat);
+        if (fp_stat) {
+            fclose(fp_stat);
+        }
         fp_stat=fopen(path, "rb");
         if (fp_stat==NULL) {
             trace(NULL,2, "stat file open error: %s\n", path);
@@ -401,14 +459,21 @@ static void update_stat(gtime_t time)
             strcpy(cstat_file, path);
         }
     }
-    if (!fp_stat) return;
-    
+    if (!fp_stat) {
+        return;
+    }
+
     /* station name as first 4 character of file */
-    if ((p=strrchr(cstat_file,FILEPATHSEP))) strncpy(st,p+1,4);
-    else strncpy(st,cstat_file,4);
+    if ((p = strrchr(cstat_file, FILEPATHSEP))) {
+        strncpy(st, p + 1, 4);
+    } else {
+        strncpy(st, cstat_file, 4);
+    }
     st[4]='\0';
-    for (i=0;i<4&&st[i];i++) st[i]=toupper(st[i]);
-    
+    for (i = 0; i < 4 && st[i]; i++) {
+        st[i] = toupper(st[i]);
+    }
+
     siteno = getstano(&navs.stat,st);
 
     while (timediff(sstat.time,time)<1E-3) {
@@ -418,8 +483,10 @@ static void update_stat(gtime_t time)
         navs.stat.time[siteno]=sstat.time;
         memcpy(&navs.stat.sion[siteno],&sstat.sion,sizeof(ion_t)*MAXSAT);
         memcpy(&navs.stat.strp[siteno],&sstat.strp,sizeof(trp_t));
-        
-        if(input_statf(&sstat, fp_stat, buff, &nbyte)<-1) break;
+
+        if (input_statf(&sstat, fp_stat, buff, &nbyte) < -1) {
+            break;
+        }
     }
     trace(NULL,3, "update_stat: %s %s\n", time_str(time, 3), tstr);
 }
@@ -441,25 +508,33 @@ static void update_clas(gtime_t time)
     }
 
     for (ch=0;ch<CLAS_CH_NUM;ch++) {
-        if (!*clas_file[ch]) continue;
+        if (!*clas_file[ch]) {
+            continue;
+        }
 
         /* open or swap CLAS L6 file */
         reppath(clas_file[ch],path,time,"","");
 
         if (strcmp(path,clas_path[ch])) {
             strcpy(clas_path[ch],path);
-            if (fp_clas[ch]) fclose(fp_clas[ch]);
+            if (fp_clas[ch]) {
+                fclose(fp_clas[ch]);
+            }
             fp_clas[ch]=fopen(path,"rb");
             if (fp_clas[ch]) {
                 trace(NULL,2,"clas l6 file open: %s\n",path);
             }
         }
-        if (!fp_clas[ch]) continue;
+        if (!fp_clas[ch]) {
+            continue;
+        }
 
         /* read CSSR until current observation time */
         while (timediff(clas_ctx->l6buf[ch].time,time)<1E-3) {
             ret=clas_input_cssrf(clas_ctx,fp_clas[ch],ch);
-            if (ret<-1) break; /* EOF */
+            if (ret < -1) {
+                break; /* EOF */
+            }
             if (ret==10) {
                 int net=clas_ctx->grid[ch].network;
                 if (net>0) {
@@ -512,21 +587,33 @@ static int inputobs(obsd_t *obs, int solq, const prcopt_t *popt)
         }
     }
     if (!revs) { /* input forward data */
-        if ((nu=nextobsf(&obss,&iobsu,1))<=0) return -1;
+        if ((nu = nextobsf(&obss, &iobsu, 1)) <= 0) {
+            return -1;
+        }
         if (popt->intpref) {
-            for (;(nr=nextobsf(&obss,&iobsr,2))>0;iobsr+=nr)
-                if (timediff(obss.data[iobsr].time,obss.data[iobsu].time)>-DTTOL) break;
+            for (; (nr = nextobsf(&obss, &iobsr, 2)) > 0; iobsr += nr) {
+                if (timediff(obss.data[iobsr].time, obss.data[iobsu].time) > -DTTOL) {
+                    break;
+                }
+            }
         }
         else {
-            for (i=iobsr;(nr=nextobsf(&obss,&i,2))>0;iobsr=i,i+=nr)
-                if (timediff(obss.data[i].time,obss.data[iobsu].time)>DTTOL) break;
+            for (i = iobsr; (nr = nextobsf(&obss, &i, 2)) > 0; iobsr = i, i += nr) {
+                if (timediff(obss.data[i].time, obss.data[iobsu].time) > DTTOL) {
+                    break;
+                }
+            }
         }
         nr=nextobsf(&obss,&iobsr,2);
         if (nr<=0) {
             nr=nextobsf(&obss,&iobsr,2);
         }
-        for (i=0;i<nu&&n<MAXOBS*2;i++) obs[n++]=obss.data[iobsu+i];
-        for (i=0;i<nr&&n<MAXOBS*2;i++) obs[n++]=obss.data[iobsr+i];
+        for (i = 0; i < nu && n < MAXOBS * 2; i++) {
+            obs[n++] = obss.data[iobsu + i];
+        }
+        for (i = 0; i < nr && n < MAXOBS * 2; i++) {
+            obs[n++] = obss.data[iobsr + i];
+        }
         iobsu+=nu;
         
         /* update sbas corrections */
@@ -536,7 +623,9 @@ static int inputobs(obsd_t *obs, int solq, const prcopt_t *popt)
             if (getbitu(sbss.msgs[isbs].msg,8,6)!=9) { /* except for geo nav */
                 sbsupdatecorr(sbss.msgs+isbs,&navs);
             }
-            if (timediff(time,obs[0].time)>-1.0-DTTOL) break;
+            if (timediff(time, obs[0].time) > -1.0 - DTTOL) {
+                break;
+            }
             isbs++;
         }
         /* update rtcm ssr corrections */
@@ -566,18 +655,30 @@ static int inputobs(obsd_t *obs, int solq, const prcopt_t *popt)
         }
     }
     else { /* input backward data */
-        if ((nu=nextobsb(&obss,&iobsu,1))<=0) return -1;
+        if ((nu = nextobsb(&obss, &iobsu, 1)) <= 0) {
+            return -1;
+        }
         if (popt->intpref) {
-            for (;(nr=nextobsb(&obss,&iobsr,2))>0;iobsr-=nr)
-                if (timediff(obss.data[iobsr].time,obss.data[iobsu].time)<DTTOL) break;
+            for (; (nr = nextobsb(&obss, &iobsr, 2)) > 0; iobsr -= nr) {
+                if (timediff(obss.data[iobsr].time, obss.data[iobsu].time) < DTTOL) {
+                    break;
+                }
+            }
         }
         else {
-            for (i=iobsr;(nr=nextobsb(&obss,&i,2))>0;iobsr=i,i-=nr)
-                if (timediff(obss.data[i].time,obss.data[iobsu].time)<-DTTOL) break;
+            for (i = iobsr; (nr = nextobsb(&obss, &i, 2)) > 0; iobsr = i, i -= nr) {
+                if (timediff(obss.data[i].time, obss.data[iobsu].time) < -DTTOL) {
+                    break;
+                }
+            }
         }
         nr=nextobsb(&obss,&iobsr,2);
-        for (i=0;i<nu&&n<MAXOBS*2;i++) obs[n++]=obss.data[iobsu-nu+1+i];
-        for (i=0;i<nr&&n<MAXOBS*2;i++) obs[n++]=obss.data[iobsr-nr+1+i];
+        for (i = 0; i < nu && n < MAXOBS * 2; i++) {
+            obs[n++] = obss.data[iobsu - nu + 1 + i];
+        }
+        for (i = 0; i < nr && n < MAXOBS * 2; i++) {
+            obs[n++] = obss.data[iobsr - nr + 1 + i];
+        }
         iobsu-=nu;
         
         /* update sbas corrections */
@@ -587,7 +688,9 @@ static int inputobs(obsd_t *obs, int solq, const prcopt_t *popt)
             if (getbitu(sbss.msgs[isbs].msg,8,6)!=9) { /* except for geo nav */
                 sbsupdatecorr(sbss.msgs+isbs,&navs);
             }
-            if (timediff(time,obs[0].time)<1.0+DTTOL) break;
+            if (timediff(time, obs[0].time) < 1.0 + DTTOL) {
+                break;
+            }
             isbs--;
         }
     }
@@ -616,14 +719,21 @@ static void procpos(mrtk_ctx_t *ctx, FILE *fp, const prcopt_t *popt, const solop
         
         /* exclude satellites */
         for (i=n=0;i<nobs;i++) {
-            if ((satsys(obs[i].sat,NULL)&popt->navsys)&&
-                popt->exsats[obs[i].sat-1]!=1) obs[n++]=obs[i];
+            if ((satsys(obs[i].sat, NULL) & popt->navsys) && popt->exsats[obs[i].sat - 1] != 1) {
+                obs[n++] = obs[i];
+            }
         }
-        if (n<=0) continue;
-        
-        if (!rtkpos(ctx,&rtk,obs,n,&navs)) continue;
+        if (n <= 0) {
+            continue;
+        }
 
-        for (i=0;i<6;i++) rtk.prev_qr[i] = rtk.sol.qr[i];
+        if (!rtkpos(ctx, &rtk, obs, n, &navs)) {
+            continue;
+        }
+
+        for (i = 0; i < 6; i++) {
+            rtk.prev_qr[i] = rtk.sol.qr[i];
+        }
 
         if (mode==0) { /* forward/backward */
             if (!solstatic) {
@@ -631,22 +741,32 @@ static void procpos(mrtk_ctx_t *ctx, FILE *fp, const prcopt_t *popt, const solop
             }
             else if (time.time==0||pri[rtk.sol.stat]<=pri[sol.stat]) {
                 sol=rtk.sol;
-                for (i=0;i<3;i++) rb[i]=rtk.rb[i];
+                for (i = 0; i < 3; i++) {
+                    rb[i] = rtk.rb[i];
+                }
                 if (time.time==0||timediff(rtk.sol.time,time)<0.0) {
                     time=rtk.sol.time;
                 }
             }
         }
         else if (!revs) { /* combined-forward */
-            if (isolf>=nepoch) return;
+            if (isolf >= nepoch) {
+                return;
+            }
             solf[isolf]=rtk.sol;
-            for (i=0;i<3;i++) rbf[i+isolf*3]=rtk.rb[i];
+            for (i = 0; i < 3; i++) {
+                rbf[i + isolf * 3] = rtk.rb[i];
+            }
             isolf++;
         }
         else { /* combined-backward */
-            if (isolb>=nepoch) return;
+            if (isolb >= nepoch) {
+                return;
+            }
             solb[isolb]=rtk.sol;
-            for (i=0;i<3;i++) rbb[i+isolb*3]=rtk.rb[i];
+            for (i = 0; i < 3; i++) {
+                rbb[i + isolb * 3] = rtk.rb[i];
+            }
             isolb++;
         }
     }
@@ -671,8 +791,10 @@ static int valcomb(const sol_t *solf, const sol_t *solb)
         var[i]=solf->qr[i]+solb->qr[i];
     }
     for (i=0;i<3;i++) {
-        if (dr[i]*dr[i]<=16.0*var[i]) continue; /* ok if in 4-sigma */
-        
+        if (dr[i] * dr[i] <= 16.0 * var[i]) {
+            continue; /* ok if in 4-sigma */
+        }
+
         time2str(solf->time,tstr,2);
         trace(NULL,2,"degrade fix to float: %s dr=%.3f %.3f %.3f std=%.3f %.3f %.3f\n",
               tstr+11,dr[0],dr[1],dr[2],SQRT(var[0]),SQRT(var[1]),SQRT(var[2]));
@@ -697,21 +819,29 @@ static void combres(FILE *fp, const prcopt_t *popt, const solopt_t *sopt)
         
         if ((tt=timediff(solf[i].time,solb[j].time))<-DTTOL) {
             sols=solf[i];
-            for (k=0;k<3;k++) rbs[k]=rbf[k+i*3];
+            for (k = 0; k < 3; k++) {
+                rbs[k] = rbf[k + i * 3];
+            }
             j++;
         }
         else if (tt>DTTOL) {
             sols=solb[j];
-            for (k=0;k<3;k++) rbs[k]=rbb[k+j*3];
+            for (k = 0; k < 3; k++) {
+                rbs[k] = rbb[k + j * 3];
+            }
             i--;
         }
         else if (solf[i].stat<solb[j].stat) {
             sols=solf[i];
-            for (k=0;k<3;k++) rbs[k]=rbf[k+i*3];
+            for (k = 0; k < 3; k++) {
+                rbs[k] = rbf[k + i * 3];
+            }
         }
         else if (solf[i].stat>solb[j].stat) {
             sols=solb[j];
-            for (k=0;k<3;k++) rbs[k]=rbb[k+j*3];
+            for (k = 0; k < 3; k++) {
+                rbs[k] = rbb[k + j * 3];
+            }
         }
         else {
             sols=solf[i];
@@ -721,7 +851,9 @@ static void combres(FILE *fp, const prcopt_t *popt, const solopt_t *sopt)
                 sols.stat==SOLQ_FIX) {
                 
                 /* degrade fix to float if validation failed */
-                if (!valcomb(solf+i,solb+j)) sols.stat=SOLQ_FLOAT;
+                if (!valcomb(solf + i, solb + j)) {
+                    sols.stat = SOLQ_FLOAT;
+                }
             }
             for (k=0;k<3;k++) {
                 Qf[k+k*3]=solf[i].qr[k];
@@ -735,13 +867,23 @@ static void combres(FILE *fp, const prcopt_t *popt, const solopt_t *sopt)
             Qb[2]=Qb[6]=solb[j].qr[5];
             
             if (popt->mode==PMODE_MOVEB) {
-                for (k=0;k<3;k++) rr_f[k]=solf[i].rr[k]-rbf[k+i*3];
-                for (k=0;k<3;k++) rr_b[k]=solb[j].rr[k]-rbb[k+j*3];
-                if (smoother(rr_f,Qf,rr_b,Qb,3,rr_s,Qs)) continue;
-                for (k=0;k<3;k++) sols.rr[k]=rbs[k]+rr_s[k];
+                for (k = 0; k < 3; k++) {
+                    rr_f[k] = solf[i].rr[k] - rbf[k + i * 3];
+                }
+                for (k = 0; k < 3; k++) {
+                    rr_b[k] = solb[j].rr[k] - rbb[k + j * 3];
+                }
+                if (smoother(rr_f, Qf, rr_b, Qb, 3, rr_s, Qs)) {
+                    continue;
+                }
+                for (k = 0; k < 3; k++) {
+                    sols.rr[k] = rbs[k] + rr_s[k];
+                }
             }
             else {
-                if (smoother(solf[i].rr,Qf,solb[j].rr,Qb,3,sols.rr,Qs)) continue;
+                if (smoother(solf[i].rr, Qf, solb[j].rr, Qb, 3, sols.rr, Qs)) {
+                    continue;
+                }
             }
             sols.qr[0]=(float)Qs[0];
             sols.qr[1]=(float)Qs[4];
@@ -762,7 +904,9 @@ static void combres(FILE *fp, const prcopt_t *popt, const solopt_t *sopt)
                 Qb[1]=Qb[3]=solb[j].qv[3];
                 Qb[5]=Qb[7]=solb[j].qv[4];
                 Qb[2]=Qb[6]=solb[j].qv[5];
-                if (smoother(solf[i].rr+3,Qf,solb[j].rr+3,Qb,3,sols.rr+3,Qs)) continue;
+                if (smoother(solf[i].rr + 3, Qf, solb[j].rr + 3, Qb, 3, sols.rr + 3, Qs)) {
+                    continue;
+                }
                 sols.qv[0]=(float)Qs[0];
                 sols.qv[1]=(float)Qs[4];
                 sols.qv[2]=(float)Qs[8];
@@ -776,7 +920,9 @@ static void combres(FILE *fp, const prcopt_t *popt, const solopt_t *sopt)
         }
         else if (time.time==0||pri[sols.stat]<=pri[sol.stat]) {
             sol=sols;
-            for (k=0;k<3;k++) rb[k]=rbs[k];
+            for (k = 0; k < 3; k++) {
+                rb[k] = rbs[k];
+            }
             if (time.time==0||timediff(sols.time,time)<0.0) {
                 time=sols.time;
             }
@@ -803,17 +949,23 @@ static void readpreceph(char **infile, int n, const prcopt_t *prcopt,
     
     /* read precise ephemeris files */
     for (i=0;i<n;i++) {
-        if (strstr(infile[i],"%r")||strstr(infile[i],"%b")) continue;
+        if (strstr(infile[i], "%r") || strstr(infile[i], "%b")) {
+            continue;
+        }
         readsp3(infile[i],nav,0);
     }
     /* read precise clock files */
     for (i=0;i<n;i++) {
-        if (strstr(infile[i],"%r")||strstr(infile[i],"%b")) continue;
+        if (strstr(infile[i], "%r") || strstr(infile[i], "%b")) {
+            continue;
+        }
         readrnxc(infile[i],nav);
     }
     /* read sbas message files */
     for (i=0;i<n;i++) {
-        if (strstr(infile[i],"%r")||strstr(infile[i],"%b")) continue;
+        if (strstr(infile[i], "%r") || strstr(infile[i], "%b")) {
+            continue;
+        }
         sbsreadmsg(infile[i],prcopt->sbassatsel,sbs);
     }
     /* allocate sbas ephemeris */
@@ -823,8 +975,10 @@ static void readpreceph(char **infile, int n, const prcopt_t *prcopt,
          trace(NULL,1,"error : sbas ephem memory allocation");
          return;
     }
-    for (i=0;i<nav->ns;i++) nav->seph[i]=seph0;
-    
+    for (i = 0; i < nav->ns; i++) {
+        nav->seph[i] = seph0;
+    }
+
     /* set rtcm file and initialize rtcm struct */
     rtcm_file[0]   =rtcm_path[0]   ='\0'; fp_rtcm   =NULL;
     qzssl6e_file[0]=qzssl6e_path[0]='\0'; fp_qzssl6e=NULL;
@@ -861,11 +1015,15 @@ static void readpreceph(char **infile, int n, const prcopt_t *prcopt,
                 if ((ext-infile[i]>=4) &&
                     (!strcmp(ext-4,".200.l6")||!strcmp(ext-4,".200.L6")||
                      !strcmp(ext-4,".201.l6")||!strcmp(ext-4,".201.L6"))) {
-                    if (nf_l6d<MIONO_MAX_PRN) strcpy(qzssl6d_file[nf_l6d++],infile[i]);
+                    if (nf_l6d < MIONO_MAX_PRN) {
+                        strcpy(qzssl6d_file[nf_l6d++], infile[i]);
+                    }
                 }
                 /* CLAS: all non-L6D .l6 files in PPP-RTK or -clas mode */
                 else if (clas_mode) {
-                    if (nf_clas<CLAS_CH_NUM) strcpy(clas_file[nf_clas++],infile[i]);
+                    if (nf_clas < CLAS_CH_NUM) {
+                        strcpy(clas_file[nf_clas++], infile[i]);
+                    }
                 }
                 else if (!*qzssl6e_file) { /* L6E (first match only) */
                     strcpy(qzssl6e_file,infile[i]);
@@ -883,7 +1041,9 @@ static void readpreceph(char **infile, int n, const prcopt_t *prcopt,
         /* initialize CLAS context if files found */
         if (nf_clas>0&&!clas_ctx) {
             clas_ctx=(clas_ctx_t *)calloc(1,sizeof(clas_ctx_t));
-            if (clas_ctx) clas_ctx_init(clas_ctx);
+            if (clas_ctx) {
+                clas_ctx_init(clas_ctx);
+            }
         }
         /* wire CLAS context into nav for PPP-RTK engine access */
         navs.clas_ctx=clas_ctx;
@@ -913,8 +1073,10 @@ static void freepreceph(nav_t *nav, sbs_t *sbs)
         free(nav->tec[i].rms );
     }
     free(nav->tec ); nav->tec =NULL; nav->nt=nav->ntmax=0;
-    
-    if (fp_rtcm) fclose(fp_rtcm);
+
+    if (fp_rtcm) {
+        fclose(fp_rtcm);
+    }
     free_rtcm(&rtcm);
     free_rtcm(&l6e);
 
@@ -945,10 +1107,14 @@ static int readobsnav(gtime_t ts, gtime_t te, double ti, char **infile,
     
     for (i=0;i<n;i++) {
         const char *ext;
-        if (checkbrk("")) return 0;
+        if (checkbrk("")) {
+            return 0;
+        }
 
         if (index[i]!=ind) {
-            if (obs->n>nobs) rcv++;
+            if (obs->n > nobs) {
+                rcv++;
+            }
             ind=index[i]; nobs=obs->n;
         }
         ext=strrchr(infile[i],'.');
@@ -988,11 +1154,23 @@ static int readobsnav(gtime_t ts, gtime_t te, double ti, char **infile,
     
     /* set time span for progress display */
     if (ts.time==0||te.time==0) {
-        for (i=0;   i<obs->n;i++) if (obs->data[i].rcv==1) break;
-        for (j=obs->n-1;j>=0;j--) if (obs->data[j].rcv==1) break;
+        for (i = 0; i < obs->n; i++) {
+            if (obs->data[i].rcv == 1) {
+                break;
+            }
+        }
+        for (j = obs->n - 1; j >= 0; j--) {
+            if (obs->data[j].rcv == 1) {
+                break;
+            }
+        }
         if (i<j) {
-            if (ts.time==0) ts=obs->data[i].time;
-            if (te.time==0) te=obs->data[j].time;
+            if (ts.time == 0) {
+                ts = obs->data[i].time;
+            }
+            if (te.time == 0) {
+                te = obs->data[j].time;
+            }
             settspan(ts,te);
         }
     }
@@ -1020,28 +1198,39 @@ static int avepos(mrtk_ctx_t *ctx, double *ra, int rcv, const obs_t *obs, const 
     char msg[128];
 
     trace(ctx,3,"avepos: rcv=%d obs.n=%d\n",rcv,obs->n);
-    
-    for (i=0;i<3;i++) ra[i]=0.0;
-    
+
+    for (i = 0; i < 3; i++) {
+        ra[i] = 0.0;
+    }
+
     for (iobs=0;(m=nextobsf(obs,&iobs,rcv))>0;iobs+=m) {
         
         for (i=j=0;i<m&&i<MAXOBS;i++) {
             data[j]=obs->data[iobs+i];
-            if ((satsys(data[j].sat,NULL)&opt->navsys)&&
-                opt->exsats[data[j].sat-1]!=1) j++;
+            if ((satsys(data[j].sat, NULL) & opt->navsys) && opt->exsats[data[j].sat - 1] != 1) {
+                j++;
+            }
         }
-        if (j<=0||!screent(data[0].time,ts,ts,1.0)) continue; /* only 1 hz */
-        
-        if (!pntpos(ctx,data,j,nav,opt,&sol,NULL,NULL,msg)) continue;
-        
-        for (i=0;i<3;i++) ra[i]+=sol.rr[i];
+        if (j <= 0 || !screent(data[0].time, ts, ts, 1.0)) {
+            continue; /* only 1 hz */
+        }
+
+        if (!pntpos(ctx, data, j, nav, opt, &sol, NULL, NULL, msg)) {
+            continue;
+        }
+
+        for (i = 0; i < 3; i++) {
+            ra[i] += sol.rr[i];
+        }
         n++;
     }
     if (n<=0) {
         trace(ctx,1,"no average of base station position\n");
         return 0;
     }
-    for (i=0;i<3;i++) ra[i]/=n;
+    for (i = 0; i < 3; i++) {
+        ra[i] /= n;
+    }
     return 1;
 }
 /* station position from file ------------------------------------------------*/
@@ -1058,12 +1247,18 @@ static int getstapos(const char *file, char *name, double *r)
         return 0;
     }
     while (fgets(buff,sizeof(buff),fp)) {
-        if ((p=strchr(buff,'%'))) *p='\0';
-        
-        if (sscanf(buff,"%lf %lf %lf %s",pos,pos+1,pos+2,sname)<4) continue;
-        
+        if ((p = strchr(buff, '%'))) {
+            *p = '\0';
+        }
+
+        if (sscanf(buff, "%lf %lf %lf %s", pos, pos + 1, pos + 2, sname) < 4) {
+            continue;
+        }
+
         for (p=sname,q=name;*p&&*q;p++,q++) {
-            if (toupper((int)*p)!=toupper((int)*q)) break;
+            if (toupper((int)*p) != toupper((int)*q)) {
+                break;
+            }
         }
         if (!*p) {
             pos[0]*=D2R;
@@ -1108,15 +1303,21 @@ static int antpos(mrtk_ctx_t *ctx, prcopt_t *opt, int rcvno, const obs_t *obs, c
         }
         /* antenna delta */
         if (stas[rcvno==1?0:1].deltype==0) { /* enu */
-            for (i=0;i<3;i++) del[i]=stas[rcvno==1?0:1].del[i];
+            for (i = 0; i < 3; i++) {
+                del[i] = stas[rcvno == 1 ? 0 : 1].del[i];
+            }
             del[2]+=stas[rcvno==1?0:1].hgt;
             ecef2pos(stas[rcvno==1?0:1].pos,pos);
             enu2ecef(pos,del,dr);
         }
         else { /* xyz */
-            for (i=0;i<3;i++) dr[i]=stas[rcvno==1?0:1].del[i];
+            for (i = 0; i < 3; i++) {
+                dr[i] = stas[rcvno == 1 ? 0 : 1].del[i];
+            }
         }
-        for (i=0;i<3;i++) rr[i]=stas[rcvno==1?0:1].pos[i]+dr[i];
+        for (i = 0; i < 3; i++) {
+            rr[i] = stas[rcvno == 1 ? 0 : 1].pos[i] + dr[i];
+        }
     }
     return 1;
 }
@@ -1178,7 +1379,9 @@ static void setpcv(gtime_t time, prcopt_t *popt, nav_t *nav, const pcvs_t *pcvs,
     /* set satellite antenna parameters */
     for (i=0;i<MAXSAT;i++) {
         nav->pcvs[i]=pcv0;
-        if (!(satsys(i+1,NULL)&popt->navsys)) continue;
+        if (!(satsys(i + 1, NULL) & popt->navsys)) {
+            continue;
+        }
         if (!(pcv=searchpcv(i+1,"",time,pcvs))) {
             satno2id(i+1,id);
             trace(NULL,3,"no satellite antenna pcv: %s\n",id);
@@ -1194,11 +1397,15 @@ static void setpcv(gtime_t time, prcopt_t *popt, nav_t *nav, const pcvs_t *pcvs,
                 if (norm(sta[i].pos,3)>0.0) {
                     ecef2pos(sta[i].pos,pos);
                     ecef2enu(pos,sta[i].del,del);
-                    for (j=0;j<3;j++) popt->antdel[i][j]=del[j];
+                    for (j = 0; j < 3; j++) {
+                        popt->antdel[i][j] = del[j];
+                    }
                 }
             }
             else { /* enu */
-                for (j=0;j<3;j++) popt->antdel[i][j]=stas[i].del[j];
+                for (j = 0; j < 3; j++) {
+                    popt->antdel[i][j] = stas[i].del[j];
+                }
             }
         }
         if (!(pcv=searchpcv(0,popt->anttype[i],time,pcvr))) {
@@ -1237,9 +1444,11 @@ static int outhead(const char *outfile, char **infile, int n,
     }
     /* output header */
     outheader(fp,infile,n,popt,sopt);
-    
-    if (*outfile) fclose(fp);
-    
+
+    if (*outfile) {
+        fclose(fp);
+    }
+
     return 1;
 }
 /* open output file for append -----------------------------------------------*/
@@ -1403,8 +1612,9 @@ static int execses(mrtk_ctx_t *ctx, gtime_t ts, gtime_t te, double ti, const prc
                 combres(fp,&popt_,sopt);
                 fclose(fp);
             }
+        } else {
+            showmsg("error : memory allocation");
         }
-        else showmsg("error : memory allocation");
         free(solf);
         free(solb);
         free(rbf);
@@ -1426,38 +1636,60 @@ static int execses_r(mrtk_ctx_t *ctx, gtime_t ts, gtime_t te, double ti, const p
     char *ifile[MAXINFILE],ofile[1024],*rov_,*p,*q,s[64]="";
 
     trace(ctx,3,"execses_r: n=%d outfile=%s\n",n,outfile);
-    
-    for (i=0;i<n;i++) if (strstr(infile[i],"%r")) break;
-    
+
+    for (i = 0; i < n; i++) {
+        if (strstr(infile[i], "%r")) {
+            break;
+        }
+    }
+
     if (i<n) { /* include rover keywords */
-        if (!(rov_=(char *)malloc(strlen(rov)+1))) return 0;
+        if (!(rov_ = (char*)malloc(strlen(rov) + 1))) {
+            return 0;
+        }
         strcpy(rov_,rov);
         
         for (i=0;i<n;i++) {
             if (!(ifile[i]=(char *)malloc(1024))) {
-                free(rov_); for (;i>=0;i--) free(ifile[i]);
+                free(rov_);
+                for (; i >= 0; i--) {
+                    free(ifile[i]);
+                }
                 return 0;
             }
         }
         for (p=rov_;;p=q+1) { /* for each rover */
-            if ((q=strchr(p,' '))) *q='\0';
-            
+            if ((q = strchr(p, ' '))) {
+                *q = '\0';
+            }
+
             if (*p) {
                 strcpy(proc_rov,p);
-                if (ts.time) time2str(ts,s,0); else *s='\0';
+                if (ts.time) {
+                    time2str(ts, s, 0);
+                } else {
+                    *s = '\0';
+                }
                 if (checkbrk("reading    : %s",s)) {
                     stat=1;
                     break;
                 }
-                for (i=0;i<n;i++) reppath(infile[i],ifile[i],t0,p,"");
+                for (i = 0; i < n; i++) {
+                    reppath(infile[i], ifile[i], t0, p, "");
+                }
                 reppath(outfile,ofile,t0,p,"");
                 
                 /* execute processing session */
                 stat=execses(ctx,ts,te,ti,popt,sopt,fopt,flag,ifile,index,n,ofile);
             }
-            if (stat==1||!q) break;
+            if (stat == 1 || !q) {
+                break;
+            }
         }
-        free(rov_); for (i=0;i<n;i++) free(ifile[i]);
+        free(rov_);
+        for (i = 0; i < n; i++) {
+            free(ifile[i]);
+        }
     }
     else {
         /* execute processing session */
@@ -1479,9 +1711,13 @@ static int execses_b(mrtk_ctx_t *ctx, gtime_t ts, gtime_t te, double ti, const p
     
     /* read prec ephemeris and sbas data */
     readpreceph(infile,n,popt,&navs,&sbss);
-    
-    for (i=0;i<n;i++) if (strstr(infile[i],"%b")) break;
-    
+
+    for (i = 0; i < n; i++) {
+        if (strstr(infile[i], "%b")) {
+            break;
+        }
+    }
+
     if (i<n) { /* include base station keywords */
         if (!(base_=(char *)malloc(strlen(base)+1))) {
             freepreceph(&navs,&sbss);
@@ -1491,29 +1727,45 @@ static int execses_b(mrtk_ctx_t *ctx, gtime_t ts, gtime_t te, double ti, const p
         
         for (i=0;i<n;i++) {
             if (!(ifile[i]=(char *)malloc(1024))) {
-                free(base_); for (;i>=0;i--) free(ifile[i]);
+                free(base_);
+                for (; i >= 0; i--) {
+                    free(ifile[i]);
+                }
                 freepreceph(&navs,&sbss);
                 return 0;
             }
         }
         for (p=base_;;p=q+1) { /* for each base station */
-            if ((q=strchr(p,' '))) *q='\0';
-            
+            if ((q = strchr(p, ' '))) {
+                *q = '\0';
+            }
+
             if (*p) {
                 strcpy(proc_base,p);
-                if (ts.time) time2str(ts,s,0); else *s='\0';
+                if (ts.time) {
+                    time2str(ts, s, 0);
+                } else {
+                    *s = '\0';
+                }
                 if (checkbrk("reading    : %s",s)) {
                     stat=1;
                     break;
                 }
-                for (i=0;i<n;i++) reppath(infile[i],ifile[i],t0,"",p);
+                for (i = 0; i < n; i++) {
+                    reppath(infile[i], ifile[i], t0, "", p);
+                }
                 reppath(outfile,ofile,t0,"",p);
                 
                 stat=execses_r(ctx,ts,te,ti,popt,sopt,fopt,flag,ifile,index,n,ofile,rov);
             }
-            if (stat==1||!q) break;
+            if (stat == 1 || !q) {
+                break;
+            }
         }
-        free(base_); for (i=0;i<n;i++) free(ifile[i]);
+        free(base_);
+        for (i = 0; i < n; i++) {
+            free(ifile[i]);
+        }
     }
     else {
         stat=execses_r(ctx,ts,te,ti,popt,sopt,fopt,flag,infile,index,n,outfile,rov);
@@ -1579,8 +1831,10 @@ extern int postpos(mrtk_ctx_t *ctx, gtime_t ts, gtime_t te, double ti, double tu
     trace(ctx,3,"postpos : ti=%.0f tu=%.0f n=%d outfile=%s\n",ti,tu,n,outfile);
     
     /* open processing session */
-    if (!openses(ctx,popt,sopt,fopt,&navs,&pcvss,&pcvsr)) return -1;
-    
+    if (!openses(ctx, popt, sopt, fopt, &navs, &pcvss, &pcvsr)) {
+        return -1;
+    }
+
     if (ts.time!=0&&te.time!=0&&tu>=0.0) {
         if (timediff(te,ts)<0.0) {
             showmsg("error : no period");
@@ -1589,12 +1843,16 @@ extern int postpos(mrtk_ctx_t *ctx, gtime_t ts, gtime_t te, double ti, double tu
         }
         for (i=0;i<MAXINFILE;i++) {
             if (!(ifile[i]=(char *)malloc(1024))) {
-                for (;i>=0;i--) free(ifile[i]);
+                for (; i >= 0; i--) {
+                    free(ifile[i]);
+                }
                 closeses(ctx,&navs,&pcvss,&pcvsr);
                 return -1;
             }
         }
-        if (tu==0.0||tu>86400.0*MAXPRCDAYS) tu=86400.0*MAXPRCDAYS;
+        if (tu == 0.0 || tu > 86400.0 * MAXPRCDAYS) {
+            tu = 86400.0 * MAXPRCDAYS;
+        }
         settspan(ts,te);
         tunit=tu<86400.0?tu:86400.0;
         tss=tunit*(int)floor(time2gpst(ts,&week)/tunit);
@@ -1602,10 +1860,16 @@ extern int postpos(mrtk_ctx_t *ctx, gtime_t ts, gtime_t te, double ti, double tu
         for (i=0;;i++) { /* for each periods */
             tts=gpst2time(week,tss+i*tu);
             tte=timeadd(tts,tu-DTTOL);
-            if (timediff(tts,te)>0.0) break;
-            if (timediff(tts,ts)<0.0) tts=ts;
-            if (timediff(tte,te)>0.0) tte=te;
-            
+            if (timediff(tts, te) > 0.0) {
+                break;
+            }
+            if (timediff(tts, ts) < 0.0) {
+                tts = ts;
+            }
+            if (timediff(tte, te) > 0.0) {
+                tte = te;
+            }
+
             strcpy(proc_rov ,"");
             strcpy(proc_base,"");
             if (checkbrk("reading    : %s",time_str(tts,0))) {
@@ -1638,15 +1902,19 @@ extern int postpos(mrtk_ctx_t *ctx, gtime_t ts, gtime_t te, double ti, double tu
                 if (ext&&(!strcmp(ext,".fcb")||!strcmp(ext,".FCB"))) {
                     strcpy(navs.fcbpath,infile[j]);
                 }
-                while (k<nf) index[k++]=j;
-                
+                while (k < nf) {
+                    index[k++] = j;
+                }
+
                 if (nf>=MAXINFILE) {
                     trace(ctx,2,"too many input files. trancated\n");
                     break;
                 }
             }
-            if (!reppath(outfile,ofile,tts,"","")&&i>0) flag=0;
-            
+            if (!reppath(outfile, ofile, tts, "", "") && i > 0) {
+                flag = 0;
+            }
+
             if(strlen(navs.biapath)==0 && strlen(fopt->bia)>0){
                 strcpy(navs.biapath,fopt->bia);
             }
@@ -1657,14 +1925,20 @@ extern int postpos(mrtk_ctx_t *ctx, gtime_t ts, gtime_t te, double ti, double tu
             stat=execses_b(ctx,tts,tte,ti,popt,sopt,fopt,flag,ifile,index,nf,ofile,
                            rov,base);
 
-            if (stat==1) break;
+            if (stat == 1) {
+                break;
+            }
         }
-        for (i=0;i<MAXINFILE;i++) free(ifile[i]);
+        for (i = 0; i < MAXINFILE; i++) {
+            free(ifile[i]);
+        }
     }
     else if (ts.time!=0) {
         for (i=0;i<n&&i<MAXINFILE;i++) {
             if (!(ifile[i]=(char *)malloc(1024))) {
-                for (;i>=0;i--) free(ifile[i]);
+                for (; i >= 0; i--) {
+                    free(ifile[i]);
+                }
                 return -1;
             }
             reppath(infile[i],ifile[i],ts,"","");
@@ -1676,11 +1950,15 @@ extern int postpos(mrtk_ctx_t *ctx, gtime_t ts, gtime_t te, double ti, double tu
         stat=execses_b(ctx,ts,te,ti,popt,sopt,fopt,1,ifile,index,n,ofile,rov,
                        base);
 
-        for (i=0;i<n&&i<MAXINFILE;i++) free(ifile[i]);
+        for (i = 0; i < n && i < MAXINFILE; i++) {
+            free(ifile[i]);
+        }
     }
     else {
-        for (i=0;i<n;i++) index[i]=i;
-        
+        for (i = 0; i < n; i++) {
+            index[i] = i;
+        }
+
         /* execute processing session */
         stat=execses_b(ctx,ts,te,ti,popt,sopt,fopt,1,infile,index,n,outfile,rov,
                        base);

@@ -163,7 +163,9 @@ static int uprawbias(char *staname, int sat, int code, double rawbias)
 
     satno2id(sat, satid);
     for(sysno = 0; sysno < MAXBSNXSYS; sysno++) {
-        if(satid[0] == syscode[sysno]) break;
+        if (satid[0] == syscode[sysno]) {
+            break;
+        }
     }
     if(sysno >= MAXBSNXSYS) {
         trace(NULL,1, "uprawbias: satellite system error %s\n", satid);
@@ -172,9 +174,9 @@ static int uprawbias(char *staname, int sat, int code, double rawbias)
 
     /* satellite */
     for(i = 0; i < nsatrb; i++) {
-        if(satrb[i].sat  == sat  &&
-           satrb[i].code == code &&
-           strcmp(satrb[i].staname, staname) == 0) break;
+        if (satrb[i].sat == sat && satrb[i].code == code && strcmp(satrb[i].staname, staname) == 0) {
+            break;
+        }
     }
 
     if(nsatrb == i) {
@@ -206,9 +208,9 @@ static int uprawbias(char *staname, int sat, int code, double rawbias)
 
     /* system */
     for(i = 0; i < nsysrb; i++) {
-        if(sysrb[i].sysno == sysno &&
-           sysrb[i].code  == code &&
-           strcmp(sysrb[i].staname, staname) == 0) break;
+        if (sysrb[i].sysno == sysno && sysrb[i].code == code && strcmp(sysrb[i].staname, staname) == 0) {
+            break;
+        }
     }
 
     if(nsysrb == i) {
@@ -277,7 +279,9 @@ static void update_rtcm_ssr(const char *file, nav_t *nav, gtime_t time)
     if(strcmp(path, rtcm_path)) {
         strcpy(rtcm_path, path);
 
-        if(fp_rtcm) fclose(fp_rtcm);
+        if (fp_rtcm) {
+            fclose(fp_rtcm);
+        }
         fp_rtcm = fopen(path, "rb");
         if(fp_rtcm) {
             rtcm.time = time;
@@ -285,19 +289,24 @@ static void update_rtcm_ssr(const char *file, nav_t *nav, gtime_t time)
             trace(NULL,2, "rtcm file open: %s\n", path);
         }
     }
-    if(!fp_rtcm) return;
+    if (!fp_rtcm) {
+        return;
+    }
 
     /* read rtcm file until current time */
     while(timediff(rtcm.time, time) < 1E-3) {
         strcpy(tstr, time_str(rtcm.time, 3));
-        if(input_rtcm3f(&rtcm, fp_rtcm) < -1) break;
+        if (input_rtcm3f(&rtcm, fp_rtcm) < -1) {
+            break;
+        }
         trace(NULL,3, "update_rtcm_ssr: %s %s\n", time_str(time, 3), tstr);
 
         /* update ssr corrections */
         for(i = 0; i < MAXSAT; i++) {
-            if(!rtcm.ssr[i].update ||
-                rtcm.ssr[i].iod[0] != rtcm.ssr[i].iod[1] ||
-                timediff(time, rtcm.ssr[i].t0[0]) < -1E-3) continue;
+            if (!rtcm.ssr[i].update || rtcm.ssr[i].iod[0] != rtcm.ssr[i].iod[1] ||
+                timediff(time, rtcm.ssr[i].t0[0]) < -1E-3) {
+                continue;
+            }
             nav->ssr_ch[0][i] = rtcm.ssr[i];
             rtcm.ssr[i].update = 0;
         }
@@ -318,13 +327,17 @@ static void update_qzssl6e(const char *file, nav_t *nav, gtime_t gt)
     if(strcmp(path, qzssl6e_path)) {
         strcpy(qzssl6e_path, path);
 
-        if(fp_qzssl6e) fclose(fp_qzssl6e);
+        if (fp_qzssl6e) {
+            fclose(fp_qzssl6e);
+        }
         fp_qzssl6e = fopen(path, "rb");
         if(fp_qzssl6e) {
             trace(NULL,2, "qzssl6e file open: %s\n", path);
         }
     }
-    if(!fp_qzssl6e) return;
+    if (!fp_qzssl6e) {
+        return;
+    }
 
     if(init_flg) {
         init_mcssr(gt);
@@ -337,13 +350,16 @@ static void update_qzssl6e(const char *file, nav_t *nav, gtime_t gt)
 
         /* update QZSS L6E MADOCA-PPP corrections */
         for(i = 0; i < MAXSAT; i++) {
-            if(!rtcm.ssr[i].update ||
-                rtcm.ssr[i].iod[0] != rtcm.ssr[i].iod[1] ||
-                timediff(gt, rtcm.ssr[i].t0[0]) < -1E-3) continue;
+            if (!rtcm.ssr[i].update || rtcm.ssr[i].iod[0] != rtcm.ssr[i].iod[1] ||
+                timediff(gt, rtcm.ssr[i].t0[0]) < -1E-3) {
+                continue;
+            }
             nav->ssr_ch[0][i] = rtcm.ssr[i];
             rtcm.ssr[i].update = 0;
         }
-        if(input_qzssl6ef(&rtcm, fp_qzssl6e) < -1) break;
+        if (input_qzssl6ef(&rtcm, fp_qzssl6e) < -1) {
+            break;
+        }
     }
 }
 
@@ -369,10 +385,14 @@ static void udsatcb(gtime_t gt, nav_t *nav, osb_t *biaosb, int btype)
     if(btype == BTYPE_L6 || btype == BTYPE_RTCM) {
         for(i = 0; i < MAXSAT; i++) {
             sys = satsys(i + 1, NULL);
-            if(timediff(gt, nav->ssr_ch[0][i].t0[4]) > vp) continue;
+            if (timediff(gt, nav->ssr_ch[0][i].t0[4]) > vp) {
+                continue;
+            }
             for(j = 0; j < MAXCODE; j++) {
                 ssrcode = mcssr_sel_biascode(sys, j + 1);
-                if(ssrcode==CODE_NONE) continue;
+                if (ssrcode == CODE_NONE) {
+                    continue;
+                }
                 nav->osb.vscb[i][j] = 1;
                 nav->osb.scb[i][j]  = nav->ssr_ch[0][i].cbias[ssrcode-1];
                 udcnt++;
@@ -392,7 +412,9 @@ static void udsatcb(gtime_t gt, nav_t *nav, osb_t *biaosb, int btype)
     if(btype == BTYPE_BIA) {
         for(i = 0; i < MAXSAT; i++) {
             for(j = 0; j < MAXCODE; j++) {
-                if(biaosb->vscb[i][j] != 0) udcnt++;
+                if (biaosb->vscb[i][j] != 0) {
+                    udcnt++;
+                }
             }
         }
         if(0 < udcnt) {
@@ -539,7 +561,9 @@ static int signal_check(int sys, uint8_t code)
         default: return 0;
     }
     for(i = 0; i < 16; i++) {
-        if(sigs[i] == code) return 1;
+        if (sigs[i] == code) {
+            return 1;
+        }
     }
     return 0;
 }
@@ -563,12 +587,16 @@ static int gen_bias_sta(nav_t *nav, const char *file, char *staname,
     if(strlen(staname) == 0 && strlen(sta.name) > 0) {
         strncpy(staname, sta.name, 4);
     }
-    if(obs.n <= 0) return 0;
+    if (obs.n <= 0) {
+        return 0;
+    }
 
     for(i = 0; i < obs.n; i += n) {
         data = obs.data + i;
         for(n = 0; i + n < obs.n; n++) {
-            if(timediff(data[n].time, data[0].time) > 1E-3) break;
+            if (timediff(data[n].time, data[0].time) > 1E-3) {
+                break;
+            }
         }
         memcpy(sobs, data, sizeof(obsd_t)*n);
         signal_sel_bias(sobs, n);
@@ -578,7 +606,9 @@ static int gen_bias_sta(nav_t *nav, const char *file, char *staname,
         /* satellite positons, velocities and clocks */
         satposs(data[0].time, sobs, n, nav, EPHOPT_BRDC, rs, dts, var, svh);
 
-        if(st.time == 0) st = data[0].time;
+        if (st.time == 0) {
+            st = data[0].time;
+        }
         et = data[0].time;
 
         /* update satellite code bias */
@@ -590,11 +620,13 @@ static int gen_bias_sta(nav_t *nav, const char *file, char *staname,
             sat = sobs[j].sat;
             satno2id(sat, satid);
             sys = satsys(sat, NULL);
-            if((r = geodist(rs + j * 6, ecef, e)) <= 0.0 ||
-                satazel(llh, e, azel) < elmask) continue;
+            if ((r = geodist(rs + j * 6, ecef, e)) <= 0.0 || satazel(llh, e, azel) < elmask) {
+                continue;
+            }
 
-
-            if(!iontec(data[0].time, nav, llh, azel, 1, &ion, &ionvar)) continue;
+            if (!iontec(data[0].time, nav, llh, azel, 1, &ion, &ionvar)) {
+                continue;
+            }
 
             freq1 = sat2freq(sat, sobs[j].code[0], nav);
             freq2 = sat2freq(sat, sobs[j].code[1], nav);
@@ -632,11 +664,13 @@ static int gen_bias_sta(nav_t *nav, const char *file, char *staname,
             for(k = 0; k < NFREQ + NEXOBS; k++) {
                 freq2 = sat2freq(sat, data[j].code[k], nav);
                 P2 = data[j].P[k];
-                if(data[j].code[k] == sobs[j].code[0] ||
-                    data[j].code[k] == CODE_NONE ||
-                    freq2 == 0.0 || P2 == 0.0 ||
-                    signal_check(sys, data[j].code[k]) == 0) continue;
-                if(get_cbias(nav, sat, data[j].code[k], &satcb2) == 0) continue;
+                if (data[j].code[k] == sobs[j].code[0] || data[j].code[k] == CODE_NONE || freq2 == 0.0 || P2 == 0.0 ||
+                    signal_check(sys, data[j].code[k]) == 0) {
+                    continue;
+                }
+                if (get_cbias(nav, sat, data[j].code[k], &satcb2) == 0) {
+                    continue;
+                }
                 P2 += satcb2;
 
                 dcb_t = (P2 - P1) - ion * (SQR(FREQ1 / freq2) - SQR(FREQ1 / freq1));
@@ -711,8 +745,9 @@ static int gen_bias(gtime_t ts, double tspan, const char *navfile,
     nsatrb = nsatrbmax = nsysrb = nsysrbmax = 0;
     te = timeadd(ts, tspan*86400.0 - 1.0);
     for(i = 0; i < MAXEXFILE; i++) {
-        if(!(files[i] = (char *)malloc(1024)) ||
-           !(paths[i] = (char *)malloc(1024))) return 0;
+        if (!(files[i] = (char*)malloc(1024)) || !(paths[i] = (char*)malloc(1024))) {
+            return 0;
+        }
     }
 
     /* read navigation file */
@@ -734,7 +769,9 @@ static int gen_bias(gtime_t ts, double tspan, const char *navfile,
             navi.nt > m ? "" : " (no data)");
     }
     for(i = 0; i < MAXSAT; i++) {
-        if(navi.cbias[i][0] != 0) nav.cbias[i][0] = navi.cbias[i][0];
+        if (navi.cbias[i][0] != 0) {
+            nav.cbias[i][0] = navi.cbias[i][0];
+        }
     }
     nav.nt = navi.nt;
     nav.tec = navi.tec;
@@ -745,8 +782,9 @@ static int gen_bias(gtime_t ts, double tspan, const char *navfile,
         m = expath(files[i], paths, MAXEXFILE);
         for(j = 0; j < m; j++) {
             /* generate receiver bias for a station */
-            if(!(gen_bias_sta(&nav, paths[j], staname, scbfile, ecef, elmask))) 
+            if (!(gen_bias_sta(&nav, paths[j], staname, scbfile, ecef, elmask))) {
                 continue;
+            }
         }
     }
     for(i = 0; (i < MAXSTA) && (i < biass->nsta); i++) {
@@ -774,7 +812,9 @@ static int gen_bias(gtime_t ts, double tspan, const char *navfile,
         newbia.val     = sysrb[i].ave;
         newbia.valstd  = sqrt(sysrb[i].var / (sysrb[i].cnt - 1));
         for(j = 0; (j < MAXSTA) && (j < biass->nsta); j++) {
-            if(strcmp(sysrb[i].staname, biass->sta[j].name) == 0) break;
+            if (strcmp(sysrb[i].staname, biass->sta[j].name) == 0) {
+                break;
+            }
         }
         if(j >= MAXSTA) {
             trace(NULL,2, "gen_bias %s has exceeded the station limit of %d.\n",
@@ -801,7 +841,9 @@ static int gen_bias(gtime_t ts, double tspan, const char *navfile,
             newbia.val     = satrb[i].ave;
             newbia.valstd  = sqrt(satrb[i].var / (satrb[i].cnt - 1));
             for(j = 0; (j < MAXSTA) && (j < biass->nsta); j++) {
-                if(strcmp(satrb[i].staname, biass->sta[j].name) == 0) break;
+                if (strcmp(satrb[i].staname, biass->sta[j].name) == 0) {
+                    break;
+                }
             }
             if(j >= MAXSTA) {
                 trace(NULL,2, "gen_bias %s has exceeded the station limit of %d.\n",
@@ -881,7 +923,9 @@ int main(int argc, char **argv)
                     case 'J': selsigqzs = atoi(p + 1); break;
                     case 'C': selsigcmp = atoi(p + 1); break;
                 }
-                if(!(p = strchr(p, ','))) break;
+                if (!(p = strchr(p, ','))) {
+                    break;
+                }
             }
         }
         else if(!strcmp(argv[i], "-out") && i + 1 < argc) {
@@ -919,7 +963,9 @@ int main(int argc, char **argv)
 
     /* required input error check */
     for(i = 0; i < 6; i++) {
-        if(req[i] != 0) continue;
+        if (req[i] != 0) {
+            continue;
+        }
         fprintf(stderr, "error : %s required options\n", reqarg[i]);
         print_help();
         return -1;
@@ -931,7 +977,9 @@ int main(int argc, char **argv)
         return -1;
     }
 
-    if(strlen(tracefile) > 0) traceclose(ctx);
+    if (strlen(tracefile) > 0) {
+        traceclose(ctx);
+    }
     g_mrtk_ctx=NULL;
     mrtk_ctx_destroy(ctx);
     return 1;

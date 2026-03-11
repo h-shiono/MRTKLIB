@@ -113,10 +113,18 @@ static double var_uraeph(int sys, int ura)
         3072.0,6144.0
     };
     if (sys==SYS_GAL) { /* galileo sisa (ref [7] 5.1.11) */
-        if (ura<= 49) return SQR(ura*0.01);
-        if (ura<= 74) return SQR(0.5+(ura- 50)*0.02);
-        if (ura<= 99) return SQR(1.0+(ura- 75)*0.04);
-        if (ura<=125) return SQR(2.0+(ura-100)*0.16);
+        if (ura <= 49) {
+            return SQR(ura * 0.01);
+        }
+        if (ura <= 74) {
+            return SQR(0.5 + (ura - 50) * 0.02);
+        }
+        if (ura <= 99) {
+            return SQR(1.0 + (ura - 75) * 0.04);
+        }
+        if (ura <= 125) {
+            return SQR(2.0 + (ura - 100) * 0.16);
+        }
         return SQR(STD_GAL_NAPA);
     }
     else { /* gps ura (ref [1] 20.3.3.3.1.1) */
@@ -147,11 +155,22 @@ static void glorbit(double t, double *x, const double *acc)
     double k1[6],k2[6],k3[6],k4[6],w[6];
     int i;
 
-    deq(x,k1,acc); for (i=0;i<6;i++) w[i]=x[i]+k1[i]*t/2.0;
-    deq(w,k2,acc); for (i=0;i<6;i++) w[i]=x[i]+k2[i]*t/2.0;
-    deq(w,k3,acc); for (i=0;i<6;i++) w[i]=x[i]+k3[i]*t;
+    deq(x, k1, acc);
+    for (i = 0; i < 6; i++) {
+        w[i] = x[i] + k1[i] * t / 2.0;
+    }
+    deq(w, k2, acc);
+    for (i = 0; i < 6; i++) {
+        w[i] = x[i] + k2[i] * t / 2.0;
+    }
+    deq(w, k3, acc);
+    for (i = 0; i < 6; i++) {
+        w[i] = x[i] + k3[i] * t;
+    }
     deq(w,k4,acc);
-    for (i=0;i<6;i++) x[i]+=(k1[i]+2.0*k2[i]+2.0*k3[i]+k4[i])*t/6.0;
+    for (i = 0; i < 6; i++) {
+        x[i] += (k1[i] + 2.0 * k2[i] + 2.0 * k3[i] + k4[i]) * t / 6.0;
+    }
 }
 
 /*============================================================================
@@ -354,10 +373,14 @@ extern void geph2pos(gtime_t time, const geph_t *geph, double *rs, double *dts,
         x[i+3]=geph->vel[i];
     }
     for (tt=t<0.0?-TSTEP:TSTEP;fabs(t)>1E-9;t-=tt) {
-        if (fabs(t)<TSTEP) tt=t;
+        if (fabs(t) < TSTEP) {
+            tt = t;
+        }
         glorbit(tt,x,geph->acc);
     }
-    for (i=0;i<3;i++) rs[i]=x[i];
+    for (i = 0; i < 3; i++) {
+        rs[i] = x[i];
+    }
 
     *var=SQR(ERREPH_GLO);
 }
@@ -423,8 +446,12 @@ static int eph_sel[]={ /* GPS,GLO,GAL,QZS,BDS,IRN,SBS */
 static double var_urassr(int ura)
 {
     double std;
-    if (ura<= 0) return SQR(DEFURASSR);
-    if (ura>=63) return SQR(5.4665);
+    if (ura <= 0) {
+        return SQR(DEFURASSR);
+    }
+    if (ura >= 63) {
+        return SQR(5.4665);
+    }
     std=(pow(3.0,(ura>>3)&7)*(1.0+(ura&7)/4.0)-1.0)*1E-3;
     return SQR(std);
 }
@@ -448,21 +475,37 @@ eph_t *seleph(gtime_t time, int sat, int iode, const nav_t *nav)
     tmin=tmax+1.0;
 
     for (i=0;i<nav->n;i++) {
-        if (nav->eph[i].sat!=sat) continue;
+        if (nav->eph[i].sat != sat) {
+            continue;
+        }
         if (sys==SYS_CMP) {
-            if (iode>=0&&((int)nav->eph[i].toes%2048)!=(iode*8)%2048) continue;
+            if (iode >= 0 && ((int)nav->eph[i].toes % 2048) != (iode * 8) % 2048) {
+                continue;
+            }
         }
         else {
-            if (iode>=0&&nav->eph[i].iode!=iode) continue;
+            if (iode >= 0 && nav->eph[i].iode != iode) {
+                continue;
+            }
         }
         if (sys==SYS_GAL) {
             sel=getseleph(SYS_GAL);
-            if (sel==0&&!(nav->eph[i].code&(1<<9))) continue; /* I/NAV */
-            if (sel==1&&!(nav->eph[i].code&(1<<8))) continue; /* F/NAV */
-            if (timediff(nav->eph[i].toe,time)>=0.0) continue; /* AOD<=0 */
+            if (sel == 0 && !(nav->eph[i].code & (1 << 9))) {
+                continue; /* I/NAV */
+            }
+            if (sel == 1 && !(nav->eph[i].code & (1 << 8))) {
+                continue; /* F/NAV */
+            }
+            if (timediff(nav->eph[i].toe, time) >= 0.0) {
+                continue; /* AOD<=0 */
+            }
         }
-        if ((t=fabs(timediff(nav->eph[i].toe,time)))>tmax) continue;
-        if (iode>=0) return nav->eph+i;
+        if ((t = fabs(timediff(nav->eph[i].toe, time))) > tmax) {
+            continue;
+        }
+        if (iode >= 0) {
+            return nav->eph + i;
+        }
         if (t<=tmin) {j=i; tmin=t;} /* toe closest to time */
     }
     if (iode>=0||j<0) {
@@ -481,10 +524,18 @@ static geph_t *selgeph(gtime_t time, int sat, int iode, const nav_t *nav)
     trace(NULL,4,"selgeph : time=%s sat=%2d iode=%2d\n",time_str(time,3),sat,iode);
 
     for (i=0;i<nav->ng;i++) {
-        if (nav->geph[i].sat!=sat) continue;
-        if (iode>=0&&nav->geph[i].iode!=iode) continue;
-        if ((t=fabs(timediff(nav->geph[i].toe,time)))>tmax) continue;
-        if (iode>=0) return nav->geph+i;
+        if (nav->geph[i].sat != sat) {
+            continue;
+        }
+        if (iode >= 0 && nav->geph[i].iode != iode) {
+            continue;
+        }
+        if ((t = fabs(timediff(nav->geph[i].toe, time))) > tmax) {
+            continue;
+        }
+        if (iode >= 0) {
+            return nav->geph + i;
+        }
         if (t<=tmin) {j=i; tmin=t;} /* toe closest to time */
     }
     if (iode>=0||j<0) {
@@ -503,8 +554,12 @@ static seph_t *selseph(gtime_t time, int sat, const nav_t *nav)
     trace(NULL,4,"selseph : time=%s sat=%2d\n",time_str(time,3),sat);
 
     for (i=0;i<nav->ns;i++) {
-        if (nav->seph[i].sat!=sat) continue;
-        if ((t=fabs(timediff(nav->seph[i].t0,time)))>tmax) continue;
+        if (nav->seph[i].sat != sat) {
+            continue;
+        }
+        if ((t = fabs(timediff(nav->seph[i].t0, time))) > tmax) {
+            continue;
+        }
         if (t<=tmin) {j=i; tmin=t;} /* toe closest to time */
     }
     if (j<0) {
@@ -527,19 +582,28 @@ static int ephclk(gtime_t time, gtime_t teph, int sat, const nav_t *nav,
     sys=satsys(sat,NULL);
 
     if (sys==SYS_GPS||sys==SYS_GAL||sys==SYS_QZS||sys==SYS_CMP||sys==SYS_IRN) {
-        if (!(eph=seleph(teph,sat,-1,nav))) return 0;
+        if (!(eph = seleph(teph, sat, -1, nav))) {
+            return 0;
+        }
         *dts=eph2clk(time,eph);
     }
     else if (sys==SYS_GLO) {
-        if (!(geph=selgeph(teph,sat,-1,nav))) return 0;
-        if (fabs(geph->taun)>1.0) return 0; /* reject corrupted GLO clock data */
+        if (!(geph = selgeph(teph, sat, -1, nav))) {
+            return 0;
+        }
+        if (fabs(geph->taun) > 1.0) {
+            return 0; /* reject corrupted GLO clock data */
+        }
         *dts=geph2clk(time,geph);
     }
     else if (sys==SYS_SBS) {
-        if (!(seph=selseph(teph,sat,nav))) return 0;
+        if (!(seph = selseph(teph, sat, nav))) {
+            return 0;
+        }
         *dts=seph2clk(time,seph);
+    } else {
+        return 0;
     }
-    else return 0;
 
     return 1;
 }
@@ -560,31 +624,42 @@ int ephpos(gtime_t time, gtime_t teph, int sat, const nav_t *nav,
     *svh=-1;
 
     if (sys==SYS_GPS||sys==SYS_GAL||sys==SYS_QZS||sys==SYS_CMP||sys==SYS_IRN) {
-        if (!(eph=seleph(teph,sat,iode,nav))) return 0;
+        if (!(eph = seleph(teph, sat, iode, nav))) {
+            return 0;
+        }
         eph2pos(time,eph,rs,dts,var);
         time=timeadd(time,tt);
         eph2pos(time,eph,rst,dtst,var);
         *svh=eph->svh;
     }
     else if (sys==SYS_GLO) {
-        if (!(geph=selgeph(teph,sat,iode,nav))) return 0;
-        if (fabs(geph->taun)>1.0) return 0; /* reject corrupted GLO clock data (consistent with ephclk) */
+        if (!(geph = selgeph(teph, sat, iode, nav))) {
+            return 0;
+        }
+        if (fabs(geph->taun) > 1.0) {
+            return 0; /* reject corrupted GLO clock data (consistent with ephclk) */
+        }
         geph2pos(time,geph,rs,dts,var);
         time=timeadd(time,tt);
         geph2pos(time,geph,rst,dtst,var);
         *svh=geph->svh;
     }
     else if (sys==SYS_SBS) {
-        if (!(seph=selseph(teph,sat,nav))) return 0;
+        if (!(seph = selseph(teph, sat, nav))) {
+            return 0;
+        }
         seph2pos(time,seph,rs,dts,var);
         time=timeadd(time,tt);
         seph2pos(time,seph,rst,dtst,var);
         *svh=seph->svh;
+    } else {
+        return 0;
     }
-    else return 0;
 
     /* satellite velocity and clock drift by differential approx */
-    for (i=0;i<3;i++) rs[i+3]=(rst[i]-rs[i])/tt;
+    for (i = 0; i < 3; i++) {
+        rs[i + 3] = (rst[i] - rs[i]) / tt;
+    }
     dts[1]=(dtst[0]-dts[0])/tt;
 
     return 1;
@@ -601,7 +676,9 @@ static int satpos_sbas(gtime_t time, gtime_t teph, int sat, const nav_t *nav,
     /* search sbas satellite correciton */
     for (i=0;i<nav->sbssat.nsat;i++) {
         sbs=nav->sbssat.sat+i;
-        if (sbs->sat==sat) break;
+        if (sbs->sat == sat) {
+            break;
+        }
     }
     if (i>=nav->sbssat.nsat) {
         trace(NULL,2,"no sbas correction for orbit: %s sat=%2d\n",time_str(time,0),sat);
@@ -610,16 +687,24 @@ static int satpos_sbas(gtime_t time, gtime_t teph, int sat, const nav_t *nav,
         return 0;
     }
     /* satellite position and clock by broadcast ephemeris */
-    if (!ephpos(time,teph,sat,nav,sbs->lcorr.iode,rs,dts,var,svh)) return 0;
+    if (!ephpos(time, teph, sat, nav, sbs->lcorr.iode, rs, dts, var, svh)) {
+        return 0;
+    }
 
     /* sbas satellite correction (long term and fast) */
-    if (sbssatcorr(time,sat,nav,rs,dts,var)) return 1;
+    if (sbssatcorr(time, sat, nav, rs, dts, var)) {
+        return 1;
+    }
     *svh=-1;
     return 0;
 }
 /* SSR channel index for satpos_ssr (multi-L6E) -----------------------------*/
 static int _ssr_ch_idx = 0;
-extern void set_ssr_ch_idx(int ch) { if (ch >= 0 && ch < SSR_CH_NUM) _ssr_ch_idx = ch; }
+extern void set_ssr_ch_idx(int ch) {
+    if (ch >= 0 && ch < SSR_CH_NUM) {
+        _ssr_ch_idx = ch;
+    }
+}
 extern int  get_ssr_ch_idx(void)   { return _ssr_ch_idx; }
 
 /* satellite position and clock with ssr correction --------------------------*/
@@ -661,10 +746,16 @@ static int satpos_ssr(gtime_t time, gtime_t teph, int sat, const nav_t *nav,
         *svh=-1;
         return 0;
     }
-    if (ssr->udi[0]>=1.0) t1-=ssr->udi[0]/2.0;
-    if (ssr->udi[1]>=1.0) t2-=ssr->udi[1]/2.0;
+    if (ssr->udi[0] >= 1.0) {
+        t1 -= ssr->udi[0] / 2.0;
+    }
+    if (ssr->udi[1] >= 1.0) {
+        t2 -= ssr->udi[1] / 2.0;
+    }
 
-    for (i=0;i<3;i++) deph[i]=ssr->deph[i]+ssr->ddeph[i]*t1;
+    for (i = 0; i < 3; i++) {
+        deph[i] = ssr->deph[i] + ssr->ddeph[i] * t1;
+    }
     dclk=ssr->dclk[0]+ssr->dclk[1]*t2+ssr->dclk[2]*t2*t2;
 
     /* ssr highrate clock correction (ref [4]) */
@@ -678,12 +769,16 @@ static int satpos_ssr(gtime_t time, gtime_t teph, int sat, const nav_t *nav,
         return 0;
     }
     /* satellite position and clock by broadcast ephemeris */
-    if (!ephpos(time,teph,sat,nav,ssr->iode,rs,dts,var,svh)) return 0;
+    if (!ephpos(time, teph, sat, nav, ssr->iode, rs, dts, var, svh)) {
+        return 0;
+    }
 
     /* satellite clock for gps, galileo and qzss */
     sys=satsys(sat,NULL);
     if (sys==SYS_GPS||sys==SYS_GAL||sys==SYS_QZS||sys==SYS_CMP) {
-        if (!(eph=seleph(teph,sat,ssr->iode,nav))) return 0;
+        if (!(eph = seleph(teph, sat, ssr->iode, nav))) {
+            return 0;
+        }
 
         /* satellite clock by clock parameters */
         tk=timediff(time,eph->toc);
@@ -694,7 +789,9 @@ static int satpos_ssr(gtime_t time, gtime_t teph, int sat, const nav_t *nav,
         dts[0]-=2.0*dot(rs,rs+3,3)/CLIGHT/CLIGHT;
     }
     /* radial-along-cross directions in ecef */
-    if (!normv3(rs+3,ea)) return 0;
+    if (!normv3(rs + 3, ea)) {
+        return 0;
+    }
     cross3(rs,rs+3,rc);
     if (!normv3(rc,ec)) {
         *svh=-1;
@@ -750,7 +847,11 @@ extern int satpos(gtime_t time, gtime_t teph, int sat, int ephopt,
         case EPHOPT_SSRAPC: return satpos_ssr (time,teph,sat,nav, 0,rs,dts,var,svh);
         case EPHOPT_SSRCOM: return satpos_ssr (time,teph,sat,nav, 1,rs,dts,var,svh);
         case EPHOPT_PREC  :
-            if (!peph2pos(time,sat,nav,1,rs,dts,var)) break; else return 1;
+            if (!peph2pos(time, sat, nav, 1, rs, dts, var)) {
+                break;
+            } else {
+                return 1;
+            }
     }
     *svh=-1;
     return 0;
@@ -789,12 +890,20 @@ extern void satposs(gtime_t teph, const obsd_t *obs, int n, const nav_t *nav,
     trace(NULL,3,"satposs : teph=%s n=%d ephopt=%d\n",time_str(teph,3),n,ephopt);
 
     for (i=0;i<n&&i<2*MAXOBS;i++) {
-        for (j=0;j<6;j++) rs [j+i*6]=0.0;
-        for (j=0;j<2;j++) dts[j+i*2]=0.0;
+        for (j = 0; j < 6; j++) {
+            rs[j + i * 6] = 0.0;
+        }
+        for (j = 0; j < 2; j++) {
+            dts[j + i * 2] = 0.0;
+        }
         var[i]=0.0; svh[i]=0;
 
         /* search any pseudorange */
-        for (j=0,pr=0.0;j<NFREQ;j++) if ((pr=obs[i].P[j])!=0.0) break;
+        for (j = 0, pr = 0.0; j < NFREQ; j++) {
+            if ((pr = obs[i].P[j]) != 0.0) {
+                break;
+            }
+        }
 
         if (j>=NFREQ) {
             trace(NULL,3,"no pseudorange %s sat=%2d\n",time_str(obs[i].time,3),obs[i].sat);
@@ -818,7 +927,9 @@ extern void satposs(gtime_t teph, const obsd_t *obs, int n, const nav_t *nav,
         }
         /* if no precise clock available, use broadcast clock instead */
         if (dts[i*2]==0.0) {
-            if (!ephclk(time[i],teph,obs[i].sat,nav,dts+i*2)) continue;
+            if (!ephclk(time[i], teph, obs[i].sat, nav, dts + i * 2)) {
+                continue;
+            }
             dts[1+i*2]=0.0;
             *var=SQR(STD_BRDCCLK);
         }

@@ -162,7 +162,11 @@ static int flgcnt16(const uint16_t flg)
 {
     int i,cnt=0;
 
-    for (i=0;i<16;i++) if((flg>>i) & 0x1) cnt++;
+    for (i = 0; i < 16; i++) {
+        if ((flg >> i) & 0x1) {
+            cnt++;
+        }
+    }
     return cnt;
 }
 /* ---------------------------------------------------------------------------*/
@@ -238,10 +242,15 @@ static void adjweek(gtime_t *gt, double tow)
     int week;
 
     /* if no time, get cpu time */
-    if (gt->time == 0) *gt = utc2gpst(timeget());
+    if (gt->time == 0) {
+        *gt = utc2gpst(timeget());
+    }
     tow_p = time2gpst(*gt, &week);
-    if      (tow < tow_p - 302400.0) tow+=604800.0;
-    else if (tow > tow_p + 302400.0) tow-=604800.0;
+    if (tow < tow_p - 302400.0) {
+        tow += 604800.0;
+    } else if (tow > tow_p + 302400.0) {
+        tow -= 604800.0;
+    }
     *gt = gpst2time(week, tow);
 }
 
@@ -347,7 +356,9 @@ static int decode_mcssr_oc(mcssr_t *mc, ssr_t *ssr, int i, int apply)
         return -1;
     }
     else {
-        if(mc->ep0 > ep) ep += 3600;
+        if (mc->ep0 > ep) {
+            ep += 3600;
+        }
         adjweek(&mc->gt, mc->tow0 + ep);
         if(mc->iod != iod) {
             trace(NULL,2,"decode_mcssr_oc: %s,iod mismatch %d != %d\n",
@@ -368,10 +379,12 @@ static int decode_mcssr_oc(mcssr_t *mc, ssr_t *ssr, int i, int apply)
             time_str(mc->gt,3),i,j,satid,iode,deph[0],deph[1],deph[2],
             deph[0]*0.0016,deph[1]*0.0064,deph[2]*0.0064);
 
-        if(sat == 0) continue; /* unsupprted sat */
-        if((deph[0] == MCSSR_INVALID_15BIT) ||
-           (deph[1] == MCSSR_INVALID_13BIT) ||
-           (deph[2] == MCSSR_INVALID_13BIT)) continue; /* invalid value */
+        if (sat == 0) {
+            continue; /* unsupprted sat */
+        }
+        if ((deph[0] == MCSSR_INVALID_15BIT) || (deph[1] == MCSSR_INVALID_13BIT) || (deph[2] == MCSSR_INVALID_13BIT)) {
+            continue; /* invalid value */
+        }
 
         if(apply) {
             ssr[sat-1].t0[0]   = mc->gt;
@@ -381,7 +394,9 @@ static int decode_mcssr_oc(mcssr_t *mc, ssr_t *ssr, int i, int apply)
             ssr[sat-1].deph[0] = deph[0] * 0.0016;
             ssr[sat-1].deph[1] = deph[1] * 0.0064;
             ssr[sat-1].deph[2] = deph[2] * 0.0064;
-            for(k = 0; k < 3; k++) ssr[sat-1].ddeph[k] = 0.0;
+            for (k = 0; k < 3; k++) {
+                ssr[sat - 1].ddeph[k] = 0.0;
+            }
             ssr[sat-1].update=1;
         }
     }
@@ -403,7 +418,9 @@ static int decode_mcssr_cc(mcssr_t *mc, ssr_t *ssr, int i, int apply)
         return -1;
     }
     else {
-        if(mc->ep0 > ep) ep += 3600;
+        if (mc->ep0 > ep) {
+            ep += 3600;
+        }
         adjweek(&mc->gt, mc->tow0 + ep);
         if(mc->iod != iod) {
             trace(NULL,2,"decode_mcssr_cc: %s,iod mismatch %d != %d\n",
@@ -420,8 +437,12 @@ static int decode_mcssr_cc(mcssr_t *mc, ssr_t *ssr, int i, int apply)
         trace(NULL,4,"decode_mcssr_cc :%s,i=%4d,j=%3d,sat=%s,dclk=%6d,%8.4f\n",
             time_str(mc->gt,3),i,j,satid,dclk,dclk*0.0016);
 
-        if(sat == 0) continue; /* unsupprted sat */
-        if(dclk == MCSSR_INVALID_15BIT) continue; /* invalid value */
+        if (sat == 0) {
+            continue; /* unsupprted sat */
+        }
+        if (dclk == MCSSR_INVALID_15BIT) {
+            continue; /* invalid value */
+        }
 
         if(apply) {
             ssr[sat-1].t0[1]   = mc->gt;
@@ -452,7 +473,9 @@ static int decode_mcssr_cb(mcssr_t *mc, ssr_t *ssr, int i, int apply)
         return -1;
     }
     else {
-        if(mc->ep0 > ep) ep += 3600;
+        if (mc->ep0 > ep) {
+            ep += 3600;
+        }
         adjweek(&mc->gt, mc->tow0 + ep);
         if(mc->iod != iod) {
             trace(NULL,2,"decode_mcssr_cb: %s,iod mismatch %d != %d\n",
@@ -475,7 +498,9 @@ static int decode_mcssr_cb(mcssr_t *mc, ssr_t *ssr, int i, int apply)
                 trace(NULL,4,"decode_mcssr_cb: %s,i=%4d,j=%3d,k=%2d,sat=%s,flg=0x%2X,sig=%2d,cb=%5d,%6.2f\n",
                     time_str(mc->gt,3),i,j,k,satid,flg,mc->siglist[mc->gidlist[j]][k],cb,cb*0.02);
 
-                if(sat == 0) continue; /* unsupprted sat */
+                if (sat == 0) {
+                    continue; /* unsupprted sat */
+                }
 
                 cbias [mc->siglist[mc->gidlist[j]][k]-1] = cb * 0.02;
                 vcbias[mc->siglist[mc->gidlist[j]][k]-1] = 1; /* 1:output */
@@ -518,7 +543,9 @@ static int decode_mcssr_pb(mcssr_t *mc, ssr_t *ssr, int i, int apply)
         return -1;
     }
     else {
-        if(mc->ep0 > ep) ep += 3600;
+        if (mc->ep0 > ep) {
+            ep += 3600;
+        }
         adjweek(&mc->gt, mc->tow0 + ep);
         if(mc->iod != iod) {
             trace(NULL,2,"decode_mcssr_pb: %s,iod mismatch %d != %d\n",
@@ -543,7 +570,9 @@ static int decode_mcssr_pb(mcssr_t *mc, ssr_t *ssr, int i, int apply)
                 trace(NULL,4,"decode_mcssr_pb: %s,i=%4d,j=%3d,k=%2d,sat=%s,flg=0x%2X,sig=%2d,di=%d,pb=%5d,%7.3f\n",
                     time_str(mc->gt,3),i,j,k,satid,flg,mc->siglist[mc->gidlist[j]][k],di,pb,pb*0.001);
 
-                if(sat == 0) continue; /* unsupprted sat */
+                if (sat == 0) {
+                    continue; /* unsupprted sat */
+                }
 
                 pbias [mc->siglist[mc->gidlist[j]][k]-1] = pb * 0.001;
                 vpbias[mc->siglist[mc->gidlist[j]][k]-1] = 1; /* 1:output */
@@ -587,7 +616,9 @@ static int decode_mcssr_ura(mcssr_t *mc, ssr_t *ssr, int i, int apply)
         return -1;
     }
     else {
-        if(mc->ep0 > ep) ep += 3600;
+        if (mc->ep0 > ep) {
+            ep += 3600;
+        }
         adjweek(&mc->gt, mc->tow0 + ep);
         if(mc->iod != iod) {
             trace(NULL,2,"decode_mcssr_ura: %s,iod mismatch %d != %d\n",
@@ -604,7 +635,9 @@ static int decode_mcssr_ura(mcssr_t *mc, ssr_t *ssr, int i, int apply)
         trace(NULL,4,"decode_mcssr_ura :%s,i=%4d,j=%3d,sat=%s,ura=0x%02X\n",
             time_str(mc->gt,3),i,j,satid,ura);
 
-        if(sat == 0) continue; /* unsupprted sat */
+        if (sat == 0) {
+            continue; /* unsupprted sat */
+        }
         if(apply) {
             ssr[sat-1].t0[3]   = mc->gt;
             ssr[sat-1].udi[3]  = udint;
@@ -659,7 +692,9 @@ extern int decode_qzss_l6emsg(rtcm_t *rtcm)
         }
     }
 
-    if(vid!=2) return 0;           /* unsupport vendor ID */
+    if (vid != 2) {
+        return 0; /* unsupport vendor ID */
+    }
 
     if ((str = strstr(rtcm->opt,"-MCSSR_PRN"))) {
         optprn = atoi(strstr(str,"=")+1);
@@ -690,7 +725,9 @@ extern int decode_qzss_l6emsg(rtcm_t *rtcm)
         _mcssr[_mcssr_ch].prn_chk_cnt = 0;
     }
 
-    if(si==1) _mcssr[_mcssr_ch].maxframe = 0; /* Subframe Indicator : First Data */
+    if (si == 1) {
+        _mcssr[_mcssr_ch].maxframe = 0; /* Subframe Indicator : First Data */
+    }
 
     /* frame recognition */
     if(_mcssr[_mcssr_ch].maxframe <= 0) {
@@ -730,17 +767,22 @@ extern int decode_qzss_l6emsg(rtcm_t *rtcm)
     }
     _mcssr[_mcssr_ch].buff[ibuff - 1] &= mask;
 
-    if(_mcssr[_mcssr_ch].frame != _mcssr[_mcssr_ch].maxframe) return 0; /* no message */
+    if (_mcssr[_mcssr_ch].frame != _mcssr[_mcssr_ch].maxframe) {
+        return 0; /* no message */
+    }
 
     ret=10; /* input ssr messages */
     i=0;
     while(i < L6DATA_BITLEN * _mcssr[_mcssr_ch].maxframe) {
         mn = getbitu(_mcssr[_mcssr_ch].buff,i,12); i+=12; /* Message Number */
-        if(mn != RTCM_MN_CSSR) continue;
+        if (mn != RTCM_MN_CSSR) {
+            continue;
+        }
         st = getbitu(_mcssr[_mcssr_ch].buff,i, 4); i+= 4; /* Message Sub Type ID */
-        if((st != MCSSR_ST_MASK) && (st != MCSSR_ST_OC) &&
-           (st != MCSSR_ST_CC)   && (st != MCSSR_ST_CB) &&
-           (st != MCSSR_ST_PB)   && (st != MCSSR_ST_URA)) continue;
+        if ((st != MCSSR_ST_MASK) && (st != MCSSR_ST_OC) && (st != MCSSR_ST_CC) && (st != MCSSR_ST_CB) &&
+            (st != MCSSR_ST_PB) && (st != MCSSR_ST_URA)) {
+            continue;
+        }
         if (st == MCSSR_ST_MASK) {
             if(_mcssr[_mcssr_ch].mgfid != mgfid) {
                 trace(NULL,2,"decode_qzss_l6emsg :%s,mgfid switched %d -> %d\n",
@@ -765,7 +807,9 @@ extern int decode_qzss_l6emsg(rtcm_t *rtcm)
                     i = decode_mcssr_cc (&_mcssr[_mcssr_ch], rtcm->ssr, i, apply);
                     break;
                 case MCSSR_ST_CB  :
-                    if (strstr(rtcm->opt,"-DIS_MCSSR_CB")) apply = 0;
+                    if (strstr(rtcm->opt, "-DIS_MCSSR_CB")) {
+                        apply = 0;
+                    }
                     i = decode_mcssr_cb (&_mcssr[_mcssr_ch], rtcm->ssr, i, apply);
                     break;
                 case MCSSR_ST_PB  :
@@ -794,7 +838,11 @@ extern int decode_qzss_l6emsg(rtcm_t *rtcm)
 }
 
 /* set/get MADOCA-PPP CSSR channel index -------------------------------------*/
-extern void set_mcssr_ch(int ch) { if (ch >= 0 && ch < SSR_CH_NUM) _mcssr_ch = ch; }
+extern void set_mcssr_ch(int ch) {
+    if (ch >= 0 && ch < SSR_CH_NUM) {
+        _mcssr_ch = ch;
+    }
+}
 extern int  get_mcssr_ch(void)   { return _mcssr_ch; }
 
 /* initialize MADOCA-PPP CSSR control ----------------------------------------
@@ -824,18 +872,20 @@ extern int input_qzssl6e(rtcm_t *rtcm, const uint8_t data)
      trace(NULL,5,"input_qzssl6e: data=%02x,%d\n",data,rtcm->nbyte);
 
     /* synchronize frame with L6 preamble */
-    if      ((rtcm->nbyte == 0) && (data != 0x1A)) return 0;
-    else if(((rtcm->nbyte == 1) && (data != 0xCF)) ||
-            ((rtcm->nbyte == 2) && (data != 0xFC)) ||
-            ((rtcm->nbyte == 3) && (data != 0x1D))) {
-        rtcm->nbyte=0;
-        if (data != 0x1A) {
-            return 0;
-        }
-    }
+     if ((rtcm->nbyte == 0) && (data != 0x1A)) {
+         return 0;
+     } else if (((rtcm->nbyte == 1) && (data != 0xCF)) || ((rtcm->nbyte == 2) && (data != 0xFC)) ||
+                ((rtcm->nbyte == 3) && (data != 0x1D))) {
+         rtcm->nbyte = 0;
+         if (data != 0x1A) {
+             return 0;
+         }
+     }
     rtcm->buff[rtcm->nbyte++]=data;
 
-    if (rtcm->nbyte<L6BYTELEN) return 0;
+    if (rtcm->nbyte < L6BYTELEN) {
+        return 0;
+    }
 
     rtcm->nbyte=0;
     return decode_qzss_l6emsg(rtcm);
@@ -855,8 +905,12 @@ extern int input_qzssl6ef(rtcm_t *rtcm, FILE *fp)
     trace(NULL,4,"input_qzssl6ef\n");
 
     for (i=0;i<4096;i++) {
-        if ((data=fgetc(fp))==EOF) return -2;
-        if ((ret=input_qzssl6e(rtcm,(uint8_t)data))) return ret;
+        if ((data = fgetc(fp)) == EOF) {
+            return -2;
+        }
+        if ((ret = input_qzssl6e(rtcm, (uint8_t)data))) {
+            return ret;
+        }
     }
     return 0; /* return at every 4k bytes */
 }

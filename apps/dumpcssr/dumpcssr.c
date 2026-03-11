@@ -94,7 +94,9 @@ static void dump_ssr_state(FILE *fp, gtime_t time, const nav_t *nav, int ch)
     for (sat = 1; sat <= MAXSAT; sat++) {
         ssr = &nav->ssr_ch[ch][sat - 1];
         /* skip if no orbit or clock data yet */
-        if (!ssr->t0[0].time && !ssr->t0[1].time) continue;
+        if (!ssr->t0[0].time && !ssr->t0[1].time) {
+            continue;
+        }
         sys = satsys(sat, &prn);
         fprintf(fp, "%.1f,%d,%d,%d,",   tow, ch, sys, prn);
         fprintf(fp, "%.4f,%.4f,%.4f,",  ssr->deph[0], ssr->deph[1], ssr->deph[2]);
@@ -118,7 +120,9 @@ static FILE *open_l6(char **infile, int n)
 
     for (i = 0; i < n; i++) {
         ext = strrchr(infile[i], '.');
-        if (ext && (!strcmp(ext, ".l6") || !strcmp(ext, ".L6"))) break;
+        if (ext && (!strcmp(ext, ".l6") || !strcmp(ext, ".L6"))) {
+            break;
+        }
     }
     if (i >= n) {
         fprintf(stderr, "No L6 file in input files.\n");
@@ -155,12 +159,15 @@ int main(int argc, char **argv)
             sscanf(argv[++i], "%lf/%lf/%lf", ee, ee + 1, ee + 2);
             sscanf(argv[++i], "%lf:%lf:%lf", ee + 3, ee + 4, ee + 5);
             te = epoch2time(ee);
-        }
-        else if (!strcmp(argv[i], "-k") && i + 1 < argc) conffile = argv[++i];
-        else if (!strcmp(argv[i], "-o") && i + 1 < argc) outfile = argv[++i];
-        else if (!strcmp(argv[i], "-ch") && i + 1 < argc) ch = atoi(argv[++i]);
-        else if (!strcmp(argv[i], "-x") && i + 1 < argc) trace_level = atoi(argv[++i]);
-        else if (argv[i][0] == '-') {
+        } else if (!strcmp(argv[i], "-k") && i + 1 < argc) {
+            conffile = argv[++i];
+        } else if (!strcmp(argv[i], "-o") && i + 1 < argc) {
+            outfile = argv[++i];
+        } else if (!strcmp(argv[i], "-ch") && i + 1 < argc) {
+            ch = atoi(argv[++i]);
+        } else if (!strcmp(argv[i], "-x") && i + 1 < argc) {
+            trace_level = atoi(argv[++i]);
+        } else if (argv[i][0] == '-') {
             fprintf(stderr,
                 "usage: %s [options] l6file [navfile...]\n"
                 "  -ts y/m/d h:m:s   start time (GPST)\n"
@@ -171,8 +178,9 @@ int main(int argc, char **argv)
                 "  -x  level         trace level [0]\n",
                 PROGNAME);
             return 0;
+        } else if (n < MAXFILE) {
+            infile[n++] = argv[i];
         }
-        else if (n < MAXFILE) infile[n++] = argv[i];
     }
     if (n <= 0) {
         fprintf(stderr, "error: no input file\n");
@@ -223,18 +231,24 @@ int main(int argc, char **argv)
         }
         getsysopts(&prcopt, &solopt, &filopt);
         /* read grid definition if available */
-        if (filopt.grid[0]) clas_read_grid_def(clas, filopt.grid);
+        if (filopt.grid[0]) {
+            clas_read_grid_def(clas, filopt.grid);
+        }
     }
 
     /* read RINEX NAV files (optional, for broadcast eph in orbit calcs) */
     for (i = 0; i < n; i++) {
         gtime_t t0 = {0};
         const char *ext = strrchr(infile[i], '.');
-        if (ext && (!strcmp(ext, ".l6") || !strcmp(ext, ".L6"))) continue;
+        if (ext && (!strcmp(ext, ".l6") || !strcmp(ext, ".L6"))) {
+            continue;
+        }
         reppath(infile[i], path, ts.time ? ts : t0, "", "");
         readrnx(path, 0, "", NULL, nav, NULL);
     }
-    if (nav->n > 0) uniqnav(nav);
+    if (nav->n > 0) {
+        uniqnav(nav);
+    }
 
     /* open L6 file */
     if (!(fp_in = open_l6(infile, n))) {
@@ -263,14 +277,22 @@ int main(int argc, char **argv)
 
     /* main decode loop */
     while ((ret = clas_input_cssrf(clas, fp_in, ch)) > -2) {
-        if (ret < 0) continue;
-        if (ret != 10) continue;   /* wait for service info (end of bundle) */
+        if (ret < 0) {
+            continue;
+        }
+        if (ret != 10) {
+            continue; /* wait for service info (end of bundle) */
+        }
 
         t = clas->l6buf[ch].time;
 
         /* time filter */
-        if (ts.time && timediff(t, ts) < -0.5) continue;
-        if (te.time && timediff(t, te) >  0.5) break;
+        if (ts.time && timediff(t, ts) < -0.5) {
+            continue;
+        }
+        if (te.time && timediff(t, te) > 0.5) {
+            break;
+        }
 
         /* update nav->ssr_ch from first available network */
         for (net = 1; net < CLAS_MAX_NETWORK; net++) {
@@ -284,7 +306,9 @@ int main(int argc, char **argv)
     }
 
     /* cleanup */
-    if (fp_out != stdout) fclose(fp_out);
+    if (fp_out != stdout) {
+        fclose(fp_out);
+    }
     fclose(fp_in);
     freenav(nav, 0xFF);
     clas_ctx_free(clas); free(clas); free(nav); free(tmp);

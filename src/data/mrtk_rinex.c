@@ -105,24 +105,36 @@ static void setstr(char *dst, const char *src, int n)
 {
     char *p=dst;
     const char *q=src;
-    while (*q&&q<src+n) *p++=*q++;
+    while (*q && q < src + n) {
+        *p++ = *q++;
+    }
     *p--='\0';
-    while (p>=dst&&*p==' ') *p--='\0';
+    while (p >= dst && *p == ' ') {
+        *p-- = '\0';
+    }
 }
 /* adjust time considering week handover -------------------------------------*/
 static gtime_t adjweek(gtime_t t, gtime_t t0)
 {
     double tt=timediff(t,t0);
-    if (tt<-302400.0) return timeadd(t, 604800.0);
-    if (tt> 302400.0) return timeadd(t,-604800.0);
+    if (tt < -302400.0) {
+        return timeadd(t, 604800.0);
+    }
+    if (tt > 302400.0) {
+        return timeadd(t, -604800.0);
+    }
     return t;
 }
 /* adjust time considering week handover -------------------------------------*/
 static gtime_t adjday(gtime_t t, gtime_t t0)
 {
     double tt=timediff(t,t0);
-    if (tt<-43200.0) return timeadd(t, 86400.0);
-    if (tt> 43200.0) return timeadd(t,-86400.0);
+    if (tt < -43200.0) {
+        return timeadd(t, 86400.0);
+    }
+    if (tt > 43200.0) {
+        return timeadd(t, -86400.0);
+    }
     return t;
 }
 /* time string for ver.3 (yyyymmdd hhmmss UTC) -------------------------------*/
@@ -161,25 +173,42 @@ static double uravalue(int sva)
 static int uraindex(double value)
 {
     int i;
-    for (i=0;i<15;i++) if (ura_eph[i]>=value) break;
+    for (i = 0; i < 15; i++) {
+        if (ura_eph[i] >= value) {
+            break;
+        }
+    }
     return i;
 }
 /* Galileo SISA index to SISA nominal value (m) ------------------------------*/
 static double sisa_value(int sisa)
 {
-    if (sisa<= 49) return sisa*0.01;
-    if (sisa<= 74) return 0.5+(sisa- 50)*0.02;
-    if (sisa<= 99) return 1.0+(sisa- 75)*0.04;
-    if (sisa<=125) return 2.0+(sisa-100)*0.16;
+    if (sisa <= 49) {
+        return sisa * 0.01;
+    }
+    if (sisa <= 74) {
+        return 0.5 + (sisa - 50) * 0.02;
+    }
+    if (sisa <= 99) {
+        return 1.0 + (sisa - 75) * 0.04;
+    }
+    if (sisa <= 125) {
+        return 2.0 + (sisa - 100) * 0.16;
+    }
     return -1.0; /* unknown or NAPA */
 }
 /* Galileo SISA value (m) to SISA index --------------------------------------*/
 static int sisa_index(double value)
 {
-    if (value<0.0 || value>6.0) return 255; /* unknown or NAPA */
-    else if (value<=0.5) return (int)(value/0.01);
-    else if (value<=1.0) return (int)((value-0.5)/0.02)+50;
-    else if (value<=2.0) return (int)((value-1.0)/0.04)+75;
+    if (value < 0.0 || value > 6.0) {
+        return 255; /* unknown or NAPA */
+    } else if (value <= 0.5) {
+        return (int)(value / 0.01);
+    } else if (value <= 1.0) {
+        return (int)((value - 0.5) / 0.02) + 50;
+    } else if (value <= 2.0) {
+        return (int)((value - 1.0) / 0.04) + 75;
+    }
     return ((int)(value-2.0)/0.16)+100;
 }
 /* initialize station parameter ----------------------------------------------*/
@@ -194,8 +223,12 @@ static void init_sta(sta_t *sta)
     *sta->recver ='\0';
     *sta->recsno ='\0';
     sta->antsetup=sta->itrf=sta->deltype=0;
-    for (i=0;i<3;i++) sta->pos[i]=0.0;
-    for (i=0;i<3;i++) sta->del[i]=0.0;
+    for (i = 0; i < 3; i++) {
+        sta->pos[i] = 0.0;
+    }
+    for (i = 0; i < 3; i++) {
+        sta->del[i] = 0.0;
+    }
     sta->hgt=0.0;
 }
 /*------------------------------------------------------------------------------
@@ -208,83 +241,145 @@ static void convcode(int ver, int sys, const char *str, char *type)
     strcpy(type,"   ");
     
     if      (!strcmp(str,"P1")) { /* ver.2.11 GPS L1PY,GLO L2P */
-        if      (sys==SYS_GPS) sprintf(type,"%c1W",'C');
-        else if (sys==SYS_GLO) sprintf(type,"%c1P",'C');
+        if (sys == SYS_GPS) {
+            sprintf(type, "%c1W", 'C');
+        } else if (sys == SYS_GLO) {
+            sprintf(type, "%c1P", 'C');
+        }
     }
     else if (!strcmp(str,"P2")) { /* ver.2.11 GPS L2PY,GLO L2P */
-        if      (sys==SYS_GPS) sprintf(type,"%c2W",'C');
-        else if (sys==SYS_GLO) sprintf(type,"%c2P",'C');
+        if (sys == SYS_GPS) {
+            sprintf(type, "%c2W", 'C');
+        } else if (sys == SYS_GLO) {
+            sprintf(type, "%c2P", 'C');
+        }
     }
     else if (!strcmp(str,"C1")) { /* ver.2.11 GPS L1C,GLO L1C/A */
-        if      (ver>=212) ; /* reject C1 for 2.12 */
-        else if (sys==SYS_GPS) sprintf(type,"%c1C",'C');
-        else if (sys==SYS_GLO) sprintf(type,"%c1C",'C');
-        else if (sys==SYS_GAL) sprintf(type,"%c1X",'C'); /* ver.2.12 */
-        else if (sys==SYS_QZS) sprintf(type,"%c1C",'C');
-        else if (sys==SYS_SBS) sprintf(type,"%c1C",'C');
+        if (ver >= 212) {
+            ; /* reject C1 for 2.12 */
+        } else if (sys == SYS_GPS) {
+            sprintf(type, "%c1C", 'C');
+        } else if (sys == SYS_GLO) {
+            sprintf(type, "%c1C", 'C');
+        } else if (sys == SYS_GAL) {
+            sprintf(type, "%c1X", 'C'); /* ver.2.12 */
+        } else if (sys == SYS_QZS) {
+            sprintf(type, "%c1C", 'C');
+        } else if (sys == SYS_SBS) {
+            sprintf(type, "%c1C", 'C');
+        }
     }
     else if (!strcmp(str,"C2")) {
         if (sys==SYS_GPS) {
-            if (ver>=212) sprintf(type,"%c2W",'C'); /* L2P(Y) */
-            else          sprintf(type,"%c2X",'C'); /* L2C */
+            if (ver >= 212) {
+                sprintf(type, "%c2W", 'C'); /* L2P(Y) */
+            } else {
+                sprintf(type, "%c2X", 'C'); /* L2C */
+            }
+        } else if (sys == SYS_GLO) {
+            sprintf(type, "%c2C", 'C');
+        } else if (sys == SYS_QZS) {
+            sprintf(type, "%c2X", 'C');
+        } else if (sys == SYS_CMP) {
+            sprintf(type, "%c2X", 'C'); /* ver.2.12 B1_2 */
         }
-        else if (sys==SYS_GLO) sprintf(type,"%c2C",'C');
-        else if (sys==SYS_QZS) sprintf(type,"%c2X",'C');
-        else if (sys==SYS_CMP) sprintf(type,"%c2X",'C'); /* ver.2.12 B1_2 */
     }
     else if (ver>=2.12&&str[1]=='A') { /* ver.2.12 L1C/A */
-        if      (sys==SYS_GPS) sprintf(type,"%c1C",str[0]);
-        else if (sys==SYS_GLO) sprintf(type,"%c1C",str[0]);
-        else if (sys==SYS_QZS) sprintf(type,"%c1C",str[0]);
-        else if (sys==SYS_SBS) sprintf(type,"%c1C",str[0]);
+        if (sys == SYS_GPS) {
+            sprintf(type, "%c1C", str[0]);
+        } else if (sys == SYS_GLO) {
+            sprintf(type, "%c1C", str[0]);
+        } else if (sys == SYS_QZS) {
+            sprintf(type, "%c1C", str[0]);
+        } else if (sys == SYS_SBS) {
+            sprintf(type, "%c1C", str[0]);
+        }
     }
     else if (ver>=2.12&&str[1]=='B') { /* ver.2.12 GPS L1C */
-        if      (sys==SYS_GPS) sprintf(type,"%c1X",str[0]);
-        else if (sys==SYS_QZS) sprintf(type,"%c1X",str[0]);
+        if (sys == SYS_GPS) {
+            sprintf(type, "%c1X", str[0]);
+        } else if (sys == SYS_QZS) {
+            sprintf(type, "%c1X", str[0]);
+        }
     }
     else if (ver>=2.12&&str[1]=='C') { /* ver.2.12 GPS L2C */
-        if      (sys==SYS_GPS) sprintf(type,"%c2X",str[0]);
-        else if (sys==SYS_QZS) sprintf(type,"%c2X",str[0]);
+        if (sys == SYS_GPS) {
+            sprintf(type, "%c2X", str[0]);
+        } else if (sys == SYS_QZS) {
+            sprintf(type, "%c2X", str[0]);
+        }
     }
     else if (ver>=2.12&&str[1]=='D') { /* ver.2.12 GLO L2C/A */
-        if      (sys==SYS_GLO) sprintf(type,"%c2C",str[0]);
+        if (sys == SYS_GLO) {
+            sprintf(type, "%c2C", str[0]);
+        }
     }
     else if (ver>=2.12&&str[1]=='1') { /* ver.2.12 GPS L1PY,GLO L1P */
-        if      (sys==SYS_GPS) sprintf(type,"%c1W",str[0]);
-        else if (sys==SYS_GLO) sprintf(type,"%c1P",str[0]);
-        else if (sys==SYS_GAL) sprintf(type,"%c1X",str[0]); /* tentative */
-        else if (sys==SYS_CMP) sprintf(type,"%c2X",str[0]); /* extension */
+        if (sys == SYS_GPS) {
+            sprintf(type, "%c1W", str[0]);
+        } else if (sys == SYS_GLO) {
+            sprintf(type, "%c1P", str[0]);
+        } else if (sys == SYS_GAL) {
+            sprintf(type, "%c1X", str[0]); /* tentative */
+        } else if (sys == SYS_CMP) {
+            sprintf(type, "%c2X", str[0]); /* extension */
+        }
     }
     else if (ver<2.12&&str[1]=='1') {
-        if      (sys==SYS_GPS) sprintf(type,"%c1C",str[0]);
-        else if (sys==SYS_GLO) sprintf(type,"%c1C",str[0]);
-        else if (sys==SYS_GAL) sprintf(type,"%c1X",str[0]); /* tentative */
-        else if (sys==SYS_QZS) sprintf(type,"%c1C",str[0]);
-        else if (sys==SYS_SBS) sprintf(type,"%c1C",str[0]);
+        if (sys == SYS_GPS) {
+            sprintf(type, "%c1C", str[0]);
+        } else if (sys == SYS_GLO) {
+            sprintf(type, "%c1C", str[0]);
+        } else if (sys == SYS_GAL) {
+            sprintf(type, "%c1X", str[0]); /* tentative */
+        } else if (sys == SYS_QZS) {
+            sprintf(type, "%c1C", str[0]);
+        } else if (sys == SYS_SBS) {
+            sprintf(type, "%c1C", str[0]);
+        }
     }
     else if (str[1]=='2') {
-        if      (sys==SYS_GPS) sprintf(type,"%c2W",str[0]);
-        else if (sys==SYS_GLO) sprintf(type,"%c2P",str[0]);
-        else if (sys==SYS_QZS) sprintf(type,"%c2X",str[0]);
-        else if (sys==SYS_CMP) sprintf(type,"%c2X",str[0]); /* ver.2.12 B1_2 */
+        if (sys == SYS_GPS) {
+            sprintf(type, "%c2W", str[0]);
+        } else if (sys == SYS_GLO) {
+            sprintf(type, "%c2P", str[0]);
+        } else if (sys == SYS_QZS) {
+            sprintf(type, "%c2X", str[0]);
+        } else if (sys == SYS_CMP) {
+            sprintf(type, "%c2X", str[0]); /* ver.2.12 B1_2 */
+        }
     }
     else if (str[1]=='5') {
-        if      (sys==SYS_GPS) sprintf(type,"%c5X",str[0]);
-        else if (sys==SYS_GAL) sprintf(type,"%c5X",str[0]);
-        else if (sys==SYS_QZS) sprintf(type,"%c5X",str[0]);
-        else if (sys==SYS_SBS) sprintf(type,"%c5X",str[0]);
+        if (sys == SYS_GPS) {
+            sprintf(type, "%c5X", str[0]);
+        } else if (sys == SYS_GAL) {
+            sprintf(type, "%c5X", str[0]);
+        } else if (sys == SYS_QZS) {
+            sprintf(type, "%c5X", str[0]);
+        } else if (sys == SYS_SBS) {
+            sprintf(type, "%c5X", str[0]);
+        }
     }
     else if (str[1]=='6') {
-        if      (sys==SYS_GAL) sprintf(type,"%c6X",str[0]);
-        else if (sys==SYS_QZS) sprintf(type,"%c6X",str[0]);
-        else if (sys==SYS_CMP) sprintf(type,"%c6X",str[0]); /* ver.2.12 B3 */
+        if (sys == SYS_GAL) {
+            sprintf(type, "%c6X", str[0]);
+        } else if (sys == SYS_QZS) {
+            sprintf(type, "%c6X", str[0]);
+        } else if (sys == SYS_CMP) {
+            sprintf(type, "%c6X", str[0]); /* ver.2.12 B3 */
+        }
     }
     else if (str[1]=='7') {
-        if      (sys==SYS_GAL) sprintf(type,"%c7X",str[0]);
-        else if (sys==SYS_CMP) sprintf(type,"%c7X",str[0]); /* ver.2.12 B2b */
+        if (sys == SYS_GAL) {
+            sprintf(type, "%c7X", str[0]);
+        } else if (sys == SYS_CMP) {
+            sprintf(type, "%c7X", str[0]); /* ver.2.12 B2b */
+        }
     }
     else if (str[1]=='8') {
-        if      (sys==SYS_GAL) sprintf(type,"%c8X",str[0]);
+        if (sys == SYS_GAL) {
+            sprintf(type, "%c8X", str[0]);
+        }
     }
     trace(NULL,3,"convcode: ver=%.2f sys=%2d type= %s -> %s\n",ver/100.0,sys,str,type);
 }
@@ -311,46 +406,57 @@ static void decode_obsh(FILE *fp, char *buff, int ver, int *tsys,
     trace(NULL,4,"decode_obsh: ver=%.2f\n",ver/100.0);
     
     if      (strstr(label,"MARKER NAME"         )) {
-        if (sta) setstr(sta->name,buff,60);
+        if (sta) {
+            setstr(sta->name, buff, 60);
+        }
     }
     else if (strstr(label,"MARKER NUMBER"       )) { /* opt */
-        if (sta) setstr(sta->marker,buff,20);
-    }
-    else if (strstr(label,"MARKER TYPE"         )) ; /* ver.3 */
-    else if (strstr(label,"OBSERVER / AGENCY"   )) ;
-    else if (strstr(label,"REC # / TYPE / VERS" )) {
+        if (sta) {
+            setstr(sta->marker, buff, 20);
+        }
+    } else if (strstr(label, "MARKER TYPE")) {
+        ; /* ver.3 */
+    } else if (strstr(label, "OBSERVER / AGENCY")) {
+        /* ignored */
+    } else if (strstr(label, "REC # / TYPE / VERS")) {
         if (sta) {
             setstr(sta->recsno, buff,   20);
             setstr(sta->rectype,buff+20,20);
             setstr(sta->recver, buff+40,20);
         }
-    }
-    else if (strstr(label,"ANT # / TYPE"        )) {
+    } else if (strstr(label, "ANT # / TYPE")) {
         if (sta) {
             setstr(sta->antsno,buff   ,20);
             setstr(sta->antdes,buff+20,20);
         }
-    }
-    else if (strstr(label,"APPROX POSITION XYZ" )) {
+    } else if (strstr(label, "APPROX POSITION XYZ")) {
         if (sta) {
-            for (i=0,j=0;i<3;i++,j+=14) sta->pos[i]=str2num(buff,j,14);
+            for (i = 0, j = 0; i < 3; i++, j += 14) {
+                sta->pos[i] = str2num(buff, j, 14);
+            }
         }
-    }
-    else if (strstr(label,"ANTENNA: DELTA H/E/N")) {
+    } else if (strstr(label, "ANTENNA: DELTA H/E/N")) {
         if (sta) {
-            for (i=0,j=0;i<3;i++,j+=14) del[i]=str2num(buff,j,14);
+            for (i = 0, j = 0; i < 3; i++, j += 14) {
+                del[i] = str2num(buff, j, 14);
+            }
             sta->del[2]=del[0]; /* h */
             sta->del[0]=del[1]; /* e */
             sta->del[1]=del[2]; /* n */
         }
-    }
-    else if (strstr(label,"ANTENNA: DELTA X/Y/Z")) ; /* opt ver.3 */
-    else if (strstr(label,"ANTENNA: PHASECENTER")) ; /* opt ver.3 */
-    else if (strstr(label,"ANTENNA: B.SIGHT XYZ")) ; /* opt ver.3 */
-    else if (strstr(label,"ANTENNA: ZERODIR AZI")) ; /* opt ver.3 */
-    else if (strstr(label,"ANTENNA: ZERODIR XYZ")) ; /* opt ver.3 */
-    else if (strstr(label,"CENTER OF MASS: XYZ" )) ; /* opt ver.3 */
-    else if (strstr(label,"SYS / # / OBS TYPES" )) { /* ver.3, opt ver.4 */
+    } else if (strstr(label, "ANTENNA: DELTA X/Y/Z")) {
+        ; /* opt ver.3 */
+    } else if (strstr(label, "ANTENNA: PHASECENTER")) {
+        ; /* opt ver.3 */
+    } else if (strstr(label, "ANTENNA: B.SIGHT XYZ")) {
+        ; /* opt ver.3 */
+    } else if (strstr(label, "ANTENNA: ZERODIR AZI")) {
+        ; /* opt ver.3 */
+    } else if (strstr(label, "ANTENNA: ZERODIR XYZ")) {
+        ; /* opt ver.3 */
+    } else if (strstr(label, "CENTER OF MASS: XYZ")) {
+        ;                                              /* opt ver.3 */
+    } else if (strstr(label, "SYS / # / OBS TYPES")) { /* ver.3, opt ver.4 */
         if (!(p=strchr(syscodes,buff[0]))) {
             trace(NULL,2,"invalid system code: sys=%c\n",buff[0]);
             return;
@@ -359,35 +465,51 @@ static void decode_obsh(FILE *fp, char *buff, int ver, int *tsys,
         n=(int)str2num(buff,3,3);
         for (j=nt=0,k=7;j<n;j++,k+=4) {
             if (k>58) {
-                if (!fgets(buff,MAXRNXLEN,fp)) break;
+                if (!fgets(buff, MAXRNXLEN, fp)) {
+                    break;
+                }
                 k=7;
             }
-            if (nt<MAXOBSTYPE-1) setstr(tobs[i][nt++],buff+k,3);
+            if (nt < MAXOBSTYPE - 1) {
+                setstr(tobs[i][nt++], buff + k, 3);
+            }
         }
         *tobs[i][nt]='\0';
         
         /* change BDS B1 code: 3.02 */
         if (i==5&&ver==302) {
-            for (j=0;j<nt;j++) if (tobs[i][j][1]=='1') tobs[i][j][1]='2';
+            for (j = 0; j < nt; j++) {
+                if (tobs[i][j][1] == '1') {
+                    tobs[i][j][1] = '2';
+                }
+            }
         }
         /* if unknown code in ver.3, set default code */
         for (j=0;j<nt;j++) {
-            if (tobs[i][j][2]) continue;
-            if (!(p=strchr(frqcodes,tobs[i][j][1]))) continue;
+            if (tobs[i][j][2]) {
+                continue;
+            }
+            if (!(p = strchr(frqcodes, tobs[i][j][1]))) {
+                continue;
+            }
             tobs[i][j][2]=defcodes[i][(int)(p-frqcodes)];
             trace(NULL,2,"set default for unknown code: sys=%c code=%s\n",buff[0],
                   tobs[i][j]);
         }
-    }
-    else if (strstr(label,"WAVELENGTH FACT L1/2")) ; /* opt ver.2 */
-    else if (strstr(label,"# / TYPES OF OBSERV" )) { /* ver.2 */
+    } else if (strstr(label, "WAVELENGTH FACT L1/2")) {
+        ;                                              /* opt ver.2 */
+    } else if (strstr(label, "# / TYPES OF OBSERV")) { /* ver.2 */
         n=(int)str2num(buff,0,6);
         for (i=nt=0,j=10;i<n;i++,j+=6) {
             if (j>58) {
-                if (!fgets(buff,MAXRNXLEN,fp)) break;
+                if (!fgets(buff, MAXRNXLEN, fp)) {
+                    break;
+                }
                 j=10;
             }
-            if (nt>=MAXOBSTYPE-1) continue;
+            if (nt >= MAXOBSTYPE - 1) {
+                continue;
+            }
             if (ver<=299) {
                 setstr(str,buff+j,2);
                 convcode(ver,SYS_GPS,str,tobs[0][nt]);
@@ -400,57 +522,75 @@ static void decode_obsh(FILE *fp, char *buff, int ver, int *tsys,
             nt++;
         }
         *tobs[0][nt]='\0';
-    }
-    else if (strstr(label,"SIGNAL STRENGTH UNIT")) ; /* opt ver.3 */
-    else if (strstr(label,"INTERVAL"            )) ; /* opt */
-    else if (strstr(label,"TIME OF FIRST OBS"   )) {
-        if      (!strncmp(buff+48,"GPS",3)) *tsys=TSYS_GPS;
-        else if (!strncmp(buff+48,"GLO",3)) *tsys=TSYS_UTC;
-        else if (!strncmp(buff+48,"GAL",3)) *tsys=TSYS_GAL;
-        else if (!strncmp(buff+48,"QZS",3)) *tsys=TSYS_QZS; /* ver.3.02 */
-        else if (!strncmp(buff+48,"BDT",3)) *tsys=TSYS_CMP; /* ver.3.02 */
-        else if (!strncmp(buff+48,"IRN",3)) *tsys=TSYS_IRN; /* ver.3.03 */
-    }
-    else if (strstr(label,"TIME OF LAST OBS"    )) ; /* opt */
-    else if (strstr(label,"RCV CLOCK OFFS APPL" )) ; /* opt */
-    else if (strstr(label,"SYS / DCBS APPLIED"  )) ; /* opt ver.3 */
-    else if (strstr(label,"SYS / PCVS APPLIED"  )) ; /* opt ver.3 */
-    else if (strstr(label,"SYS / SCALE FACTOR"  )) ; /* opt ver.3 */
-    else if (strstr(label,"SYS / PHASE SHIFT"   )) ; /* ver.3.01 */
-    else if (strstr(label,"GLONASS SLOT / FRQ #")) { /* ver.3.02 */
+    } else if (strstr(label, "SIGNAL STRENGTH UNIT")) {
+        ; /* opt ver.3 */
+    } else if (strstr(label, "INTERVAL")) {
+        ; /* opt */
+    } else if (strstr(label, "TIME OF FIRST OBS")) {
+        if (!strncmp(buff + 48, "GPS", 3)) {
+            *tsys = TSYS_GPS;
+        } else if (!strncmp(buff + 48, "GLO", 3)) {
+            *tsys = TSYS_UTC;
+        } else if (!strncmp(buff + 48, "GAL", 3)) {
+            *tsys = TSYS_GAL;
+        } else if (!strncmp(buff + 48, "QZS", 3)) {
+            *tsys = TSYS_QZS; /* ver.3.02 */
+        } else if (!strncmp(buff + 48, "BDT", 3)) {
+            *tsys = TSYS_CMP; /* ver.3.02 */
+        } else if (!strncmp(buff + 48, "IRN", 3)) {
+            *tsys = TSYS_IRN; /* ver.3.03 */
+        }
+    } else if (strstr(label, "TIME OF LAST OBS")) {
+        ; /* opt */
+    } else if (strstr(label, "RCV CLOCK OFFS APPL")) {
+        ; /* opt */
+    } else if (strstr(label, "SYS / DCBS APPLIED")) {
+        ; /* opt ver.3 */
+    } else if (strstr(label, "SYS / PCVS APPLIED")) {
+        ; /* opt ver.3 */
+    } else if (strstr(label, "SYS / SCALE FACTOR")) {
+        ; /* opt ver.3 */
+    } else if (strstr(label, "SYS / PHASE SHIFT")) {
+        ;                                               /* ver.3.01 */
+    } else if (strstr(label, "GLONASS SLOT / FRQ #")) { /* ver.3.02 */
         for (i=0;i<8;i++) {
-            if (buff[4+i*7]!='R') continue;
+            if (buff[4 + i * 7] != 'R') {
+                continue;
+            }
             prn=(int)str2num(buff,5+i*7,2);
             fcn=(int)str2num(buff,8+i*7,2);
-            if (prn<1||prn>MAXPRNGLO||fcn<-7||fcn>6) continue;
-            if (nav) nav->glo_fcn[prn-1]=fcn+8;
+            if (prn < 1 || prn > MAXPRNGLO || fcn < -7 || fcn > 6) {
+                continue;
+            }
+            if (nav) {
+                nav->glo_fcn[prn - 1] = fcn + 8;
+            }
         }
-    }
-    else if (strstr(label,"GLONASS COD/PHS/BIS" )) { /* ver.3.02, opt ver.4 */
+    } else if (strstr(label, "GLONASS COD/PHS/BIS")) { /* ver.3.02, opt ver.4 */
         if (sta) {
             sta->glo_cp_bias[0]=str2num(buff, 5,8);
             sta->glo_cp_bias[1]=str2num(buff,18,8);
             sta->glo_cp_bias[2]=str2num(buff,31,8);
             sta->glo_cp_bias[3]=str2num(buff,44,8);
         }
-    }
-    else if (strstr(label,"LEAP SECONDS"        )) { /* opt ver.3*/
+    } else if (strstr(label, "LEAP SECONDS")) { /* opt ver.3*/
         if (nav) {
             nav->utc_gps[4]=str2num(buff, 0,6);
             nav->utc_gps[7]=str2num(buff, 6,6);
             nav->utc_gps[5]=str2num(buff,12,6);
             nav->utc_gps[6]=str2num(buff,18,6);
         }
-    }
-    else if (strstr(label,"# OF SALTELLITES"    )) { /* opt */
+    } else if (strstr(label, "# OF SALTELLITES")) { /* opt */
         /* skip */ ;
-    }
-    else if (strstr(label,"PRN / # OF OBS"      )) { /* opt */
+    } else if (strstr(label, "PRN / # OF OBS")) { /* opt */
         /* skip */ ;
+    } else if (strstr(label, "DOI")) {
+        ; /* opt ver.4(skip) */
+    } else if (strstr(label, "LICENSE OF USE")) {
+        ; /* opt ver.4(skip) */
+    } else if (strstr(label, "STATION INFORMATION")) {
+        ; /* opt ver.4(skip) */
     }
-    else if (strstr(label,"DOI"                 )) ; /* opt ver.4(skip) */
-    else if (strstr(label,"LICENSE OF USE"      )) ; /* opt ver.4(skip) */
-    else if (strstr(label,"STATION INFORMATION" )) ; /* opt ver.4(skip) */
 }
 /* decode RINEX NAV header ---------------------------------------------------*/
 static void decode_navh(char *buff, nav_t *nav)
@@ -462,48 +602,74 @@ static void decode_navh(char *buff, nav_t *nav)
     
     if      (strstr(label,"ION ALPHA"           )) { /* opt ver.2 */
         if (nav) {
-            for (i=0,j=2;i<4;i++,j+=12) nav->ion_gps[i]=str2num(buff,j,12);
+            for (i = 0, j = 2; i < 4; i++, j += 12) {
+                nav->ion_gps[i] = str2num(buff, j, 12);
+            }
         }
     }
     else if (strstr(label,"ION BETA"            )) { /* opt ver.2 */
         if (nav) {
-            for (i=0,j=2;i<4;i++,j+=12) nav->ion_gps[i+4]=str2num(buff,j,12);
+            for (i = 0, j = 2; i < 4; i++, j += 12) {
+                nav->ion_gps[i + 4] = str2num(buff, j, 12);
+            }
         }
     }
     else if (strstr(label,"DELTA-UTC: A0,A1,T,W")) { /* opt ver.2 */
         if (nav) {
-            for (i=0,j=3;i<2;i++,j+=19) nav->utc_gps[i]=str2num(buff,j,19);
-            for (;i<4;i++,j+=9) nav->utc_gps[i]=str2num(buff,j,9);
+            for (i = 0, j = 3; i < 2; i++, j += 19) {
+                nav->utc_gps[i] = str2num(buff, j, 19);
+            }
+            for (; i < 4; i++, j += 9) {
+                nav->utc_gps[i] = str2num(buff, j, 9);
+            }
         }
     }
     else if (strstr(label,"IONOSPHERIC CORR"    )) { /* opt ver.3 */
         if (nav) {
             if (!strncmp(buff,"GPSA",4)) {
-                for (i=0,j=5;i<4;i++,j+=12) nav->ion_gps[i]=str2num(buff,j,12);
+                for (i = 0, j = 5; i < 4; i++, j += 12) {
+                    nav->ion_gps[i] = str2num(buff, j, 12);
+                }
             }
             else if (!strncmp(buff,"GPSB",4)) {
-                for (i=0,j=5;i<4;i++,j+=12) nav->ion_gps[i+4]=str2num(buff,j,12);
+                for (i = 0, j = 5; i < 4; i++, j += 12) {
+                    nav->ion_gps[i + 4] = str2num(buff, j, 12);
+                }
             }
             else if (!strncmp(buff,"GAL",3)) {
-                for (i=0,j=5;i<4;i++,j+=12) nav->ion_gal[i]=str2num(buff,j,12);
+                for (i = 0, j = 5; i < 4; i++, j += 12) {
+                    nav->ion_gal[i] = str2num(buff, j, 12);
+                }
             }
             else if (!strncmp(buff,"QZSA",4)) { /* v.3.02 */
-                for (i=0,j=5;i<4;i++,j+=12) nav->ion_qzs[i]=str2num(buff,j,12);
+                for (i = 0, j = 5; i < 4; i++, j += 12) {
+                    nav->ion_qzs[i] = str2num(buff, j, 12);
+                }
             }
             else if (!strncmp(buff,"QZSB",4)) { /* v.3.02 */
-                for (i=0,j=5;i<4;i++,j+=12) nav->ion_qzs[i+4]=str2num(buff,j,12);
+                for (i = 0, j = 5; i < 4; i++, j += 12) {
+                    nav->ion_qzs[i + 4] = str2num(buff, j, 12);
+                }
             }
             else if (!strncmp(buff,"BDSA",4)) { /* v.3.02 */
-                for (i=0,j=5;i<4;i++,j+=12) nav->ion_cmp[i]=str2num(buff,j,12);
+                for (i = 0, j = 5; i < 4; i++, j += 12) {
+                    nav->ion_cmp[i] = str2num(buff, j, 12);
+                }
             }
             else if (!strncmp(buff,"BDSB",4)) { /* v.3.02 */
-                for (i=0,j=5;i<4;i++,j+=12) nav->ion_cmp[i+4]=str2num(buff,j,12);
+                for (i = 0, j = 5; i < 4; i++, j += 12) {
+                    nav->ion_cmp[i + 4] = str2num(buff, j, 12);
+                }
             }
             else if (!strncmp(buff,"IRNA",4)) { /* v.3.03 */
-                for (i=0,j=5;i<4;i++,j+=12) nav->ion_irn[i]=str2num(buff,j,12);
+                for (i = 0, j = 5; i < 4; i++, j += 12) {
+                    nav->ion_irn[i] = str2num(buff, j, 12);
+                }
             }
             else if (!strncmp(buff,"IRNB",4)) { /* v.3.03 */
-                for (i=0,j=5;i<4;i++,j+=12) nav->ion_irn[i+4]=str2num(buff,j,12);
+                for (i = 0, j = 5; i < 4; i++, j += 12) {
+                    nav->ion_irn[i + 4] = str2num(buff, j, 12);
+                }
             }
         }
     }
@@ -561,12 +727,17 @@ static void decode_navh(char *buff, nav_t *nav)
             nav->utc_gps[5]=str2num(buff,12,6);
             nav->utc_gps[6]=str2num(buff,18,6);
         }
+    } else if (strstr(label, "REC # / TYPE / VERS")) {
+        ; /* opt ver.4(skip) */
+    } else if (strstr(label, "MERGED FILE")) {
+        ; /* opt ver.4(skip) */
+    } else if (strstr(label, "DOI")) {
+        ; /* opt ver.4(skip) */
+    } else if (strstr(label, "LICENSE OF USE")) {
+        ; /* opt ver.4(skip) */
+    } else if (strstr(label, "STATION INFORMATION")) {
+        ; /* opt ver.4(skip) */
     }
-    else if (strstr(label,"REC # / TYPE / VERS" )) ; /* opt ver.4(skip) */
-    else if (strstr(label,"MERGED FILE"         )) ; /* opt ver.4(skip) */
-    else if (strstr(label,"DOI"                 )) ; /* opt ver.4(skip) */
-    else if (strstr(label,"LICENSE OF USE"      )) ; /* opt ver.4(skip) */
-    else if (strstr(label,"STATION INFORMATION" )) ; /* opt ver.4(skip) */
 }
 /* decode GNAV header --------------------------------------------------------*/
 static void decode_gnavh(char *buff, nav_t *nav)
@@ -646,9 +817,13 @@ static int readrnxh(FILE *fp, int *ver, char *type, int *sys, int *tsys,
             case 'J': decode_navh (buff,nav); break; /* extension */
             case 'L': decode_navh (buff,nav); break; /* extension */
         }
-        if (strstr(label,"END OF HEADER")) return 1;
-        
-        if (++i>=MAXPOSHEAD&&*type==' ') break; /* no RINEX file */
+        if (strstr(label, "END OF HEADER")) {
+            return 1;
+        }
+
+        if (++i >= MAXPOSHEAD && *type == ' ') {
+            break; /* no RINEX file */
+        }
     }
     return 0;
 }
@@ -662,20 +837,26 @@ static int decode_obsepoch(FILE *fp, char *buff, int ver, gtime_t *time,
     trace(NULL,4,"decode_obsepoch: ver=%.2f\n",ver/100.0);
     
     if (ver<=299) { /* ver.2 */
-        if ((n=(int)str2num(buff,29,3))<=0) return 0;
-        
+        if ((n = (int)str2num(buff, 29, 3)) <= 0) {
+            return 0;
+        }
+
         /* epoch flag: 3:new site,4:header info,5:external event */
         *flag=(int)str2num(buff,28,1);
-        
-        if (3<=*flag&&*flag<=5) return n;
-        
+
+        if (3 <= *flag && *flag <= 5) {
+            return n;
+        }
+
         if (str2time(buff,0,26,time)) {
             trace(NULL,2,"rinex obs invalid epoch: epoch=%26.26s\n",buff);
             return 0;
         }
         for (i=0,j=32;i<n;i++,j+=3) {
             if (j>=68) {
-                if (!fgets(buff,MAXRNXLEN,fp)) break;
+                if (!fgets(buff, MAXRNXLEN, fp)) {
+                    break;
+                }
                 j=32;
             }
             if (i<MAXOBS) {
@@ -685,12 +866,16 @@ static int decode_obsepoch(FILE *fp, char *buff, int ver, gtime_t *time,
         }
     }
     else { /* ver.3 */
-        if ((n=(int)str2num(buff,32,3))<=0) return 0;
-        
+        if ((n = (int)str2num(buff, 32, 3)) <= 0) {
+            return 0;
+        }
+
         *flag=(int)str2num(buff,31,1);
-        
-        if (3<=*flag&&*flag<=5) return n;
-        
+
+        if (3 <= *flag && *flag <= 5) {
+            return n;
+        }
+
         if (buff[0]!='>'||str2time(buff,1,28,time)) {
             trace(NULL,2,"rinex obs invalid epoch: epoch=%29.29s\n",buff);
             return 0;
@@ -745,7 +930,9 @@ static int decode_obsdata(FILE *fp, char *buff, int ver, int mask,
     for (i=0,j=(ver<=299)?0:3;i<ind->n;i++,j+=16) {
         
         if (ver<=299&&j>=80) { /* ver.2 */
-            if (!fgets(buff,MAXRNXLEN,fp)) break;
+            if (!fgets(buff, MAXRNXLEN, fp)) {
+                break;
+            }
             j=0;
         }
         if (stat) {
@@ -753,8 +940,10 @@ static int decode_obsdata(FILE *fp, char *buff, int ver, int mask,
             lli[i]=(uint8_t)str2num(buff,j+14,1)&3;
         }
     }
-    if (!stat) return 0;
-    
+    if (!stat) {
+        return 0;
+    }
+
     for (i=0;i<NFREQ+NEXOBS;i++) {
         obs->P[i]=obs->L[i]=0.0; obs->D[i]=0.0f;
         obs->SNR[i]=obs->LLI[i]=obs->code[i]=0;
@@ -763,9 +952,13 @@ static int decode_obsdata(FILE *fp, char *buff, int ver, int mask,
     for (i=n=m=0;i<ind->n;i++) {
         
         p[i]=(ver<=211)?ind->idx[i]:ind->pos[i];
-        
-        if (ind->type[i]==0&&p[i]==0) k[n++]=i; /* C1? index */
-        if (ind->type[i]==0&&p[i]==1) l[m++]=i; /* C2? index */
+
+        if (ind->type[i] == 0 && p[i] == 0) {
+            k[n++] = i; /* C1? index */
+        }
+        if (ind->type[i] == 0 && p[i] == 1) {
+            l[m++] = i; /* C2? index */
+        }
     }
     if (ver<=211) {
         
@@ -807,7 +1000,9 @@ static int decode_obsdata(FILE *fp, char *buff, int ver, int mask,
     }
     /* save observation data */
     for (i=0;i<ind->n;i++) {
-        if (p[i]<0||val[i]==0.0) continue;
+        if (p[i] < 0 || val[i] == 0.0) {
+            continue;
+        }
         switch (ind->type[i]) {
             case 0: obs->P[p[i]]=val[i]; obs->code[p[i]]=ind->code[i]; break;
             case 1: obs->L[p[i]]=val[i]; obs->LLI [p[i]]=lli[i];    break;
@@ -823,7 +1018,9 @@ static void saveslips(uint8_t slips[][NFREQ+NEXOBS], obsd_t *data)
 {
     int i;
     for (i=0;i<NFREQ+NEXOBS;i++) {
-        if (data->LLI[i]&1) slips[data->sat-1][i]|=LLI_SLIP;
+        if (data->LLI[i] & 1) {
+            slips[data->sat - 1][i] |= LLI_SLIP;
+        }
     }
 }
 /* restore cycle slips -------------------------------------------------------*/
@@ -831,7 +1028,9 @@ static void restslips(uint8_t slips[][NFREQ+NEXOBS], obsd_t *data)
 {
     int i;
     for (i=0;i<NFREQ+NEXOBS;i++) {
-        if (slips[data->sat-1][i]&1) data->LLI[i]|=LLI_SLIP;
+        if (slips[data->sat - 1][i] & 1) {
+            data->LLI[i] |= LLI_SLIP;
+        }
         slips[data->sat-1][i]=0;
     }
 }
@@ -841,7 +1040,11 @@ static int addobsdata(obs_t *obs, const obsd_t *data)
     obsd_t *obs_data;
     
     if (obs->nmax<=obs->n) {
-        if (obs->nmax<=0) obs->nmax=NINCOBS; else obs->nmax*=2;
+        if (obs->nmax <= 0) {
+            obs->nmax = NINCOBS;
+        } else {
+            obs->nmax *= 2;
+        }
         if (!(obs_data=(obsd_t *)realloc(obs->data,sizeof(obsd_t)*obs->nmax))) {
             trace(NULL,1,"addobsdata: malloc error n=%dx%d\n",sizeof(obsd_t),obs->nmax);
             free(obs->data); obs->data=NULL; obs->n=obs->nmax=0;
@@ -857,9 +1060,11 @@ static int set_sysmask(const char *opt)
 {
     const char *p;
     int mask=SYS_NONE;
-    
-    if (!(p=strstr(opt,"-SYS="))) return SYS_ALL;
-    
+
+    if (!(p = strstr(opt, "-SYS="))) {
+        return SYS_ALL;
+    }
+
     for (p+=5;*p&&*p!=' ';p++) {
         switch (*p) {
             case 'G': mask|=SYS_GPS; break;
@@ -884,7 +1089,8 @@ static void set_index(int ver, int sys, const char *opt,
     
     for (i=n=0;*tobs[i];i++,n++) {
         ind->code[i]=obs2code(tobs[i]+1);
-        ind->type[i]=(p=strchr(obscodes,tobs[i][0]))?(int)(p-obscodes):0;
+        p = strchr(obscodes, tobs[i][0]);
+        ind->type[i] = p ? (int)(p - obscodes) : 0;
         ind->idx[i]=code2freq_idx(sys,ind->code[i]);
         ind->pri[i]=getcodepri(sys,ind->code[i],opt);
         ind->pos[i]=-1;
@@ -900,9 +1106,13 @@ static void set_index(int ver, int sys, const char *opt,
         case SYS_IRN: optstr="-IL%2s=%lf"; break;
     }
     for (p=opt;p&&(p=strchr(p,'-'));p++) {
-        if (sscanf(p,optstr,str,&shift)<2) continue;
+        if (sscanf(p, optstr, str, &shift) < 2) {
+            continue;
+        }
         for (i=0;i<n;i++) {
-            if (strcmp(code2obs(ind->code[i]),str)) continue;
+            if (strcmp(code2obs(ind->code[i]), str)) {
+                continue;
+            }
             ind->shift[i]=shift;
             trace(NULL,2,"phase shift: sys=%2d tobs=%s shift=%.3f\n",sys,
                   tobs[i],shift);
@@ -915,25 +1125,37 @@ static void set_index(int ver, int sys, const char *opt,
                 k=j;
             }
         }
-        if (k<0) continue;
-        
+        if (k < 0) {
+            continue;
+        }
+
         for (j=0;j<n;j++) {
-            if (ind->code[j]==ind->code[k]) ind->pos[j]=i;
+            if (ind->code[j] == ind->code[k]) {
+                ind->pos[j] = i;
+            }
         }
     }
     /* assign index of extended observation data */
     for (i=0;i<NEXOBS;i++) {
         for (j=0;j<n;j++) {
-            if (ind->code[j]&&ind->pri[j]&&ind->pos[j]<0) break;
+            if (ind->code[j] && ind->pri[j] && ind->pos[j] < 0) {
+                break;
+            }
         }
-        if (j>=n) break;
-        
+        if (j >= n) {
+            break;
+        }
+
         for (k=0;k<n;k++) {
-            if (ind->code[k]==ind->code[j]) ind->pos[k]=NFREQ+i;
+            if (ind->code[k] == ind->code[j]) {
+                ind->pos[k] = NFREQ + i;
+            }
         }
     }
     for (i=0;i<n;i++) {
-        if (!ind->code[i]||!ind->pri[i]||ind->pos[i]>=0) continue;
+        if (!ind->code[i] || !ind->pri[i] || ind->pos[i] >= 0) {
+            continue;
+        }
         trace(NULL,4,"reject obs type: sys=%2d, obs=%s\n",sys,tobs[i]);
     }
     ind->n=n;
@@ -960,15 +1182,31 @@ static int readrnxobsb(FILE *fp, const char *opt, int ver, int *tsys,
     mask=set_sysmask(opt);
     
     /* set signal index */
-    if (nsys>=1) set_index(ver,SYS_GPS,opt,tobs[0],index  );
-    if (nsys>=2) set_index(ver,SYS_GLO,opt,tobs[1],index+1);
-    if (nsys>=3) set_index(ver,SYS_GAL,opt,tobs[2],index+2);
-    if (nsys>=4) set_index(ver,SYS_QZS,opt,tobs[3],index+3);
-    if (nsys>=5) set_index(ver,SYS_SBS,opt,tobs[4],index+4);
-    if (nsys>=6) set_index(ver,SYS_CMP,opt,tobs[5],index+5);
-    if (nsys>=7) set_index(ver,SYS_IRN,opt,tobs[6],index+6);
-    if (nsys>=8) set_index(ver,SYS_BD2,opt,tobs[5],index+7); /* BDS-2 */
-    
+    if (nsys >= 1) {
+        set_index(ver, SYS_GPS, opt, tobs[0], index);
+    }
+    if (nsys >= 2) {
+        set_index(ver, SYS_GLO, opt, tobs[1], index + 1);
+    }
+    if (nsys >= 3) {
+        set_index(ver, SYS_GAL, opt, tobs[2], index + 2);
+    }
+    if (nsys >= 4) {
+        set_index(ver, SYS_QZS, opt, tobs[3], index + 3);
+    }
+    if (nsys >= 5) {
+        set_index(ver, SYS_SBS, opt, tobs[4], index + 4);
+    }
+    if (nsys >= 6) {
+        set_index(ver, SYS_CMP, opt, tobs[5], index + 5);
+    }
+    if (nsys >= 7) {
+        set_index(ver, SYS_IRN, opt, tobs[6], index + 6);
+    }
+    if (nsys >= 8) {
+        set_index(ver, SYS_BD2, opt, tobs[5], index + 7); /* BDS-2 */
+    }
+
     /* read record */
     while (fgets(buff,MAXRNXLEN,fp)) {
         
@@ -983,14 +1221,18 @@ static int readrnxobsb(FILE *fp, const char *opt, int ver, int *tsys,
             data[n].sat=(uint8_t)sats[i-1];
             
             /* decode RINEX observation data */
-            if (decode_obsdata(fp,buff,ver,mask,index,data+n)) n++;
+            if (decode_obsdata(fp, buff, ver, mask, index, data + n)) {
+                n++;
+            }
         }
         else if (*flag==3||*flag==4) { /* new site or header info follows */
             
             /* decode RINEX observation data file header */
             decode_obsh(fp,buff,ver,tsys,tobs,NULL,sta);
         }
-        if (++i>nsat) return n;
+        if (++i > nsat) {
+            return n;
+        }
     }
     return -1;
 }
@@ -1004,25 +1246,33 @@ static int readrnxobs(FILE *fp, gtime_t ts, gtime_t te, double tint,
     int i,n,flag=0,stat=0;
     
     trace(NULL,4,"readrnxobs: rcv=%d ver=%.2f tsys=%d\n",rcv,ver/100.0,tsys);
-    
-    if (!obs||rcv>MAXRCV) return 0;
-    
-    if (!(data=(obsd_t *)malloc(sizeof(obsd_t)*MAXOBS))) return 0;
-    
+
+    if (!obs || rcv > MAXRCV) {
+        return 0;
+    }
+
+    if (!(data = (obsd_t*)malloc(sizeof(obsd_t) * MAXOBS))) {
+        return 0;
+    }
+
     /* read RINEX observation data body */
     while ((n=readrnxobsb(fp,opt,ver,tsys,tobs,&flag,data,sta))>=0&&stat>=0) {
         
         for (i=0;i<n;i++) {
             
             /* UTC -> GPST */
-            if (*tsys==TSYS_UTC) data[i].time=utc2gpst(data[i].time);
-            
+            if (*tsys == TSYS_UTC) {
+                data[i].time = utc2gpst(data[i].time);
+            }
+
             /* save cycle slip */
             saveslips(slips,data+i);
         }
         /* screen data by time */
-        if (n>0&&!screent(data[0].time,ts,te,tint)) continue;
-        
+        if (n > 0 && !screent(data[0].time, ts, te, tint)) {
+            continue;
+        }
+
         for (i=0;i<n;i++) {
             
             /* restore cycle slip */
@@ -1031,7 +1281,9 @@ static int readrnxobs(FILE *fp, gtime_t ts, gtime_t te, double tint,
             data[i].rcv=(uint8_t)rcv;
             
             /* save obs data */
-            if ((stat=addobsdata(obs,data+i))<0) break;
+            if ((stat = addobsdata(obs, data + i)) < 0) {
+                break;
+            }
         }
     }
     trace(NULL,4,"readrnxobs: nobs=%d stat=%d\n",obs->n,stat);
@@ -1207,8 +1459,10 @@ static int decode_geph(int ver, int sat, gtime_t toc, double *data,
         geph->svh |=((int)data[18])<<1; /* extended SVH */
     }
     /* some receiver output >128 for minus frequency number */
-    if (geph->frq>128) geph->frq-=256;
-    
+    if (geph->frq > 128) {
+        geph->frq -= 256;
+    }
+
     if (geph->frq<MINFREQ_GLO||MAXFREQ_GLO<geph->frq) {
         trace(NULL,2,"rinex gnav invalid freq: sat=%2d fn=%d\n",sat,geph->frq);
     }
@@ -1310,43 +1564,70 @@ static int readrnxnavb(FILE *fp, const char *opt, int ver, int sys, int *type,
         if (ver >= 400) {
             if (buff[0] == '>'){
                 buff[7] = buff[8] = 'x';
-                if      (!strncmp(buff + 2, "EPH Gxx LNAV", 12)) v4type=  1;
-                else if (!strncmp(buff + 2, "EPH Sxx SBAS", 12)) v4type= 11;
-                else if (!strncmp(buff + 2, "EPH Rxx FDMA", 12)) v4type= 21;
-                else if (!strncmp(buff + 2, "EPH Exx INAV", 12)) v4type= 31;
-                else if (!strncmp(buff + 2, "EPH Exx FNAV", 12)) v4type= 32;
-                else if (!strncmp(buff + 2, "EPH Jxx LNAV", 12)) v4type= 41;
-                else if (!strncmp(buff + 2, "EPH Cxx D1  ", 12)) v4type= 51;
-                else if (!strncmp(buff + 2, "EPH Cxx D2  ", 12)) v4type= 52;
-                else if (!strncmp(buff + 2, "EPH Ixx LNAV", 12)) v4type= 61;
-                else if (!strncmp(buff + 2, "STO Gxx LNAV", 12)) v4type=101;
-                else if (!strncmp(buff + 2, "STO Rxx FDMA", 12)) v4type=121;
-                else if (!strncmp(buff + 2, "STO Exx IFNV", 12)) v4type=131;
-                else if (!strncmp(buff + 2, "STO Jxx LNAV", 12)) v4type=141;
-                else if (!strncmp(buff + 2, "STO Cxx D1D2", 12)) v4type=151;
-                else if (!strncmp(buff + 2, "STO Ixx LNAV", 12)) v4type=161;
-                else if (!strncmp(buff + 2, "ION Gxx LNAV", 12)) v4type=301;
-                else if (!strncmp(buff + 2, "ION Exx IFNV", 12)) v4type=331;
-                else if (!strncmp(buff + 2, "ION Jxx LNAV", 12)) v4type=341;
-                else if (!strncmp(buff + 2, "ION Cxx D1D2", 12)) v4type=351;
-                else if (!strncmp(buff + 2, "ION Ixx LNAV", 12)) v4type=361;
-                else {
+                if (!strncmp(buff + 2, "EPH Gxx LNAV", 12)) {
+                    v4type = 1;
+                } else if (!strncmp(buff + 2, "EPH Sxx SBAS", 12)) {
+                    v4type = 11;
+                } else if (!strncmp(buff + 2, "EPH Rxx FDMA", 12)) {
+                    v4type = 21;
+                } else if (!strncmp(buff + 2, "EPH Exx INAV", 12)) {
+                    v4type = 31;
+                } else if (!strncmp(buff + 2, "EPH Exx FNAV", 12)) {
+                    v4type = 32;
+                } else if (!strncmp(buff + 2, "EPH Jxx LNAV", 12)) {
+                    v4type = 41;
+                } else if (!strncmp(buff + 2, "EPH Cxx D1  ", 12)) {
+                    v4type = 51;
+                } else if (!strncmp(buff + 2, "EPH Cxx D2  ", 12)) {
+                    v4type = 52;
+                } else if (!strncmp(buff + 2, "EPH Ixx LNAV", 12)) {
+                    v4type = 61;
+                } else if (!strncmp(buff + 2, "STO Gxx LNAV", 12)) {
+                    v4type = 101;
+                } else if (!strncmp(buff + 2, "STO Rxx FDMA", 12)) {
+                    v4type = 121;
+                } else if (!strncmp(buff + 2, "STO Exx IFNV", 12)) {
+                    v4type = 131;
+                } else if (!strncmp(buff + 2, "STO Jxx LNAV", 12)) {
+                    v4type = 141;
+                } else if (!strncmp(buff + 2, "STO Cxx D1D2", 12)) {
+                    v4type = 151;
+                } else if (!strncmp(buff + 2, "STO Ixx LNAV", 12)) {
+                    v4type = 161;
+                } else if (!strncmp(buff + 2, "ION Gxx LNAV", 12)) {
+                    v4type = 301;
+                } else if (!strncmp(buff + 2, "ION Exx IFNV", 12)) {
+                    v4type = 331;
+                } else if (!strncmp(buff + 2, "ION Jxx LNAV", 12)) {
+                    v4type = 341;
+                } else if (!strncmp(buff + 2, "ION Cxx D1D2", 12)) {
+                    v4type = 351;
+                } else if (!strncmp(buff + 2, "ION Ixx LNAV", 12)) {
+                    v4type = 361;
+                } else {
                     v4type=0;
                 }
                 continue;
             }
-            if      (v4type == 0) continue;
-            /* EPH */
-            else if (v4type < 100); /* through */
-            /* STO */
-            else if (v4type < 200) {
-                if (!strlen(stotype)) strncpy(stotype,buff + 24,4);
-                else {
-                    for (j=0,p=buff+4;j<4;j++,p+=19) data[j]=str2num(p,0,19);
+            if (v4type == 0) {
+                continue;
+                /* EPH */
+            } else if (v4type < 100) {
+                ; /* through */
+                /* STO */
+            } else if (v4type < 200) {
+                if (!strlen(stotype)) {
+                    strncpy(stotype, buff + 24, 4);
+                } else {
+                    for (j = 0, p = buff + 4; j < 4; j++, p += 19) {
+                        data[j] = str2num(p, 0, 19);
+                    }
 
                     /* System Time Offset (STO) Message */
                     if (!strncmp(stotype, "GPUT", 4)) {
-                        for (j=0;j<4;j++) nav->utc_gps[j]=data[j];
+                        for (j = 0; j < 4; j++) {
+                            nav->utc_gps[j] = data[j];
+                        }
                     }
                     if (!strncmp(stotype, "GLUT", 4)) {
                         nav->utc_glo[0]=data[0]; /* tau_C */
@@ -1355,16 +1636,24 @@ static int readrnxnavb(FILE *fp, const char *opt, int ver, int sys, int *type,
                         nav->utc_glo[0]=data[1]; /* tau_GPS */
                     }
                     if (!strncmp(stotype, "GAUT", 4)) {
-                        for (j=0;j<4;j++) nav->utc_gal[j]=data[j];
+                        for (j = 0; j < 4; j++) {
+                            nav->utc_gal[j] = data[j];
+                        }
                     }
                     if (!strncmp(stotype, "QZUT", 4)) {
-                        for (j=0;j<4;j++) nav->utc_qzs[j]=data[j];
+                        for (j = 0; j < 4; j++) {
+                            nav->utc_qzs[j] = data[j];
+                        }
                     }
                     if (!strncmp(stotype, "BDUT", 4)) {
-                        for (j=0;j<4;j++) nav->utc_cmp[j]=data[j];
+                        for (j = 0; j < 4; j++) {
+                            nav->utc_cmp[j] = data[j];
+                        }
                     }
                     if (!strncmp(stotype, "IRUT", 4)) {
-                        for (j=0;j<4;j++) nav->utc_irn[j]=data[j];
+                        for (j = 0; j < 4; j++) {
+                            nav->utc_irn[j] = data[j];
+                        }
                     }
                     strcpy(stotype,"");
                 }
@@ -1372,29 +1661,46 @@ static int readrnxnavb(FILE *fp, const char *opt, int ver, int sys, int *type,
             }
             /* ION */
             else if (v4type < 400) {
-                if (i==0) for (j=0,p=buff+23;j<3;j++,p+=19) data[i++]=str2num(p,0,19);
-                else      for (j=0,p=buff+ 4;j<4;j++,p+=19) data[i++]=str2num(p,0,19);
+                if (i == 0) {
+                    for (j = 0, p = buff + 23; j < 3; j++, p += 19) {
+                        data[i++] = str2num(p, 0, 19);
+                    }
+                } else {
+                    for (j = 0, p = buff + 4; j < 4; j++, p += 19) {
+                        data[i++] = str2num(p, 0, 19);
+                    }
+                }
 
                 /* Ionosphere (ION) Klobuchar Model Message */
                 if (v4type==301 && i>=8) {
-                     for (j=0;j<8;j++) nav->ion_gps[j]=data[j];
+                    for (j = 0; j < 8; j++) {
+                        nav->ion_gps[j] = data[j];
+                    }
                      i=0;
                 }
                 if (v4type==341 && i>=8) {
-                     for (j=0;j<8;j++) nav->ion_qzs[j]=data[j];
+                    for (j = 0; j < 8; j++) {
+                        nav->ion_qzs[j] = data[j];
+                    }
                      i=0;
                 }
                 if (v4type==351 && i>=8) {
-                     for (j=0;j<8;j++) nav->ion_cmp[j]=data[j];
+                    for (j = 0; j < 8; j++) {
+                        nav->ion_cmp[j] = data[j];
+                    }
                      i=0;
                 }
                 if (v4type==361 && i>=8) {
-                     for (j=0;j<8;j++) nav->ion_irn[j]=data[j];
+                    for (j = 0; j < 8; j++) {
+                        nav->ion_irn[j] = data[j];
+                    }
                      i=0;
                 }
                 /* Ionosphere (ION) NEQUICK-G Model Message */
                 if (v4type==331 && i>=4) {
-                     for (j=0;j<4;j++) nav->ion_gal[j]=data[j];
+                    for (j = 0; j < 4; j++) {
+                        nav->ion_gal[j] = data[j];
+                    }
                      i=0;
                 }
                 continue;
@@ -1410,7 +1716,13 @@ static int readrnxnavb(FILE *fp, const char *opt, int ver, int sys, int *type,
                 if (ver>=300) {
                     sys=satsys(sat,NULL);
                     if (!sys) {
-                        sys=(id[0]=='S')?SYS_SBS:((id[0]=='R')?SYS_GLO:SYS_GPS);
+                        if (id[0] == 'S') {
+                            sys = SYS_SBS;
+                        } else if (id[0] == 'R') {
+                            sys = SYS_GLO;
+                        } else {
+                            sys = SYS_GPS;
+                        }
                     }
                 }
             }
@@ -1425,8 +1737,9 @@ static int readrnxnavb(FILE *fp, const char *opt, int ver, int sys, int *type,
                 }
                 else if (93<=prn&&prn<=97) { /* extension */
                     sat=satno(SYS_QZS,prn+100);
+                } else {
+                    sat = satno(SYS_GPS, prn);
                 }
-                else sat=satno(SYS_GPS,prn);
             }
             /* decode Toc field */
             if (str2time(buff+sp,0,19,&toc)) {
@@ -1445,17 +1758,23 @@ static int readrnxnavb(FILE *fp, const char *opt, int ver, int sys, int *type,
             }
             /* decode ephemeris */
             if (sys==SYS_GLO&&i>=((ver>=305)?19:15)) {
-                if (!(mask&sys)) return 0;
+                if (!(mask & sys)) {
+                    return 0;
+                }
                 *type=1;
                 return decode_geph(ver,sat,toc,data,geph);
             }
             else if (sys==SYS_SBS&&i>=15) {
-                if (!(mask&sys)) return 0;
+                if (!(mask & sys)) {
+                    return 0;
+                }
                 *type=2;
                 return decode_seph(ver,sat,toc,data,seph);
             }
             else if (i>=31) {
-                if (!(mask&sys)) return 0;
+                if (!(mask & sys)) {
+                    return 0;
+                }
                 *type=0;
                 return decode_eph(ver,sat,toc,data,eph);
             }
@@ -1521,9 +1840,11 @@ static int readrnxnav(FILE *fp, const char *opt, int ver, int sys, nav_t *nav)
     int stat,type;
     
     trace(NULL,3,"readrnxnav: ver=%.2f sys=%d\n",ver/100.0,sys);
-    
-    if (!nav) return 0;
-    
+
+    if (!nav) {
+        return 0;
+    }
+
     /* read RINEX navigation data body */
     while ((stat=readrnxnavb(fp,opt,ver,sys,&type,&eph,&geph,&seph,nav))>=0) {
         
@@ -1534,7 +1855,9 @@ static int readrnxnav(FILE *fp, const char *opt, int ver, int sys, nav_t *nav)
                 case 2 : stat=add_seph(nav,&seph); break;
                 default: stat=add_eph (nav,&eph ); break;
             }
-            if (!stat) return 0;
+            if (!stat) {
+                return 0;
+            }
         }
     }
 
@@ -1582,9 +1905,11 @@ static int readrnxclk(FILE *fp, const char *opt, int ver, int index, nav_t *nav)
     char buff[MAXRNXLEN],satid[8]="";
     
     trace(NULL,3,"readrnxclk: index=%d\n", index);
-    
-    if (!nav) return 0;
-    
+
+    if (!nav) {
+        return 0;
+    }
+
     /* set system mask */
     mask=set_sysmask(opt);
     
@@ -1597,12 +1922,18 @@ static int readrnxclk(FILE *fp, const char *opt, int ver, int index, nav_t *nav)
         sprintf(satid,"%.4s",buff+3);
         
         /* only read AS (satellite clock) record */
-        if (strncmp(buff,"AS",2)||!(sat=satid2no(satid))) continue;
-        
-        if (!(satsys(sat,NULL)&mask)) continue;
-        
-        for (i=0,j=(ver>=304?45:40);i<2;i++,j+=20) data[i]=str2num(buff,j,19);
-        
+        if (strncmp(buff, "AS", 2) || !(sat = satid2no(satid))) {
+            continue;
+        }
+
+        if (!(satsys(sat, NULL) & mask)) {
+            continue;
+        }
+
+        for (i = 0, j = (ver >= 304 ? 45 : 40); i < 2; i++, j += 20) {
+            data[i] = str2num(buff, j, 19);
+        }
+
         if (nav->nc>=nav->ncmax) {
             nav->ncmax+=1024;
             if (!(nav_pclk=(pclk_t *)realloc(nav->pclk,sizeof(pclk_t)*(nav->ncmax)))) {
@@ -1637,11 +1968,15 @@ static int readrnxfp(FILE *fp, gtime_t ts, gtime_t te, double tint,
     trace(NULL,3,"readrnxfp: flag=%d index=%d\n",flag,index);
     
     /* read RINEX file header */
-    if (!readrnxh(fp,&ver,type,&sys,&tsys,tobs,nav,sta)) return 0;
-    
+    if (!readrnxh(fp, &ver, type, &sys, &tsys, tobs, nav, sta)) {
+        return 0;
+    }
+
     /* flag=0:except for clock,1:clock */
-    if ((!flag&&*type=='C')||(flag&&*type!='C')) return 0;
-    
+    if ((!flag && *type == 'C') || (flag && *type != 'C')) {
+        return 0;
+    }
+
     /* read RINEX file body */
     switch (*type) {
         case 'O': return readrnxobs(fp,ts,te,tint,opt,index,ver,&tsys,tobs,obs,
@@ -1666,9 +2001,11 @@ static int readrnxfile(const char *file, gtime_t ts, gtime_t te, double tint,
     char tmpfile[1024];
     
     trace(NULL,3,"readrnxfile: file=%s flag=%d index=%d\n",file,flag,index);
-    
-    if (sta) init_sta(sta);
-    
+
+    if (sta) {
+        init_sta(sta);
+    }
+
     /* uncompress file */
     if ((cstat=rtk_uncompress(file,tmpfile))<0) {
         trace(NULL,2,"rinex file uncompact error: %s\n",file);
@@ -1684,8 +2021,10 @@ static int readrnxfile(const char *file, gtime_t ts, gtime_t te, double tint,
     fclose(fp);
     
     /* delete temporary file */
-    if (cstat) remove(tmpfile);
-    
+    if (cstat) {
+        remove(tmpfile);
+    }
+
     return stat;
 }
 /* read RINEX OBS and NAV files ------------------------------------------------
@@ -1737,13 +2076,17 @@ int readrnxt(const char *file, int rcv, gtime_t ts, gtime_t te,
     }
     for (i=0;i<MAXEXFILE;i++) {
         if (!(files[i]=(char *)malloc(1024))) {
-            for (i--;i>=0;i--) free(files[i]);
+            for (i--; i >= 0; i--) {
+                free(files[i]);
+            }
             return -1;
         }
     }
     /* expand wild-card */
     if ((n=expath(file,files,MAXEXFILE))<=0) {
-        for (i=0;i<MAXEXFILE;i++) free(files[i]);
+        for (i = 0; i < MAXEXFILE; i++) {
+            free(files[i]);
+        }
         return 0;
     }
     /* read rinex files */
@@ -1752,11 +2095,17 @@ int readrnxt(const char *file, int rcv, gtime_t ts, gtime_t te,
     }
     /* if station name empty, set 4-char name from file head */
     if (type=='O'&&sta) {
-        if (!(p=strrchr(file,FILEPATHSEP))) p=file-1;
-        if (!*sta->name) setstr(sta->name,p+1,4);
+        if (!(p = strrchr(file, FILEPATHSEP))) {
+            p = file - 1;
+        }
+        if (!*sta->name) {
+            setstr(sta->name, p + 1, 4);
+        }
     }
-    for (i=0;i<MAXEXFILE;i++) free(files[i]);
-    
+    for (i = 0; i < MAXEXFILE; i++) {
+        free(files[i]);
+    }
+
     return stat;
 }
 int readrnx(const char *file, int rcv, const char *opt, obs_t *obs,
@@ -1782,20 +2131,25 @@ static void combpclk(nav_t *nav)
     int i,j,k;
     
     trace(NULL,3,"combpclk: nc=%d\n",nav->nc);
-    
-    if (nav->nc<=0) return;
-    
+
+    if (nav->nc <= 0) {
+        return;
+    }
+
     qsort(nav->pclk,nav->nc,sizeof(pclk_t),cmppclk);
     
     for (i=0,j=1;j<nav->nc;j++) {
         if (fabs(timediff(nav->pclk[i].time,nav->pclk[j].time))<1E-9) {
             for (k=0;k<MAXSAT;k++) {
-                if (nav->pclk[j].clk[k][0]==0.0) continue;
+                if (nav->pclk[j].clk[k][0] == 0.0) {
+                    continue;
+                }
                 nav->pclk[i].clk[k][0]=nav->pclk[j].clk[k][0];
                 nav->pclk[i].std[k][0]=nav->pclk[j].std[k][0];
             }
+        } else if (++i < j) {
+            nav->pclk[i] = nav->pclk[j];
         }
-        else if (++i<j) nav->pclk[i]=nav->pclk[j];
     }
     nav->nc=i+1;
     
@@ -1825,7 +2179,9 @@ int readrnxc(const char *file, nav_t *nav)
     
     for (i=0;i<MAXEXFILE;i++) {
         if (!(files[i]=(char *)malloc(1024))) {
-            for (i--;i>=0;i--) free(files[i]);
+            for (i--; i >= 0; i--) {
+                free(files[i]);
+            }
             return 0;
         }
     }
@@ -1840,10 +2196,14 @@ int readrnxc(const char *file, nav_t *nav)
         stat=0;
         break;
     }
-    for (i=0;i<MAXEXFILE;i++) free(files[i]);
-    
-    if (!stat) return 0;
-    
+    for (i = 0; i < MAXEXFILE; i++) {
+        free(files[i]);
+    }
+
+    if (!stat) {
+        return 0;
+    }
+
     /* unique and combine ephemeris and precise clock */
     combpclk(nav);
     
@@ -1881,15 +2241,27 @@ int init_rnxctr(rnxctr_t *rnx)
     rnx->time=time0;
     rnx->ver=0;
     rnx->sys=rnx->tsys=0;
-    for (i=0;i<6;i++) for (j=0;j<MAXOBSTYPE;j++) rnx->tobs[i][j][0]='\0';
+    for (i = 0; i < 6; i++) {
+        for (j = 0; j < MAXOBSTYPE; j++) {
+            rnx->tobs[i][j][0] = '\0';
+        }
+    }
     rnx->obs.n=0;
     rnx->nav.n=MAXSAT*2;
     rnx->nav.ng=NSATGLO;
     rnx->nav.ns=NSATSBS*2;
-    for (i=0;i<MAXOBS   ;i++) rnx->obs.data[i]=data0;
-    for (i=0;i<MAXSAT*2 ;i++) rnx->nav.eph [i]=eph0;
-    for (i=0;i<NSATGLO  ;i++) rnx->nav.geph[i]=geph0;
-    for (i=0;i<NSATSBS*2;i++) rnx->nav.seph[i]=seph0;
+    for (i = 0; i < MAXOBS; i++) {
+        rnx->obs.data[i] = data0;
+    }
+    for (i = 0; i < MAXSAT * 2; i++) {
+        rnx->nav.eph[i] = eph0;
+    }
+    for (i = 0; i < NSATGLO; i++) {
+        rnx->nav.geph[i] = geph0;
+    }
+    for (i = 0; i < NSATSBS * 2; i++) {
+        rnx->nav.seph[i] = seph0;
+    }
     rnx->ephsat=rnx->ephset=0;
     rnx->opt[0]='\0';
     
@@ -1937,8 +2309,10 @@ int open_rnxctr(rnxctr_t *rnx, FILE *fp)
     rnx->type=type;
     rnx->sys=sys;
     rnx->tsys=tsys;
-    for (i=0;i<NUMSYS;i++) for (j=0;j<MAXOBSTYPE&&*tobs[i][j];j++) {
-        strcpy(rnx->tobs[i][j],tobs[i][j]);
+    for (i = 0; i < NUMSYS; i++) {
+        for (j = 0; j < MAXOBSTYPE && *tobs[i][j]; j++) {
+            strcpy(rnx->tobs[i][j], tobs[i][j]);
+        }
     }
     rnx->ephset=rnx->ephsat=0;
     return 1;
@@ -2033,11 +2407,15 @@ static void outobstype_ver2(FILE *fp, const rnxopt_t *opt)
     fprintf(fp,"%6d",opt->nobs[0]);
     
     for (i=0;i<opt->nobs[0];i++) {
-        if (i>0&&i%9==0) fprintf(fp,"      ");
-        
+        if (i > 0 && i % 9 == 0) {
+            fprintf(fp, "      ");
+        }
+
         fprintf(fp,"%6s",opt->tobs[0][i]);
-        
-        if (i%9==8) fprintf(fp,"%-20s\n",label);
+
+        if (i % 9 == 8) {
+            fprintf(fp, "%-20s\n", label);
+        }
     }
     if (opt->nobs[0]==0||i%9>0) {
         fprintf(fp,"%*s%-20s\n",(9-i%9)*6,"",label);
@@ -2053,22 +2431,30 @@ static void outobstype_ver3(FILE *fp, const rnxopt_t *opt)
     trace(NULL,3,"outobstype_ver3:\n");
     
     for (i=0;navsys[i];i++) {
-        if (!(navsys[i]&opt->navsys)||!opt->nobs[i]) continue;
-        
+        if (!(navsys[i] & opt->navsys) || !opt->nobs[i]) {
+            continue;
+        }
+
         fprintf(fp,"%c  %3d",syscodes[i],opt->nobs[i]);
         
         for (j=0;j<opt->nobs[i];j++) {
-            if (j>0&&j%13==0) fprintf(fp,"      ");
-            
+            if (j > 0 && j % 13 == 0) {
+                fprintf(fp, "      ");
+            }
+
             strcpy(tobs,opt->tobs[i][j]);
             
             /* BDS B2x -> 1x (3.02), 2x (other) */
             if (navsys[i]==SYS_CMP) {
-                if (opt->rnxver==302&&tobs[1]=='2') tobs[1]='1';
+                if (opt->rnxver == 302 && tobs[1] == '2') {
+                    tobs[1] = '1';
+                }
             }
             fprintf(fp," %3s", tobs);
-            
-            if (j%13==12) fprintf(fp,"  %-20s\n",label);
+
+            if (j % 13 == 12) {
+                fprintf(fp, "  %-20s\n", label);
+            }
         }
         if (j%13>0) {
             fprintf(fp,"%*s  %-20s\n",(13-j%13)*4,"",label);
@@ -2092,15 +2478,23 @@ static void outrnx_phase_shift(FILE *fp, const rnxopt_t *opt, const nav_t *nav)
     int i,j,k;
     
     for (i=0;navsys[i];i++) {
-        if (!(navsys[i]&opt->navsys)||!opt->nobs[i]) continue;
+        if (!(navsys[i] & opt->navsys) || !opt->nobs[i]) {
+            continue;
+        }
         for (j=0;j<opt->nobs[i];j++) {
-            if (opt->tobs[i][j][0]!='L') continue;
+            if (opt->tobs[i][j][0] != 'L') {
+                continue;
+            }
             strcpy(obs,opt->tobs[i][j]);
             for (k=0;ref_code[i][k];k++) {
-                if (obs2code(obs+1)==ref_code[i][k]) break;
+                if (obs2code(obs + 1) == ref_code[i][k]) {
+                    break;
+                }
             }
             if (navsys[i]==SYS_CMP) { /* BDS B2x -> 1x (3.02), 2x (other) */
-                if (opt->rnxver==302&&obs[1]=='2') obs[1]='1';
+                if (opt->rnxver == 302 && obs[1] == '2') {
+                    obs[1] = '1';
+                }
             }
             if (ref_code[i][k]) {
                 fprintf(fp,"%c %3s %54s%-20s\n",syscodes[i],obs,"",label);
@@ -2132,7 +2526,11 @@ static void outrnx_glo_fcn(FILE *fp, const rnxopt_t *opt, const nav_t *nav)
         }
     }
     for (i=j=0;i<(n<=0?1:(n-1)/8+1);i++) {
-        if (i==0) fprintf(fp,"%3d",n); else fprintf(fp,"   ");
+        if (i == 0) {
+            fprintf(fp, "%3d", n);
+        } else {
+            fprintf(fp, "   ");
+        }
         for (k=0;k<8&&j<n;k++,j++) {
             fprintf(fp," R%02d %2d",prn[j],fcn[j]);
         }
@@ -2171,23 +2569,34 @@ int outrnxobsh(FILE *fp, const rnxopt_t *opt, const nav_t *nav)
     trace(NULL,3,"outrnxobsh:\n");
     
     timestr_rnx(date);
-    
-    if      (opt->navsys==SYS_GPS) sys="G: GPS";
-    else if (opt->navsys==SYS_GLO) sys="R: GLONASS";
-    else if (opt->navsys==SYS_GAL) sys="E: Galielo";
-    else if (opt->navsys==SYS_QZS) sys="J: QZSS";   /* ver.3.02 */
-    else if (opt->navsys==SYS_CMP) sys="C: BeiDou"; /* ver.3.02 */
-    else if (opt->navsys==SYS_IRN) sys="I: IRNSS";  /* ver.3.03 */
-    else if (opt->navsys==SYS_SBS) sys="S: SBAS Payload";
-    else sys="M: Mixed";
-    
+
+    if (opt->navsys == SYS_GPS) {
+        sys = "G: GPS";
+    } else if (opt->navsys == SYS_GLO) {
+        sys = "R: GLONASS";
+    } else if (opt->navsys == SYS_GAL) {
+        sys = "E: Galielo";
+    } else if (opt->navsys == SYS_QZS) {
+        sys = "J: QZSS"; /* ver.3.02 */
+    } else if (opt->navsys == SYS_CMP) {
+        sys = "C: BeiDou"; /* ver.3.02 */
+    } else if (opt->navsys == SYS_IRN) {
+        sys = "I: IRNSS"; /* ver.3.03 */
+    } else if (opt->navsys == SYS_SBS) {
+        sys = "S: SBAS Payload";
+    } else {
+        sys = "M: Mixed";
+    }
+
     fprintf(fp,"%9.2f%-11s%-20s%-20s%-20s\n",opt->rnxver/100.0,"",
             "OBSERVATION DATA",sys,"RINEX VERSION / TYPE");
     fprintf(fp,"%-20.20s%-20.20s%-20.20s%-20s\n",opt->prog,opt->runby,date,
             "PGM / RUN BY / DATE");
     
     for (i=0;i<MAXCOMMENT;i++) {
-        if (!*opt->comment[i]) continue;
+        if (!*opt->comment[i]) {
+            continue;
+        }
         fprintf(fp,"%-60.60s%-20s\n",opt->comment[i],"COMMENT");
     }
     fprintf(fp,"%-60.60s%-20s\n",opt->marker,"MARKER NAME");
@@ -2202,9 +2611,17 @@ int outrnxobsh(FILE *fp, const rnxopt_t *opt, const nav_t *nav)
             opt->rec[2],"REC # / TYPE / VERS");
     fprintf(fp,"%-20.20s%-20.20s%-20.20s%-20s\n",opt->ant[0],opt->ant[1],
             "","ANT # / TYPE");
-    
-    for (i=0;i<3;i++) if (fabs(opt->apppos[i])<1E8) pos[i]=opt->apppos[i];
-    for (i=0;i<3;i++) if (fabs(opt->antdel[i])<1E8) del[i]=opt->antdel[i];
+
+    for (i = 0; i < 3; i++) {
+        if (fabs(opt->apppos[i]) < 1E8) {
+            pos[i] = opt->apppos[i];
+        }
+    }
+    for (i = 0; i < 3; i++) {
+        if (fabs(opt->antdel[i]) < 1E8) {
+            del[i] = opt->antdel[i];
+        }
+    }
     fprintf(fp,"%14.4f%14.4f%14.4f%-18s%-20s\n",pos[0],pos[1],pos[2],"",
             "APPROX POSITION XYZ");
     fprintf(fp,"%14.4f%14.4f%14.4f%-18s%-20s\n",del[0],del[1],del[2],"",
@@ -2265,54 +2682,75 @@ static int obsindex(int rnxver, int sys, const uint8_t *code, const char *tobs,
     for (i=0;i<NFREQ+NEXOBS;i++) {
         
         /* signal mask */
-        if (mask[code[i]-1]=='0') continue;
-        
+        if (mask[code[i] - 1] == '0') {
+            continue;
+        }
+
         if (rnxver<=299) { /* ver.2 */
             if (!strcmp(tobs,"C1")&&(sys==SYS_GPS||sys==SYS_GLO||sys==SYS_QZS||
                 sys==SYS_SBS||sys==SYS_CMP)) {
-                if (code[i]==CODE_L1C) return i;
+                if (code[i] == CODE_L1C) {
+                    return i;
+                }
             }
             else if (!strcmp(tobs,"P1")) {
-                if (code[i]==CODE_L1P||code[i]==CODE_L1W||code[i]==CODE_L1Y||
-                    code[i]==CODE_L1N) return i;
+                if (code[i] == CODE_L1P || code[i] == CODE_L1W || code[i] == CODE_L1Y || code[i] == CODE_L1N) {
+                    return i;
+                }
             }
             else if (!strcmp(tobs,"C2")&&(sys==SYS_GPS||sys==SYS_QZS)) {
-                if (code[i]==CODE_L2S||code[i]==CODE_L2L||code[i]==CODE_L2X)
+                if (code[i] == CODE_L2S || code[i] == CODE_L2L || code[i] == CODE_L2X) {
                     return i;
+                }
             }
             else if (!strcmp(tobs,"C2")&&sys==SYS_GLO) {
-                if (code[i]==CODE_L2C) return i;
+                if (code[i] == CODE_L2C) {
+                    return i;
+                }
             }
             else if (!strcmp(tobs,"P2")) {
-                if (code[i]==CODE_L2P||code[i]==CODE_L2W||code[i]==CODE_L2Y||
-                    code[i]==CODE_L2N||code[i]==CODE_L2D) return i;
+                if (code[i] == CODE_L2P || code[i] == CODE_L2W || code[i] == CODE_L2Y || code[i] == CODE_L2N ||
+                    code[i] == CODE_L2D) {
+                    return i;
+                }
             }
             else if (rnxver>=212&&tobs[1]=='A') { /* L1C/A */
-                if (code[i]==CODE_L1C) return i;
+                if (code[i] == CODE_L1C) {
+                    return i;
+                }
             }
             else if (rnxver>=212&&tobs[1]=='B') { /* L1C */
-                if (code[i]==CODE_L1S||code[i]==CODE_L1L||code[i]==CODE_L1X)
+                if (code[i] == CODE_L1S || code[i] == CODE_L1L || code[i] == CODE_L1X) {
                     return i;
+                }
             }
             else if (rnxver>=212&&tobs[1]=='C') { /* L2C */
-                if (code[i]==CODE_L2S||code[i]==CODE_L2L||code[i]==CODE_L2X)
+                if (code[i] == CODE_L2S || code[i] == CODE_L2L || code[i] == CODE_L2X) {
                     return i;
+                }
             }
             else if (rnxver>=212&&tobs[1]=='D'&&sys==SYS_GLO) { /* GLO L2C/A */
-                if (code[i]==CODE_L2C) return i;
+                if (code[i] == CODE_L2C) {
+                    return i;
+                }
             }
             else if (tobs[1]=='2'&&sys==SYS_CMP) { /* BDS B1 */
-                if (code[i]==CODE_L2I||code[i]==CODE_L2Q||code[i]==CODE_L2X)
+                if (code[i] == CODE_L2I || code[i] == CODE_L2Q || code[i] == CODE_L2X) {
                     return i;
+                }
             }
             else {
                 id=code2obs(code[i]);
-                if (id[0]==tobs[1]) return i;
+                if (id[0] == tobs[1]) {
+                    return i;
+                }
             }
         }
         else { /* ver.3 */
             id=code2obs(code[i]);
-            if (!strcmp(id,tobs+1)) return i;
+            if (!strcmp(id, tobs + 1)) {
+                return i;
+            }
         }
     }
     return -1;
@@ -2340,8 +2778,12 @@ int outrnxobsb(FILE *fp, const rnxopt_t *opt, const obsd_t *obs, int n,
     
     for (i=ns=0;i<n&&ns<MAXOBS;i++) {
         sys=satsys(obs[i].sat,NULL);
-        if (!(sys&opt->navsys)||opt->exsats[obs[i].sat-1]) continue;
-        if (!sat2code(obs[i].sat,sats[ns])) continue;
+        if (!(sys & opt->navsys) || opt->exsats[obs[i].sat - 1]) {
+            continue;
+        }
+        if (!sat2code(obs[i].sat, sats[ns])) {
+            continue;
+        }
         switch (sys) {
             case SYS_GPS: s[ns]=0; break;
             case SYS_GLO: s[ns]=1; break;
@@ -2351,16 +2793,22 @@ int outrnxobsb(FILE *fp, const rnxopt_t *opt, const obsd_t *obs, int n,
             case SYS_CMP: s[ns]=5; break;
             case SYS_IRN: s[ns]=6; break;
         }
-        if (!opt->nobs[(opt->rnxver<=299)?0:s[ns]]) continue;
+        if (!opt->nobs[(opt->rnxver <= 299) ? 0 : s[ns]]) {
+            continue;
+        }
         ind[ns++]=i;
     }
-    if (ns<=0) return 1;
+    if (ns <= 0) {
+        return 1;
+    }
 
     if (opt->rnxver<=299) { /* ver.2 */
         fprintf(fp," %02d %02.0f %02.0f %02.0f %02.0f %010.7f  %d%3d",
                 (int)ep[0]%100,ep[1],ep[2],ep[3],ep[4],ep[5],flag,ns);
         for (i=0;i<ns;i++) {
-            if (i>0&&i%12==0) fprintf(fp,"\n%32s","");
+            if (i > 0 && i % 12 == 0) {
+                fprintf(fp, "\n%32s", "");
+            }
             fprintf(fp,"%-3s",sats[i]);
         }
     }
@@ -2383,7 +2831,9 @@ int outrnxobsb(FILE *fp, const rnxopt_t *opt, const obsd_t *obs, int n,
         for (j=0;j<opt->nobs[m];j++) {
             
             if (opt->rnxver<=299) { /* ver.2 */
-                if (j%5==0) fprintf(fp,"\n");
+                if (j % 5 == 0) {
+                    fprintf(fp, "\n");
+                }
             }
             /* search obs data index */
             if ((k=obsindex(opt->rnxver,sys,obs[ind[i]].code,opt->tobs[m][j],
@@ -2403,10 +2853,14 @@ int outrnxobsb(FILE *fp, const rnxopt_t *opt, const obsd_t *obs, int n,
                 case 'S': outrnxobsf(fp,obs[ind[i]].SNR[k]*SNR_UNIT,-1); break;
             }
         }
-        if (opt->rnxver>=300&&fprintf(fp,"\n")==EOF) return 0;
+        if (opt->rnxver >= 300 && fprintf(fp, "\n") == EOF) {
+            return 0;
+        }
     }
-    if (opt->rnxver>=300) return 1;
-    
+    if (opt->rnxver >= 300) {
+        return 1;
+    }
+
     return fprintf(fp,"\n")!=EOF;
 }
 /* output data field in RINEX navigation data --------------------------------*/
@@ -2427,9 +2881,11 @@ static void out_iono_sys(FILE *fp, const char *sys, const double *ion, int n)
     const char *label1[]={"ION ALPHA","ION BETA"},*label2="IONOSPHERIC CORR";
     char str[32];
     int i,j;
-    
-    if (norm(ion,n)<=0.0) return;
-    
+
+    if (norm(ion, n) <= 0.0) {
+        return;
+    }
+
     for (i=0;i<(n+3)/4;i++) {
         sprintf(str,"%s%c",sys,(!*sys||n<4)?' ':'A'+i);
         fprintf(fp,"%-*s ",!*sys?1:4,str);
@@ -2443,11 +2899,16 @@ static void out_iono_sys(FILE *fp, const char *sys, const double *ion, int n)
 /* output iono corrections --------------------------------------------------*/
 static void out_iono(FILE *fp, int sys, const rnxopt_t *opt, const nav_t *nav)
 {
-    if (!opt->outiono) return;
+    if (!opt->outiono) {
+        return;
+    }
 
     if (sys&opt->navsys&SYS_GPS) {
-        if (opt->rnxver<=211) out_iono_sys(fp,"",nav->ion_gps,8);
-        else out_iono_sys(fp,"GPS",nav->ion_gps,8);
+        if (opt->rnxver <= 211) {
+            out_iono_sys(fp, "", nav->ion_gps, 8);
+        } else {
+            out_iono_sys(fp, "GPS", nav->ion_gps, 8);
+        }
     }
     if ((sys&opt->navsys&SYS_GAL)&&opt->rnxver>=212) {
         out_iono_sys(fp,"GAL",nav->ion_gal,3);
@@ -2466,9 +2927,11 @@ static void out_iono(FILE *fp, int sys, const rnxopt_t *opt, const nav_t *nav)
 static void out_time_sys(FILE *fp, const char *sys, const double *utc)
 {
     const char *label1="TIME SYSTEM CORR",*label2="DELTA-UTC: A0,A1,T,W";
-    
-    if (norm(utc,3)<=0.0) return;
-    
+
+    if (norm(utc, 3) <= 0.0) {
+        return;
+    }
+
     if (*sys) {
         fprintf(fp,"%-4s ",sys);
         outnavf_n(fp,utc[0],10);
@@ -2487,11 +2950,16 @@ static void out_time(FILE *fp, int sys, const rnxopt_t *opt, const nav_t *nav)
 {
     double utc[8]={0};
 
-    if (!opt->outtime) return;
+    if (!opt->outtime) {
+        return;
+    }
 
     if (sys&opt->navsys&SYS_GPS) {
-        if (opt->rnxver<=211) out_time_sys(fp,"",nav->utc_gps);
-        else out_time_sys(fp,"GPUT",nav->utc_gps);
+        if (opt->rnxver <= 211) {
+            out_time_sys(fp, "", nav->utc_gps);
+        } else {
+            out_time_sys(fp, "GPUT", nav->utc_gps);
+        }
     }
     if ((sys&opt->navsys&SYS_GLO)&&opt->rnxver>=212) {
         /* RINEX 2.12-3.02: tau_C, 3.03- : -tau_C */
@@ -2520,7 +2988,9 @@ static void out_leaps(FILE *fp, int sys, const rnxopt_t *opt, const nav_t *nav)
     const char *label="LEAP SECONDS";
     const double *leaps;
 
-    if (!opt->outleaps) return;
+    if (!opt->outleaps) {
+        return;
+    }
 
     switch (sys) {
         case SYS_GAL: leaps=nav->utc_gal+4; break;
@@ -2529,10 +2999,14 @@ static void out_leaps(FILE *fp, int sys, const rnxopt_t *opt, const nav_t *nav)
         case SYS_IRN: leaps=nav->utc_irn+4; break;
         default     : leaps=nav->utc_gps+4; break;
     }
-    if (leaps[0]==0.0) return;
+    if (leaps[0] == 0.0) {
+        return;
+    }
 
     if (opt->rnxver<=300) {
-        if (sys==SYS_GPS) fprintf(fp,"%6.0f%54s%-20s\n",leaps[0],"",label);
+        if (sys == SYS_GPS) {
+            fprintf(fp, "%6.0f%54s%-20s\n", leaps[0], "", label);
+        }
     }
     else if (norm(leaps+1,3)<=0.0) {
         fprintf(fp,"%6.0f%18s%3s%33s%-20s\n",leaps[0],"",
@@ -2564,16 +3038,26 @@ int outrnxnavh(FILE *fp, const rnxopt_t *opt, const nav_t *nav)
                 "N: GPS NAV DATA","","RINEX VERSION / TYPE");
     }
     else { /* ver.3 */
-        if      (opt->navsys==SYS_GPS) sys="G: GPS";
-        else if (opt->navsys==SYS_GLO) sys="R: GLONASS";
-        else if (opt->navsys==SYS_GAL) sys="E: Galileo";
-        else if (opt->navsys==SYS_QZS) sys="J: QZSS";   /* v.3.02 */
-        else if (opt->navsys==SYS_CMP) sys="C: BeiDou"; /* v.3.02 */
-        else if (opt->navsys==SYS_IRN) sys="I: IRNSS";  /* v.3.03 */
-        else if (opt->navsys==SYS_SBS) sys="S: SBAS Payload";
-        else if (opt->sep_nav)         sys="G: GPS";
-        else sys="M: Mixed";
-        
+        if (opt->navsys == SYS_GPS) {
+            sys = "G: GPS";
+        } else if (opt->navsys == SYS_GLO) {
+            sys = "R: GLONASS";
+        } else if (opt->navsys == SYS_GAL) {
+            sys = "E: Galileo";
+        } else if (opt->navsys == SYS_QZS) {
+            sys = "J: QZSS"; /* v.3.02 */
+        } else if (opt->navsys == SYS_CMP) {
+            sys = "C: BeiDou"; /* v.3.02 */
+        } else if (opt->navsys == SYS_IRN) {
+            sys = "I: IRNSS"; /* v.3.03 */
+        } else if (opt->navsys == SYS_SBS) {
+            sys = "S: SBAS Payload";
+        } else if (opt->sep_nav) {
+            sys = "G: GPS";
+        } else {
+            sys = "M: Mixed";
+        }
+
         fprintf(fp,"%9.2f           %-20s%-20s%-20s\n",opt->rnxver/100.0,
                 "N: GNSS NAV DATA",sys,"RINEX VERSION / TYPE");
     }
@@ -2581,7 +3065,9 @@ int outrnxnavh(FILE *fp, const rnxopt_t *opt, const nav_t *nav)
             "PGM / RUN BY / DATE");
     
     for (i=0;i<MAXCOMMENT;i++) {
-        if (!*opt->comment[i]) continue;
+        if (!*opt->comment[i]) {
+            continue;
+        }
         fprintf(fp,"%-60.60s%-20s\n",opt->comment[i],"COMMENT");
     }
     out_iono(fp,opt->sep_nav?SYS_GPS:SYS_ALL,opt,nav);
@@ -2604,9 +3090,11 @@ int outrnxnavb(FILE *fp, const rnxopt_t *opt, const eph_t *eph)
     char code[32],*sep;
     
     trace(NULL,3,"outrnxnavb: sat=%2d\n",eph->sat);
-    
-    if (!(sys=satsys(eph->sat,&prn))||!(sys&opt->navsys)) return 0;
-    
+
+    if (!(sys = satsys(eph->sat, &prn)) || !(sys & opt->navsys)) {
+        return 0;
+    }
+
     if (sys!=SYS_CMP) {
         time2epoch(eph->toc,ep);
     }
@@ -2616,7 +3104,9 @@ int outrnxnavb(FILE *fp, const rnxopt_t *opt, const eph_t *eph)
     if ((opt->rnxver>=300&&sys==SYS_GPS)||(opt->rnxver>=212&&sys==SYS_GAL)||
         (opt->rnxver>=302&&sys==SYS_QZS)||(opt->rnxver>=302&&sys==SYS_CMP)||
         (opt->rnxver>=303&&sys==SYS_IRN)) {
-        if (!sat2code(eph->sat,code)) return 0;
+        if (!sat2code(eph->sat, code)) {
+            return 0;
+        }
         fprintf(fp,"%-3s %04.0f %02.0f %02.0f %02.0f %02.0f %02.0f",code,ep[0],
                 ep[1],ep[2],ep[3],ep[4],ep[5]);
         sep="    ";
@@ -2738,7 +3228,9 @@ int outrnxgnavh(FILE *fp, const rnxopt_t *opt, const nav_t *nav)
             "PGM / RUN BY / DATE");
     
     for (i=0;i<MAXCOMMENT;i++) {
-        if (!*opt->comment[i]) continue;
+        if (!*opt->comment[i]) {
+            continue;
+        }
         fprintf(fp,"%-60.60s%-20s\n",opt->comment[i],"COMMENT");
     }
     out_time(fp,SYS_GLO,opt,nav);
@@ -2761,12 +3253,16 @@ int outrnxgnavb(FILE *fp, const rnxopt_t *opt, const geph_t *geph)
     char code[32],*sep;
     
     trace(NULL,3,"outrnxgnavb: sat=%2d\n",geph->sat);
-    
-    if ((satsys(geph->sat,&prn)&opt->navsys)!=SYS_GLO) return 0;
-    
+
+    if ((satsys(geph->sat, &prn) & opt->navsys) != SYS_GLO) {
+        return 0;
+    }
+
     tof=time2gpst(gpst2utc(geph->tof),NULL);      /* v.3: tow in utc */
-    if (opt->rnxver<=299) tof=fmod(tof,86400.0);  /* v.2: tod in utc */
-    
+    if (opt->rnxver <= 299) {
+        tof = fmod(tof, 86400.0); /* v.2: tod in utc */
+    }
+
     toe=gpst2utc(geph->toe); /* gpst -> utc */
     time2epoch(toe,ep);
     
@@ -2776,7 +3272,9 @@ int outrnxgnavb(FILE *fp, const rnxopt_t *opt, const geph_t *geph)
         sep="   ";
     }
     else { /* ver.3 */
-        if (!sat2code(geph->sat,code)) return 0;
+        if (!sat2code(geph->sat, code)) {
+            return 0;
+        }
         fprintf(fp,"%-3s %04.0f %02.0f %02.0f %02.0f %02.0f %02.0f",code,ep[0],
                 ep[1],ep[2],ep[3],ep[4],ep[5]);
         sep="    ";
@@ -2840,7 +3338,9 @@ int outrnxhnavh(FILE *fp, const rnxopt_t *opt, const nav_t *nav)
             "PGM / RUN BY / DATE");
     
     for (i=0;i<MAXCOMMENT;i++) {
-        if (!*opt->comment[i]) continue;
+        if (!*opt->comment[i]) {
+            continue;
+        }
         fprintf(fp,"%-60.60s%-20s\n",opt->comment[i],"COMMENT");
     }
     out_time(fp,SYS_SBS,opt,nav);
@@ -2862,9 +3362,11 @@ int outrnxhnavb(FILE *fp, const rnxopt_t *opt, const seph_t *seph)
     char code[32],*sep;
     
     trace(NULL,3,"outrnxhnavb: sat=%2d\n",seph->sat);
-    
-    if ((satsys(seph->sat,&prn)&opt->navsys)!=SYS_SBS) return 0;
-    
+
+    if ((satsys(seph->sat, &prn) & opt->navsys) != SYS_SBS) {
+        return 0;
+    }
+
     time2epoch(seph->t0,ep);
     
     if (opt->rnxver<=299) { /* ver.2 */
@@ -2873,7 +3375,9 @@ int outrnxhnavb(FILE *fp, const rnxopt_t *opt, const seph_t *seph)
         sep="   ";
     }
     else { /* ver.3 */
-        if (!sat2code(seph->sat,code)) return 0;
+        if (!sat2code(seph->sat, code)) {
+            return 0;
+        }
         fprintf(fp,"%-3s %04.0f %2.0f %2.0f %2.0f %2.0f %2.0f",code,ep[0],ep[1],
                 ep[2],ep[3],ep[4],ep[5]);
         sep="    ";
@@ -2915,9 +3419,11 @@ int outrnxlnavh(FILE *fp, const rnxopt_t *opt, const nav_t *nav)
     char date[64];
     
     trace(NULL,3,"outrnxlnavh:\n");
-    
-    if (opt->rnxver<212) return 0;
-    
+
+    if (opt->rnxver < 212) {
+        return 0;
+    }
+
     timestr_rnx(date);
     
     fprintf(fp,"%9.2f           %-20s%-20s%-20s\n",opt->rnxver/100.0,
@@ -2927,7 +3433,9 @@ int outrnxlnavh(FILE *fp, const rnxopt_t *opt, const nav_t *nav)
             "PGM / RUN BY / DATE");
     
     for (i=0;i<MAXCOMMENT;i++) {
-        if (!*opt->comment[i]) continue;
+        if (!*opt->comment[i]) {
+            continue;
+        }
         fprintf(fp,"%-60.60s%-20s\n",opt->comment[i],"COMMENT");
     }
     out_iono(fp,SYS_GAL,opt,nav);
@@ -2949,9 +3457,11 @@ int outrnxqnavh(FILE *fp, const rnxopt_t *opt, const nav_t *nav)
     char date[64];
     
     trace(NULL,3,"outrnxqnavh:\n");
-    
-    if (opt->rnxver<302) return 0;
-    
+
+    if (opt->rnxver < 302) {
+        return 0;
+    }
+
     timestr_rnx(date);
     
     fprintf(fp,"%9.2f           %-20s%-20s%-20s\n",opt->rnxver/100.0,
@@ -2961,7 +3471,9 @@ int outrnxqnavh(FILE *fp, const rnxopt_t *opt, const nav_t *nav)
             "PGM / RUN BY / DATE");
     
     for (i=0;i<MAXCOMMENT;i++) {
-        if (!*opt->comment[i]) continue;
+        if (!*opt->comment[i]) {
+            continue;
+        }
         fprintf(fp,"%-60.60s%-20s\n",opt->comment[i],"COMMENT");
     }
     out_iono(fp,SYS_QZS,opt,nav);
@@ -2983,9 +3495,11 @@ int outrnxcnavh(FILE *fp, const rnxopt_t *opt, const nav_t *nav)
     char date[64];
     
     trace(NULL,3,"outrnxcnavh:\n");
-    
-    if (opt->rnxver<302) return 0;
-    
+
+    if (opt->rnxver < 302) {
+        return 0;
+    }
+
     timestr_rnx(date);
     
     fprintf(fp,"%9.2f           %-20s%-20s%-20s\n",opt->rnxver/100.0,
@@ -2995,7 +3509,9 @@ int outrnxcnavh(FILE *fp, const rnxopt_t *opt, const nav_t *nav)
             "PGM / RUN BY / DATE");
     
     for (i=0;i<MAXCOMMENT;i++) {
-        if (!*opt->comment[i]) continue;
+        if (!*opt->comment[i]) {
+            continue;
+        }
         fprintf(fp,"%-60.60s%-20s\n",opt->comment[i],"COMMENT");
     }
     out_iono(fp,SYS_CMP,opt,nav);
@@ -3017,9 +3533,11 @@ int outrnxinavh(FILE *fp, const rnxopt_t *opt, const nav_t *nav)
     char date[64];
     
     trace(NULL,3,"outrnxinavh:\n");
-    
-    if (opt->rnxver<303) return 0;
-    
+
+    if (opt->rnxver < 303) {
+        return 0;
+    }
+
     timestr_rnx(date);
     
     fprintf(fp,"%9.2f           %-20s%-20s%-20s\n",opt->rnxver/100.0,
@@ -3029,7 +3547,9 @@ int outrnxinavh(FILE *fp, const rnxopt_t *opt, const nav_t *nav)
             "PGM / RUN BY / DATE");
     
     for (i=0;i<MAXCOMMENT;i++) {
-        if (!*opt->comment[i]) continue;
+        if (!*opt->comment[i]) {
+            continue;
+        }
         fprintf(fp,"%-60.60s%-20s\n",opt->comment[i],"COMMENT");
     }
     out_iono(fp,SYS_IRN,opt,nav);

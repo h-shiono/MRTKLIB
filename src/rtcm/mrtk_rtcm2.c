@@ -50,12 +50,17 @@ static void adjhour(rtcm_t *rtcm, double zcnt)
     int week;
     
     /* if no time, get cpu time */
-    if (rtcm->time.time==0) rtcm->time=utc2gpst(timeget());
+    if (rtcm->time.time == 0) {
+        rtcm->time = utc2gpst(timeget());
+    }
     tow=time2gpst(rtcm->time,&week);
     hour=floor(tow/3600.0);
     sec=tow-hour*3600.0;
-    if      (zcnt<sec-1800.0) zcnt+=3600.0;
-    else if (zcnt>sec+1800.0) zcnt-=3600.0;
+    if (zcnt < sec - 1800.0) {
+        zcnt += 3600.0;
+    } else if (zcnt > sec + 1800.0) {
+        zcnt -= 3600.0;
+    }
     rtcm->time=gpst2time(week,hour*3600+zcnt);
 }
 /* get observation data index ------------------------------------------------*/
@@ -64,10 +69,14 @@ static int obsindex(obs_t *obs, gtime_t time, int sat)
     int i,j;
     
     for (i=0;i<obs->n;i++) {
-        if (obs->data[i].sat==sat) return i; /* field already exists */
+        if (obs->data[i].sat == sat) {
+            return i; /* field already exists */
+        }
     }
-    if (i>=MAXOBS) return -1; /* overflow */
-    
+    if (i >= MAXOBS) {
+        return -1; /* overflow */
+    }
+
     /* add new field */
     obs->data[i].time=time;
     obs->data[i].sat=sat;
@@ -94,7 +103,9 @@ static int decode_type1(rtcm_t *rtcm)
         prc =getbits(rtcm->buff,i,16); i+=16;
         rrc =getbits(rtcm->buff,i, 8); i+= 8;
         iod =getbits(rtcm->buff,i, 8); i+= 8;
-        if (prn==0) prn=32;
+        if (prn == 0) {
+            prn = 32;
+        }
         if (prc==0x80000000||rrc==0xFFFF8000) {
             trace(NULL,2,"rtcm2 1 prc/rrc indicates satellite problem: prn=%d\n",prn);
             continue;
@@ -210,7 +221,9 @@ static int decode_type17(rtcm_t *rtcm)
         trace(NULL,2,"rtcm2 17 length error: len=%d\n",rtcm->len);
         return -1;
     }
-    if (prn==0) prn=32;
+    if (prn == 0) {
+        prn = 32;
+    }
     sat=satno(SYS_GPS,prn);
     eph.sat=sat;
     eph.week=adjgpsweek(week);
@@ -253,14 +266,18 @@ static int decode_type18(rtcm_t *rtcm)
         prn =getbitu(rtcm->buff,i, 5); i+= 5+3;
         loss=getbitu(rtcm->buff,i, 5); i+= 5;
         cp  =getbits(rtcm->buff,i,32); i+=32;
-        if (prn==0) prn=32;
+        if (prn == 0) {
+            prn = 32;
+        }
         if (!(sat=satno(sys?SYS_GLO:SYS_GPS,prn))) {
             trace(NULL,2,"rtcm2 18 satellite number error: sys=%d prn=%d\n",sys,prn);
             continue;
         }
         time=timeadd(rtcm->time,usec*1E-6);
-        if (sys) time=utc2gpst(time); /* convert glonass time to gpst */
-        
+        if (sys) {
+            time = utc2gpst(time); /* convert glonass time to gpst */
+        }
+
         tt=timediff(rtcm->obs.data[0].time,time);
         if (rtcm->obsflag||fabs(tt)>1E-9) {
             rtcm->obs.n=rtcm->obsflag=0;
@@ -268,8 +285,11 @@ static int decode_type18(rtcm_t *rtcm)
         if ((index=obsindex(&rtcm->obs,time,sat))>=0) {
             rtcm->obs.data[index].L[freq]=-cp/256.0;
             rtcm->obs.data[index].LLI[freq]=rtcm->loss[sat-1][freq]!=loss;
-            rtcm->obs.data[index].code[freq]=
-                !freq?(code?CODE_L1P:CODE_L1C):(code?CODE_L2P:CODE_L2C);
+            if (!freq) {
+                rtcm->obs.data[index].code[freq] = code ? CODE_L1P : CODE_L1C;
+            } else {
+                rtcm->obs.data[index].code[freq] = code ? CODE_L2P : CODE_L2C;
+            }
             rtcm->loss[sat-1][freq]=loss;
         }
     }
@@ -305,22 +325,29 @@ static int decode_type19(rtcm_t *rtcm)
         sys =getbitu(rtcm->buff,i, 1); i+= 1;
         prn =getbitu(rtcm->buff,i, 5); i+= 5+8;
         pr  =getbitu(rtcm->buff,i,32); i+=32;
-        if (prn==0) prn=32;
+        if (prn == 0) {
+            prn = 32;
+        }
         if (!(sat=satno(sys?SYS_GLO:SYS_GPS,prn))) {
             trace(NULL,2,"rtcm2 19 satellite number error: sys=%d prn=%d\n",sys,prn);
             continue;
         }
         time=timeadd(rtcm->time,usec*1E-6);
-        if (sys) time=utc2gpst(time); /* convert glonass time to gpst */
-        
+        if (sys) {
+            time = utc2gpst(time); /* convert glonass time to gpst */
+        }
+
         tt=timediff(rtcm->obs.data[0].time,time);
         if (rtcm->obsflag||fabs(tt)>1E-9) {
             rtcm->obs.n=rtcm->obsflag=0;
         }
         if ((index=obsindex(&rtcm->obs,time,sat))>=0) {
             rtcm->obs.data[index].P[freq]=pr*0.02;
-            rtcm->obs.data[index].code[freq]=
-                !freq?(code?CODE_L1P:CODE_L1C):(code?CODE_L2P:CODE_L2C);
+            if (!freq) {
+                rtcm->obs.data[index].code[freq] = code ? CODE_L1P : CODE_L1C;
+            } else {
+                rtcm->obs.data[index].code[freq] = code ? CODE_L2P : CODE_L2C;
+            }
         }
     }
     rtcm->obsflag=!sync;
@@ -354,7 +381,9 @@ static int decode_type22(rtcm_t *rtcm)
         del[1][2]=getbits(rtcm->buff,i,8)/1600.0;
     }
     rtcm->sta.deltype=1; /* xyz */
-    for (j=0;j<3;j++) rtcm->sta.del[j]=del[0][j];
+    for (j = 0; j < 3; j++) {
+        rtcm->sta.del[j] = del[0][j];
+    }
     rtcm->sta.hgt=hgt;
     return 5;
 }
@@ -454,7 +483,11 @@ int decode_rtcm2(rtcm_t *rtcm)
         case 59: ret=decode_type59(rtcm); break; /* not supported */
     }
     if (ret>=0) {
-        if (1<=type&&type<=99) rtcm->nmsg2[type]++; else rtcm->nmsg2[0]++;
+        if (1 <= type && type <= 99) {
+            rtcm->nmsg2[type]++;
+        } else {
+            rtcm->nmsg2[0]++;
+        }
     }
     return ret;
 }

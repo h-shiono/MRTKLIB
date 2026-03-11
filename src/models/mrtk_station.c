@@ -52,11 +52,19 @@ extern int readblqrecord(FILE *fp, double *odisp)
     int i,n=0;
 
     while (fgets(buff,sizeof(buff),fp)) {
-        if (!strncmp(buff,"$$",2)) continue;
-        if (sscanf(buff,"%lf %lf %lf %lf %lf %lf %lf %lf %lf %lf %lf",
-                   v,v+1,v+2,v+3,v+4,v+5,v+6,v+7,v+8,v+9,v+10)<11) continue;
-        for (i=0;i<11;i++) odisp[n+i*6]=v[i];
-        if (++n==6) return 1;
+        if (!strncmp(buff, "$$", 2)) {
+            continue;
+        }
+        if (sscanf(buff, "%lf %lf %lf %lf %lf %lf %lf %lf %lf %lf %lf", v, v + 1, v + 2, v + 3, v + 4, v + 5, v + 6,
+                   v + 7, v + 8, v + 9, v + 10) < 11) {
+            continue;
+        }
+        for (i = 0; i < 11; i++) {
+            odisp[n + i * 6] = v[i];
+        }
+        if (++n == 6) {
+            return 1;
+        }
     }
     return 0;
 }
@@ -96,9 +104,15 @@ extern int readelmask(const char *file, int16_t *elmask)
         return 0;
     }
     while (fgets(buff,sizeof(buff),fp)&&n<360) {
-        if ((p=strchr(buff,'%'))) *p='\0';
-        if ((p=strchr(buff,'#'))) *p='\0';
-        if (sscanf(buff,"%lf %lf",az+n,el+n)==2) n++;
+        if ((p = strchr(buff, '%'))) {
+            *p = '\0';
+        }
+        if ((p = strchr(buff, '#'))) {
+            *p = '\0';
+        }
+        if (sscanf(buff, "%lf %lf", az + n, el + n) == 2) {
+            n++;
+        }
     }
     fclose(fp);
 
@@ -134,16 +148,23 @@ extern void readpos(const char *file, const char *rcv, double *pos)
         return;
     }
     while (np<2048&&fgets(buff,sizeof(buff),fp)) {
-        if (buff[0]=='%'||buff[0]=='#') continue;
-        if (sscanf(buff,"%lf %lf %lf %s",&poss[np][0],&poss[np][1],&poss[np][2],
-                   str)<4) continue;
+        if (buff[0] == '%' || buff[0] == '#') {
+            continue;
+        }
+        if (sscanf(buff, "%lf %lf %lf %s", &poss[np][0], &poss[np][1], &poss[np][2], str) < 4) {
+            continue;
+        }
         sprintf(stas[np++],"%.15s",str);
     }
     fclose(fp);
     len=(int)strlen(rcv);
     for (i=0;i<np;i++) {
-        if (strncmp(stas[i],rcv,len)) continue;
-        for (j=0;j<3;j++) pos[j]=poss[i][j];
+        if (strncmp(stas[i], rcv, len)) {
+            continue;
+        }
+        for (j = 0; j < 3; j++) {
+            pos[j] = poss[i][j];
+        }
         pos[0]*=D2R; pos[1]*=D2R;
         return;
     }
@@ -163,18 +184,28 @@ extern int readblq(const char *file, const char *sta, double *odisp)
 
     /* station name to upper case */
     sscanf(sta,"%16s",staname);
-    for (p=staname;(*p=(char)toupper((int)(*p)));p++) ;
+    for (p = staname; (*p = (char)toupper((int)(*p))); p++) {
+        /* convert in-place via loop header */
+    }
 
     if (!(fp=fopen(file,"r"))) {
         trace(NULL,2,"blq file open error: file=%s\n",file);
         return 0;
     }
     while (fgets(buff,sizeof(buff),fp)) {
-        if (!strncmp(buff,"$$",2)||strlen(buff)<2) continue;
+        if (!strncmp(buff, "$$", 2) || strlen(buff) < 2) {
+            continue;
+        }
 
-        if (sscanf(buff+2,"%16s",name)<1) continue;
-        for (p=name;(*p=(char)toupper((int)(*p)));p++) ;
-        if (strcmp(name,staname)) continue;
+        if (sscanf(buff + 2, "%16s", name) < 1) {
+            continue;
+        }
+        for (p = name; (*p = (char)toupper((int)(*p))); p++) {
+            /* convert in-place via loop header */
+        }
+        if (strcmp(name, staname)) {
+            continue;
+        }
 
         /* read blq record */
         if (readblqrecord(fp,odisp)) {

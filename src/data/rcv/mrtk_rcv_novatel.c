@@ -175,7 +175,9 @@ static uint8_t chksum(const uint8_t *buff, int len)
 {
     uint8_t sum=0;
     int i;
-    for (i=0;i<len;i++) sum^=buff[i];
+    for (i = 0; i < len; i++) {
+        sum ^= buff[i];
+    }
     return sum;
 }
 /* adjust weekly rollover of GPS time ----------------------------------------*/
@@ -184,8 +186,11 @@ static gtime_t adjweek(gtime_t time, double tow)
     double tow_p;
     int week;
     tow_p=time2gpst(time,&week);
-    if      (tow<tow_p-302400.0) tow+=604800.0;
-    else if (tow>tow_p+302400.0) tow-=604800.0;
+    if (tow < tow_p - 302400.0) {
+        tow += 604800.0;
+    } else if (tow > tow_p + 302400.0) {
+        tow -= 604800.0;
+    }
     return gpst2time(week,tow);
 }
 /* UTC 8-bit week -> full week -----------------------------------------------*/
@@ -195,20 +200,30 @@ static void adj_utcweek(gtime_t time, double *utc)
     
     time2gpst(time,&week);
     utc[3]+=week/256*256;
-    if      (utc[3]<week-127) utc[3]+=256.0;
-    else if (utc[3]>week+127) utc[3]-=256.0;
+    if (utc[3] < week - 127) {
+        utc[3] += 256.0;
+    } else if (utc[3] > week + 127) {
+        utc[3] -= 256.0;
+    }
     utc[5]+=utc[3]/256*256;
-    if      (utc[5]<utc[3]-127) utc[5]+=256.0;
-    else if (utc[5]>utc[3]+127) utc[5]-=256.0;
+    if (utc[5] < utc[3] - 127) {
+        utc[5] += 256.0;
+    } else if (utc[5] > utc[3] + 127) {
+        utc[5] -= 256.0;
+    }
 }
 /* get observation data index ------------------------------------------------*/
 static int obsindex(obs_t *obs, gtime_t time, int sat)
 {
     int i,j;
-    
-    if (obs->n>=MAXOBS) return -1;
+
+    if (obs->n >= MAXOBS) {
+        return -1;
+    }
     for (i=0;i<obs->n;i++) {
-        if (obs->data[i].sat==sat) return i;
+        if (obs->data[i].sat == sat) {
+            return i;
+        }
     }
     obs->data[i].time=time;
     obs->data[i].sat=sat;
@@ -229,7 +244,11 @@ static int uraindex(double value)
         3072.0,6144.0,0.0
     };
     int i;
-    for (i=0;i<15;i++) if (ura_eph[i]>=value) break;
+    for (i = 0; i < 15; i++) {
+        if (ura_eph[i] >= value) {
+            break;
+        }
+    }
     return i;
 }
 /* signal type to obs code ---------------------------------------------------*/
@@ -365,32 +384,68 @@ static int checkpri(const char *opt, int sys, int code, int idx)
     int nex=NEXOBS;
     
     if (sys==SYS_GPS) {
-        if (strstr(opt,"-GL1L")&&idx==0) return (code==CODE_L1L)?0:-1;
-        if (strstr(opt,"-GL2S")&&idx==1) return (code==CODE_L2X)?1:-1;
-        if (strstr(opt,"-GL2P")&&idx==1) return (code==CODE_L2P)?1:-1;
-        if (code==CODE_L1L) return (nex<1)?-1:NFREQ;
-        if (code==CODE_L2S) return (nex<2)?-1:NFREQ+1;
-        if (code==CODE_L2P) return (nex<3)?-1:NFREQ+2;
+        if (strstr(opt, "-GL1L") && idx == 0) {
+            return (code == CODE_L1L) ? 0 : -1;
+        }
+        if (strstr(opt, "-GL2S") && idx == 1) {
+            return (code == CODE_L2X) ? 1 : -1;
+        }
+        if (strstr(opt, "-GL2P") && idx == 1) {
+            return (code == CODE_L2P) ? 1 : -1;
+        }
+        if (code == CODE_L1L) {
+            return (nex < 1) ? -1 : NFREQ;
+        }
+        if (code == CODE_L2S) {
+            return (nex < 2) ? -1 : NFREQ + 1;
+        }
+        if (code == CODE_L2P) {
+            return (nex < 3) ? -1 : NFREQ + 2;
+        }
     }
     else if (sys==SYS_GLO) {
-        if (strstr(opt,"-RL2C")&&idx==1) return (code==CODE_L2C)?1:-1;
-        if (code==CODE_L2C) return (nex<1)?-1:NFREQ;
+        if (strstr(opt, "-RL2C") && idx == 1) {
+            return (code == CODE_L2C) ? 1 : -1;
+        }
+        if (code == CODE_L2C) {
+            return (nex < 1) ? -1 : NFREQ;
+        }
     }
     else if (sys==SYS_GAL) {
-        if (strstr(opt,"-EL6B")&&idx==3) return (code==CODE_L6B)?3:-1;
-        if (code==CODE_L6B) return (nex<2)?-1:NFREQ;
+        if (strstr(opt, "-EL6B") && idx == 3) {
+            return (code == CODE_L6B) ? 3 : -1;
+        }
+        if (code == CODE_L6B) {
+            return (nex < 2) ? -1 : NFREQ;
+        }
     }
     else if (sys==SYS_QZS) {
-        if (strstr(opt,"-JL1L")&&idx==0) return (code==CODE_L1L)?0:-1;
-        if (strstr(opt,"-JL1Z")&&idx==0) return (code==CODE_L1Z)?0:-1;
-        if (code==CODE_L1L) return (nex<1)?-1:NFREQ;
-        if (code==CODE_L1Z) return (nex<2)?-1:NFREQ+1;
+        if (strstr(opt, "-JL1L") && idx == 0) {
+            return (code == CODE_L1L) ? 0 : -1;
+        }
+        if (strstr(opt, "-JL1Z") && idx == 0) {
+            return (code == CODE_L1Z) ? 0 : -1;
+        }
+        if (code == CODE_L1L) {
+            return (nex < 1) ? -1 : NFREQ;
+        }
+        if (code == CODE_L1Z) {
+            return (nex < 2) ? -1 : NFREQ + 1;
+        }
     }
     else if (sys==SYS_CMP) {
-        if (strstr(opt,"-CL1P")&&idx==0) return (code==CODE_L1P)?0:-1;
-        if (strstr(opt,"-CL7D")&&idx==0) return (code==CODE_L7D)?0:-1;
-        if (code==CODE_L1P) return (nex<1)?-1:NFREQ;
-        if (code==CODE_L7D) return (nex<2)?-1:NFREQ+1;
+        if (strstr(opt, "-CL1P") && idx == 0) {
+            return (code == CODE_L1P) ? 0 : -1;
+        }
+        if (strstr(opt, "-CL7D") && idx == 0) {
+            return (code == CODE_L7D) ? 0 : -1;
+        }
+        if (code == CODE_L1P) {
+            return (nex < 1) ? -1 : NFREQ;
+        }
+        if (code == CODE_L7D) {
+            return (nex < 2) ? -1 : NFREQ + 1;
+        }
     }
     return idx<NFREQ?idx:-1;
 }
@@ -401,9 +456,11 @@ static int decode_rangecmpb(raw_t *raw)
     char *q;
     double psr,adr,adr_rolls,lockt,tt,dop,snr,freq,glo_bias=0.0;
     int i,index,nobs,prn,sat,sys,code,idx,track,plock,clock,parity,halfc,lli;
-    
-    if ((q=strstr(raw->opt,"-GLOBIAS="))) sscanf(q,"-GLOBIAS=%lf",&glo_bias);
-    
+
+    if ((q = strstr(raw->opt, "-GLOBIAS="))) {
+        sscanf(q, "-GLOBIAS=%lf", &glo_bias);
+    }
+
     nobs=U4(p);
     if (raw->len<OEM4HLEN+4+nobs*24) {
         trace(NULL,2,"oem4 rangecmpb length error: len=%d nobs=%d\n",raw->len,nobs);
@@ -433,10 +490,14 @@ static int decode_rangecmpb(raw_t *raw)
             trace(NULL,3,"oem4 rangecmpb satellite number error: sys=%d,prn=%d\n",sys,prn);
             continue;
         }
-        if (sys==SYS_GLO&&!parity) continue; /* invalid if GLO parity unknown */
-        
-        if ((idx=checkpri(raw->opt,sys,code,idx))<0) continue;
-        
+        if (sys == SYS_GLO && !parity) {
+            continue; /* invalid if GLO parity unknown */
+        }
+
+        if ((idx = checkpri(raw->opt, sys, code, idx)) < 0) {
+            continue;
+        }
+
         dop=exsign(U4(p+4)&0xFFFFFFF,28)/256.0;
         psr=(U4(p+7)>>4)/128.0+U1(p+11)*2097152.0;
         
@@ -444,7 +505,9 @@ static int decode_rangecmpb(raw_t *raw)
             adr=I4(p+12)/256.0;
             adr_rolls=(psr*freq/CLIGHT+adr)/MAXVAL;
             adr=-adr+MAXVAL*floor(adr_rolls+(adr_rolls<=0?-0.5:0.5));
-            if (sys==SYS_GLO) adr+=glo_bias*freq/CLIGHT;
+            if (sys == SYS_GLO) {
+                adr += glo_bias * freq / CLIGHT;
+            }
         }
         else {
             adr=1e-9;
@@ -458,16 +521,24 @@ static int decode_rangecmpb(raw_t *raw)
         else {
             lli=0;
         }
-        if (!parity) lli|=LLI_HALFC;
-        if (halfc  ) lli|=LLI_HALFA;
+        if (!parity) {
+            lli |= LLI_HALFC;
+        }
+        if (halfc) {
+            lli |= LLI_HALFA;
+        }
         raw->tobs [sat-1][idx]=raw->time;
         raw->lockt[sat-1][idx]=lockt;
         raw->halfc[sat-1][idx]=halfc;
         
         snr=((U2(p+20)&0x3FF)>>5)+20.0;
-        if (!clock) psr=0.0;     /* code unlock */
-        if (!plock) adr=dop=0.0; /* phase unlock */
-        
+        if (!clock) {
+            psr = 0.0; /* code unlock */
+        }
+        if (!plock) {
+            adr = dop = 0.0; /* phase unlock */
+        }
+
         if (fabs(timediff(raw->obs.data[0].time,raw->time))>1E-9) {
             raw->obs.n=0;
         }
@@ -490,9 +561,11 @@ static int decode_rangeb(raw_t *raw)
     double psr,adr,dop,snr,lockt,tt,freq,glo_bias=0.0;
     int i,index,nobs,prn,sat,sys,code,idx,track,plock,clock,parity,halfc,lli;
     int gfrq;
-    
-    if ((q=strstr(raw->opt,"-GLOBIAS="))) sscanf(q,"-GLOBIAS=%lf",&glo_bias);
-    
+
+    if ((q = strstr(raw->opt, "-GLOBIAS="))) {
+        sscanf(q, "-GLOBIAS=%lf", &glo_bias);
+    }
+
     nobs=U4(p);
     if (raw->len<OEM4HLEN+4+nobs*44) {
         trace(NULL,2,"oem4 rangeb length error: len=%d nobs=%d\n",raw->len,nobs);
@@ -522,10 +595,14 @@ static int decode_rangeb(raw_t *raw)
             trace(NULL,3,"oem4 rangeb satellite number error: sys=%d,prn=%d\n",sys,prn);
             continue;
         }
-        if (sys==SYS_GLO&&!parity) continue;
-        
-        if ((idx=checkpri(raw->opt,sys,code,idx))<0) continue;
-        
+        if (sys == SYS_GLO && !parity) {
+            continue;
+        }
+
+        if ((idx = checkpri(raw->opt, sys, code, idx)) < 0) {
+            continue;
+        }
+
         gfrq =U2(p+ 2); /* GLONASS FCN+8 */
         psr  =R8(p+ 4);
         adr  =R8(p+16);
@@ -547,15 +624,23 @@ static int decode_rangeb(raw_t *raw)
         else {
             lli=0;
         }
-        if (!parity) lli|=LLI_HALFC;
-        if (halfc  ) lli|=LLI_HALFA;
+        if (!parity) {
+            lli |= LLI_HALFC;
+        }
+        if (halfc) {
+            lli |= LLI_HALFA;
+        }
         raw->tobs [sat-1][idx]=raw->time;
         raw->lockt[sat-1][idx]=lockt;
         raw->halfc[sat-1][idx]=halfc;
-        
-        if (!clock) psr=0.0;     /* code unlock */
-        if (!plock) adr=dop=0.0; /* phase unlock */
-        
+
+        if (!clock) {
+            psr = 0.0; /* code unlock */
+        }
+        if (!plock) {
+            adr = dop = 0.0; /* phase unlock */
+        }
+
         if (fabs(timediff(raw->obs.data[0].time,raw->time))>1E-9) {
             raw->obs.n=0;
         }
@@ -596,8 +681,9 @@ static int decode_rawephemb(raw_t *raw)
         return -1;
     }
     if (!strstr(raw->opt,"-EPHALL")) {
-        if (eph.iode==raw->nav.eph[sat-1].iode&&
-            eph.iodc==raw->nav.eph[sat-1].iodc) return 0;
+        if (eph.iode == raw->nav.eph[sat - 1].iode && eph.iodc == raw->nav.eph[sat - 1].iodc) {
+            return 0;
+        }
     }
     eph.sat=sat;
     raw->nav.eph[sat-1]=eph;
@@ -615,7 +701,9 @@ static int decode_ionutcb(raw_t *raw)
         trace(NULL,2,"oem4 ionutcb length error: len=%d\n",raw->len);
         return -1;
     }
-    for (i=0;i<8;i++) raw->nav.ion_gps[i]=R8(p+i*8);
+    for (i = 0; i < 8; i++) {
+        raw->nav.ion_gps[i] = R8(p + i * 8);
+    }
     raw->nav.utc_gps[0]=R8(p+ 72); /* A0 */
     raw->nav.utc_gps[1]=R8(p+ 80); /* A1 */
     raw->nav.utc_gps[2]=U4(p+ 68); /* tot */
@@ -723,8 +811,9 @@ static int decode_gpsephemb(raw_t *raw)
     eph.ttr=raw->time;
     
     if (!strstr(raw->opt,"-EPHALL")) {
-        if (timediff(raw->nav.eph[sat-1].toe,eph.toe)==0.0&&
-            raw->nav.eph[sat-1].iode==eph.iode) return 0; /* unchanged */
+        if (timediff(raw->nav.eph[sat - 1].toe, eph.toe) == 0.0 && raw->nav.eph[sat - 1].iode == eph.iode) {
+            return 0; /* unchanged */
+        }
     }
     raw->nav.eph[sat-1]=eph;
     raw->ephsat=sat;
@@ -779,13 +868,17 @@ static int decode_gloephemerisb(raw_t *raw)
     geph.flags=(((type>=1)?1:0)<<7)+(flags<<2)+P;
     geph.toe=gpst2time(week,tow);
     tof+=floor(tow/86400.0)*86400;
-    if      (tof<tow-43200.0) tof+=86400.0;
-    else if (tof>tow+43200.0) tof-=86400.0;
+    if (tof < tow - 43200.0) {
+        tof += 86400.0;
+    } else if (tof > tow + 43200.0) {
+        tof -= 86400.0;
+    }
     geph.tof=gpst2time(week,tof);
     
     if (!strstr(raw->opt,"-EPHALL")) {
-        if (fabs(timediff(geph.toe,raw->nav.geph[prn-1].toe))<1.0&&
-            geph.svh==raw->nav.geph[prn-1].svh) return 0; /* unchanged */
+        if (fabs(timediff(geph.toe, raw->nav.geph[prn - 1].toe)) < 1.0 && geph.svh == raw->nav.geph[prn - 1].svh) {
+            return 0; /* unchanged */
+        }
     }
     geph.sat=sat;
     raw->nav.geph[prn-1]=geph;
@@ -819,8 +912,9 @@ static int decode_qzssrawephemb(raw_t *raw)
         return 0;
     }
     if (!strstr(raw->opt,"-EPHALL")) {
-        if (eph.iodc==raw->nav.eph[sat-1].iodc&&
-            eph.iode==raw->nav.eph[sat-1].iode) return 0; /* unchanged */
+        if (eph.iodc == raw->nav.eph[sat - 1].iodc && eph.iode == raw->nav.eph[sat - 1].iode) {
+            return 0; /* unchanged */
+        }
     }
     eph.sat=sat;
     raw->nav.eph[sat-1]=eph;
@@ -856,10 +950,13 @@ static int decode_qzssrawsubframeb(raw_t *raw)
     memcpy(raw->subfrm[sat-1]+30*(id-1),p+8,30);
     
     if (id==3) {
-        if (!decode_frame(raw->subfrm[sat-1],&eph,NULL,NULL,NULL)) return 0;
+        if (!decode_frame(raw->subfrm[sat - 1], &eph, NULL, NULL, NULL)) {
+            return 0;
+        }
         if (!strstr(raw->opt,"-EPHALL")) {
-            if (eph.iodc==raw->nav.eph[sat-1].iodc&&
-                eph.iode==raw->nav.eph[sat-1].iode) return 0; /* unchanged */
+            if (eph.iodc == raw->nav.eph[sat - 1].iodc && eph.iode == raw->nav.eph[sat - 1].iode) {
+                return 0; /* unchanged */
+            }
         }
         eph.sat=sat;
         raw->nav.eph[sat-1]=eph;
@@ -868,7 +965,9 @@ static int decode_qzssrawsubframeb(raw_t *raw)
         return 2;
     }
     else if (id==4||id==5) {
-        if (!decode_frame(raw->subfrm[sat-1],NULL,NULL,ion,utc)) return 0;
+        if (!decode_frame(raw->subfrm[sat - 1], NULL, NULL, ion, utc)) {
+            return 0;
+        }
         adj_utcweek(raw->time,utc);
         matcpy(raw->nav.ion_qzs,ion,8,1);
         matcpy(raw->nav.utc_qzs,utc,8,1);
@@ -945,8 +1044,9 @@ static int decode_qzssephemerisb(raw_t *raw)
     eph.ttr=raw->time;
     
     if (!strstr(raw->opt,"-EPHALL")) {
-        if (timediff(raw->nav.eph[sat-1].toe,eph.toe)==0.0&&
-            raw->nav.eph[sat-1].iode==eph.iode) return 0; /* unchanged */
+        if (timediff(raw->nav.eph[sat - 1].toe, eph.toe) == 0.0 && raw->nav.eph[sat - 1].iode == eph.iode) {
+            return 0; /* unchanged */
+        }
     }
     raw->nav.eph[sat-1]=eph;
     raw->ephsat=sat;
@@ -963,7 +1063,9 @@ static int decode_qzssionutcb(raw_t *raw)
         trace(NULL,2,"oem4 qzssionutcb length error: len=%d\n",raw->len);
         return -1;
     }
-    for (i=0;i<8;i++) raw->nav.ion_qzs[i]=R8(p+i*8);
+    for (i = 0; i < 8; i++) {
+        raw->nav.ion_qzs[i] = R8(p + i * 8);
+    }
     raw->nav.utc_qzs[0]=R8(p+72);
     raw->nav.utc_qzs[1]=R8(p+80);
     raw->nav.utc_qzs[2]=U4(p+68);
@@ -979,10 +1081,14 @@ static int decode_galephemerisb(raw_t *raw)
     double tow,sqrtA,af0_fnav,af1_fnav,af2_fnav,af0_inav,af1_inav,af2_inav,tt;
     int prn,sat,week,rcv_fnav,rcv_inav,svh_e1b,svh_e5a,svh_e5b,dvs_e1b,dvs_e5a;
     int dvs_e5b,toc_fnav,toc_inav,set,sel_eph=3; /* 1:I/NAV+2:F/NAV */
-    
-    if (strstr(raw->opt,"-GALINAV")) sel_eph=1;
-    if (strstr(raw->opt,"-GALFNAV")) sel_eph=2;
-    
+
+    if (strstr(raw->opt, "-GALINAV")) {
+        sel_eph = 1;
+    }
+    if (strstr(raw->opt, "-GALFNAV")) {
+        sel_eph = 2;
+    }
+
     if (raw->len<OEM4HLEN+220) {
         trace(NULL,2,"oem4 galephemrisb length error: len=%d\n",raw->len);
         return -1;
@@ -1033,9 +1139,13 @@ static int decode_galephemerisb(raw_t *raw)
         sprintf(raw->msgtype+strlen(raw->msgtype)," prn=%d",prn);
     }
     set=rcv_fnav?1:0; /* 0:I/NAV,1:F/NAV */
-    if (!(sel_eph&1)&&set==0) return 0;
-    if (!(sel_eph&2)&&set==1) return 0;
-    
+    if (!(sel_eph & 1) && set == 0) {
+        return 0;
+    }
+    if (!(sel_eph & 2) && set == 1) {
+        return 0;
+    }
+
     eph.sat =sat;
     eph.type=set; /* ephemeris type = I/NAV or F/NAV */
     eph.A   =SQR(sqrtA);
@@ -1051,8 +1161,11 @@ static int decode_galephemerisb(raw_t *raw)
     eph.toe=gpst2time(eph.week,eph.toes);
     
     tt=timediff(eph.toe,raw->time);
-    if      (tt<-302400.0) eph.week++;
-    else if (tt> 302400.0) eph.week--;
+    if (tt < -302400.0) {
+        eph.week++;
+    } else if (tt > 302400.0) {
+        eph.week--;
+    }
     eph.toe=gpst2time(eph.week,eph.toes);
     eph.toc=adjweek(raw->time,set?toc_fnav:toc_inav);
     eph.ttr=raw->time;
@@ -1132,8 +1245,11 @@ static int decode_galinavephemerisb(raw_t *raw)
     eph.toe=gpst2time(eph.week,eph.toes);
     
     tt=timediff(eph.toe,raw->time);
-    if      (tt<-302400.0) eph.week++;
-    else if (tt> 302400.0) eph.week--;
+    if (tt < -302400.0) {
+        eph.week++;
+    } else if (tt > 302400.0) {
+        eph.week--;
+    }
     eph.toe=gpst2time(eph.week,eph.toes);
     eph.toc=adjweek(raw->time,toc_inav);
     eph.ttr=raw->time;
@@ -1202,8 +1318,10 @@ static int decode_galionob(raw_t *raw)
     sf[2]=U1(p); p+=1;
     sf[3]=U1(p); p+=1;
     sf[4]=U1(p);
-    
-    for (i=0;i<3;i++) raw->nav.ion_gal[i]=ai[i];
+
+    for (i = 0; i < 3; i++) {
+        raw->nav.ion_gal[i] = ai[i];
+    }
     return 9;
 }
 /* decode BDSEPHEMERISB ------------------------------------------------------*/
@@ -1263,8 +1381,10 @@ static int decode_bdsephemerisb(raw_t *raw)
     eph.ttr=raw->time;
     
     if (!strstr(raw->opt,"-EPHALL")) {
-        if (timediff(raw->nav.eph[sat-1].toe,eph.toe)==0.0&&
-            timediff(raw->nav.eph[sat-1].toc,eph.toc)==0.0) return 0;
+        if (timediff(raw->nav.eph[sat - 1].toe, eph.toe) == 0.0 &&
+            timediff(raw->nav.eph[sat - 1].toc, eph.toc) == 0.0) {
+            return 0;
+        }
     }
     raw->nav.eph[sat-1]=eph;
     raw->ephsat=sat;
@@ -1339,8 +1459,9 @@ static int decode_navicephemerisb(raw_t *raw)
     eph.tgd[1]=0.0;
     
     if (!strstr(raw->opt,"-EPHALL")) {
-        if (timediff(raw->nav.eph[sat-1].toe,eph.toe)==0.0&&
-            raw->nav.eph[sat-1].iode==eph.iode) return 0; /* unchanged */
+        if (timediff(raw->nav.eph[sat - 1].toe, eph.toe) == 0.0 && raw->nav.eph[sat - 1].iode == eph.iode) {
+            return 0; /* unchanged */
+        }
     }
     raw->nav.eph[sat-1]=eph;
     raw->ephsat=sat;
@@ -1386,7 +1507,9 @@ static int decode_rgeb(raw_t *raw)
         else {
             lli=0;
         }
-        if (!parity) lli|=2;
+        if (!parity) {
+            lli |= 2;
+        }
         raw->tobs [sat-1][freq]=raw->time;
         raw->lockt[sat-1][freq]=lockt;
         raw->halfc[sat-1][freq]=parity;
@@ -1452,7 +1575,9 @@ static int decode_rged(raw_t *raw)
         else {
             lli=0;
         }
-        if (!parity) lli|=2;
+        if (!parity) {
+            lli |= 2;
+        }
         raw->tobs [sat-1][freq]=raw->time;
         raw->lockt[sat-1][freq]=lockt;
         raw->halfc[sat-1][freq]=parity;
@@ -1492,7 +1617,9 @@ static int decode_repb(raw_t *raw)
         return -1;
     }
     if (!strstr(raw->opt,"-EPHALL")) {
-        if (eph.iode==raw->nav.eph[sat-1].iode) return 0; /* unchanged */
+        if (eph.iode == raw->nav.eph[sat - 1].iode) {
+            return 0; /* unchanged */
+        }
     }
     eph.sat=sat;
     raw->nav.eph[sat-1]=eph;
@@ -1514,7 +1641,9 @@ static int decode_frmb(raw_t *raw)
     prn =U4(p+12);
     nbit=U4(p+20);
     raw->time=gpst2time(week,tow);
-    if (nbit!=250) return 0;
+    if (nbit != 250) {
+        return 0;
+    }
     if (prn<MINPRNSBS||MAXPRNSBS<prn) {
         trace(NULL,2,"oem3 frmb satellite number error: prn=%d\n",prn);
         return -1;
@@ -1522,7 +1651,9 @@ static int decode_frmb(raw_t *raw)
     raw->sbsmsg.week=week;
     raw->sbsmsg.tow=(int)tow;
     raw->sbsmsg.prn=prn;
-    for (i=0;i<29;i++) raw->sbsmsg.msg[i]=p[24+i];
+    for (i = 0; i < 29; i++) {
+        raw->sbsmsg.msg[i] = p[24 + i];
+    }
     return 3;
 }
 /* decode IONB ---------------------------------------------------------------*/
@@ -1535,7 +1666,9 @@ static int decode_ionb(raw_t *raw)
         trace(NULL,2,"oem3 ionb length error: len=%d\n",raw->len);
         return -1;
     }
-    for (i=0;i<8;i++) raw->nav.ion_gps[i]=R8(p+i*8);
+    for (i = 0; i < 8; i++) {
+        raw->nav.ion_gps[i] = R8(p + i * 8);
+    }
     return 9;
 }
 /* decode UTCB ---------------------------------------------------------------*/
@@ -1580,8 +1713,10 @@ static int decode_oem4(raw_t *raw)
     week=adjgpsweek(week);
     tow =U4(raw->buff+16)*0.001;
     raw->time=gpst2time(week,tow);
-    if (msg!=0) return 0;
-    
+    if (msg != 0) {
+        return 0;
+    }
+
     if (raw->outtype) {
         time2str(gpst2time(week,tow),tstr,2);
         sprintf(raw->msgtype,"OEM4 %4d (%4d): %s",type,raw->len,tstr);
@@ -1675,7 +1810,9 @@ extern int input_oem4(raw_t *raw, uint8_t data)
     
     /* synchronize frame */
     if (raw->nbyte==0) {
-        if (sync_oem4(raw->buff,data)) raw->nbyte=3;
+        if (sync_oem4(raw->buff, data)) {
+            raw->nbyte = 3;
+        }
         return 0;
     }
     raw->buff[raw->nbyte++]=data;
@@ -1685,7 +1822,9 @@ extern int input_oem4(raw_t *raw, uint8_t data)
         raw->nbyte=0;
         return -1;
     }
-    if (raw->nbyte<10||raw->nbyte<raw->len+4) return 0;
+    if (raw->nbyte < 10 || raw->nbyte < raw->len + 4) {
+        return 0;
+    }
     raw->nbyte=0;
     
     /* decode oem7/6/4 message */
@@ -1703,7 +1842,9 @@ extern int input_oem3(raw_t *raw, uint8_t data)
     
     /* synchronize frame */
     if (raw->nbyte==0) {
-        if (sync_oem3(raw->buff,data)) raw->nbyte=3;
+        if (sync_oem3(raw->buff, data)) {
+            raw->nbyte = 3;
+        }
         return 0;
     }
     raw->buff[raw->nbyte++]=data;
@@ -1713,7 +1854,9 @@ extern int input_oem3(raw_t *raw, uint8_t data)
         raw->nbyte=0;
         return -1;
     }
-    if (raw->nbyte<12||raw->nbyte<raw->len) return 0;
+    if (raw->nbyte < 12 || raw->nbyte < raw->len) {
+        return 0;
+    }
     raw->nbyte=0;
     
     /* decode oem3 message */
@@ -1734,12 +1877,20 @@ extern int input_oem4f(raw_t *raw, FILE *fp)
     /* synchronize frame */
     if (raw->nbyte==0) {
         for (i=0;;i++) {
-            if ((data=fgetc(fp))==EOF) return -2;
-            if (sync_oem4(raw->buff,(uint8_t)data)) break;
-            if (i>=4096) return 0;
+            if ((data = fgetc(fp)) == EOF) {
+                return -2;
+            }
+            if (sync_oem4(raw->buff, (uint8_t)data)) {
+                break;
+            }
+            if (i >= 4096) {
+                return 0;
+            }
         }
     }
-    if (fread(raw->buff+3,7,1,fp)<1) return -2;
+    if (fread(raw->buff + 3, 7, 1, fp) < 1) {
+        return -2;
+    }
     raw->nbyte=10;
     
     if ((raw->len=U2(raw->buff+8)+OEM4HLEN)>MAXRAWLEN-4) {
@@ -1747,7 +1898,9 @@ extern int input_oem4f(raw_t *raw, FILE *fp)
         raw->nbyte=0;
         return -1;
     }
-    if (fread(raw->buff+10,raw->len-6,1,fp)<1) return -2;
+    if (fread(raw->buff + 10, raw->len - 6, 1, fp) < 1) {
+        return -2;
+    }
     raw->nbyte=0;
     
     /* decode NovAtel OEM4/V/6/7 message */
@@ -1768,12 +1921,20 @@ extern int input_oem3f(raw_t *raw, FILE *fp)
     /* synchronize frame */
     if (raw->nbyte==0) {
         for (i=0;;i++) {
-            if ((data=fgetc(fp))==EOF) return -2;
-            if (sync_oem3(raw->buff,(uint8_t)data)) break;
-            if (i>=4096) return 0;
+            if ((data = fgetc(fp)) == EOF) {
+                return -2;
+            }
+            if (sync_oem3(raw->buff, (uint8_t)data)) {
+                break;
+            }
+            if (i >= 4096) {
+                return 0;
+            }
         }
     }
-    if (fread(raw->buff+3,1,9,fp)<9) return -2;
+    if (fread(raw->buff + 3, 1, 9, fp) < 9) {
+        return -2;
+    }
     raw->nbyte=12;
     
     if ((raw->len=U4(raw->buff+8))>MAXRAWLEN) {
@@ -1781,7 +1942,9 @@ extern int input_oem3f(raw_t *raw, FILE *fp)
         raw->nbyte=0;
         return -1;
     }
-    if (fread(raw->buff+12,1,raw->len-12,fp)<(size_t)(raw->len-12)) return -2;
+    if (fread(raw->buff + 12, 1, raw->len - 12, fp) < (size_t)(raw->len - 12)) {
+        return -2;
+    }
     raw->nbyte=0;
     
     /* decode oem3 message */

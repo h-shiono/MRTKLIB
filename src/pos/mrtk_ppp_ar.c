@@ -97,7 +97,11 @@ extern double freq_num2freq(int sys, int freq_num, int fcn);
 #define NF(opt)     ((opt)->ionoopt==IONOOPT_IFLC?1:(opt)->nf)
 #define NP(opt)     ((opt)->dynamics?9:3)
 #define NC(opt)     (NSYS+1) /* BDS3 and BDS2 */
-#define NT(opt)     ((opt)->tropopt<TROPOPT_EST?0:((opt)->tropopt==TROPOPT_EST?1:3))
+static inline int NT(const prcopt_t* opt) {
+    if (opt->tropopt < TROPOPT_EST) return 0;
+    if (opt->tropopt == TROPOPT_EST) return 1;
+    return 3;
+}
 #define NI(opt)     ((opt)->ionoopt==IONOOPT_EST?MAXSAT:0)
 #define N3(opt)     (NF(opt)>=3?NC(opt):0)   /* 3rd-frequency receivre bias */
 #define N4(opt)     (NF(opt)>=4?NC(opt):0)   /* 4th-frequency receivre bias */
@@ -114,8 +118,11 @@ static void get_wavelength(int sat, double *lam)
     sys=satsys_bd2(sat,NULL);
     for (i=0;i<NFREQ;i++) {
         freq=freq_num2freq(sys,freq_idx2freq_num(sys,i),0);
-        if (freq>0.0) lam[i]=CLIGHT/freq;
-        else          lam[i]=0.0;
+        if (freq > 0.0) {
+            lam[i] = CLIGHT / freq;
+        } else {
+            lam[i] = 0.0;
+        }
     }
 }
 /* exclude satellite ---------------------------------------------------------*/
@@ -130,9 +137,15 @@ static int exc_sat_sd(rtk_t *rtk, const obsd_t *obs, int exc,
     trace(NULL,4,"exc_sat_sd(%4d): nf=%d arsys=%d elmaskar=%2.0f\n",__LINE__,
         nf,arsys,rtk->opt.elmaskar);
 
-    if (exc) return 0;
-    if (!(satsys_bd2(obs->sat,NULL)&sys)) return 0;
-    if (!(satsys(obs->sat,NULL)&arsys)) return 0;
+    if (exc) {
+        return 0;
+    }
+    if (!(satsys_bd2(obs->sat, NULL) & sys)) {
+        return 0;
+    }
+    if (!(satsys(obs->sat, NULL) & arsys)) {
+        return 0;
+    }
     if (!rtk->ssat[obs->sat-1].vsat[0]||el<elmask) {
         trace(NULL,2,"exc_sat_sd(%4d): sys=%2d sat=%3d excluded by el=%4.1f / %4.1f\n",__LINE__,
             satsys_bd2(obs->sat,NULL),obs->sat,el*R2D,elmask*R2D);
@@ -160,7 +173,9 @@ static int gen_sat_sd(rtk_t *rtk, const obsd_t *obs, int n, const int *exc,
 
     for (i=0;sys[i];i++) { /* for each system */
 
-        for (j=0;j<n;j++) excmask[j]=0;
+        for (j = 0; j < n; j++) {
+            excmask[j] = 0;
+        }
 
         /* search highest elevation angle */
         for (j=0,maxsat=0,maxel=0.0;j<n;j++) {
@@ -174,12 +189,14 @@ static int gen_sat_sd(rtk_t *rtk, const obsd_t *obs, int n, const int *exc,
                 trace(NULL,4,"gen_sat_sd(%4d): sys=%d sat=%3d f=%d obs[j].L[f]=%14.3f stat=%d\n",__LINE__,
                     sys[i],obs[j].sat,f,obs[j].L[f],stat);
             }
-            if (stat) continue;
+            if (stat) {
+                continue;
+            }
 
             /* exclude IGSO for reference satellite */
-            if (obs[j].sat==satid2no("C38")||
-                obs[j].sat==satid2no("C39")||
-                obs[j].sat==satid2no("C40")) continue;
+            if (obs[j].sat == satid2no("C38") || obs[j].sat == satid2no("C39") || obs[j].sat == satid2no("C40")) {
+                continue;
+            }
 
             if (azel[1+j*2]>maxel) {
                 maxel =azel[1+j*2];
@@ -196,15 +213,24 @@ static int gen_sat_sd(rtk_t *rtk, const obsd_t *obs, int n, const int *exc,
 
         /* sort by elevation angle */
         for (j=m=0;j<n;j++) {
-            if (excmask[j]) continue;
-            if (obs[j].sat==maxsat) continue;
+            if (excmask[j]) {
+                continue;
+            }
+            if (obs[j].sat == maxsat) {
+                continue;
+            }
 
             sat[m]=obs[j].sat;
             el[m++]=azel[1+j*2];
         }
-        for (j=0;j<m-1;j++) for (k=j+1;k<m;k++) {
-            if (el[j]>=el[k]) continue;
-            SWAP_I(sat[j],sat[k]); SWAP_D(el[j],el[k]);
+        for (j = 0; j < m - 1; j++) {
+            for (k = j + 1; k < m; k++) {
+                if (el[j] >= el[k]) {
+                    continue;
+                }
+                SWAP_I(sat[j], sat[k]);
+                SWAP_D(el[j], el[k]);
+            }
         }
         /* generate SD referenced to max elevation angle */
         for (j=0;j<m;j++) {
@@ -266,7 +292,9 @@ static void write_trace_sd_amb(rtk_t *rtk, const double *x, const double *P,
 
     /* freq-ambiguity SD-matrix */
     for (i=0;i<ns;i++) {
-        if (sat1[i]<=0 || sat2[i]<=0) continue;
+        if (sat1[i] <= 0 || sat2[i] <= 0) {
+            continue;
+        }
         get_wavelength(sat1[i],lam);
 
         for (f=0;f<nf;f++) {
@@ -279,8 +307,12 @@ static void write_trace_sd_amb(rtk_t *rtk, const double *x, const double *P,
                 j=IB(sat1[i],0,&rtk->opt);
                 k=IB(sat2[i],0,&rtk->opt);
 
-                if (lam[0]==0.0) continue;
-                if (x[j]==0.0||x[k]==0.0) continue;
+                if (lam[0] == 0.0) {
+                    continue;
+                }
+                if (x[j] == 0.0 || x[k] == 0.0) {
+                    continue;
+                }
 
                 D[j+na*rtk->nx]= 1.0/lam[0];
                 D[k+na*rtk->nx]=-1.0/lam[0];
@@ -292,9 +324,15 @@ static void write_trace_sd_amb(rtk_t *rtk, const double *x, const double *P,
                 k1=IB(sat2[i],0,&rtk->opt);
                 k2=IB(sat2[i],1,&rtk->opt);
 
-                if (lam[0]==0.0||lam[1]==0.0) continue;
-                if (x[j1]==0.0||x[j2]==0.0) continue;
-                if (x[k1]==0.0||x[k2]==0.0) continue;
+                if (lam[0] == 0.0 || lam[1] == 0.0) {
+                    continue;
+                }
+                if (x[j1] == 0.0 || x[j2] == 0.0) {
+                    continue;
+                }
+                if (x[k1] == 0.0 || x[k2] == 0.0) {
+                    continue;
+                }
 
                 D[j1+na*rtk->nx]= 1.0/lam[0];
                 D[j2+na*rtk->nx]=-1.0/lam[1];
@@ -308,9 +346,15 @@ static void write_trace_sd_amb(rtk_t *rtk, const double *x, const double *P,
                 k1=IB(sat2[i],1,&rtk->opt);
                 k2=IB(sat2[i],2,&rtk->opt);
 
-                if (lam[1]==0.0||lam[2]==0.0) continue;
-                if (x[j1]==0.0||x[j2]==0.0) continue;
-                if (x[k1]==0.0||x[k2]==0.0) continue;
+                if (lam[1] == 0.0 || lam[2] == 0.0) {
+                    continue;
+                }
+                if (x[j1] == 0.0 || x[j2] == 0.0) {
+                    continue;
+                }
+                if (x[k1] == 0.0 || x[k2] == 0.0) {
+                    continue;
+                }
 
                 D[j1+na*rtk->nx]= 1.0/lam[1];
                 D[j2+na*rtk->nx]=-1.0/lam[2];
@@ -324,9 +368,15 @@ static void write_trace_sd_amb(rtk_t *rtk, const double *x, const double *P,
                 k1=IB(sat2[i],1,&rtk->opt);
                 k2=IB(sat2[i],3,&rtk->opt);
 
-                if (lam[1]==0.0||lam[3]==0.0) continue;
-                if (x[j1]==0.0||x[j2]==0.0) continue;
-                if (x[k1]==0.0||x[k2]==0.0) continue;
+                if (lam[1] == 0.0 || lam[3] == 0.0) {
+                    continue;
+                }
+                if (x[j1] == 0.0 || x[j2] == 0.0) {
+                    continue;
+                }
+                if (x[k1] == 0.0 || x[k2] == 0.0) {
+                    continue;
+                }
 
                 D[j1+na*rtk->nx]= 1.0/lam[1];
                 D[j2+na*rtk->nx]=-1.0/lam[3];
@@ -343,8 +393,11 @@ static void write_trace_sd_amb(rtk_t *rtk, const double *x, const double *P,
     matmul("TN",na,rtk->nx,rtk->nx,1.0,D,P,0.0,W);
     matmul("NN",na,na,rtk->nx,1.0,W,D,0.0,Q);
 
-    if (post) write_trace_amb(rtk,a,Q,na,sat1s,sat2s,frqs,label2,step);
-    else      write_trace_amb(rtk,a,Q,na,sat1s,sat2s,frqs,label1,step);
+    if (post) {
+        write_trace_amb(rtk, a, Q, na, sat1s, sat2s, frqs, label2, step);
+    } else {
+        write_trace_amb(rtk, a, Q, na, sat1s, sat2s, frqs, label1, step);
+    }
 
     free(W);
     free(D); free(Q);
@@ -364,14 +417,20 @@ static int search_amb_ewl(rtk_t *rtk, const double *x, const double *P,
     double th_frac=MAX_FRAC_WL_FIX,th_std=MAX_STD_WL_FIX;
     char s1[32],s2[32];
 
-    if (nf<3) return 0;
+    if (nf < 3) {
+        return 0;
+    }
 
     /* initialize D-matrix */
-    for (i=0;i<rtk->nx*(ns*2);i++) D[i]=0.0;
+    for (i = 0; i < rtk->nx * (ns * 2); i++) {
+        D[i] = 0.0;
+    }
 
     /* freq-ambiguity SD-matrix extra WL (F2-F3, F2-F4) */
     for (i=0;i<ns;i++) {
-        if (sat1[i]<=0 || sat2[i]<=0) continue;
+        if (sat1[i] <= 0 || sat2[i] <= 0) {
+            continue;
+        }
         get_wavelength(sat1[i],lam);
         satno2id(sat1[i],s1);
         satno2id(sat2[i],s2);
@@ -447,14 +506,20 @@ static int search_amb_wl(rtk_t *rtk, const double *x, const double *P,
     double th_frac=MAX_FRAC_WL_FIX,th_std=MAX_STD_WL_FIX;
     char s1[32],s2[32];
 
-    if (nf<2) return 0;
+    if (nf < 2) {
+        return 0;
+    }
 
     /* initialize D-matrix */
-    for (i=0;i<rtk->nx*ns;i++) D[i]=0.0;
+    for (i = 0; i < rtk->nx * ns; i++) {
+        D[i] = 0.0;
+    }
 
     /* freq-ambiguity SD-matrix WL (L1-L2) */
     for (i=0;i<ns;i++) {
-        if (sat1[i]<=0 || sat2[i]<=0) continue;
+        if (sat1[i] <= 0 || sat2[i] <= 0) {
+            continue;
+        }
         get_wavelength(sat1[i],lam);
         satno2id(sat1[i],s1);
         satno2id(sat2[i],s2);
@@ -526,11 +591,15 @@ static int gen_sd_matrix_n1(rtk_t *rtk, const double *x, const double *P,
     unsigned int tick=tickget();
 
     /* initialize D-matrix */
-    for (i=0;i<rtk->nx*ns;i++) D[i]=0.0;
+    for (i = 0; i < rtk->nx * ns; i++) {
+        D[i] = 0.0;
+    }
 
     /* freq-ambiguity SD-matrix N1 */
     for (i=0;i<ns;i++) {
-        if (sat1[i]<=0 || sat2[i]<=0) continue;
+        if (sat1[i] <= 0 || sat2[i] <= 0) {
+            continue;
+        }
         get_wavelength(sat1[i],lam);
         satno2id(sat1[i],s1);
         satno2id(sat2[i],s2);
@@ -542,8 +611,12 @@ static int gen_sd_matrix_n1(rtk_t *rtk, const double *x, const double *P,
         j=IB(sat1[i],0,&rtk->opt);
         k=IB(sat2[i],0,&rtk->opt);
 
-        if (lam[0]==0.0) continue;
-        if (x[j]==0.0||x[k]==0.0) continue;
+        if (lam[0] == 0.0) {
+            continue;
+        }
+        if (x[j] == 0.0 || x[k] == 0.0) {
+            continue;
+        }
 
         D[j+na*rtk->nx]= 1.0/lam[0];
         D[k+na*rtk->nx]=-1.0/lam[0];
@@ -590,7 +663,9 @@ static int search_amb_lambda(rtk_t *rtk, const obsd_t *obs, int n,
     unsigned int tick=tickget();
     trace(NULL,3,"search_amb_lambda(%4d): na=%d\n",__LINE__,na);
 
-    if (strstr(rtk->opt.pppopt,"-TRACE_AR")) trace_AR=1;
+    if (strstr(rtk->opt.pppopt, "-TRACE_AR")) {
+        trace_AR = 1;
+    }
 
     time2str(rtk->sol.time,tstr,0);
 
@@ -607,15 +682,24 @@ static int search_amb_lambda(rtk_t *rtk, const obsd_t *obs, int n,
         trace(NULL,2,"search_amb_lambda(%4d): inflated threshold na-MIN_AMB_RES=%d thres_fact=%.2f thres=%.2f\n",__LINE__,
             na-MIN_AMB_RES,thres_fact[na-MIN_AMB_RES],thres);
     }
-    for (i=0;i<MAXSAT;i++) exc_sat_flag[i]=0;
+    for (i = 0; i < MAXSAT; i++) {
+        exc_sat_flag[i] = 0;
+    }
     for (i=0;i<na;i++) {
-        if (fabs(N[i]-N[i+na])<0.001) nm++;
-        else exc_sat_flag[sat1s[i]-1]=(int)fabs(N[i]-N[i+na]);
+        if (fabs(N[i] - N[i + na]) < 0.001) {
+            nm++;
+        } else {
+            exc_sat_flag[sat1s[i] - 1] = (int)fabs(N[i] - N[i + na]);
+        }
     }
     trace(NULL,3,"search_amb_lambda(%4d): %s na=%2d nm= %2d match_rate=%7.2f\n",__LINE__,
         tstr,na,nm,(double)nm/(double)na);
-    if ((double)nm/(double)na>REL_MATCH_RATE) thres*=0.8;
-    if ((double)nm/(double)na<MIN_MATCH_RATE) thres=99.99;
+    if ((double)nm / (double)na > REL_MATCH_RATE) {
+        thres *= 0.8;
+    }
+    if ((double)nm / (double)na < MIN_MATCH_RATE) {
+        thres = 99.99;
+    }
 
     if (trace_AR) {
         trace(NULL,2,"search_amb_lambda(%4d): na= %2d ratio= %.3f (s[1](%.3f)/s[0](%.3f)) thres= %.3f\n",__LINE__,
@@ -722,8 +806,12 @@ static int exc_sat_par(rtk_t *rtk, int *sat1, int *sat2,
     char s1[32],s2[32];
 
     for (i=0;i<ns;i++) {
-        if (!sat1[i]) continue;
-        if (!exc_sat_flag[sat1[i]-1]) continue;
+        if (!sat1[i]) {
+            continue;
+        }
+        if (!exc_sat_flag[sat1[i] - 1]) {
+            continue;
+        }
         el=el1[i];
 
         /* exclude IGSO satellites first */
@@ -732,9 +820,9 @@ static int exc_sat_par(rtk_t *rtk, int *sat1, int *sat2,
             el-=offset;
         }
         else if (sys&SYS_CMP) {
-            if (sat1[i]==satid2no("C38")||
-                sat1[i]==satid2no("C39")||
-                sat1[i]==satid2no("C40")) el-=offset;
+            if (sat1[i] == satid2no("C38") || sat1[i] == satid2no("C39") || sat1[i] == satid2no("C40")) {
+                el -= offset;
+            }
         }
         else if (sys&SYS_QZS) {
             el-=offset;
@@ -832,7 +920,9 @@ static int ppp_amb_ILS(rtk_t *rtk, const obsd_t *obs, int n, int *exc,
     write_trace_sd_amb(rtk,x,P,sat1,sat2,ns,nf,sat1s,sat2s,frqs,a,0,STEP_NL);
 
     /* narrow-lane */
-    for (i=0;i<3;i++) std[i]=sqrt(P[i+i*rtk->nx]);
+    for (i = 0; i < 3; i++) {
+        std[i] = sqrt(P[i + i * rtk->nx]);
+    }
     if (norm(std,3)<rtk->opt.thresar[1]) {
         trace(NULL,3,"ppp_amb_ILS(%4d): %s narrow-lane search. nsat=%d std=%.2f\n",__LINE__,
             tstr,ns,norm(std,3));
@@ -871,7 +961,9 @@ static int ppp_amb_ILS(rtk_t *rtk, const obsd_t *obs, int n, int *exc,
     rtk->sol.age=(float)i;
 
     /* test by standard deviation of position */
-    for (i=0;i<3;i++) std[i]=sqrt(P[i+i*rtk->nx]);
+    for (i = 0; i < 3; i++) {
+        std[i] = sqrt(P[i + i * rtk->nx]);
+    }
     if (norm(std,3)>MAX_STD_FIX) {
         /* reset fix flag */
         for (i=0;i<na;i++) {
@@ -896,8 +988,12 @@ static int ppp_amb_ILS(rtk_t *rtk, const obsd_t *obs, int n, int *exc,
 extern int ppp_ar(mrtk_ctx_t *ctx, rtk_t *rtk, const obsd_t *obs, int n, int *exc,
                   const nav_t *nav, const double *azel, double *x, double *P)
 {
-    if (n<=0||rtk->opt.modear<ARMODE_CONT) return 0;
+    if (n <= 0 || rtk->opt.modear < ARMODE_CONT) {
+        return 0;
+    }
 
-    if (rtk->opt.ionoopt!=IONOOPT_EST) return 0;
+    if (rtk->opt.ionoopt != IONOOPT_EST) {
+        return 0;
+    }
     return ppp_amb_ILS(rtk,obs,n,exc,nav,azel,x,P);
 }

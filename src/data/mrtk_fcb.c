@@ -98,13 +98,19 @@ static int readfcbf(const char *file)
     while(fgets(buff, sizeof(buff), fp)) {
         memset(&bia, 0x00, sizeof(bia_t));
         bia.type = 2; /* OSB */
-        if((p = strchr(buff, '#'))) *p = '\0';
-        if(sscanf(buff, "%lf/%lf/%lf %lf:%lf:%lf %lf/%lf/%lf %lf:%lf:%lf %s"
-            "%lf %lf %lf %lf %lf %lf",
-            ep1, ep1 + 1, ep1 + 2, ep1 + 3, ep1 + 4, ep1 + 5,
-            ep2, ep2 + 1, ep2 + 2, ep2 + 3, ep2 + 4, ep2 + 5,
-            str, bias, std, bias + 1, std + 1, bias + 2, std + 2) < 17) continue;
-        if(!(sat = satid2no(str))) continue;
+        if ((p = strchr(buff, '#'))) {
+            *p = '\0';
+        }
+        if (sscanf(buff,
+                   "%lf/%lf/%lf %lf:%lf:%lf %lf/%lf/%lf %lf:%lf:%lf %s"
+                   "%lf %lf %lf %lf %lf %lf",
+                   ep1, ep1 + 1, ep1 + 2, ep1 + 3, ep1 + 4, ep1 + 5, ep2, ep2 + 1, ep2 + 2, ep2 + 3, ep2 + 4, ep2 + 5,
+                   str, bias, std, bias + 1, std + 1, bias + 2, std + 2) < 17) {
+            continue;
+        }
+        if (!(sat = satid2no(str))) {
+            continue;
+        }
         sys = satsys(sat, NULL);
         switch(sys) {
             case SYS_GPS: sigs = fcb_sig_gps; break;
@@ -148,7 +154,9 @@ int readfcb(const char *file)
 
     for(i = 0; i < MAXEXFILE; i++) {
         if(!(efiles[i] = (char *)malloc(1024))) {
-            for(i--; i >= 0; i--) free(efiles[i]);
+            for (i--; i >= 0; i--) {
+                free(efiles[i]);
+            }
             return 0;
         }
     }
@@ -157,7 +165,9 @@ int readfcb(const char *file)
     for(i = 0; i < n; i++) {
         readfcbf(efiles[i]);
     }
-    for(i = 0; i < MAXEXFILE; i++) free(efiles[i]);
+    for (i = 0; i < MAXEXFILE; i++) {
+        free(efiles[i]);
+    }
 
     return 1;
 }
@@ -185,7 +195,9 @@ int udfcb_sat(osb_t *osb, gtime_t gt, int mode)
     for(i = 0; i < MAXSAT; i++) {
         for(j = 0; j < fcbsp->sat.npb[i]; j++) {
             bias = &fcbsp->sat.pb[i][j];
-            if(bias->code[0] == CODE_NONE) continue;
+            if (bias->code[0] == CODE_NONE) {
+                continue;
+            }
             if(mode || ((timediff(bias->t0, gt) <= 0.0) &&
                         (timediff(bias->t1, gt) >= 0.0))) {
                 osb->vspb[i][bias->code[0] - 1] = 1;

@@ -62,8 +62,12 @@ extern double str2num(const char *s, int i, int n)
     double value;
     char str[256],*p=str;
 
-    if (i<0||(int)strlen(s)<i||(int)sizeof(str)-1<n) return 0.0;
-    for (s+=i;*s&&--n>=0;s++) *p++=*s=='d'||*s=='D'?'E':*s;
+    if (i < 0 || (int)strlen(s) < i || (int)sizeof(str) - 1 < n) {
+        return 0.0;
+    }
+    for (s += i; *s && --n >= 0; s++) {
+        *p++ = *s == 'd' || *s == 'D' ? 'E' : *s;
+    }
     *p='\0';
     return sscanf(str,"%lf",&value)==1?value:0.0;
 }
@@ -105,18 +109,32 @@ extern int expath(const char *path, char *paths[], int nmax)
     if ((p=strrchr(path,'/'))||(p=strrchr(path,'\\'))) {
         file=p+1; strncpy(dir,path,p-path+1); dir[p-path+1]='\0';
     }
-    if (!(dp=opendir(*dir?dir:"."))) return 0;
+    if (!(dp = opendir(*dir ? dir : "."))) {
+        return 0;
+    }
     while ((d=readdir(dp))) {
-        if (*(d->d_name)=='.') continue;
+        if (*(d->d_name) == '.') {
+            continue;
+        }
         sprintf(s1,"^%s$",d->d_name);
         sprintf(s2,"^%s$",file);
-        for (p=s1;*p;p++) *p=(char)tolower((int)*p);
-        for (p=s2;*p;p++) *p=(char)tolower((int)*p);
+        for (p = s1; *p; p++) {
+            *p = (char)tolower((int)*p);
+        }
+        for (p = s2; *p; p++) {
+            *p = (char)tolower((int)*p);
+        }
 
         for (p=s1,q=strtok_r(s2,"*",&r);q;q=strtok_r(NULL,"*",&r)) {
-            if ((p=strstr(p,q))) p+=strlen(q); else break;
+            if ((p = strstr(p, q))) {
+                p += strlen(q);
+            } else {
+                break;
+            }
         }
-        if (p&&n<nmax) sprintf(paths[n++],"%s%s",dir,d->d_name);
+        if (p && n < nmax) {
+            sprintf(paths[n++], "%s%s", dir, d->d_name);
+        }
     }
     closedir(dp);
     /* sort paths in alphabetical order */
@@ -129,7 +147,9 @@ extern int expath(const char *path, char *paths[], int nmax)
             }
         }
     }
-    for (i=0;i<n;i++) trace(NULL,3,"expath  : file=%s\n",paths[i]);
+    for (i = 0; i < n; i++) {
+        trace(NULL, 3, "expath  : file=%s\n", paths[i]);
+    }
 
     return n;
 }
@@ -139,17 +159,24 @@ static int mkdir_r(const char *dir)
     char pdir[1024],*p;
     FILE *fp;
 
-    if (!*dir) return 1;
+    if (!*dir) {
+        return 1;
+    }
 
     sprintf(pdir,"%.1023s",dir);
     if ((p=strrchr(pdir,FILEPATHSEP))) {
         *p='\0';
         if (!(fp=fopen(pdir,"r"))) {
-            if (!mkdir_r(pdir)) return 0;
+            if (!mkdir_r(pdir)) {
+                return 0;
+            }
+        } else {
+            fclose(fp);
         }
-        else fclose(fp);
     }
-    if (!mkdir(dir,0777)||errno==EEXIST) return 1;
+    if (!mkdir(dir, 0777) || errno == EEXIST) {
+        return 1;
+    }
     trace(NULL,2,"directory generation error: dir=%s\n",dir);
     return 0;
 }
@@ -166,7 +193,9 @@ extern void createdir(const char *path)
     tracet(NULL,3,"createdir: path=%s\n",path);
 
     strcpy(buff,path);
-    if (!(p=strrchr(buff,FILEPATHSEP))) return;
+    if (!(p = strrchr(buff, FILEPATHSEP))) {
+        return;
+    }
     *p='\0';
 
     mkdir_r(buff);
@@ -178,12 +207,16 @@ static int repstr(char *str, const char *pat, const char *rep)
     char buff[1024],*p,*q,*r;
 
     for (p=str,r=buff;*p;p=q+len) {
-        if (!(q=strstr(p,pat))) break;
+        if (!(q = strstr(p, pat))) {
+            break;
+        }
         strncpy(r,p,q-p);
         r+=q-p;
         r+=sprintf(r,"%s",rep);
     }
-    if (p<=str) return 0;
+    if (p <= str) {
+        return 0;
+    }
     strcpy(r,p);
     strcpy(str,buff);
     return 1;
@@ -225,9 +258,15 @@ extern int reppath(const char *path, char *rpath, gtime_t time, const char *rov,
 
     strcpy(rpath,path);
 
-    if (!strstr(rpath,"%")) return 0;
-    if (*rov ) stat|=repstr(rpath,"%r",rov );
-    if (*base) stat|=repstr(rpath,"%b",base);
+    if (!strstr(rpath, "%")) {
+        return 0;
+    }
+    if (*rov) {
+        stat |= repstr(rpath, "%r", rov);
+    }
+    if (*base) {
+        stat |= repstr(rpath, "%b", base);
+    }
     if (time.time!=0) {
         time2epoch(time,ep);
         ep0[0]=ep[0];
@@ -281,20 +320,29 @@ extern int reppaths(const char *path, char *rpath[], int nmax, gtime_t ts,
 
     trace(NULL,3,"reppaths: path =%s nmax=%d rov=%s base=%s\n",path,nmax,rov,base);
 
-    if (ts.time==0||te.time==0||timediff(ts,te)>0.0) return 0;
+    if (ts.time == 0 || te.time == 0 || timediff(ts, te) > 0.0) {
+        return 0;
+    }
 
-    if (strstr(path,"%S")||strstr(path,"%M")||strstr(path,"%t")) tint=900.0;
-    else if (strstr(path,"%h")||strstr(path,"%H")) tint=3600.0;
+    if (strstr(path, "%S") || strstr(path, "%M") || strstr(path, "%t")) {
+        tint = 900.0;
+    } else if (strstr(path, "%h") || strstr(path, "%H")) {
+        tint = 3600.0;
+    }
 
     tow=time2gpst(ts,&week);
     time=gpst2time(week,floor(tow/tint)*tint);
 
     while (timediff(time,te)<=0.0&&n<nmax) {
         reppath(path,rpath[n],time,rov,base);
-        if (n==0||strcmp(rpath[n],rpath[n-1])) n++;
+        if (n == 0 || strcmp(rpath[n], rpath[n - 1])) {
+            n++;
+        }
         time=timeadd(time,tint);
     }
-    for (i=0;i<n;i++) trace(NULL,3,"reppaths: rpath=%s\n",rpath[i]);
+    for (i = 0; i < n; i++) {
+        trace(NULL, 3, "reppaths: rpath=%s\n", rpath[i]);
+    }
     return n;
 }
 
@@ -318,7 +366,9 @@ extern int rtk_uncompress(const char *file, char *uncfile)
     trace(NULL,3,"rtk_uncompress: file=%s\n",file);
 
     strcpy(tmpfile,file);
-    if (!(p=strrchr(tmpfile,'.'))) return 0;
+    if (!(p = strrchr(tmpfile, '.'))) {
+        return 0;
+    }
 
     /* uncompress by gzip */
     if (!strcmp(p,".z"  )||!strcmp(p,".Z"  )||
@@ -346,10 +396,14 @@ extern int rtk_uncompress(const char *file, char *uncfile)
         }
         sprintf(cmd,"tar -C \"%s\" -xf \"%s\"",dir,tmpfile);
         if (execcmd(cmd)) {
-            if (stat) remove(tmpfile);
+            if (stat) {
+                remove(tmpfile);
+            }
             return -1;
         }
-        if (stat) remove(tmpfile);
+        if (stat) {
+            remove(tmpfile);
+        }
         stat=1;
     }
     /* extract hatanaka-compressed file by cnx2rnx */
@@ -363,10 +417,14 @@ extern int rtk_uncompress(const char *file, char *uncfile)
 
         if (execcmd(cmd)) {
             remove(uncfile);
-            if (stat) remove(tmpfile);
+            if (stat) {
+                remove(tmpfile);
+            }
             return -1;
         }
-        if (stat) remove(tmpfile);
+        if (stat) {
+            remove(tmpfile);
+        }
         stat=1;
     }
     trace(NULL,3,"rtk_uncompress: stat=%d\n",stat);

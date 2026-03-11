@@ -59,10 +59,14 @@ static void ast_args(double t, double *f)
     double tt[4];
     int i,j;
 
-    for (tt[0]=t,i=1;i<4;i++) tt[i]=tt[i-1]*t;
+    for (tt[0] = t, i = 1; i < 4; i++) {
+        tt[i] = tt[i - 1] * t;
+    }
     for (i=0;i<5;i++) {
         f[i]=fc[i][0]*3600.0;
-        for (j=0;j<4;j++) f[i]+=fc[i][j+1]*tt[j];
+        for (j = 0; j < 4; j++) {
+            f[i] += fc[i][j + 1] * tt[j];
+        }
         f[i]=fmod(f[i]*AS2R,2.0*PI);
     }
 }
@@ -143,7 +147,13 @@ extern void sunmoonpos(gtime_t tutc, const double *erpv, double *rsun,
     eci2ecef(tutc,erpv,U,&gmst_);
 
     /* sun and moon position in ecef */
-    if (rsun ) matmul("NN",3,1,3,1.0,U,rs,0.0,rsun );
-    if (rmoon) matmul("NN",3,1,3,1.0,U,rm,0.0,rmoon);
-    if (gmst ) *gmst=gmst_;
+    if (rsun) {
+        matmul("NN", 3, 1, 3, 1.0, U, rs, 0.0, rsun);
+    }
+    if (rmoon) {
+        matmul("NN", 3, 1, 3, 1.0, U, rm, 0.0, rmoon);
+    }
+    if (gmst) {
+        *gmst = gmst_;
+    }
 }

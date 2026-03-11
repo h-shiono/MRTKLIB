@@ -62,7 +62,9 @@ extern void settime(gtime_t time) {}
 static void printhelp(void)
 {
     int i;
-    for (i=0;i<(int)(sizeof(help)/sizeof(*help));i++) fprintf(stderr,"%s\n",help[i]);
+    for (i = 0; i < (int)(sizeof(help) / sizeof(*help)); i++) {
+        fprintf(stderr, "%s\n", help[i]);
+    }
     exit(0);
 }
 /* ssr2osr main --------------------------------------------------------------*/
@@ -104,22 +106,28 @@ int main(int argc, char **argv)
         }
     }
     for (i=1,n=0;i<argc;i++) {
-        if      (!strcmp(argv[i],"-o")&&i+1<argc) outfile=argv[++i];
-        else if (!strcmp(argv[i],"-ts")&&i+2<argc) {
+        if (!strcmp(argv[i], "-o") && i + 1 < argc) {
+            outfile = argv[++i];
+        } else if (!strcmp(argv[i], "-ts") && i + 2 < argc) {
             sscanf(argv[++i],"%lf/%lf/%lf",es,es+1,es+2);
             sscanf(argv[++i],"%lf:%lf:%lf",es+3,es+4,es+5);
             ts=epoch2time(es);
-        }
-        else if (!strcmp(argv[i],"-te")&&i+2<argc) {
+        } else if (!strcmp(argv[i], "-te") && i + 2 < argc) {
             sscanf(argv[++i],"%lf/%lf/%lf",ee,ee+1,ee+2);
             sscanf(argv[++i],"%lf:%lf:%lf",ee+3,ee+4,ee+5);
             te=epoch2time(ee);
+        } else if (!strcmp(argv[i], "-ti") && i + 1 < argc) {
+            tint = atof(argv[++i]);
+        } else if (!strcmp(argv[i], "-k") && i + 1 < argc) {
+            ++i;
+            continue;
+        } else if (!strcmp(argv[i], "-x") && i + 1 < argc) {
+            solopt.trace = atoi(argv[++i]);
+        } else if (*argv[i] == '-') {
+            printhelp();
+        } else if (n < MAXFILE) {
+            infile[n++] = argv[i];
         }
-        else if (!strcmp(argv[i],"-ti")&&i+1<argc) tint=atof(argv[++i]);
-        else if (!strcmp(argv[i],"-k")&&i+1<argc) {++i; continue;}
-        else if (!strcmp(argv[i],"-x")&&i+1<argc) solopt.trace=atoi(argv[++i]);
-        else if (*argv[i]=='-') printhelp();
-        else if (n<MAXFILE) infile[n++]=argv[i];
     }
     if (n<=0) {
         showmsg("error : no input file");
@@ -132,7 +140,9 @@ int main(int argc, char **argv)
     /* generate OSR via postpos pipeline */
     ret=postpos(ctx,ts,te,tint,0.0,&prcopt,&solopt,&filopt,infile,n,outfile,"","");
 
-    if (!ret) fprintf(stderr,"%40s\r","");
+    if (!ret) {
+        fprintf(stderr, "%40s\r", "");
+    }
     mrtk_context_free(g_mrtk_legacy_ctx);
     g_mrtk_ctx=NULL;
     mrtk_ctx_destroy(ctx);
