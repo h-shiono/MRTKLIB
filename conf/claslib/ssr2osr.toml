@@ -3,7 +3,8 @@
 
 [positioning]
 mode                = "ssr2osr"  # (10:ssr2osr,11:ssr2osr-fixed)
-frequency           = "l1+2+3"  # (3:l1+2+3 for L1+L2+L5)
+# frequency           = "l1+2+3"  # (3:l1+2+3 for L1+L2+L5)
+signals             = ["G1C", "G2W", "G5X", "E1C", "E5Q", "E7Q", "J1C", "J5Q", "J2X"]
 elevation_mask      = 15.0  # (deg)
 satellite_ephemeris = "brdc+ssrapc"  # (3:brdc+ssrapc)
 excluded_sats       = ""  # (prn ...)

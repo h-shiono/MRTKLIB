@@ -3,7 +3,8 @@
 
 [positioning]
 mode                = "ppp-rtk"  # (9:ppp-rtk)
-frequency           = "l1+2+3"  # (2:l1+2 for GPS/QZSS L1+L2, 3:l1+2+3 for GPS/QZSS L1+L2+L5 / Galileo E1+E5)
+# frequency           = "l1+2+3"  # (2:l1+2 for GPS/QZSS L1+L2, 3:l1+2+3 for GPS/QZSS L1+L2+L5 / Galileo E1+E5)
+signals             = ["G1C", "G2W", "E1C", "E5Q", "E7Q", "J1C", "J5Q"]
 solution_type       = "forward"  # (0:forward)
 elevation_mask      = 15.0  # (deg)
 dynamics            = true  # (0:off for static,1:on for kinematic)
@@ -35,8 +36,8 @@ partial_ar        = true  # partial ambiguity resolution(0:off,1:on)
 shapiro_delay     = true  # shapiro time delay correction (0:off,1:on)
 exclude_qzs_ref   = true  # exclude QZS as a reference satellite (0:off,1:on)
 no_phase_bias_adj = false  # don't adjust phase bias (0:off,1:on)
-gps_frequency     = "l1+l2"  # gps freq (2:l1+l2,3:l1+l5)
-qzs_frequency     = "l1+l5"  # qzs freq (2:l1+l2,3:l1+l5)
+# gps_frequency     = "l1+l2"  # gps freq (2:l1+l2,3:l1+l5)
+# qzs_frequency     = "l1+l5"  # qzs freq (2:l1+l2,3:l1+l5)
 
 [positioning.atmosphere]
 tidal_correction = "solid+otl-clasgrid+pole"  # (0:off,1:solid,2:solid+otl-station+pole,3:solid+otl-clasgrid+pole)

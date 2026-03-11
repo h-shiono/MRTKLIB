@@ -3,7 +3,8 @@
 
 [positioning]
 mode                = "ppp-rtk"  # (9:ppp-rtk)
-frequency           = "l1+2+3"  # (3:l1+2+3 for GPS/QZSS L1+L2+L5, Galileo E1+E5b)
+# frequency           = "l1+2+3"  # (3:l1+2+3 for GPS/QZSS L1+L2+L5, Galileo E1+E5b)
+signals             = ["G1C", "G2W", "E1C", "E5Q", "E7Q", "J1C", "J5Q", "J2X"]
 solution_type       = "forward"  # (0:forward)
 elevation_mask      = 15.0  # (deg)
 dynamics            = true  # kinematic
@@ -36,7 +37,7 @@ partial_ar        = true  # partial ambiguity resolution
 shapiro_delay     = true  # shapiro time delay
 exclude_qzs_ref   = true  # exclude QZS as reference satellite
 no_phase_bias_adj = false
-gps_frequency     = "l1+l2"  # gps/qzs freq (2:l1+l2)
+# gps_frequency     = "l1+l2"  # gps/qzs freq (2:l1+l2)
 
 [positioning.atmosphere]
 tidal_correction = "solid+otl-clasgrid+pole"  # (3:solid+otl-clasgrid+pole)

@@ -63,6 +63,16 @@ for signal priority.  No algorithmic changes; all positioning output is identica
 - **7 × `code2freq_*()` functions** — `code2freq_GPS/GLO/GAL/QZS/SBS/BDS/IRN`
   replaced by band-based lookup pipeline.
 
+### Known Limitations
+
+- **`positioning.signals` and `[signals]` section conflict** — Configs that use
+  the MADOCALIB per-system signal selection (`[signals] gps`, `galileo`, `bds2`,
+  `bds3`, etc., mapped to `pos2-sig*`) cannot use `positioning.signals` at the
+  same time.  Both mechanisms call `set_obsdef()`, and the `[signals]` section
+  overrides the obsdef ordering set by `positioning.signals`, causing incorrect
+  frequency assignment.  Affected configs (MADOCALIB, MALIB, benchmark/madoca)
+  retain `frequency` for now.  A future release will unify these two mechanisms.
+
 ### Test Results
 
 56/56 non-realtime tests pass — unchanged from v0.5.3.

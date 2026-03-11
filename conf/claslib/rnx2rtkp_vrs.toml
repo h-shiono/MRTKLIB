@@ -3,7 +3,8 @@
 
 [positioning]
 mode                = "vrs-rtk"  # (12:vrs-rtk)
-frequency           = "l1+2+3"  # (3:l1+2+3 for GPS/QZSS L1+L2+L5 / Galileo E1+E5)
+# frequency           = "l1+2+3"  # (3:l1+2+3 for GPS/QZSS L1+L2+L5 / Galileo E1+E5)
+signals             = ["G1C", "G2W", "E1C", "E5Q", "E7Q", "J1C", "J5Q", "J2X"]
 solution_type       = "forward"  # (0:forward)
 elevation_mask      = 15.0  # (deg)
 dynamics            = true  # (0:off for static,1:on for kinematic)
@@ -28,7 +29,7 @@ exclude_eclipse   = true  # exclude measurements of eclipsing satellite(0:off,1:
 raim_fde          = true  # raim fde(0:off,1:on)
 partial_ar        = true  # partial ambiguity resolution(0:off,1:on)
 exclude_qzs_ref   = true  # exclude QZS as a reference satellite (0:off,1:on)
-gps_frequency     = "l1+l2"  # gps/qzs freq (2:l1+l2,3:l1+l5)
+# gps_frequency     = "l1+l2"  # gps/qzs freq (2:l1+l2,3:l1+l5)
 
 [positioning.atmosphere]
 tidal_correction = "off"  # (0:off,1:on)
