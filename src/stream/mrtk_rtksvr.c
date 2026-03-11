@@ -491,7 +491,8 @@ static int decoderaw(rtksvr_t* svr, int index) {
                 ch = (index == 1) ? 1 : 0;
             }
 
-            trace(NULL, 3, "L6D redirect: ch=%d prn=%d index=%d\n", ch, svr->rtcm[index].buff[4], index);
+            trace(NULL, 3, "L6 redirect: fmt=%d ch=%d prn=%d index=%d\n", svr->format[index], ch,
+                  svr->rtcm[index].buff[4], index);
             /* initialize week_ref from obs time (once) */
             if (svr->clas->week_ref[0] == 0) {
                 gtime_t t = svr->raw[0].time;
@@ -502,7 +503,7 @@ static int decoderaw(rtksvr_t* svr, int index) {
                         svr->clas->week_ref[j] = week;
                         svr->clas->tow_ref[j] = -1;
                     }
-                    trace(NULL, 2, "L6D redirect: week_ref initialized to %d\n", week);
+                    trace(NULL, 2, "L6 redirect: week_ref initialized to %d\n", week);
                 }
             }
             /* feed 250-byte L6 frame from rtcm->buff to CLAS decoder */
@@ -513,7 +514,7 @@ static int decoderaw(rtksvr_t* svr, int index) {
                     max_cret = cret;
                 }
                 if (cret == 10) {
-                    trace(NULL, 2, "L6D CSSR epoch: ch=%d k=%d\n", ch, k);
+                    trace(NULL, 2, "L6 CSSR epoch: ch=%d k=%d\n", ch, k);
                     int net = svr->clas->grid[ch].network;
                     if (net > 0) {
                         if (clas_bank_get_close(svr->clas, svr->clas->l6buf[ch].time, net, ch,
@@ -537,7 +538,7 @@ static int decoderaw(rtksvr_t* svr, int index) {
                 }
             }
             if (max_cret > 0) {
-                trace(NULL, 2, "L6D redirect: max_cret=%d ch=%d nframe=%d havebit=%d nbit=%d\n", max_cret, ch,
+                trace(NULL, 2, "L6 redirect: max_cret=%d ch=%d nframe=%d havebit=%d nbit=%d\n", max_cret, ch,
                       svr->clas->l6buf[ch].nframe, svr->clas->l6buf[ch].havebit, svr->clas->l6buf[ch].nbit);
             }
         }
