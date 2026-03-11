@@ -192,6 +192,29 @@ int testelmask(const double* azel, const int16_t* elmask);
 void freeobs(obs_t* obs);
 
 /*============================================================================
+ * Signal Configuration Types
+ *===========================================================================*/
+
+/**
+ * @brief Signal specification: physical band + optional preferred code.
+ */
+typedef struct {
+    mrtk_band_t band;          /* physical frequency band */
+    uint8_t preferred_code;    /* preferred obs code (CODE_???, 0=auto) */
+} mrtk_signal_t;
+
+/**
+ * @brief Per-constellation signal configuration.
+ */
+#define MRTK_MAXSIG_PER_SYS 7 /* max signals per constellation */
+#define MRTK_NSYS 7            /* number of constellations */
+
+typedef struct {
+    int nsig;                                /* number of configured signals */
+    mrtk_signal_t sig[MRTK_MAXSIG_PER_SYS]; /* configured signals */
+} mrtk_sigcfg_t;
+
+/*============================================================================
  * Structured Signal Priority
  *===========================================================================*/
 
@@ -225,6 +248,41 @@ mrtk_band_t mrtk_rinex_freq_to_band(int sys, int rinex_freq_id);
  *         or NULL if no match
  */
 const uint8_t* mrtk_get_signal_priority(int sys, mrtk_band_t band);
+
+/**
+ * @brief Convert physical band back to RINEX frequency number for a given system.
+ * @param[in] sys   Satellite system (SYS_???)
+ * @param[in] band  Physical frequency band
+ * @return RINEX frequency number (1,2,5,...) or 0 on error
+ */
+int mrtk_band_to_freq_num(int sys, mrtk_band_t band);
+
+/**
+ * @brief Parse a RINEX3-style signal string (e.g., "GL1C") into components.
+ * @param[in]  str   Signal string (3-4 chars: {sys}{freq}{attr})
+ * @param[out] sys   Satellite system (SYS_???)
+ * @param[out] band  Physical frequency band
+ * @param[out] code  Observation code (CODE_???)
+ * @return 0: success, -1: error
+ */
+int mrtk_parse_signal_str(const char* str, int* sys, mrtk_band_t* band, uint8_t* code);
+
+/**
+ * @brief Build per-constellation signal config from a signal string array.
+ * @param[in]  sigs   Array of signal strings (e.g., "GL1C", "EL5Q")
+ * @param[in]  nsig   Number of signal strings
+ * @param[out] cfg    Per-constellation signal config array [MRTK_NSYS]
+ * @param[out] nf     Derived number of frequencies (max signals per constellation)
+ * @return 0: success, -1: error
+ */
+int mrtk_sigcfg_from_signals(const char** sigs, int nsig, mrtk_sigcfg_t* cfg, int* nf);
+
+/**
+ * @brief Apply signal config to obsdef tables (bridge to existing system).
+ * @param[in] cfg   Per-constellation signal config array [MRTK_NSYS]
+ * @return 0: success, -1: error
+ */
+int mrtk_sigcfg_to_obsdef(const mrtk_sigcfg_t* cfg);
 
 #ifdef __cplusplus
 }

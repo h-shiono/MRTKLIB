@@ -29,6 +29,7 @@
 #include <string.h>
 
 #include "mrtklib/mrtk_nav.h"
+#include "mrtklib/mrtk_opt.h"
 #include "mrtklib/mrtk_trace.h"
 
 /*============================================================================
@@ -829,4 +830,282 @@ extern const uint8_t* mrtk_get_signal_priority(int sys, mrtk_band_t band) {
         }
     }
     return NULL;
+}
+
+/* mrtk_band_to_freq_num: physical band -> RINEX frequency number ------------
+ * reverse of mrtk_rinex_freq_to_band(). Converts mrtk_band_t back to the
+ * RINEX frequency digit for a given satellite system.
+ * args   : int         sys   I  satellite system (SYS_???)
+ *          mrtk_band_t band  I  physical frequency band
+ * return : RINEX frequency number (1,2,5,...) or 0 on error
+ *----------------------------------------------------------------------------*/
+extern int mrtk_band_to_freq_num(int sys, mrtk_band_t band) {
+    switch (sys) {
+        case SYS_GPS:
+            switch (band) {
+                case MRTK_BAND_GPS_L1:
+                    return 1;
+                case MRTK_BAND_GPS_L2:
+                    return 2;
+                case MRTK_BAND_GPS_L5:
+                    return 5;
+                default:
+                    return 0;
+            }
+        case SYS_GLO:
+            switch (band) {
+                case MRTK_BAND_GLO_G1:
+                    return 1;
+                case MRTK_BAND_GLO_G2:
+                    return 2;
+                case MRTK_BAND_GLO_G3:
+                    return 3;
+                default:
+                    return 0;
+            }
+        case SYS_GAL:
+            switch (band) {
+                case MRTK_BAND_GAL_E1:
+                    return 1;
+                case MRTK_BAND_GAL_E5a:
+                    return 5;
+                case MRTK_BAND_GAL_E5b:
+                    return 7;
+                case MRTK_BAND_GAL_E6:
+                    return 6;
+                case MRTK_BAND_GAL_E5ab:
+                    return 8;
+                default:
+                    return 0;
+            }
+        case SYS_QZS:
+            switch (band) {
+                case MRTK_BAND_QZS_L1:
+                    return 1;
+                case MRTK_BAND_QZS_L2:
+                    return 2;
+                case MRTK_BAND_QZS_L5:
+                    return 5;
+                case MRTK_BAND_QZS_L6:
+                    return 6;
+                default:
+                    return 0;
+            }
+        case SYS_SBS:
+            switch (band) {
+                case MRTK_BAND_SBS_L1:
+                    return 1;
+                case MRTK_BAND_SBS_L5:
+                    return 5;
+                default:
+                    return 0;
+            }
+        case SYS_CMP:
+            switch (band) {
+                case MRTK_BAND_BDS_B1C:
+                    return 1;
+                case MRTK_BAND_BDS_B1I:
+                    return 2;
+                case MRTK_BAND_BDS_B2a:
+                    return 5;
+                case MRTK_BAND_BDS_B3:
+                    return 6;
+                case MRTK_BAND_BDS_B2b:
+                    return 7;
+                case MRTK_BAND_BDS_B2ab:
+                    return 8;
+                default:
+                    return 0;
+            }
+        case SYS_IRN:
+            switch (band) {
+                case MRTK_BAND_IRN_L5:
+                    return 5;
+                case MRTK_BAND_IRN_S:
+                    return 9;
+                default:
+                    return 0;
+            }
+        default:
+            return 0;
+    }
+}
+
+/* mrtk_parse_signal_str: parse RINEX3-style signal string -------------------
+ * parse a signal string like "GL1C" into (system, band, code) components.
+ * format: {sys_char}{freq_digit}{attr_char} (3 chars minimum)
+ * args   : const char *str   I  signal string (e.g., "GL1C", "EL5Q")
+ *          int        *sys   O  satellite system (SYS_???)
+ *          mrtk_band_t *band O  physical frequency band
+ *          uint8_t    *code  O  observation code (CODE_???)
+ * return : 0: success, -1: error
+ *----------------------------------------------------------------------------*/
+extern int mrtk_parse_signal_str(const char* str, int* sys, mrtk_band_t* band, uint8_t* code) {
+    char obs_str[3];
+    int freq_digit;
+
+    if (!str || strlen(str) < 3) {
+        return -1;
+    }
+
+    /* parse system character */
+    switch (str[0]) {
+        case 'G':
+            *sys = SYS_GPS;
+            break;
+        case 'R':
+            *sys = SYS_GLO;
+            break;
+        case 'E':
+            *sys = SYS_GAL;
+            break;
+        case 'J':
+            *sys = SYS_QZS;
+            break;
+        case 'S':
+            *sys = SYS_SBS;
+            break;
+        case 'C':
+            *sys = SYS_CMP;
+            break;
+        case 'I':
+            *sys = SYS_IRN;
+            break;
+        default:
+            return -1;
+    }
+
+    /* parse frequency digit */
+    freq_digit = str[1] - '0';
+    if (freq_digit < 1 || freq_digit > 9) {
+        return -1;
+    }
+    *band = mrtk_rinex_freq_to_band(*sys, freq_digit);
+    if (*band == MRTK_BAND_UNKNOWN) {
+        return -1;
+    }
+
+    /* parse observation code: freq_digit + attribute char → obs code string */
+    obs_str[0] = str[1]; /* freq digit */
+    obs_str[1] = str[2]; /* attribute char */
+    obs_str[2] = '\0';
+    *code = obs2code(obs_str);
+    if (*code == CODE_NONE) {
+        return -1;
+    }
+
+    return 0;
+}
+
+/* sys index for sigcfg array ------------------------------------------------*/
+static int sys2sigcfg_idx(int sys) {
+    switch (sys) {
+        case SYS_GPS:
+            return 0;
+        case SYS_GLO:
+            return 1;
+        case SYS_GAL:
+            return 2;
+        case SYS_QZS:
+            return 3;
+        case SYS_SBS:
+            return 4;
+        case SYS_CMP:
+            return 5;
+        case SYS_IRN:
+            return 6;
+        default:
+            return -1;
+    }
+}
+
+/* mrtk_sigcfg_from_signals: build sigcfg from signal string array -----------
+ * parse an array of RINEX3-style signal strings (e.g., "GL1C", "EL5Q") and
+ * populate per-constellation sigcfg arrays. Also derives nf as the maximum
+ * number of signals configured for any single constellation.
+ * args   : const char **sigs  I  array of signal strings
+ *          int         nsig   I  number of signal strings
+ *          mrtk_sigcfg_t *cfg O  per-constellation signal config [MRTK_NSYS]
+ *          int         *nf    O  derived number of frequencies
+ * return : 0: success, -1: error
+ *----------------------------------------------------------------------------*/
+extern int mrtk_sigcfg_from_signals(const char** sigs, int nsig, mrtk_sigcfg_t* cfg, int* nf) {
+    int i, sys_idx, max_nf = 0;
+    int sys;
+    mrtk_band_t band;
+    uint8_t code;
+
+    if (!sigs || !cfg || !nf || nsig <= 0) {
+        return -1;
+    }
+
+    /* zero-initialize all configs */
+    memset(cfg, 0, sizeof(mrtk_sigcfg_t) * MRTK_NSYS);
+
+    for (i = 0; i < nsig; i++) {
+        if (mrtk_parse_signal_str(sigs[i], &sys, &band, &code) != 0) {
+            trace(NULL, 2, "mrtk_sigcfg_from_signals: invalid signal '%s'\n", sigs[i]);
+            return -1;
+        }
+
+        sys_idx = sys2sigcfg_idx(sys);
+        if (sys_idx < 0) {
+            return -1;
+        }
+
+        if (cfg[sys_idx].nsig >= MRTK_MAXSIG_PER_SYS) {
+            trace(NULL, 2, "mrtk_sigcfg_from_signals: too many signals for sys=%d\n", sys);
+            return -1;
+        }
+
+        cfg[sys_idx].sig[cfg[sys_idx].nsig].band = band;
+        cfg[sys_idx].sig[cfg[sys_idx].nsig].preferred_code = code;
+        cfg[sys_idx].nsig++;
+    }
+
+    /* derive nf as max signals across all constellations */
+    for (i = 0; i < MRTK_NSYS; i++) {
+        if (cfg[i].nsig > max_nf) {
+            max_nf = cfg[i].nsig;
+        }
+    }
+    *nf = max_nf;
+
+    return 0;
+}
+
+/* mrtk_sigcfg_to_obsdef: bridge sigcfg to existing obsdef tables ------------
+ * for each constellation with nsig > 0, convert sigcfg bands to RINEX
+ * frequency numbers and call set_obsdef() to rearrange the obsdef table.
+ * args   : const mrtk_sigcfg_t *cfg  I  per-constellation signal config [MRTK_NSYS]
+ * return : 0: success, -1: error
+ *----------------------------------------------------------------------------*/
+extern int mrtk_sigcfg_to_obsdef(const mrtk_sigcfg_t* cfg) {
+    static const int sys_list[MRTK_NSYS] = {SYS_GPS, SYS_GLO, SYS_GAL, SYS_QZS, SYS_SBS, SYS_CMP, SYS_IRN};
+    int freq_nums[MAXFREQ];
+    int i, j;
+
+    if (!cfg) {
+        return -1;
+    }
+
+    for (i = 0; i < MRTK_NSYS; i++) {
+        if (cfg[i].nsig <= 0) {
+            continue;
+        }
+
+        /* build freq_num array from sigcfg bands */
+        memset(freq_nums, 0, sizeof(freq_nums));
+        for (j = 0; j < cfg[i].nsig && j < MAXFREQ; j++) {
+            freq_nums[j] = mrtk_band_to_freq_num(sys_list[i], cfg[i].sig[j].band);
+            if (freq_nums[j] == 0) {
+                trace(NULL, 2, "mrtk_sigcfg_to_obsdef: invalid band %d for sys=%02x\n", cfg[i].sig[j].band,
+                      sys_list[i]);
+                return -1;
+            }
+        }
+
+        set_obsdef(sys_list[i], freq_nums);
+    }
+    return 0;
 }
