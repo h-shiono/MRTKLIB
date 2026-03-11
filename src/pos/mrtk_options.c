@@ -23,6 +23,7 @@
 
 #include "mrtklib/mrtk_coords.h"
 #include "mrtklib/mrtk_nav.h"
+#include "mrtklib/mrtk_obs.h"
 #include "mrtklib/mrtk_toml.h"
 #include "mrtklib/mrtk_trace.h"
 
@@ -41,6 +42,7 @@ static double elmask_, elmaskar_, elmaskhold_;
 static double antpos_[2][3];
 static char exsats_[1024];
 static char snrmask_[NFREQ][1024];
+static char signals_[1024];
 
 /* system options table ------------------------------------------------------*/
 #define SWTOPT "0:off,1:on"
@@ -112,6 +114,7 @@ opt_t sysopts[] = {
     {"pos1-rux", 1, (void*)&prcopt_.ru[0], ""},
     {"pos1-ruy", 1, (void*)&prcopt_.ru[1], ""},
     {"pos1-ruz", 1, (void*)&prcopt_.ru[2], ""},
+    {"pos1-signals", 2, (void*)signals_, ""},
 
     {"pos2-armode", 3, (void*)&prcopt_.modear, ARMOPT},
     {"pos2-gloarmode", 3, (void*)&prcopt_.glomodear, GAROPT},
@@ -570,6 +573,30 @@ static void buff2sysopts(void) {
         strcpy(buff, snrmask_[i]);
         for (p = strtok(buff, ","), j = 0; p && j < 9; p = strtok(NULL, ",")) {
             prcopt_.snrmask.mask[i][j++] = atof(p);
+        }
+    }
+    /* explicit signal configuration */
+    if (signals_[0] != '\0') {
+        const char* sigs[64];
+        int nsig = 0, nf = 0;
+
+        strcpy(buff, signals_);
+        for (p = strtok(buff, ","); p && nsig < 64; p = strtok(NULL, ",")) {
+            /* trim leading whitespace */
+            while (*p == ' ') {
+                p++;
+            }
+            if (*p) {
+                sigs[nsig++] = p;
+            }
+        }
+        if (nsig > 0 && mrtk_sigcfg_from_signals(sigs, nsig, prcopt_.sigcfg, &nf) == 0) {
+            prcopt_.sigcfg_set = 1;
+            prcopt_.nf = nf;
+            mrtk_sigcfg_to_obsdef(prcopt_.sigcfg);
+            trace(NULL, 3, "buff2sysopts: signals configured (%d signals, nf=%d)\n", nsig, nf);
+        } else {
+            trace(NULL, 1, "buff2sysopts: invalid signals string '%s'\n", signals_);
         }
     }
 }
