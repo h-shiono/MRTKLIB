@@ -5,6 +5,30 @@ All notable changes to MRTKLIB are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v0.5.3] - 2026-03-11
+
+**Full clang-format release** — Applies `clang-format` (Google style, 4-space
+indent, 120-column limit) to the entire codebase.  No functional or algorithmic
+changes.
+
+### Changed
+
+- **Full clang-format application** — All 116 source and header files under
+  `src/`, `apps/`, and `include/` formatted with `clang-format` using the
+  project `.clang-format` configuration.  Excludes vendored `src/core/tomlc99/`.
+- **Idempotency verified** — Re-running `clang-format --dry-run --Werror`
+  produces zero violations.
+
+### Scope
+
+116 files, +48,027 / -46,636 lines.
+
+### Test Results
+
+56/56 non-realtime tests pass — unchanged from v0.5.2.
+
+---
+
 ## [v0.5.2] - 2026-03-10
 
 **Code quality release** — Enforces mandatory braces on all control flow
@@ -739,6 +763,7 @@ Initial release — MALIB structural migration complete.
 - **MALIB integration** — Structural base from JAXA MALIB feature/1.2.0
   (directory layout, threading, stream I/O).
 
+[v0.5.3]: https://github.com/h-shiono/MRTKLIB/compare/v0.5.2...v0.5.3
 [v0.5.2]: https://github.com/h-shiono/MRTKLIB/compare/v0.5.1...v0.5.2
 [v0.5.1]: https://github.com/h-shiono/MRTKLIB/compare/v0.5.0...v0.5.1
 [v0.5.0]: https://github.com/h-shiono/MRTKLIB/compare/v0.4.4...v0.5.0
