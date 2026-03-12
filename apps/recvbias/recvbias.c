@@ -26,6 +26,9 @@
 #include "mrtklib/mrtk_trace.h"
 #include "rtklib.h"
 
+#ifndef PROGNAME
+#define PROGNAME "recvbias"
+#endif
 #define SQR(x) ((x) * (x))
 
 #define MAXAGESSRRTCM 86400
@@ -48,7 +51,7 @@ static int nsysrb, nsysrbmax;
 static rawbias_t* satrb;
 static rawbias_t* sysrb;
 static gtime_t st = {0}, et = {0};
-static rtcm_t rtcm;       /* rtcm control struct */
+static rtcm_t* rtcm;      /* rtcm control struct (heap, ~103MB) */
 static int selsiggps = 0; /* 0:L1C/A-L2P,1:L1C/A-L2C,2:L1C/A-L5 */
 static int selsigqzs = 0; /* 0:L1C-L5,1:L1C/A-L2C */
 static int selsigcmp = 0; /* 0:B1-B3,1:B1C-B2a */
@@ -272,8 +275,8 @@ static void update_rtcm_ssr(const char* file, nav_t* nav, gtime_t time) {
         }
         fp_rtcm = fopen(path, "rb");
         if (fp_rtcm) {
-            rtcm.time = time;
-            input_rtcm3f(&rtcm, fp_rtcm);
+            rtcm->time = time;
+            input_rtcm3f(rtcm, fp_rtcm);
             trace(NULL, 2, "rtcm file open: %s\n", path);
         }
     }
@@ -282,21 +285,21 @@ static void update_rtcm_ssr(const char* file, nav_t* nav, gtime_t time) {
     }
 
     /* read rtcm file until current time */
-    while (timediff(rtcm.time, time) < 1E-3) {
-        strcpy(tstr, time_str(rtcm.time, 3));
-        if (input_rtcm3f(&rtcm, fp_rtcm) < -1) {
+    while (timediff(rtcm->time, time) < 1E-3) {
+        strcpy(tstr, time_str(rtcm->time, 3));
+        if (input_rtcm3f(rtcm, fp_rtcm) < -1) {
             break;
         }
         trace(NULL, 3, "update_rtcm_ssr: %s %s\n", time_str(time, 3), tstr);
 
         /* update ssr corrections */
         for (i = 0; i < MAXSAT; i++) {
-            if (!rtcm.ssr[i].update || rtcm.ssr[i].iod[0] != rtcm.ssr[i].iod[1] ||
-                timediff(time, rtcm.ssr[i].t0[0]) < -1E-3) {
+            if (!rtcm->ssr[i].update || rtcm->ssr[i].iod[0] != rtcm->ssr[i].iod[1] ||
+                timediff(time, rtcm->ssr[i].t0[0]) < -1E-3) {
                 continue;
             }
-            nav->ssr_ch[0][i] = rtcm.ssr[i];
-            rtcm.ssr[i].update = 0;
+            nav->ssr_ch[0][i] = rtcm->ssr[i];
+            rtcm->ssr[i].update = 0;
         }
     }
 }
@@ -331,20 +334,20 @@ static void update_qzssl6e(const char* file, nav_t* nav, gtime_t gt) {
         init_flg = 0;
     }
 
-    while (timediff(rtcm.time, gt) < 1E-3) {
-        strcpy(tstr, time_str(rtcm.time, 3));
+    while (timediff(rtcm->time, gt) < 1E-3) {
+        strcpy(tstr, time_str(rtcm->time, 3));
         trace(NULL, 3, "update_qzssl6e: %s %s\n", time_str(gt, 3), tstr);
 
         /* update QZSS L6E MADOCA-PPP corrections */
         for (i = 0; i < MAXSAT; i++) {
-            if (!rtcm.ssr[i].update || rtcm.ssr[i].iod[0] != rtcm.ssr[i].iod[1] ||
-                timediff(gt, rtcm.ssr[i].t0[0]) < -1E-3) {
+            if (!rtcm->ssr[i].update || rtcm->ssr[i].iod[0] != rtcm->ssr[i].iod[1] ||
+                timediff(gt, rtcm->ssr[i].t0[0]) < -1E-3) {
                 continue;
             }
-            nav->ssr_ch[0][i] = rtcm.ssr[i];
-            rtcm.ssr[i].update = 0;
+            nav->ssr_ch[0][i] = rtcm->ssr[i];
+            rtcm->ssr[i].update = 0;
         }
-        if (input_qzssl6ef(&rtcm, fp_qzssl6e) < -1) {
+        if (input_qzssl6ef(rtcm, fp_qzssl6e) < -1) {
             break;
         }
     }
@@ -841,7 +844,7 @@ static int gen_bias(gtime_t ts, double tspan, const char* navfile, const char* o
     return 1;
 }
 /* main ----------------------------------------------------------------------*/
-int main(int argc, char** argv) {
+int mrtk_bias(int argc, char** argv) {
     gtime_t ts;
     double ep[6] = {2014, 1, 1}, tspan = 1.0, ecef[3] = {0.0}, elmask = 30 * D2R;
     int i;
@@ -852,6 +855,13 @@ int main(int argc, char** argv) {
     char* reqarg[] = {"-td", "-nav", "-tec", "-scb", "-pos", "obsavation file"};
     char staname[32] = "";
     mrtk_ctx_t* ctx;
+
+    /* Allocate rtcm_t on heap (~103MB) to avoid bloating BSS */
+    rtcm = (rtcm_t*)calloc(1, sizeof(rtcm_t));
+    if (!rtcm) {
+        fprintf(stderr, "error: rtcm_t allocation failed\n");
+        return -1;
+    }
 
     /* Initialize MRTKLIB runtime context */
     ctx = mrtk_ctx_create();
@@ -929,11 +939,13 @@ int main(int argc, char** argv) {
         }
         fprintf(stderr, "error : %s required options\n", reqarg[i]);
         print_help();
+        free(rtcm);
         return -1;
     }
 
     /* generate receiver bias */
     if (!gen_bias(ts, tspan, navfile, obsfile, tecfile, scbfile, ecef, elmask, outfile, staname, allb)) {
+        free(rtcm);
         return -1;
     }
 
@@ -942,5 +954,6 @@ int main(int argc, char** argv) {
     }
     g_mrtk_ctx = NULL;
     mrtk_ctx_destroy(ctx);
+    free(rtcm);
     return 1;
 }

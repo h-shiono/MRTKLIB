@@ -183,15 +183,6 @@ static void printhelp(void) {
     for (i = 0; i < (int)(sizeof(help) / sizeof(*help)); i++) fprintf(stderr, "%s\n", help[i]);
     exit(0);
 }
-/* show message --------------------------------------------------------------*/
-extern int showmsg(const char* format, ...) {
-    va_list arg;
-    va_start(arg, format);
-    vfprintf(stderr, format, arg);
-    va_end(arg);
-    fprintf(stderr, *format ? "\r" : "\n");
-    return 0;
-}
 /* convert main --------------------------------------------------------------*/
 static int convbin(int format, rnxopt_t* opt, const char* ifile, char** file, char* dir) {
     int i, def;
@@ -634,7 +625,7 @@ static int cmdopts(int argc, char** argv, rnxopt_t* opt, char** ifile, char** of
     return format;
 }
 /* main ----------------------------------------------------------------------*/
-int main(int argc, char** argv) {
+int mrtk_convert(int argc, char** argv) {
     rnxopt_t opt = {{0}};
     int format, trace = 0, stat;
     char *ifile = "", *ofile[NOUTFILE] = {0}, *dir = "";

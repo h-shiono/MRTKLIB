@@ -541,7 +541,7 @@ static int set_prcopt(const char* file, prcopt_t* prcopt, solopt_t* solopt, filo
 }
 
 /* main ----------------------------------------------------------------------*/
-int main(int argc, char** argv) {
+int mrtk_ssr2obs(int argc, char** argv) {
     prcopt_t prcopt = prcopt_default;
     solopt_t solopt = solopt_default;
     filopt_t filopt = {""};

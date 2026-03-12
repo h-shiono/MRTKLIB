@@ -220,7 +220,7 @@ static void readcmd(const char* file, char* cmd, int type) {
     fclose(fp);
 }
 /* str2str -------------------------------------------------------------------*/
-int main(int argc, char** argv) {
+int mrtk_relay(int argc, char** argv) {
     static char cmd_strs[MAXSTR][MAXRCVCMD] = {"", "", "", "", ""};
     static char cmd_periodic_strs[MAXSTR][MAXRCVCMD] = {"", "", "", "", ""};
     const char ss[] = {'E', '-', 'W', 'C', 'C'};
