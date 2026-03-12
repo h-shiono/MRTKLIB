@@ -163,10 +163,3 @@ rinex_option_2     = ""
 ppp_option         = ""
 rtcm_option        = ""
 
-[unknown]
-pos2-siggpsIIR-M = "0"  # (0:L1C/A-L2P,1:L1C/A-L2C)
-pos2-siggpsIIF   = "0"  # (0:L1C/A-L2P,1:L1C/A-L2C,2:L1C/A-L5)
-pos2-siggpsIIIA  = "0"  # (0:L1C/A-L2P,1:L1C/A-L2C,2:L1C/A-L5)
-pos2-sigqzs1_2   = "1"  # (0:L1C-L5,1:L1C/A-L2C)
-pos2-siggal1_2   = "0"  # (0:E1C-E5a,1:E1C-E5b)
-
