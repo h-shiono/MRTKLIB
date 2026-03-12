@@ -5,6 +5,34 @@ All notable changes to MRTKLIB are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v0.5.6] - 2026-03-12
+
+**Feature** — RINEX 4.00 CNAV/CNV2 navigation message support.
+
+### Added
+
+- **GPS/QZSS CNAV decoder** (`decode_eph_cnav()`) — Parses 8-orbit CNAV and
+  9-orbit CNV2 ephemeris records, including Adot, Delta_n0_dot, URAI indices,
+  and ISC corrections (ISC_L1CA, ISC_L2C, ISC_L5I5, ISC_L5Q5, ISC_L1Cd).
+- **BDS CNAV decoder** (`decode_eph_bds_cnav()`) — Parses CNV1 (B1C, 9 orbits),
+  CNV2 (B2a, 9 orbits), and CNV3 (B2b, 8 orbits) ephemeris records with
+  SISAI/SISMAI accuracy indices and BDS-specific TGD/ISC fields.
+- **STO/ION CNVX support** — CNAV-source system time offset and ionosphere
+  records (`STO Gxx CNVX`, `ION Cxx CNVX`, etc.) are now parsed alongside
+  their LNAV/D1D2 equivalents.
+- **RINEX 4 unit tests** — `t_rinex4.c` with 4 test cases verifying record
+  counts and field sanity against DLR BRD400 merged broadcast data.
+
+### Changed
+
+- **EPH decode trigger** — Replaced the fixed `i >= 31` (7-orbit) threshold
+  with v4type-aware logic: 35 fields for 8-orbit types (GPS/QZSS CNAV, BDS
+  CNV3) and 39 fields for 9-orbit types (GPS/QZSS CNV2, BDS CNV1/CNV2).
+
+### Test Results
+
+62/62 non-realtime tests pass (59 existing + 3 new RINEX 4 tests).
+
 ## [v0.5.5] - 2026-03-11
 
 **Bug fix** — CLAS real-time positioning via UBX does not work

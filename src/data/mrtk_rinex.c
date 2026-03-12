@@ -1319,6 +1319,181 @@ static int readrnxobs(FILE* fp, gtime_t ts, gtime_t te, double tint, const char*
 
     return stat;
 }
+/* decode GPS/QZSS CNAV/CNV2 ephemeris --------------------------------------*/
+static int decode_eph_cnav(int ver, int sat, gtime_t toc, const double* data, int ndata,
+                           int v4type, eph_t* eph) {
+    eph_t eph0 = {0};
+    int sys;
+
+    trace(NULL, 4, "decode_eph_cnav: ver=%.2f sat=%2d v4type=%d ndata=%d\n", ver / 100.0, sat,
+          v4type, ndata);
+
+    sys = satsys(sat, NULL);
+
+    if (!(sys & (SYS_GPS | SYS_QZS))) {
+        trace(NULL, 3, "cnav ephemeris error: invalid satellite sat=%2d\n", sat);
+        return 0;
+    }
+    *eph = eph0;
+
+    eph->sat = sat;
+    eph->toc = toc;
+
+    /* clock parameters (orbit 0) */
+    eph->f0 = data[0];
+    eph->f1 = data[1];
+    eph->f2 = data[2];
+
+    /* Keplerian elements (orbits 1-4, same layout as LNAV data[4..18]) */
+    eph->Adot = data[3]; /* A_DOT (CNAV-specific) */
+    eph->crs = data[4];
+    eph->deln = data[5];
+    eph->M0 = data[6];
+    eph->cuc = data[7];
+    eph->e = data[8];
+    eph->cus = data[9];
+    eph->A = SQR(data[10]);
+    eph->toes = data[11]; /* t_op */
+    eph->cic = data[12];
+    eph->OMG0 = data[13];
+    eph->cis = data[14];
+    eph->i0 = data[15];
+    eph->crc = data[16];
+    eph->omg = data[17];
+    eph->OMGd = data[18];
+
+    /* orbit 5 */
+    eph->idot = data[19];
+    eph->ndot = data[20]; /* Delta_n0_dot (CNAV-specific) */
+
+    /* orbit 6: URAI_ED, SV health, TGD, URAI_NED2 */
+    eph->sva = (int)data[23]; /* URAI_ED (already an index) */
+    eph->svh = (int)data[24]; /* SV health */
+    eph->tgd[0] = data[25];  /* TGD */
+
+    /* orbit 7: ISC corrections */
+    eph->tgd[1] = data[27]; /* ISC_L1CA */
+    eph->tgd[2] = data[28]; /* ISC_L2C */
+    eph->tgd[3] = data[29]; /* ISC_L5I5 */
+    eph->tgd[4] = data[30]; /* ISC_L5Q5 */
+
+    if (v4type == 2 || v4type == 42) {
+        /* CNAV: 8 orbits */
+        eph->ttr = adjweek(gpst2time((int)data[32], data[31]), toc);
+        eph->week = (int)data[32]; /* wn_op */
+        eph->type = 1;            /* CNAV */
+    } else {
+        /* CNV2: 9 orbits */
+        eph->tgd[5] = data[31]; /* ISC_L1Cd */
+        eph->ttr = adjweek(gpst2time((int)data[36], data[35]), toc);
+        eph->week = (int)data[36]; /* wn_op */
+        eph->type = 2;            /* CNV2 */
+    }
+    eph->toe = adjweek(gpst2time(eph->week, eph->toes), toc);
+
+    /* CNAV has no traditional IODE — derive pseudo-IODE from toes for
+     * uniqeph() deduplication (sat + iode + type must be unique) */
+    eph->iode = (int)(eph->toes / 300) % 256;
+    eph->iodc = eph->iode;
+    eph->fit = 0.0;
+
+    return 1;
+}
+/* decode BDS CNAV-1/2/3 ephemeris ------------------------------------------*/
+static int decode_eph_bds_cnav(int ver, int sat, gtime_t toc, const double* data, int ndata,
+                               int v4type, eph_t* eph) {
+    eph_t eph0 = {0};
+    int sys, prn;
+
+    trace(NULL, 4, "decode_eph_bds_cnav: ver=%.2f sat=%2d v4type=%d ndata=%d\n", ver / 100.0, sat,
+          v4type, ndata);
+
+    sys = satsys(sat, &prn);
+
+    if (sys != SYS_CMP) {
+        trace(NULL, 3, "bds cnav ephemeris error: invalid satellite sat=%2d\n", sat);
+        return 0;
+    }
+    *eph = eph0;
+
+    eph->sat = sat;
+    eph->toc = bdt2gpst(toc); /* BDT -> GPST */
+
+    /* clock parameters (orbit 0) */
+    eph->f0 = data[0];
+    eph->f1 = data[1];
+    eph->f2 = data[2];
+
+    /* Keplerian elements (orbits 1-4, same layout as CNAV) */
+    eph->Adot = data[3]; /* A_DOT */
+    eph->crs = data[4];
+    eph->deln = data[5];
+    eph->M0 = data[6];
+    eph->cuc = data[7];
+    eph->e = data[8];
+    eph->cus = data[9];
+    eph->A = SQR(data[10]);
+    eph->toes = data[11]; /* ToE (BDT) */
+    eph->cic = data[12];
+    eph->OMG0 = data[13];
+    eph->cis = data[14];
+    eph->i0 = data[15];
+    eph->crc = data[16];
+    eph->omg = data[17];
+    eph->OMGd = data[18];
+
+    /* orbit 5 */
+    eph->idot = data[19];
+    eph->ndot = data[20]; /* Delta_n0_dot */
+
+    /* derive BDT week from Toc (no week field in BDS CNAV records) */
+    {
+        int bdt_week;
+        time2bdt(toc, &bdt_week);
+
+        if (v4type == 55) {
+            /* BDS CNV3 (Table A24): 8 orbits
+             * orbit 6: SISAI_oe, SISAI_ocb, SISAI_oc1, SISAI_oc2
+             * orbit 7: SISMAI, Health, IntFlags, TGD_B2bI
+             * orbit 8: t_tm */
+            eph->sva = (int)data[27];  /* SISMAI (index) */
+            eph->svh = (int)data[28];  /* Health */
+            eph->tgd[1] = data[30];   /* TGD_B2bI (B2 group delay) */
+            eph->week = bdt_week;
+            eph->ttr = bdt2gpst(bdt2time(bdt_week, data[31])); /* t_tm */
+            /* CNV3 has no IODE — derive pseudo-IODE from toes for
+             * uniqeph() deduplication (sat + iode + type must be unique) */
+            eph->iode = (int)(eph->toes / 300) % 256;
+            eph->iodc = eph->iode;
+            eph->type = 4; /* CNAV-3 */
+        } else {
+            /* BDS CNV1 (Table A22) / CNV2 (Table A23): 9 orbits
+             * orbit 6: SISAI_oe, SISAI_ocb, SISAI_oc1, SISAI_oc2
+             * orbit 7: ISC_B1Cd/spare, spare/ISC_B2ad, TGD_B1Cp, TGD_B2ap
+             * orbit 8: SISMAI, Health, IntFlags, IODC
+             * orbit 9: t_tm, spare(x2), IODE */
+            eph->sva = (int)data[31];  /* SISMAI (index) */
+            eph->svh = (int)data[32];  /* Health */
+            eph->tgd[2] = data[29];   /* TGD_B1Cp */
+            eph->tgd[3] = data[30];   /* TGD_B2ap */
+            if (v4type == 53) {
+                eph->tgd[4] = data[27]; /* ISC_B1Cd (CNV1) */
+            } else {
+                eph->tgd[5] = data[28]; /* ISC_B2ad (CNV2) */
+            }
+            eph->iodc = (int)data[34];
+            eph->week = bdt_week;
+            eph->ttr = bdt2gpst(bdt2time(bdt_week, data[35])); /* t_tm */
+            eph->iode = (int)data[38]; /* IODE */
+            eph->type = (v4type == 53) ? 2 : 3; /* CNAV-1 or CNAV-2 */
+        }
+    }
+    eph->toe = bdt2gpst(bdt2time(eph->week, eph->toes));
+    eph->toe = adjweek(eph->toe, eph->toc);
+    eph->ttr = adjweek(eph->ttr, eph->toc);
+
+    return 1;
+}
 /* decode ephemeris ----------------------------------------------------------*/
 static int decode_eph(int ver, int sat, gtime_t toc, const double* data, eph_t* eph) {
     eph_t eph0 = {0};
@@ -1548,22 +1723,22 @@ static int readrnxnavb(FILE* fp, const char* opt, int ver, int sys, int* type, e
      *
      * (1) Navigation message
      *  -------  -----------  -----------  -----------  -----------  -----------
-     *  EPH Gxx  LNAV   1     CNAV   2(*)  CNV2   3(*)
+     *  EPH Gxx  LNAV   1     CNAV   2     CNV2   3
      *  EPH Sxx  SBAS  11
      *  EPH Rxx  FDMA  21     L1OC  22(*)  L3OC  23(*)
      *  EPH Exx  INAV  31     FNAV  32
-     *  EPH Jxx  LNAV  41     CNAV  42(*)  CNV2  43(*)
-     *  EPH Cxx  D1    51     D2    52(*)  CNV1  53(*)  CNV2  54(*)  CNV3  55(*)
+     *  EPH Jxx  LNAV  41     CNAV  42     CNV2  43
+     *  EPH Cxx  D1    51     D2    52     CNV1  53     CNV2  54     CNV3  55
      *  EPH Ixx  L1NV  61
      *  -------  -----------  -----------  -----------  -----------  -----------
      *
      * (2) System Time and UTC Offset
      *  -------  -----------  -----------
-     *  STO Gxx  LNAV 101     CNVX 102(*)
+     *  STO Gxx  LNAV 101     CNVX 102
      *  STO Rxx  FDMA 121
      *  STO Exx  IFNV 131
-     *  STO Jxx  LNAV 141     CNVX 142(*)
-     *  STO Cxx  D1D2 151     CNVX 152(*)
+     *  STO Jxx  LNAV 141     CNVX 142
+     *  STO Cxx  D1D2 151     CNVX 152
      *  STO Ixx  LNAV 161
      *  -------  -----------  -----------
      *
@@ -1577,14 +1752,14 @@ static int readrnxnavb(FILE* fp, const char* opt, int ver, int sys, int* type, e
      *
      * (4) Ionosphere Model Parameters
      *  -------  -----------  -----------
-     *  ION Gxx  LNAV 301     CNVX 302(*)
+     *  ION Gxx  LNAV 301     CNVX 302
      *  ION Exx  IFNV 331
-     *  ION Jxx  LNAV 341     CNVX 342(*)
-     *  ION Cxx  D1D2 351     CNVX 352(*)
+     *  ION Jxx  LNAV 341     CNVX 342
+     *  ION Cxx  D1D2 351     CNVX 352
      *  ION Ixx  LNAV 361
      *  -------  -----------  -----------
      *
-     *   (*) This version does not support these yet.
+     *   (*) Not supported.
      *------------------------------------------------------------------------*/
 
     gtime_t toc;
@@ -1619,6 +1794,20 @@ static int readrnxnavb(FILE* fp, const char* opt, int ver, int sys, int* type, e
                     v4type = 51;
                 } else if (!strncmp(buff + 2, "EPH Cxx D2  ", 12)) {
                     v4type = 52;
+                } else if (!strncmp(buff + 2, "EPH Gxx CNAV", 12)) {
+                    v4type = 2;
+                } else if (!strncmp(buff + 2, "EPH Gxx CNV2", 12)) {
+                    v4type = 3;
+                } else if (!strncmp(buff + 2, "EPH Jxx CNAV", 12)) {
+                    v4type = 42;
+                } else if (!strncmp(buff + 2, "EPH Jxx CNV2", 12)) {
+                    v4type = 43;
+                } else if (!strncmp(buff + 2, "EPH Cxx CNV1", 12)) {
+                    v4type = 53;
+                } else if (!strncmp(buff + 2, "EPH Cxx CNV2", 12)) {
+                    v4type = 54;
+                } else if (!strncmp(buff + 2, "EPH Cxx CNV3", 12)) {
+                    v4type = 55;
                 } else if (!strncmp(buff + 2, "EPH Ixx LNAV", 12)) {
                     v4type = 61;
                 } else if (!strncmp(buff + 2, "STO Gxx LNAV", 12)) {
@@ -1633,6 +1822,12 @@ static int readrnxnavb(FILE* fp, const char* opt, int ver, int sys, int* type, e
                     v4type = 151;
                 } else if (!strncmp(buff + 2, "STO Ixx LNAV", 12)) {
                     v4type = 161;
+                } else if (!strncmp(buff + 2, "STO Gxx CNVX", 12)) {
+                    v4type = 102; /* GPS CNAV STO (same data as LNAV STO) */
+                } else if (!strncmp(buff + 2, "STO Jxx CNVX", 12)) {
+                    v4type = 142;
+                } else if (!strncmp(buff + 2, "STO Cxx CNVX", 12)) {
+                    v4type = 152;
                 } else if (!strncmp(buff + 2, "ION Gxx LNAV", 12)) {
                     v4type = 301;
                 } else if (!strncmp(buff + 2, "ION Exx IFNV", 12)) {
@@ -1643,6 +1838,12 @@ static int readrnxnavb(FILE* fp, const char* opt, int ver, int sys, int* type, e
                     v4type = 351;
                 } else if (!strncmp(buff + 2, "ION Ixx LNAV", 12)) {
                     v4type = 361;
+                } else if (!strncmp(buff + 2, "ION Gxx CNVX", 12)) {
+                    v4type = 302; /* GPS CNAV Klobuchar ION */
+                } else if (!strncmp(buff + 2, "ION Jxx CNVX", 12)) {
+                    v4type = 342;
+                } else if (!strncmp(buff + 2, "ION Cxx CNVX", 12)) {
+                    v4type = 352;
                 } else {
                     v4type = 0;
                 }
@@ -1711,19 +1912,19 @@ static int readrnxnavb(FILE* fp, const char* opt, int ver, int sys, int* type, e
                 }
 
                 /* Ionosphere (ION) Klobuchar Model Message */
-                if (v4type == 301 && i >= 8) {
+                if ((v4type == 301 || v4type == 302) && i >= 8) {
                     for (j = 0; j < 8; j++) {
                         nav->ion_gps[j] = data[j];
                     }
                     i = 0;
                 }
-                if (v4type == 341 && i >= 8) {
+                if ((v4type == 341 || v4type == 342) && i >= 8) {
                     for (j = 0; j < 8; j++) {
                         nav->ion_qzs[j] = data[j];
                     }
                     i = 0;
                 }
-                if (v4type == 351 && i >= 8) {
+                if ((v4type == 351 || v4type == 352) && i >= 8) {
                     for (j = 0; j < 8; j++) {
                         nav->ion_cmp[j] = data[j];
                     }
@@ -1804,12 +2005,27 @@ static int readrnxnavb(FILE* fp, const char* opt, int ver, int sys, int* type, e
                 }
                 *type = 2;
                 return decode_seph(ver, sat, toc, data, seph);
-            } else if (i >= 31) {
-                if (!(mask & sys)) {
-                    return 0;
+            } else {
+                /* v4type-aware data field count threshold */
+                int ndata_eph = 31; /* default: 7 orbits (LNAV/INAV/FNAV/D1/D2) */
+                if (v4type == 2 || v4type == 42 || v4type == 55) {
+                    ndata_eph = 35; /* 8 orbits (GPS/QZSS CNAV, BDS CNV3) */
+                } else if (v4type == 3 || v4type == 43 || v4type == 53 || v4type == 54) {
+                    ndata_eph = 39; /* 9 orbits (GPS/QZSS CNV2, BDS CNV1/2) */
                 }
-                *type = 0;
-                return decode_eph(ver, sat, toc, data, eph);
+                if (i >= ndata_eph) {
+                    if (!(mask & sys)) {
+                        return 0;
+                    }
+                    *type = 0;
+                    if (v4type == 2 || v4type == 3 || v4type == 42 || v4type == 43) {
+                        return decode_eph_cnav(ver, sat, toc, data, i, v4type, eph);
+                    } else if (v4type >= 53 && v4type <= 55) {
+                        return decode_eph_bds_cnav(ver, sat, toc, data, i, v4type, eph);
+                    } else {
+                        return decode_eph(ver, sat, toc, data, eph);
+                    }
+                }
             }
         }
     }

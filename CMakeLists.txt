@@ -218,7 +218,7 @@ set(_UTEST_DIR ${CMAKE_SOURCE_DIR}/tests/utest)
 set(_UTEST_SOURCES
     t_atmos t_coord t_geoid t_gloeph t_ionex
     t_lambda t_matrix t_misc t_ppp t_preceph
-    t_rinex t_time
+    t_rinex t_rinex4 t_time
     # t_tle excluded: tle_pos() implementation not yet in library
 )
 foreach(test IN LISTS _UTEST_SOURCES)
@@ -228,6 +228,31 @@ foreach(test IN LISTS _UTEST_SOURCES)
              WORKING_DIRECTORY ${_UTEST_DIR})
     set_tests_properties(utest_${test} PROPERTIES LABELS "utest")
 endforeach()
+
+# ── RINEX 4 test data fixture (decompress BRD400 NAV) ────────────────────────
+set(_RINEX4_DIR ${CMAKE_SOURCE_DIR}/tests/data/rinex4)
+set(_BRD400_GZ  ${_RINEX4_DIR}/BRD400DLR_S_20260680000_01D_MN.rnx.gz)
+set(_BRD400_RNX ${_RINEX4_DIR}/BRD400DLR_S_20260680000_01D_MN.rnx)
+add_test(NAME rinex4_setup
+    COMMAND bash -c "gunzip -kf ${_BRD400_GZ}"
+)
+set_tests_properties(rinex4_setup PROPERTIES
+    FIXTURES_SETUP  rinex4_data
+    LABELS          "utest"
+    TIMEOUT         10
+)
+add_test(NAME rinex4_cleanup
+    COMMAND ${CMAKE_COMMAND} -E rm -f ${_BRD400_RNX}
+)
+set_tests_properties(rinex4_cleanup PROPERTIES
+    FIXTURES_CLEANUP rinex4_data
+    LABELS           "utest"
+    TIMEOUT          5
+)
+set_tests_properties(utest_t_rinex4 PROPERTIES
+    FIXTURES_REQUIRED rinex4_data
+    TIMEOUT           30
+)
 
 # ── Python-based comparison tool ─────────────────────────────────────────────
 find_package(Python3 COMPONENTS Interpreter)
