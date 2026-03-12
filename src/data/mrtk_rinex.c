@@ -1449,7 +1449,7 @@ static int decode_eph_bds_cnav(int ver, int sat, gtime_t toc, const double* data
     /* derive BDT week from Toc (no week field in BDS CNAV records) */
     {
         int bdt_week;
-        time2bdt(bdt2gpst(toc), &bdt_week);
+        time2bdt(toc, &bdt_week);
 
         if (v4type == 55) {
             /* BDS CNV3 (Table A24): 8 orbits
@@ -1458,7 +1458,7 @@ static int decode_eph_bds_cnav(int ver, int sat, gtime_t toc, const double* data
              * orbit 8: t_tm */
             eph->sva = (int)data[27];  /* SISMAI (index) */
             eph->svh = (int)data[28];  /* Health */
-            eph->tgd[0] = data[30];   /* TGD_B2bI */
+            eph->tgd[1] = data[30];   /* TGD_B2bI (B2 group delay) */
             eph->week = bdt_week;
             eph->ttr = bdt2gpst(bdt2time(bdt_week, data[31])); /* t_tm */
             /* CNV3 has no IODE — derive pseudo-IODE from toes for
@@ -1474,12 +1474,12 @@ static int decode_eph_bds_cnav(int ver, int sat, gtime_t toc, const double* data
              * orbit 9: t_tm, spare(x2), IODE */
             eph->sva = (int)data[31];  /* SISMAI (index) */
             eph->svh = (int)data[32];  /* Health */
-            eph->tgd[0] = data[29];   /* TGD_B1Cp */
-            eph->tgd[1] = data[30];   /* TGD_B2ap */
+            eph->tgd[2] = data[29];   /* TGD_B1Cp */
+            eph->tgd[3] = data[30];   /* TGD_B2ap */
             if (v4type == 53) {
-                eph->tgd[2] = data[27]; /* ISC_B1Cd (CNV1) */
+                eph->tgd[4] = data[27]; /* ISC_B1Cd (CNV1) */
             } else {
-                eph->tgd[2] = data[28]; /* ISC_B2ad (CNV2) */
+                eph->tgd[5] = data[28]; /* ISC_B2ad (CNV2) */
             }
             eph->iodc = (int)data[34];
             eph->week = bdt_week;
