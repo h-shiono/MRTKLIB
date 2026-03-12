@@ -78,7 +78,11 @@ extern strconv_t* strconvnew(int itype, int otype, const char* msgs, int staid, 
     if (!(conv = (strconv_t*)malloc(sizeof(strconv_t)))) return NULL;
 
     conv->nmsg = 0;
-    strcpy(buff, msgs);
+    if (!msgs || strlen(msgs) >= sizeof(buff)) {
+        free(conv);
+        return NULL;
+    }
+    snprintf(buff, sizeof(buff), "%s", msgs);
     for (p = strtok(buff, ","); p; p = strtok(NULL, ",")) {
         tint = 0.0;
         if (sscanf(p, "%d(%lf)", &msg, &tint) < 1) continue;
@@ -106,8 +110,8 @@ extern strconv_t* strconvnew(int itype, int otype, const char* msgs, int staid, 
         return NULL;
     }
     if (stasel) conv->out.staid = staid;
-    sprintf(conv->rtcm.opt, "-EPHALL %s", opt);
-    sprintf(conv->raw.opt, "-EPHALL %s", opt);
+    snprintf(conv->rtcm.opt, sizeof(conv->rtcm.opt), "-EPHALL %s", opt);
+    snprintf(conv->raw.opt, sizeof(conv->raw.opt), "-EPHALL %s", opt);
     return conv;
 }
 /* free stream converter -------------------------------------------------------
@@ -484,7 +488,11 @@ static void periodic_cmd(int cycle, const char* cmd, stream_t* stream) {
         if ((r = strrchr(msg, '#'))) {
             sscanf(r, "# %d", &period);
             *r = '\0';
-            while (*--r == ' ') *r = '\0'; /* delete tail spaces */
+            /* delete tail spaces safely without underflowing msg buffer */
+            while (r > msg && *(r - 1) == ' ') {
+                --r;
+                *r = '\0';
+            }
         }
         if (period <= 0) period = 1000;
         if (*msg && cycle % period == 0) {

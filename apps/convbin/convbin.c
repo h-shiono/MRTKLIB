@@ -64,7 +64,7 @@
 /* help text -----------------------------------------------------------------*/
 static const char* help[] = {
     "",
-    " Synopsys",
+    " Synopsis",
     "",
     " convbin [option ...] file",
     "",
@@ -174,7 +174,7 @@ static const char* help[] = {
     "     *.rt17        Trimble RT17",
     "     *.sbf         Septentrio SBF",
     "     *.obs,*.*o    RINEX OBS",
-    "     *.rnx         RINEX OBS"
+    "     *.rnx         RINEX OBS",
     "     *.nav,*.*n    RINEX NAV",
 };
 /* print help ----------------------------------------------------------------*/
@@ -373,6 +373,7 @@ static int get_filetime(const char* file, gtime_t* time) {
     struct stat st;
     struct tm* tm;
     uint32_t time_time;
+    double time_sec;
     uint8_t buff[64];
     double ep[6];
     char path[1024], *paths[1], path_tag[1024];
@@ -386,7 +387,7 @@ static int get_filetime(const char* file, gtime_t* time) {
     if ((fp = fopen(path_tag, "rb"))) {
         if (fread(buff, 64, 1, fp) == 1 && !strncmp((char*)buff, "TIMETAG", 7) && fread(&time_time, 4, 1, fp) == 1) {
             time->time = time_time;
-            time->sec = 0.0;
+            time->sec = (fread(&time_sec, sizeof(double), 1, fp) == 1) ? time_sec : 0.0;
             fclose(fp);
             return 1;
         }
@@ -413,11 +414,11 @@ static int cmdopts(int argc, char** argv, rnxopt_t* opt, char** ifile, char** of
     char *p, *sys, *fmt = "", *paths[1], path[1024], buff[256];
 
     opt->rnxver = 304;
-    opt->obstype = OBSTYPE_PR | OBSTYPE_CP;
+    opt->obstype = OBSTYPE_PR | OBSTYPE_CP | OBSTYPE_DOP | OBSTYPE_SNR;
     opt->navsys = SYS_GPS | SYS_GLO | SYS_GAL | SYS_QZS | SYS_SBS | SYS_CMP | SYS_IRN;
 
-    for (i = 0; i < 6; i++)
-        for (j = 0; j < 64; j++) opt->mask[i][j] = '1';
+    for (i = 0; i < 7; i++)
+        for (j = 0; j < MAXCODE; j++) opt->mask[i][j] = '1';
 
     for (i = 1; i < argc; i++) {
         if (!strcmp(argv[i], "-ts") && i + 2 < argc) {

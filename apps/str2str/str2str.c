@@ -59,8 +59,7 @@ static const char* help[] = {
     " file. The output stream can be serial, tcp client, tcp server, ntrip server,",
     " or file. str2str is a resident type application. To stop it, type ctr-c in",
     " console if run foreground or send signal SIGINT for background process.",
-    " if run foreground or send signal SIGINT for background process.",
-    " if both of the input stream and the output stream follow #format, the",
+    " If both of the input stream and the output stream follow #format, the",
     " format of input messages are converted to output. To specify the output",
     " messages, use -msg option. If the option -in or -out omitted, stdin for",
     " input or stdout for output is used. If the stream in the option -in or -out",
@@ -339,7 +338,7 @@ int main(int argc, char** argv) {
     signal(SIGHUP, SIG_IGN);
     signal(SIGPIPE, SIG_IGN);
 
-    strsvrinit(&strsvr, n + 1);
+    strsvrinit(&strsvr, n);
 
     if (trlevel > 0) {
         traceopen(NULL, *logfile ? logfile : TRFILE);

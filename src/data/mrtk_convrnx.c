@@ -156,7 +156,8 @@ static strfile_t* gen_strfile(int format, const char* opt) {
     if (format == STRFMT_RTCM2 || format == STRFMT_RTCM3) {
         if (!init_rtcm(&str->rtcm)) {
             showmsg("init rtcm error");
-            return 0;
+            free(str);
+            return NULL;
         }
         str->rtcm.time = time0;
         str->obs = &str->rtcm.obs;
@@ -166,7 +167,8 @@ static strfile_t* gen_strfile(int format, const char* opt) {
     } else if (format <= MAXRCVFMT) {
         if (!init_raw(&str->raw, format)) {
             showmsg("init raw error");
-            return 0;
+            free(str);
+            return NULL;
         }
         str->raw.time = time0;
         str->obs = &str->raw.obs;
@@ -176,15 +178,18 @@ static strfile_t* gen_strfile(int format, const char* opt) {
     } else if (format == STRFMT_RINEX) {
         if (!init_rnxctr(&str->rnx)) {
             showmsg("init rnx error");
-            return 0;
+            free(str);
+            return NULL;
         }
         str->rnx.time = time0;
         str->obs = &str->rnx.obs;
         str->nav = &str->rnx.nav;
         str->sta = &str->rnx.sta;
         strcpy(str->rnx.opt, opt);
-    } else
-        return 0;
+    } else {
+        free(str);
+        return NULL;
+    }
 
     str->stas = NULL;
     for (i = 0; i < MAXSAT; i++)
@@ -1183,6 +1188,7 @@ static int convrnx_s(int sess, int format, rnxopt_t* opt, const char* file, char
     }
     if ((nf = expath(path, epath, MAXEXFILE)) <= 0) {
         showmsg("no input file: %s", path);
+        for (i = 0; i < MAXEXFILE; i++) free(epath[i]);
         return 0;
     }
     if (!(str = gen_strfile(format, opt->rcvopt))) {
@@ -1266,7 +1272,7 @@ static int convrnx_s(int sess, int format, rnxopt_t* opt, const char* file, char
 
     /* remove empty output files */
     for (i = 0; i < NOUTFILE; i++) {
-        if (ofp[i] && n[i] <= 0) remove(ofile[i]);
+        if (ofp[i] && n[i] <= 0) remove(paths[i]);
     }
     showstat(sess, opt->tstart, opt->tend, n);
 
