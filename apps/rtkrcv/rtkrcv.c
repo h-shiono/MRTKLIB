@@ -740,18 +740,13 @@ static void prsolution(vt_t* vt, const sol_t* sol, const double* rb) {
     vt_printf(vt, "\n");
 }
 /* print status --------------------------------------------------------------*/
-static rtcm_t* prstatus_rtcm = NULL;
-static pthread_once_t prstatus_once = PTHREAD_ONCE_INIT;
-
-static void init_prstatus_rtcm(void) { prstatus_rtcm = (rtcm_t*)calloc(3, sizeof(rtcm_t)); }
-
 static void prstatus(vt_t* vt) {
     rtk_t rtk;
     const char* svrstate[] = {"stop", "run"};
     const char* sol[] = {"-", "fix", "float", "SBAS", "DGPS", "single", "PPP", ""};
     const char* mode[] = {"single", "DGPS", "kinematic", "static", "moving-base", "fixed", "PPP-kinema", "PPP-static"};
     const char* freq[] = {"-", "L1", "L1+L2", "L1+L2+L3", "L1+L2+L3+L4", "L1+L2+L3+L4+L5", ""};
-    rtcm_t* rtcm;
+    uint32_t nmsg2[3][100] = {{0}}, nmsg3[3][400] = {{0}};
     int i, j, n, thread, cycle, state, rtkstat, nsat0, nsat1, prcout, nave;
     int cputime, nb[3] = {0}, nmsg[3][10] = {{0}};
     char tstr[64], s[1024], *p, tmp[64];
@@ -759,13 +754,6 @@ static void prstatus(vt_t* vt) {
     double azel[MAXSAT * 2], pos[3], vel[3], *del;
 
     trace(NULL, 4, "prstatus:\n");
-
-    pthread_once(&prstatus_once, init_prstatus_rtcm);
-    rtcm = prstatus_rtcm;
-    if (!rtcm) {
-        vt_printf(vt, "error: rtcm allocation failed in prstatus\n");
-        return;
-    }
 
     rtksvrlock(svr);
     rtk = svr->rtk;
@@ -794,7 +782,8 @@ static void prstatus(vt_t* vt) {
         rt[2] = runtime - rt[1] * 60.0;
     }
     for (i = 0; i < 3; i++) {
-        rtcm[i] = svr->rtcm[i];
+        memcpy(nmsg2[i], svr->rtcm[i].nmsg2, sizeof(nmsg2[i]));
+        memcpy(nmsg3[i], svr->rtcm[i].nmsg3, sizeof(nmsg3[i]));
     }
     rtksvrunlock(svr);
 
@@ -833,22 +822,22 @@ static void prstatus(vt_t* vt) {
         p = s;
         *p = '\0';
         for (j = 1; j < 100; j++) {
-            if (rtcm[i].nmsg2[j] == 0) {
+            if (nmsg2[i][j] == 0) {
                 continue;
             }
-            p += sprintf(p, "%s%d(%d)", p > s ? "," : "", j, rtcm[i].nmsg2[j]);
+            p += sprintf(p, "%s%d(%d)", p > s ? "," : "", j, nmsg2[i][j]);
         }
-        if (rtcm[i].nmsg2[0] > 0) {
-            sprintf(p, "%sother2(%d)", p > s ? "," : "", rtcm[i].nmsg2[0]);
+        if (nmsg2[i][0] > 0) {
+            sprintf(p, "%sother2(%d)", p > s ? "," : "", nmsg2[i][0]);
         }
         for (j = 1; j < 300; j++) {
-            if (rtcm[i].nmsg3[j] == 0) {
+            if (nmsg3[i][j] == 0) {
                 continue;
             }
-            p += sprintf(p, "%s%d(%d)", p > s ? "," : "", j + 1000, rtcm[i].nmsg3[j]);
+            p += sprintf(p, "%s%d(%d)", p > s ? "," : "", j + 1000, nmsg3[i][j]);
         }
-        if (rtcm[i].nmsg3[0] > 0) {
-            sprintf(p, "%sother3(%d)", p > s ? "," : "", rtcm[i].nmsg3[0]);
+        if (nmsg3[i][0] > 0) {
+            sprintf(p, "%sother3(%d)", p > s ? "," : "", nmsg3[i][0]);
         }
         sprintf(tmp, "# of rtcm%d messages", i + 1);
         vt_printf(vt, "%-28s: %s\n", tmp, s);
@@ -2050,7 +2039,10 @@ int mrtk_run(int argc, char** argv) {
     g_mrtk_legacy_ctx = mrtk_context_new();
     if (!g_mrtk_legacy_ctx) {
         fprintf(stderr, "error: MRTKLIB legacy context allocation failed\n");
+        mrtk_ctx_destroy(ctx);
+        g_mrtk_ctx = NULL;
         free(svr);
+        svr = NULL;
         return -1;
     }
 

@@ -919,7 +919,7 @@ int mrtk_bias(int argc, char** argv) {
             tlevel = atoi(argv[++i]);
         } else if (*argv[i] == '-') {
             print_help();
-            return -1;
+            goto cleanup;
         } else {
             obsfile = argv[i];
             req[5] = 1;
