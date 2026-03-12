@@ -1390,8 +1390,11 @@ static int decode_eph_cnav(int ver, int sat, gtime_t toc, const double* data, in
         eph->type = 2;            /* CNV2 */
     }
     eph->toe = adjweek(gpst2time(eph->week, eph->toes), toc);
-    eph->iode = 0; /* no traditional IODE in CNAV */
-    eph->iodc = 0;
+
+    /* CNAV has no traditional IODE — derive pseudo-IODE from toes for
+     * uniqeph() deduplication (sat + iode + type must be unique) */
+    eph->iode = (int)(eph->toes / 300) % 256;
+    eph->iodc = eph->iode;
     eph->fit = 0.0;
 
     return 1;
@@ -1458,8 +1461,10 @@ static int decode_eph_bds_cnav(int ver, int sat, gtime_t toc, const double* data
             eph->tgd[0] = data[30];   /* TGD_B2bI */
             eph->week = bdt_week;
             eph->ttr = bdt2gpst(bdt2time(bdt_week, data[31])); /* t_tm */
-            eph->iode = 0;
-            eph->iodc = 0;
+            /* CNV3 has no IODE — derive pseudo-IODE from toes for
+             * uniqeph() deduplication (sat + iode + type must be unique) */
+            eph->iode = (int)(eph->toes / 300) % 256;
+            eph->iodc = eph->iode;
             eph->type = 4; /* CNAV-3 */
         } else {
             /* BDS CNV1 (Table A22) / CNV2 (Table A23): 9 orbits
@@ -1718,22 +1723,22 @@ static int readrnxnavb(FILE* fp, const char* opt, int ver, int sys, int* type, e
      *
      * (1) Navigation message
      *  -------  -----------  -----------  -----------  -----------  -----------
-     *  EPH Gxx  LNAV   1     CNAV   2(*)  CNV2   3(*)
+     *  EPH Gxx  LNAV   1     CNAV   2     CNV2   3
      *  EPH Sxx  SBAS  11
      *  EPH Rxx  FDMA  21     L1OC  22(*)  L3OC  23(*)
      *  EPH Exx  INAV  31     FNAV  32
-     *  EPH Jxx  LNAV  41     CNAV  42(*)  CNV2  43(*)
-     *  EPH Cxx  D1    51     D2    52(*)  CNV1  53(*)  CNV2  54(*)  CNV3  55(*)
+     *  EPH Jxx  LNAV  41     CNAV  42     CNV2  43
+     *  EPH Cxx  D1    51     D2    52     CNV1  53     CNV2  54     CNV3  55
      *  EPH Ixx  L1NV  61
      *  -------  -----------  -----------  -----------  -----------  -----------
      *
      * (2) System Time and UTC Offset
      *  -------  -----------  -----------
-     *  STO Gxx  LNAV 101     CNVX 102(*)
+     *  STO Gxx  LNAV 101     CNVX 102
      *  STO Rxx  FDMA 121
      *  STO Exx  IFNV 131
-     *  STO Jxx  LNAV 141     CNVX 142(*)
-     *  STO Cxx  D1D2 151     CNVX 152(*)
+     *  STO Jxx  LNAV 141     CNVX 142
+     *  STO Cxx  D1D2 151     CNVX 152
      *  STO Ixx  LNAV 161
      *  -------  -----------  -----------
      *
@@ -1747,14 +1752,14 @@ static int readrnxnavb(FILE* fp, const char* opt, int ver, int sys, int* type, e
      *
      * (4) Ionosphere Model Parameters
      *  -------  -----------  -----------
-     *  ION Gxx  LNAV 301     CNVX 302(*)
+     *  ION Gxx  LNAV 301     CNVX 302
      *  ION Exx  IFNV 331
-     *  ION Jxx  LNAV 341     CNVX 342(*)
-     *  ION Cxx  D1D2 351     CNVX 352(*)
+     *  ION Jxx  LNAV 341     CNVX 342
+     *  ION Cxx  D1D2 351     CNVX 352
      *  ION Ixx  LNAV 361
      *  -------  -----------  -----------
      *
-     *   (*) This version does not support these yet.
+     *   (*) Not supported.
      *------------------------------------------------------------------------*/
 
     gtime_t toc;

@@ -86,8 +86,9 @@ static void test_gps_cnav_fields(void) {
         assert(e->toes >= 0.0 && e->toes < 604800.0);
         assert(e->A > 2.0e7);     /* semi-major axis > 20000 km */
         assert(e->e >= 0.0 && e->e < 0.1);
-        /* CNAV-specific: Adot and ndot should be populated */
-        /* (can be zero for some SVs but not all) */
+        /* pseudo-IODE derived from toes for uniqeph dedup */
+        assert(e->iode == (int)(e->toes / 300) % 256);
+        assert(e->iodc == e->iode);
         found++;
     }
     assert(found > 0);
@@ -125,6 +126,8 @@ static void test_bds_cnav_fields(void) {
         } else if (e->type == 4) { /* CNAV-3 */
             assert(e->week > 800);
             assert(e->A > 2.0e7);
+            /* pseudo-IODE derived from toes (CNV3 has no IODE field) */
+            assert(e->iode == (int)(e->toes / 300) % 256);
             cnv3_ok++;
         }
     }
