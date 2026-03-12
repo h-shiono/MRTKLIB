@@ -52,8 +52,8 @@ incrementally back-ported to each engine:
 | **v0.5.5** | PPP-RTK | Bug fix: CLAS real-time positioning via UBX does not work ([#31](https://github.com/h-shiono/MRTKLIB/issues/31)) | ✅ Released |
 | **v0.5.6** | All | RINEX 4.00 CNAV/CNV2 NAV support (GPS, QZSS, BDS) | ✅ Released |
 | **v0.5.7** | — | Port RTKLIB `convbin` and `str2str` CLI applications | ✅ Released |
-| **v0.5.x** | All | Doxygen docstring coverage expansion | 💭 Backlog |
-| **v0.6.0** | All | Single CLI App: Unified `mrtk` executable with subcommands | 💭 Backlog |
+| **v0.6.0** | All | Single CLI App: Unified `mrtk` binary with subcommands (`run`, `post`, `relay`, `convert`, etc.); BSS reduced from 3 GB to 34 MB | ✅ Released |
+| **v0.6.x** | All | Doxygen docstring coverage expansion | 💭 Backlog |
 
 > [!NOTE]
 > **Configuration format change in v0.5.0:** Starting with v0.5.0, all configuration
@@ -72,8 +72,8 @@ incrementally back-ported to each engine:
 
 | Mode | L6E (SSR) | L6D (CLAS) | Notes |
 |------|-----------|------------|-------|
-| **Post-processing** (`rnx2rtkp`) | Multiple `.l6` files | Dual-channel | Full PPP/PPP-AR/PPP-AR+iono/PPP-RTK |
-| **Real-time** (`rtkrcv`) | Single stream (`inpstr3`) | Dual-channel (`inpstr2` + `inpstr3`) | PPP-RTK with 1ch or 2ch CLAS L6D |
+| **Post-processing** (`mrtk post`) | Multiple `.l6` files | Dual-channel | Full PPP/PPP-AR/PPP-AR+iono/PPP-RTK |
+| **Real-time** (`mrtk run`) | Single stream (`inpstr3`) | Dual-channel (`inpstr2` + `inpstr3`) | PPP-RTK with 1ch or 2ch CLAS L6D |
 
 * **Real-time CLAS L6D**: Dual-channel support uses stream 3 for L6 ch1 and stream 2 (base slot, unused in PPP-RTK) for L6 ch2.
 * **Real-time L6E**: The rtksvr provides a single correction input (`inpstr3`). Multiple QZSS L6E channels (e.g., QZS-3 and QZS-4) are supported when the receiver multiplexes them into one SBF stream.

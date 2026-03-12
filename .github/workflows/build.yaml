@@ -22,17 +22,15 @@ jobs:
 
     - name: Verify binaries
       run: |
-        ls -lh build/rnx2rtkp build/rtkrcv
-        build/rnx2rtkp -? || true
-        build/rtkrcv   -? || true
+        ls -lh build/mrtk
+        build/mrtk --version
+        build/mrtk --help
 
     - name: Upload binaries
       uses: actions/upload-artifact@v4
       with:
         name: binaries
-        path: |
-          build/rnx2rtkp
-          build/rtkrcv
+        path: build/mrtk
 
   test-regression:
     runs-on: ubuntu-latest

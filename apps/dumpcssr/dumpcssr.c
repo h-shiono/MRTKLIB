@@ -72,21 +72,6 @@
     "pb_L1C,pb_L2W,pb_L5X," \
     "iode\n"
 
-/* showmsg / settspan / settime stubs required by mrtklib ---------------------*/
-extern int showmsg(const char* format, ...) {
-    va_list arg;
-    va_start(arg, format);
-    vfprintf(stderr, format, arg);
-    va_end(arg);
-    fprintf(stderr, "\r");
-    return 0;
-}
-extern void settspan(gtime_t ts, gtime_t te) {
-    (void)ts;
-    (void)te;
-}
-extern void settime(gtime_t time) { (void)time; }
-
 /* dump nav->ssr_ch state at one epoch to CSV --------------------------------*/
 static void dump_ssr_state(FILE* fp, gtime_t time, const nav_t* nav, int ch) {
     const ssr_t* ssr;
@@ -134,7 +119,7 @@ static FILE* open_l6(char** infile, int n) {
 }
 
 /* main ----------------------------------------------------------------------*/
-int main(int argc, char** argv) {
+int mrtk_dump(int argc, char** argv) {
     clas_ctx_t* clas;
     nav_t* nav;
     clas_corr_t* tmp;

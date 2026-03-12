@@ -46,18 +46,6 @@ static const char* help[] = {"",
                              " -te  de te      end day/time   (de=y/m/d te=h:m:s) [obs end time]",
                              " -o   file       set output file [stdout]",
                              " -x   level      debug trace level (0:off) [0]"};
-/* show message --------------------------------------------------------------*/
-extern int showmsg(const char* format, ...) {
-    va_list arg;
-    va_start(arg, format);
-    vfprintf(stderr, format, arg);
-    va_end(arg);
-    fprintf(stderr, "\r");
-    return 0;
-}
-extern void settspan(gtime_t ts, gtime_t te) {}
-extern void settime(gtime_t time) {}
-
 /* print help ----------------------------------------------------------------*/
 static void printhelp(void) {
     int i;
@@ -67,7 +55,7 @@ static void printhelp(void) {
     exit(0);
 }
 /* ssr2osr main --------------------------------------------------------------*/
-int main(int argc, char** argv) {
+int mrtk_ssr2osr(int argc, char** argv) {
     prcopt_t prcopt = prcopt_default;
     solopt_t solopt = solopt_default;
     filopt_t filopt = {""};

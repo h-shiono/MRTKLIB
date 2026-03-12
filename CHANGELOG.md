@@ -5,6 +5,34 @@ All notable changes to MRTKLIB are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v0.6.0] - 2026-03-12
+
+**Feature** — Unified `mrtk` single CLI binary.
+
+### Added
+
+- **Unified `mrtk` CLI** (`apps/mrtk/mrtk_main.c`) — BusyBox/Git-style single
+  binary with subcommand routing: `run`, `post`, `relay`, `convert`, `ssr2obs`,
+  `ssr2osr`, `bias`, `dump`.
+
+### Changed
+
+- All 8 app `main()` functions renamed to `mrtk_*()` entry points.
+- `showmsg`/`settspan`/`settime` consolidated into single shared implementation.
+- Large static variables (`rtksvr_t`, `rtcm_t`) converted to heap allocation,
+  reducing `__DATA` segment from 3,032 MB to 34 MB.
+- CMake: 8 individual build targets replaced by single `mrtk` target.
+- Version bumped to 0.6.0.
+
+### Removed
+
+- Individual executables (`rnx2rtkp`, `rtkrcv`, `str2str`, `convbin`, etc.)
+  replaced by `mrtk <subcommand>`.
+
+### Test Results
+
+62/62 tests pass (no regressions).
+
 ## [v0.5.7] - 2026-03-12
 
 **Feature** — Port RTKLIB `convbin` and `str2str` CLI applications.
