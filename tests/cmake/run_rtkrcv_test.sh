@@ -4,7 +4,7 @@
 # a reference file (≥90% threshold).  Used by CTest for the rt-PPP regression.
 #
 # Usage:
-#   bash run_rtkrcv_test.sh <rtkrcv_binary> <project_root> <reference_pos> \
+#   bash run_rtkrcv_test.sh <binary> <subcmd> <project_root> <reference_pos> \
 #        [playback_speed] [conf_file] [port]
 #
 # The test:
@@ -15,12 +15,13 @@
 set -euo pipefail
 
 RTKRCV_BIN="$1"
-PROJECT_ROOT="$2"
-REFERENCE="$3"
-PLAYBACK_SPEED="${4:-10}"
-CONF_FILE="${5:-conf/malib/rtkrcv.toml}"
-RTKRCV_PORT="${6:-52003}"
-MAX_TIMEOUT="${7:-300}"
+RTKRCV_SUBCMD="$2"
+PROJECT_ROOT="$3"
+REFERENCE="$4"
+PLAYBACK_SPEED="${5:-10}"
+CONF_FILE="${6:-conf/malib/rtkrcv.toml}"
+RTKRCV_PORT="${7:-52003}"
+MAX_TIMEOUT="${8:-300}"
 IDLE_TIMEOUT=10
 
 cd "$PROJECT_ROOT"
@@ -70,7 +71,7 @@ else
 fi
 
 # Start rtkrcv in background
-"$RTKRCV_BIN" -s -p "$RTKRCV_PORT" -o "$CONF" &
+"$RTKRCV_BIN" "$RTKRCV_SUBCMD" -s -p "$RTKRCV_PORT" -o "$CONF" &
 RTKRCV_PID=$!
 echo "  rtkrcv PID: $RTKRCV_PID"
 

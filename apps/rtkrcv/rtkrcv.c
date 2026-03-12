@@ -80,7 +80,10 @@
 #include "rtklib.h"
 #include "vt.h"
 
-#define PRGNAME "rtkrcv"                    /* program name */
+#define PRGNAME "rtkrcv" /* program name */
+#ifndef PROGNAME
+#define PROGNAME PRGNAME
+#endif
 #define CMDPROMPT "rtkrcv> "                /* command prompt */
 #define MAXCON 32                           /* max number of consoles */
 #define MAXARG 10                           /* max number of args in a command */
@@ -112,7 +115,7 @@ extern FILE* popen(const char*, const char*);
 extern int pclose(FILE*);
 
 /* global variables ----------------------------------------------------------*/
-static rtksvr_t svr;  /* rtk server struct */
+static rtksvr_t* svr; /* rtk server struct */
 static stream_t moni; /* monitor stream */
 
 static int intflg = 0; /* interrupt flag (2:shtdown) */
@@ -496,12 +499,12 @@ static int startsvr(vt_t* vt) {
     pos2ecef(pos, npos);
 
     /* read antenna file */
-    readant(vt, &prcopt, &svr.nav);
+    readant(vt, &prcopt, &svr->nav);
 
     /* read dcb file */
     if (*filopt.dcb) {
         strcpy(sta[0].name, sta_name);
-        readdcb(filopt.dcb, &svr.nav, sta);
+        readdcb(filopt.dcb, &svr->nav, sta);
     }
     /* open geoid data file */
     if (solopt[0].geoid > 0 && !opengeoid(solopt[0].geoid, filopt.geoid)) {
@@ -540,7 +543,7 @@ static int startsvr(vt_t* vt) {
     solopt[1].posf = strfmt[4];
 
     /* start rtk server */
-    if (!rtksvrstart(&svr, svrcycle, buffsize, strtype, paths, strfmt, navmsgsel, cmds, cmds_periodic, ropts, nmeacycle,
+    if (!rtksvrstart(svr, svrcycle, buffsize, strtype, paths, strfmt, navmsgsel, cmds, cmds_periodic, ropts, nmeacycle,
                      nmeareq, npos, &prcopt, solopt, &moni, rst, errmsg)) {
         trace(NULL, 2, "rtk server start error (%s)\n", errmsg);
         fprintf(stderr, "rtk server start error: %s\n", errmsg);
@@ -549,36 +552,36 @@ static int startsvr(vt_t* vt) {
     }
     /* load CLAS auxiliary files after server start.
      * lock to avoid racing with the rtksvr thread */
-    if (svr.clas) {
-        rtksvrlock(&svr);
+    if (svr->clas) {
+        rtksvrlock(svr);
         /* grid definition file */
         if (*filopt.grid) {
-            if (clas_read_grid_def(svr.clas, filopt.grid) != 0) {
+            if (clas_read_grid_def(svr->clas, filopt.grid) != 0) {
                 fprintf(stderr, "clas grid file error: %s\n", filopt.grid);
             }
         }
         /* ISB correction table */
         if (prcopt.isb == ISBOPT_TABLE && *filopt.isb) {
-            readisb(filopt.isb, &svr.nav);
+            readisb(filopt.isb, &svr->nav);
         }
         /* L2C phase shift table */
         if (prcopt.phasshft == ISBOPT_TABLE && *filopt.phacyc) {
-            readL2C(filopt.phacyc, &svr.nav);
+            readL2C(filopt.phacyc, &svr->nav);
         }
         /* grid BLQ for OTL (tidecorr=3) */
         if (prcopt.tidecorr == 3 && *filopt.blq) {
-            readblqgrid(filopt.blq, svr.clas);
+            readblqgrid(filopt.blq, svr->clas);
         }
         /* receiver OTL */
         if (prcopt.mode > PMODE_SINGLE && *filopt.blq) {
             readblq(filopt.blq, sta[0].name, prcopt.odisp[0]);
         }
         /* station info and ISB setup */
-        memcpy(svr.nav.stas, sta, sizeof(sta_t) * MAXRCV);
+        memcpy(svr->nav.stas, sta, sizeof(sta_t) * MAXRCV);
         if (prcopt.isb == ISBOPT_TABLE) {
-            setisb(&svr.nav, prcopt.rectype[0], prcopt.rectype[1], &svr.nav.stas[0], &svr.nav.stas[1]);
+            setisb(&svr->nav, prcopt.rectype[0], prcopt.rectype[1], &svr->nav.stas[0], &svr->nav.stas[1]);
         }
-        rtksvrunlock(&svr);
+        rtksvrunlock(svr);
     }
     return 1;
 }
@@ -589,7 +592,7 @@ static void stopsvr(vt_t* vt) {
 
     trace(NULL, 3, "stopsvr:\n");
 
-    if (!svr.state) {
+    if (!svr->state) {
         return;
     }
 
@@ -605,7 +608,7 @@ static void stopsvr(vt_t* vt) {
         }
     }
     /* stop rtk server */
-    rtksvrstop(&svr, cmds);
+    rtksvrstop(svr, cmds);
 
     /* execute stop command */
     if (*stopcmd && (ret = system(stopcmd))) {
@@ -743,7 +746,7 @@ static void prstatus(vt_t* vt) {
     const char* sol[] = {"-", "fix", "float", "SBAS", "DGPS", "single", "PPP", ""};
     const char* mode[] = {"single", "DGPS", "kinematic", "static", "moving-base", "fixed", "PPP-kinema", "PPP-static"};
     const char* freq[] = {"-", "L1", "L1+L2", "L1+L2+L3", "L1+L2+L3+L4", "L1+L2+L3+L4+L5", ""};
-    static rtcm_t rtcm[3];
+    uint32_t nmsg2[3][100] = {{0}}, nmsg3[3][400] = {{0}};
     int i, j, n, thread, cycle, state, rtkstat, nsat0, nsat1, prcout, nave;
     int cputime, nb[3] = {0}, nmsg[3][10] = {{0}};
     char tstr[64], s[1024], *p, tmp[64];
@@ -752,36 +755,37 @@ static void prstatus(vt_t* vt) {
 
     trace(NULL, 4, "prstatus:\n");
 
-    rtksvrlock(&svr);
-    rtk = svr.rtk;
-    thread = (int)svr.thread;
-    cycle = svr.cycle;
-    state = svr.state;
-    rtkstat = svr.rtk.sol.stat;
-    nsat0 = svr.obs[0][0].n;
-    nsat1 = svr.obs[1][0].n;
-    cputime = svr.cputime;
-    prcout = svr.prcout;
-    nave = svr.nave;
+    rtksvrlock(svr);
+    rtk = svr->rtk;
+    thread = (int)svr->thread;
+    cycle = svr->cycle;
+    state = svr->state;
+    rtkstat = svr->rtk.sol.stat;
+    nsat0 = svr->obs[0][0].n;
+    nsat1 = svr->obs[1][0].n;
+    cputime = svr->cputime;
+    prcout = svr->prcout;
+    nave = svr->nave;
     for (i = 0; i < 3; i++) {
-        nb[i] = svr.nb[i];
+        nb[i] = svr->nb[i];
     }
     for (i = 0; i < 3; i++) {
         for (j = 0; j < 10; j++) {
-            nmsg[i][j] = svr.nmsg[i][j];
+            nmsg[i][j] = svr->nmsg[i][j];
         }
     }
-    if (svr.state) {
-        runtime = (double)(tickget() - svr.tick) / 1000.0;
+    if (svr->state) {
+        runtime = (double)(tickget() - svr->tick) / 1000.0;
         rt[0] = floor(runtime / 3600.0);
         runtime -= rt[0] * 3600.0;
         rt[1] = floor(runtime / 60.0);
         rt[2] = runtime - rt[1] * 60.0;
     }
     for (i = 0; i < 3; i++) {
-        rtcm[i] = svr.rtcm[i];
+        memcpy(nmsg2[i], svr->rtcm[i].nmsg2, sizeof(nmsg2[i]));
+        memcpy(nmsg3[i], svr->rtcm[i].nmsg3, sizeof(nmsg3[i]));
     }
-    rtksvrunlock(&svr);
+    rtksvrunlock(svr);
 
     for (i = n = 0; i < MAXSAT; i++) {
         if (rtk.opt.mode == PMODE_SINGLE && !rtk.ssat[i].vs) {
@@ -818,22 +822,22 @@ static void prstatus(vt_t* vt) {
         p = s;
         *p = '\0';
         for (j = 1; j < 100; j++) {
-            if (rtcm[i].nmsg2[j] == 0) {
+            if (nmsg2[i][j] == 0) {
                 continue;
             }
-            p += sprintf(p, "%s%d(%d)", p > s ? "," : "", j, rtcm[i].nmsg2[j]);
+            p += sprintf(p, "%s%d(%d)", p > s ? "," : "", j, nmsg2[i][j]);
         }
-        if (rtcm[i].nmsg2[0] > 0) {
-            sprintf(p, "%sother2(%d)", p > s ? "," : "", rtcm[i].nmsg2[0]);
+        if (nmsg2[i][0] > 0) {
+            sprintf(p, "%sother2(%d)", p > s ? "," : "", nmsg2[i][0]);
         }
         for (j = 1; j < 300; j++) {
-            if (rtcm[i].nmsg3[j] == 0) {
+            if (nmsg3[i][j] == 0) {
                 continue;
             }
-            p += sprintf(p, "%s%d(%d)", p > s ? "," : "", j + 1000, rtcm[i].nmsg3[j]);
+            p += sprintf(p, "%s%d(%d)", p > s ? "," : "", j + 1000, nmsg3[i][j]);
         }
-        if (rtcm[i].nmsg3[0] > 0) {
-            sprintf(p, "%sother3(%d)", p > s ? "," : "", rtcm[i].nmsg3[0]);
+        if (nmsg3[i][0] > 0) {
+            sprintf(p, "%sother3(%d)", p > s ? "," : "", nmsg3[i][0]);
         }
         sprintf(tmp, "# of rtcm%d messages", i + 1);
         vt_printf(vt, "%-28s: %s\n", tmp, s);
@@ -910,9 +914,9 @@ static void prsatellite(vt_t* vt, int sys, int nf) {
 
     trace(NULL, 4, "prsatellite:\n");
 
-    rtksvrlock(&svr);
-    rtk = svr.rtk;
-    rtksvrunlock(&svr);
+    rtksvrlock(svr);
+    rtk = svr->rtk;
+    rtksvrunlock(svr);
     if (nf <= 0 || nf > NFREQ) {
         nf = NFREQ;
     }
@@ -995,20 +999,20 @@ static void probserv(vt_t* vt, int sys, int nf) {
 
     trace(NULL, 4, "probserv:\n");
 
-    rtksvrlock(&svr);
-    for (i = 0; i < svr.obs[0][0].n && n < MAXOBS * 2; i++) {
-        if (!(satsys(svr.obs[0][0].data[i].sat, NULL) & sys)) {
+    rtksvrlock(svr);
+    for (i = 0; i < svr->obs[0][0].n && n < MAXOBS * 2; i++) {
+        if (!(satsys(svr->obs[0][0].data[i].sat, NULL) & sys)) {
             continue;
         }
-        obs[n++] = svr.obs[0][0].data[i];
+        obs[n++] = svr->obs[0][0].data[i];
     }
-    for (i = 0; i < svr.obs[1][0].n && n < MAXOBS * 2; i++) {
-        if (!(satsys(svr.obs[1][0].data[i].sat, NULL) & sys)) {
+    for (i = 0; i < svr->obs[1][0].n && n < MAXOBS * 2; i++) {
+        if (!(satsys(svr->obs[1][0].data[i].sat, NULL) & sys)) {
             continue;
         }
-        obs[n++] = svr.obs[1][0].data[i];
+        obs[n++] = svr->obs[1][0].data[i];
     }
-    rtksvrunlock(&svr);
+    rtksvrunlock(svr);
 
     if (nf <= 0 || nf > NFREQ) {
         nf = NFREQ;
@@ -1067,21 +1071,21 @@ static void prnavidata(vt_t* vt, int sys) {
 
     trace(NULL, 4, "prnavidata:\n");
 
-    rtksvrlock(&svr);
-    time = svr.rtk.sol.time;
+    rtksvrlock(svr);
+    time = svr->rtk.sol.time;
     for (i = 0; i < MAXSAT * 2; i++) {
-        eph[i] = svr.nav.eph[i];
+        eph[i] = svr->nav.eph[i];
     }
     for (i = 0; i < MAXPRNGLO; i++) {
-        geph[i] = svr.nav.geph[i];
+        geph[i] = svr->nav.geph[i];
     }
     for (i = 0; i < 8; i++) {
-        ion[i] = svr.nav.ion_gps[i];
+        ion[i] = svr->nav.ion_gps[i];
     }
     for (i = 0; i < 8; i++) {
-        utc[i] = svr.nav.utc_gps[i];
+        utc[i] = svr->nav.utc_gps[i];
     }
-    rtksvrunlock(&svr);
+    rtksvrunlock(svr);
 
     vt_printf(vt, "\n%s%3s %3s %3s %3s %3s %3s %3s %19s %19s %19s %3s %3s%s\n", ESC_BOLD, "SAT", "S", "IOD", "IOC",
               "FRQ", "A/A", "SVH", "Toe", "Toc", "Ttr/Tof", "L2C", "L2P", ESC_RESET);
@@ -1139,13 +1143,13 @@ static void prerror(vt_t* vt) {
 
     trace(NULL, 4, "prerror:\n");
 
-    rtksvrlock(&svr);
-    if ((n = svr.rtk.neb) > 0) {
-        svr.rtk.errbuf[n] = '\0';
-        vt_puts(vt, svr.rtk.errbuf);
-        svr.rtk.neb = 0;
+    rtksvrlock(svr);
+    if ((n = svr->rtk.neb) > 0) {
+        svr->rtk.errbuf[n] = '\0';
+        vt_puts(vt, svr->rtk.errbuf);
+        svr->rtk.neb = 0;
     }
-    rtksvrunlock(&svr);
+    rtksvrunlock(svr);
 }
 /* print stream --------------------------------------------------------------*/
 static void prstream(vt_t* vt) {
@@ -1161,19 +1165,19 @@ static void prstream(vt_t* vt) {
 
     trace(NULL, 4, "prstream:\n");
 
-    rtksvrlock(&svr);
+    rtksvrlock(svr);
     for (i = 0; i < 8; i++) {
-        stream[i] = svr.stream[i];
+        stream[i] = svr->stream[i];
     }
     for (i = 0; i < 3; i++) {
-        format[i] = svr.format[i];
+        format[i] = svr->format[i];
     }
     for (i = 3; i < 5; i++) {
-        format[i] = svr.solopt[i - 3].posf;
+        format[i] = svr->solopt[i - 3].posf;
     }
     stream[8] = moni;
     format[8] = SOLF_LLH;
-    rtksvrunlock(&svr);
+    rtksvrunlock(svr);
 
     vt_printf(vt, "\n%s%-12s %-8s %-5s %s %10s %7s %10s %7s %-24s %s%s\n", ESC_BOLD, "Stream", "Type", "Fmt", "S",
               "In-byte", "In-bps", "Out-byte", "Out-bps", "Path", "Message", ESC_RESET);
@@ -1192,12 +1196,12 @@ static void prssr(vt_t* vt) {
     int i, valid;
     char tstr[64], id[32], *p = buff;
 
-    rtksvrlock(&svr);
-    time = svr.rtk.sol.time;
+    rtksvrlock(svr);
+    time = svr->rtk.sol.time;
     for (i = 0; i < MAXSAT; i++) {
-        ssr[i] = svr.nav.ssr_ch[0][i];
+        ssr[i] = svr->nav.ssr_ch[0][i];
     }
-    rtksvrunlock(&svr);
+    rtksvrunlock(svr);
 
     p += sprintf(p,
                  "\n%s%3s %3s %3s %3s %3s %19s %6s %6s %6s %6s %6s %6s %8s "
@@ -1274,16 +1278,16 @@ static void cmd_solution(char** args, int narg, vt_t* vt) {
     }
 
     if (cycle > 0) {
-        svr.nsol = 0;
+        svr->nsol = 0;
     }
 
     while (!vt_chkbrk(vt)) {
-        rtksvrlock(&svr);
-        for (i = 0; i < svr.nsol; i++) {
-            prsolution(vt, &svr.solbuf[i], svr.rtk.rb);
+        rtksvrlock(svr);
+        for (i = 0; i < svr->nsol; i++) {
+            prsolution(vt, &svr->solbuf[i], svr->rtk.rb);
         }
-        svr.nsol = 0;
-        rtksvrunlock(&svr);
+        svr->nsol = 0;
+        rtksvrunlock(svr);
         if (cycle > 0) {
             sleepms(cycle);
         } else {
@@ -1400,9 +1404,9 @@ static void cmd_navidata(char** args, int narg, vt_t* vt) {
 static void cmd_error(char** args, int narg, vt_t* vt) {
     trace(NULL, 3, "cmd_error:\n");
 
-    rtksvrlock(&svr);
-    svr.rtk.neb = 0;
-    rtksvrunlock(&svr);
+    rtksvrlock(svr);
+    svr->rtk.neb = 0;
+    rtksvrunlock(svr);
 
     while (!vt_chkbrk(vt)) {
         prerror(vt);
@@ -1978,7 +1982,7 @@ static void accept_sock(int ssock, con_t** con) {
  *     command is distinguished according to header characters.
  *
  *-----------------------------------------------------------------------------*/
-int main(int argc, char** argv) {
+int mrtk_run(int argc, char** argv) {
     con_t* con[MAXCON] = {0};
     int i, start = 0, port = 0, outstat = 0, trace = 0, sock = 0;
     char *dev = "", file[MAXSTR] = "";
@@ -1986,11 +1990,6 @@ int main(int argc, char** argv) {
     char staname[32] = "";
 
     mrtk_ctx_t* ctx;
-
-    /* Initialize MRTKLIB runtime context */
-    ctx = mrtk_ctx_create();
-    g_mrtk_ctx = ctx;
-    g_mrtk_legacy_ctx = mrtk_context_new();
 
     for (i = 1; i < argc; i++) {
         if (!strcmp(argv[i], "-s")) {
@@ -2021,12 +2020,38 @@ int main(int argc, char** argv) {
             printusage();
         }
     }
+
+    /* heap-allocate rtksvr_t (~972 MB) to avoid BSS bloat */
+    svr = (rtksvr_t*)calloc(1, sizeof(rtksvr_t));
+    if (!svr) {
+        fprintf(stderr, "error: rtksvr_t allocation failed\n");
+        return -1;
+    }
+
+    /* Initialize MRTKLIB runtime context */
+    ctx = mrtk_ctx_create();
+    if (!ctx) {
+        fprintf(stderr, "error: MRTKLIB context allocation failed\n");
+        free(svr);
+        return -1;
+    }
+    g_mrtk_ctx = ctx;
+    g_mrtk_legacy_ctx = mrtk_context_new();
+    if (!g_mrtk_legacy_ctx) {
+        fprintf(stderr, "error: MRTKLIB legacy context allocation failed\n");
+        mrtk_ctx_destroy(ctx);
+        g_mrtk_ctx = NULL;
+        free(svr);
+        svr = NULL;
+        return -1;
+    }
+
     if (trace > 0) {
         traceopen(ctx, TRACEFILE);
         tracelevel(ctx, trace);
     }
     /* initialize rtk server and monitor port */
-    rtksvrinit(&svr);
+    rtksvrinit(svr);
     strinit(&moni);
 
     /* load options file */
@@ -2040,17 +2065,17 @@ int main(int argc, char** argv) {
     }
     getsysopts(&prcopt, solopt, &filopt);
 
-    if (strlen(svr.nav.biapath) == 0 && strlen(filopt.bia) > 0) {
-        strcpy(svr.nav.biapath, filopt.bia);
+    if (strlen(svr->nav.biapath) == 0 && strlen(filopt.bia) > 0) {
+        strcpy(svr->nav.biapath, filopt.bia);
     }
-    if (strlen(svr.nav.fcbpath) == 0 && strlen(filopt.fcb) > 0) {
-        strcpy(svr.nav.fcbpath, filopt.fcb);
+    if (strlen(svr->nav.fcbpath) == 0 && strlen(filopt.fcb) > 0) {
+        strcpy(svr->nav.fcbpath, filopt.fcb);
     }
     if (strlen(staname) > 0) {
         strncpy(prcopt.staname, staname, sizeof(prcopt.staname));
     }
     /* read navigation data */
-    if (!readnav(NAVIFILE, &svr.nav)) {
+    if (!readnav(NAVIFILE, &svr->nav)) {
         fprintf(stderr, "no navigation data: %s\n", NAVIFILE);
     }
     if (outstat > 0) {
@@ -2074,6 +2099,8 @@ int main(int argc, char** argv) {
             mrtk_context_free(g_mrtk_legacy_ctx);
             g_mrtk_ctx = NULL;
             mrtk_ctx_destroy(ctx);
+            free(svr);
+            svr = NULL;
             return -1;
         }
     } else {
@@ -2090,6 +2117,8 @@ int main(int argc, char** argv) {
             mrtk_context_free(g_mrtk_legacy_ctx);
             g_mrtk_ctx = NULL;
             mrtk_ctx_destroy(ctx);
+            free(svr);
+            svr = NULL;
             return -1;
         }
     }
@@ -2128,12 +2157,14 @@ int main(int argc, char** argv) {
     }
 
     /* save navigation data */
-    if (!savenav(NAVIFILE, &svr.nav)) {
+    if (!savenav(NAVIFILE, &svr->nav)) {
         fprintf(stderr, "navigation data save error: %s\n", NAVIFILE);
     }
     traceclose(ctx);
     mrtk_context_free(g_mrtk_legacy_ctx);
     g_mrtk_ctx = NULL;
     mrtk_ctx_destroy(ctx);
+    free(svr);
+    svr = NULL;
     return 0;
 }

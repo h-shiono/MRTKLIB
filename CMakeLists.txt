@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.15)
-project(MRTKLIB VERSION 0.4.1 LANGUAGES C)
+project(MRTKLIB VERSION 0.6.0 LANGUAGES C)
 
 # ── Version header generation ─────────────────────────────────────────────────
 set(MRTKLIB_VERSION_MAJOR ${PROJECT_VERSION_MAJOR})
@@ -126,61 +126,26 @@ else()
     message(WARNING "LAPACK not found. Falling back to internal (slower) matrix math.")
 endif()
 
-# ── rnx2rtkp ─────────────────────────────────────────────────────────────────
-add_executable(rnx2rtkp
+# ── mrtk (unified CLI) ────────────────────────────────────────────────────────
+add_executable(mrtk
+    apps/mrtk/mrtk_main.c
     apps/rnx2rtkp/rnx2rtkp.c
-)
-target_link_libraries(rnx2rtkp PRIVATE mrtklib)
-
-# ── rtkrcv ───────────────────────────────────────────────────────────────────
-add_executable(rtkrcv
     apps/rtkrcv/rtkrcv.c
     apps/rtkrcv/vt.c
-)
-target_include_directories(rtkrcv PRIVATE apps/rtkrcv)
-target_compile_definitions(rtkrcv PRIVATE PROGNAME=\"rtkrcv\" SVR_REUSEADDR)
-target_link_libraries(rtkrcv PRIVATE mrtklib pthread)
-
-# ── recvbias ──────────────────────────────────────────────────────────────────
-add_executable(recvbias
-    apps/recvbias/recvbias.c
-)
-target_compile_definitions(recvbias PRIVATE PROGNAME=\"recvbias\")
-target_link_libraries(recvbias PRIVATE mrtklib)
-
-# ── ssr2obs ──────────────────────────────────────────────────────────────────
-add_executable(ssr2obs
+    apps/str2str/str2str.c
+    apps/convbin/convbin.c
     apps/ssr2obs/ssr2obs.c
-)
-target_link_libraries(ssr2obs PRIVATE mrtklib)
-
-# ── ssr2osr ──────────────────────────────────────────────────────────────────
-add_executable(ssr2osr
     apps/ssr2osr/ssr2osr.c
-)
-target_link_libraries(ssr2osr PRIVATE mrtklib)
-
-# ── dumpcssr ─────────────────────────────────────────────────────────────────
-add_executable(dumpcssr
+    apps/recvbias/recvbias.c
     apps/dumpcssr/dumpcssr.c
 )
-target_link_libraries(dumpcssr PRIVATE mrtklib)
-
-# ── convbin ──────────────────────────────────────────────────────────────────
-add_executable(convbin
-    apps/convbin/convbin.c
-)
-target_link_libraries(convbin PRIVATE mrtklib)
-
-# ── str2str ──────────────────────────────────────────────────────────────────
-add_executable(str2str
-    apps/str2str/str2str.c
-)
-target_link_libraries(str2str PRIVATE mrtklib pthread)
+target_include_directories(mrtk PRIVATE apps/rtkrcv)
+target_compile_definitions(mrtk PRIVATE SVR_REUSEADDR)
+target_link_libraries(mrtk PRIVATE mrtklib pthread)
 
 # ── Install ───────────────────────────────────────────────────────────────────
 # cmake --install build  →  copies binaries to bin/ (matches make install)
-install(TARGETS rnx2rtkp rtkrcv recvbias ssr2obs ssr2osr dumpcssr convbin str2str RUNTIME DESTINATION bin)
+install(TARGETS mrtk RUNTIME DESTINATION bin)
 
 # ── Utility tools (optional) ─────────────────────────────────────────────────
 # Build with: cmake --preset default -DBUILD_UTILS=ON
@@ -313,7 +278,7 @@ set_tests_properties(regression_cleanup PROPERTIES
 
 # ── rnx2rtkp SPP regression ───────────────────────────────────────────────────
 add_test(NAME rnx2rtkp_spp
-    COMMAND $<TARGET_FILE:rnx2rtkp>
+    COMMAND $<TARGET_FILE:mrtk> post
         -p 0 -sys G,R,E,J
         -o ${CMAKE_BINARY_DIR}/out_spp.pos
         ${_TESTDATA}/MALIB_OSS_data_obsnav_240822-1100.obs
@@ -343,7 +308,7 @@ set_tests_properties(rnx2rtkp_spp_check PROPERTIES
 # The bash wrapper normalises this so CTest sees exit code 0.
 add_test(NAME recvbias_rb
     COMMAND bash -c "\"$@\"; rc=$?; [ $rc -eq 1 ] && exit 0 || exit $rc" _
-        $<TARGET_FILE:recvbias>
+        $<TARGET_FILE:mrtk> bias
         -td 2024/8/22
         -nav ${_TESTDATA}/MALIB_OSS_data_obsnav_240822-1100.nav
         -tec ${_TESTDATA}/COD0OPSFIN_20242350000_01D_01H_GIM.INX
@@ -379,7 +344,7 @@ set_tests_properties(recvbias_rb_check PROPERTIES
 # because real-time cycle timing can vary slightly between runs.
 add_test(NAME rtkrcv_rt
     COMMAND bash ${_TESTCMAKE}/run_rtkrcv_test.sh
-        $<TARGET_FILE:rtkrcv>
+        $<TARGET_FILE:mrtk> run
         ${CMAKE_SOURCE_DIR}
         ${_REFDATA}/MALIB_OSS_data_obsnav_240822-1100.rt.pos
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
@@ -436,7 +401,7 @@ set_tests_properties(madocalib_cleanup PROPERTIES
 
 # ── rnx2rtkp MADOCA-PPP regression ──────────────────────────────────────────
 add_test(NAME madocalib_ppp
-    COMMAND $<TARGET_FILE:rnx2rtkp>
+    COMMAND $<TARGET_FILE:mrtk> post
         -k ${CMAKE_SOURCE_DIR}/conf/madocalib/rnx2rtkp.toml
         -ts 2025/04/01 0:00:00 -te 2025/04/01 0:59:30 -ti 30
         -o ${CMAKE_BINARY_DIR}/out_madocalib_ppp.pos
@@ -466,7 +431,7 @@ set_tests_properties(madocalib_ppp_check PROPERTIES
 
 # ── rnx2rtkp MADOCA PPP-AR regression (mdc-004) ─────────────────────────────
 add_test(NAME madocalib_pppar
-    COMMAND $<TARGET_FILE:rnx2rtkp>
+    COMMAND $<TARGET_FILE:mrtk> post
         -k ${CMAKE_SOURCE_DIR}/conf/madocalib/rnx2rtkp_pppar.toml
         -ts 2025/04/01 0:00:00 -te 2025/04/01 0:59:30 -ti 30
         -o ${CMAKE_BINARY_DIR}/out_madocalib_pppar.pos
@@ -507,7 +472,7 @@ set_tests_properties(madocalib_pppar_check PROPERTIES
 
 # ── rnx2rtkp MADOCA PPP-AR regression (mdc-003) ─────────────────────────────
 add_test(NAME madocalib_pppar_003
-    COMMAND $<TARGET_FILE:rnx2rtkp>
+    COMMAND $<TARGET_FILE:mrtk> post
         -k ${CMAKE_SOURCE_DIR}/conf/madocalib/rnx2rtkp_pppar.toml
         -ts 2025/04/01 0:00:00 -te 2025/04/01 0:59:30 -ti 30
         -o ${CMAKE_BINARY_DIR}/out_madocalib_pppar_003.pos
@@ -538,7 +503,7 @@ set_tests_properties(madocalib_pppar_003_check PROPERTIES
 # ── rnx2rtkp MADOCA PPP-AR + ionosphere regression ──────────────────────────
 # Uses L6E (.204/.206) + L6D (.200/.201) for ionospheric correction
 add_test(NAME madocalib_pppar_ion
-    COMMAND $<TARGET_FILE:rnx2rtkp>
+    COMMAND $<TARGET_FILE:mrtk> post
         -k ${CMAKE_SOURCE_DIR}/conf/madocalib/rnx2rtkp_pppar_iono.toml
         -ts 2025/04/01 0:00:00 -te 2025/04/01 0:59:30 -ti 30
         -o ${CMAKE_BINARY_DIR}/out_madocalib_pppar_ion.pos
@@ -677,7 +642,7 @@ set_tests_properties(claslib_cleanup PROPERTIES
 # Data: 2019/08/27 16:00-17:00, 0627239Q.obs + sept_2019239.nav + 2019239Q.l6
 # Reference: ref_L6.nmea (upstream claslib output)
 add_test(NAME claslib_ppp_rtk
-    COMMAND $<TARGET_FILE:rnx2rtkp>
+    COMMAND $<TARGET_FILE:mrtk> post
         -k ${CMAKE_SOURCE_DIR}/conf/claslib/rnx2rtkp.toml
         -ts 2019/08/27 16:00:00 -te 2019/08/27 16:59:59 -ti 1
         -o ${CMAKE_BINARY_DIR}/out_claslib_ppp_rtk.nmea
@@ -708,7 +673,7 @@ set_tests_properties(claslib_ppp_rtk_check PROPERTIES
 # Data: 2019/08/27 16:00-17:00, 0627239Q.bnx + sept_2019239.nav + 2019239Q.l6
 # Reference: ref_L6_bnx.nmea (upstream claslib output)
 add_test(NAME claslib_ppp_rtk_bnx
-    COMMAND $<TARGET_FILE:rnx2rtkp>
+    COMMAND $<TARGET_FILE:mrtk> post
         -k ${CMAKE_SOURCE_DIR}/conf/claslib/rnx2rtkp.toml
         -ts 2019/08/27 16:00:00 -te 2019/08/27 16:59:59 -ti 1
         -o ${CMAKE_BINARY_DIR}/out_claslib_ppp_rtk_bnx.nmea
@@ -740,7 +705,7 @@ set_tests_properties(claslib_ppp_rtk_bnx_check PROPERTIES
 # Reference: ref_L6_2CH.nmea (upstream claslib output with -l6msg 1)
 # Note: tolerance 0.21m due to wider accuracy gap on 2025 dataset (~20.2cm RMS)
 add_test(NAME claslib_ppp_rtk_2ch
-    COMMAND $<TARGET_FILE:rnx2rtkp>
+    COMMAND $<TARGET_FILE:mrtk> post
         -k ${CMAKE_SOURCE_DIR}/conf/claslib/rnx2rtkp.toml
         -ts 2025/06/06 20:00:00 -te 2025/06/06 20:59:59 -ti 1
         -l6msg 1
@@ -795,7 +760,7 @@ set_tests_properties(claslib_ppp_rtk_2ch_abs_check PROPERTIES
 # Data: 2019/08/27 16:00-17:00, 0627239Q.obs + sept_2019239.nav + vrs2019239Q.obs
 # Reference: ref_VRS.nmea (upstream claslib output)
 add_test(NAME claslib_vrs_rtk
-    COMMAND $<TARGET_FILE:rnx2rtkp>
+    COMMAND $<TARGET_FILE:mrtk> post
         -k ${CMAKE_SOURCE_DIR}/conf/claslib/rnx2rtkp_vrs.toml
         -ts 2019/08/27 16:00:00 -te 2019/08/27 16:59:59 -ti 1
         -o ${CMAKE_BINARY_DIR}/out_claslib_vrs_rtk.nmea
@@ -826,7 +791,7 @@ set_tests_properties(claslib_vrs_rtk_check PROPERTIES
 # Data: 2019/12/15 01:00-02:00, 0627349AB.bnx + sept_2019349.nav + 2019349B.l6
 # Reference: ref_ST12.nmea (upstream claslib output)
 add_test(NAME claslib_ppp_rtk_st12
-    COMMAND $<TARGET_FILE:rnx2rtkp>
+    COMMAND $<TARGET_FILE:mrtk> post
         -k ${CMAKE_SOURCE_DIR}/conf/claslib/rnx2rtkp.toml
         -ts 2019/12/15 01:00:00 -te 2019/12/15 01:59:59 -ti 1
         -o ${CMAKE_BINARY_DIR}/out_claslib_ppp_rtk_st12.nmea
@@ -857,7 +822,7 @@ set_tests_properties(claslib_ppp_rtk_st12_check PROPERTIES
 # Data: 2025/01/22 16:00-17:00, 0627022Q.bnx + 2025022Q.l6 (no separate nav)
 # Reference: ref_L6_L1CL5.nmea (upstream claslib output)
 add_test(NAME claslib_ppp_rtk_l1cl5
-    COMMAND $<TARGET_FILE:rnx2rtkp>
+    COMMAND $<TARGET_FILE:mrtk> post
         -k ${CMAKE_SOURCE_DIR}/conf/claslib/rnx2rtkp_L1CL5.toml
         -ts 2025/01/22 16:00:00 -te 2025/01/22 16:59:59 -ti 1
         -o ${CMAKE_BINARY_DIR}/out_claslib_ppp_rtk_l1cl5.nmea
@@ -887,7 +852,7 @@ set_tests_properties(claslib_ppp_rtk_l1cl5_check PROPERTIES
 # Data: 2019/12/15 01:00-02:00, 0627349AB.bnx + sept_2019349.nav + vrs2019349B.obs
 # Reference: ref_ST12_VRS.nmea (upstream claslib output)
 add_test(NAME claslib_vrs_rtk_st12
-    COMMAND $<TARGET_FILE:rnx2rtkp>
+    COMMAND $<TARGET_FILE:mrtk> post
         -k ${CMAKE_SOURCE_DIR}/conf/claslib/rnx2rtkp_vrs.toml
         -ts 2019/12/15 01:00:00 -te 2019/12/15 01:59:59 -ti 1
         -o ${CMAKE_BINARY_DIR}/out_claslib_vrs_rtk_st12.nmea
@@ -919,7 +884,7 @@ set_tests_properties(claslib_vrs_rtk_st12_check PROPERTIES
 # Reference: ref_L6_2CH_VRS.nmea (upstream claslib output)
 # Note: No separate .nav — nav embedded in BINEX; no .l6 — VRS obs replace L6
 add_test(NAME claslib_vrs_rtk_2ch
-    COMMAND $<TARGET_FILE:rnx2rtkp>
+    COMMAND $<TARGET_FILE:mrtk> post
         -k ${CMAKE_SOURCE_DIR}/conf/claslib/rnx2rtkp_vrs.toml
         -ts 2025/06/06 20:00:00 -te 2025/06/06 20:59:59 -ti 1
         -l6msg 1
@@ -951,7 +916,7 @@ set_tests_properties(claslib_vrs_rtk_2ch_check PROPERTIES
 # ── ssr2obs regression: generate VRS and verify via VRS-RTK pipeline ─────────
 # Step 1: Generate VRS observations from SSR corrections using ssr2obs
 add_test(NAME claslib_ssr2obs
-    COMMAND $<TARGET_FILE:ssr2obs>
+    COMMAND $<TARGET_FILE:mrtk> ssr2obs
         -k ${CMAKE_SOURCE_DIR}/conf/claslib/ssr2obs.toml
         -ts 2019/08/27 16:00:00 -te 2019/08/27 16:59:59 -ti 1
         -r -o ${CMAKE_BINARY_DIR}/out_ssr2obs_vrs2019239Q.obs
@@ -966,7 +931,7 @@ set_tests_properties(claslib_ssr2obs PROPERTIES
 
 # Step 2: Feed ssr2obs output into VRS-RTK and compare against reference
 add_test(NAME claslib_ssr2obs_vrs_rtk
-    COMMAND $<TARGET_FILE:rnx2rtkp>
+    COMMAND $<TARGET_FILE:mrtk> post
         -k ${CMAKE_SOURCE_DIR}/conf/claslib/rnx2rtkp_vrs.toml
         -ts 2019/08/27 16:00:00 -te 2019/08/27 16:59:59 -ti 1
         -o ${CMAKE_BINARY_DIR}/out_ssr2obs_vrs_rtk.nmea
@@ -998,7 +963,7 @@ set_tests_properties(claslib_ssr2obs_vrs_rtk_check PROPERTIES
 # ── ssr2osr regression: apply SSR corrections to real obs and verify output ──
 # Step 1: Run ssr2osr with real observations + L6 corrections
 add_test(NAME claslib_ssr2osr
-    COMMAND $<TARGET_FILE:ssr2osr>
+    COMMAND $<TARGET_FILE:mrtk> ssr2osr
         -k ${CMAKE_SOURCE_DIR}/conf/claslib/ssr2osr.toml
         -ts 2019/08/27 16:00:00 -te 2019/08/27 16:59:59 -ti 1
         -o ${CMAKE_BINARY_DIR}/out_ssr2osr.nmea
@@ -1038,7 +1003,7 @@ set_tests_properties(claslib_ssr2osr_check PROPERTIES
 # Uses line-count threshold (≥90% of reference) for pass/fail.
 add_test(NAME rtkrcv_rt_clas
     COMMAND bash ${_TESTCMAKE}/run_rtkrcv_test.sh
-        $<TARGET_FILE:rtkrcv>
+        $<TARGET_FILE:mrtk> run
         ${CMAKE_SOURCE_DIR}
         ${_CLSDATA}/rtkrcv_clas_ref.nmea
         10
@@ -1060,7 +1025,7 @@ set_tests_properties(rtkrcv_rt_clas PROPERTIES
 # Uses line-count threshold (≥90% of reference) for pass/fail.
 add_test(NAME rtkrcv_rt_clas_2ch
     COMMAND bash ${_TESTCMAKE}/run_rtkrcv_test.sh
-        $<TARGET_FILE:rtkrcv>
+        $<TARGET_FILE:mrtk> run
         ${CMAKE_SOURCE_DIR}
         ${_CLSDATA}/ref_L6_2CH_RT.nmea
         10
