@@ -33,7 +33,7 @@ extern int showmsg(const char* format, ...) {
     va_start(arg, format);
     vfprintf(stderr, format, arg);
     va_end(arg);
-    fprintf(stderr, "\r");
+    fprintf(stderr, *format ? "\r" : "\n");
     return 0;
 }
 extern void settspan(gtime_t ts, gtime_t te) {

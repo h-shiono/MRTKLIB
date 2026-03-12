@@ -862,7 +862,11 @@ int mrtk_bias(int argc, char** argv) {
         fprintf(stderr, "error: rtcm_t allocation failed\n");
         return -1;
     }
-    init_rtcm(rtcm);
+    if (!init_rtcm(rtcm)) {
+        fprintf(stderr, "error: init_rtcm failed\n");
+        free(rtcm);
+        return -1;
+    }
 
     /* Initialize MRTKLIB runtime context */
     ctx = mrtk_ctx_create();
@@ -940,16 +944,12 @@ int mrtk_bias(int argc, char** argv) {
         }
         fprintf(stderr, "error : %s required options\n", reqarg[i]);
         print_help();
-        free_rtcm(rtcm);
-        free(rtcm);
-        return -1;
+        goto cleanup;
     }
 
     /* generate receiver bias */
     if (!gen_bias(ts, tspan, navfile, obsfile, tecfile, scbfile, ecef, elmask, outfile, staname, allb)) {
-        free_rtcm(rtcm);
-        free(rtcm);
-        return -1;
+        goto cleanup;
     }
 
     if (strlen(tracefile) > 0) {
@@ -960,4 +960,14 @@ int mrtk_bias(int argc, char** argv) {
     free_rtcm(rtcm);
     free(rtcm);
     return 1;
+
+cleanup:
+    if (strlen(tracefile) > 0) {
+        traceclose(ctx);
+    }
+    g_mrtk_ctx = NULL;
+    mrtk_ctx_destroy(ctx);
+    free_rtcm(rtcm);
+    free(rtcm);
+    return -1;
 }

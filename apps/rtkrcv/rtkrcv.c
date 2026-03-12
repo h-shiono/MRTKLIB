@@ -763,6 +763,7 @@ static void prstatus(vt_t* vt) {
     pthread_once(&prstatus_once, init_prstatus_rtcm);
     rtcm = prstatus_rtcm;
     if (!rtcm) {
+        vt_printf(vt, "error: rtcm allocation failed in prstatus\n");
         return;
     }
 
@@ -2001,18 +2002,6 @@ int mrtk_run(int argc, char** argv) {
 
     mrtk_ctx_t* ctx;
 
-    /* heap-allocate rtksvr_t (~972 MB) to avoid BSS bloat */
-    svr = (rtksvr_t*)calloc(1, sizeof(rtksvr_t));
-    if (!svr) {
-        fprintf(stderr, "error: rtksvr_t allocation failed\n");
-        return -1;
-    }
-
-    /* Initialize MRTKLIB runtime context */
-    ctx = mrtk_ctx_create();
-    g_mrtk_ctx = ctx;
-    g_mrtk_legacy_ctx = mrtk_context_new();
-
     for (i = 1; i < argc; i++) {
         if (!strcmp(argv[i], "-s")) {
             start = 1;
@@ -2042,6 +2031,19 @@ int mrtk_run(int argc, char** argv) {
             printusage();
         }
     }
+
+    /* heap-allocate rtksvr_t (~972 MB) to avoid BSS bloat */
+    svr = (rtksvr_t*)calloc(1, sizeof(rtksvr_t));
+    if (!svr) {
+        fprintf(stderr, "error: rtksvr_t allocation failed\n");
+        return -1;
+    }
+
+    /* Initialize MRTKLIB runtime context */
+    ctx = mrtk_ctx_create();
+    g_mrtk_ctx = ctx;
+    g_mrtk_legacy_ctx = mrtk_context_new();
+
     if (trace > 0) {
         traceopen(ctx, TRACEFILE);
         tracelevel(ctx, trace);

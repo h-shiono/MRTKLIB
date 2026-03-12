@@ -965,7 +965,12 @@ static void readpreceph(char** infile, int n, const prcopt_t* prcopt, nav_t* nav
                     break;
                 }
             }
-            init_rtcm(rtcm);
+            if (!init_rtcm(rtcm)) {
+                rtcm_file[0] = '\0';
+                free(rtcm);
+                rtcm = NULL;
+                break;
+            }
             strcpy(rtcm->opt, prcopt->rtcmopt);
             break;
         }
@@ -1001,7 +1006,12 @@ static void readpreceph(char** infile, int n, const prcopt_t* prcopt, nav_t* nav
                             continue;
                         }
                     }
-                    init_rtcm(l6e);
+                    if (!init_rtcm(l6e)) {
+                        qzssl6e_file[0] = '\0';
+                        free(l6e);
+                        l6e = NULL;
+                        continue;
+                    }
                     strcpy(l6e->opt, prcopt->rtcmopt);
                 }
             }
