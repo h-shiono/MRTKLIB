@@ -66,11 +66,11 @@ static const toml_map_t toml_mapping[] = {
     {"positioning.corrections", "gps_frequency", "pos1-posopt11"},
     {"positioning.corrections", "reserved", "pos1-posopt12"},
     {"positioning.corrections", "qzs_frequency", "pos1-posopt13"},
+    {"positioning.corrections", "tidal_correction", "pos1-tidecorr"},
 
     /* ── positioning.atmosphere ─────────────────────────────────────────────── */
     {"positioning.atmosphere", "ionosphere", "pos1-ionoopt"},
     {"positioning.atmosphere", "troposphere", "pos1-tropopt"},
-    {"positioning.atmosphere", "tidal_correction", "pos1-tidecorr"},
 
     /* ── ambiguity_resolution ──────────────────────────────────────────────── */
     {"ambiguity_resolution", "mode", "pos2-armode"},

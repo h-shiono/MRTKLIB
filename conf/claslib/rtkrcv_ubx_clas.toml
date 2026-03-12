@@ -46,9 +46,9 @@ partial_ar        = true
 shapiro_delay     = true
 exclude_qzs_ref   = true
 no_phase_bias_adj = false
+tidal_correction = "solid+otl-clasgrid+pole"
 
 [positioning.atmosphere]
-tidal_correction = "solid+otl-clasgrid+pole"
 ionosphere       = "est-adaptive"
 troposphere      = "off"
 

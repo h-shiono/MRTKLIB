@@ -39,9 +39,9 @@ shapiro_delay     = true  # shapiro time delay
 exclude_qzs_ref   = true  # exclude QZS as reference satellite
 no_phase_bias_adj = false
 # gps_frequency     = "l1+l2"  # gps/qzs freq (2:l1+l2)
+tidal_correction = "solid+otl-clasgrid+pole"  # (3:solid+otl-clasgrid+pole)
 
 [positioning.atmosphere]
-tidal_correction = "solid+otl-clasgrid+pole"  # (3:solid+otl-clasgrid+pole)
 ionosphere       = "est-adaptive"  # (9:est-adaptive)
 troposphere      = "off"
 

@@ -26,9 +26,9 @@ receiver_antenna  = true  # receiver antenna PCV (city conf sets antenna type)
 phase_windup      = "on"  # phase windup
 exclude_eclipse   = true  # eclipsing satellite exclusion
 raim_fde          = true  # RAIM FDE
+tidal_correction = "on"  # solid earth tides
 
 [positioning.atmosphere]
-tidal_correction = "on"  # solid earth tides
 ionosphere       = "off"
 troposphere      = "off"
 

@@ -24,9 +24,9 @@ satellite_antenna = false  # satellite antenna pcv correction (0:off,1:on)
 receiver_antenna  = true  # receiver antenna pco/pcv correction (0:off,1:on)
 phase_windup      = "on"  # phase windup correction (0:off,1:on,2:precise)
 raim_fde          = false  # raim fde (0:off,1:on)
+tidal_correction = "on"  # (0:off,1:on,2:otl)
 
 [positioning.atmosphere]
-tidal_correction = "on"  # (0:off,1:on,2:otl)
 ionosphere       = "dual-freq"  # (0:off,1:brdc,3:dual-freq,4:est-stec)
 troposphere      = "est-ztd"  # (0:off,1:saas,2:sbas,3:est-ztd,4:est-ztdgrad)
 

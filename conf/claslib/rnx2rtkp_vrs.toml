@@ -31,9 +31,9 @@ raim_fde          = true  # raim fde(0:off,1:on)
 partial_ar        = true  # partial ambiguity resolution(0:off,1:on)
 exclude_qzs_ref   = true  # exclude QZS as a reference satellite (0:off,1:on)
 # gps_frequency     = "l1+l2"  # gps/qzs freq (2:l1+l2,3:l1+l5)
+tidal_correction = "off"  # (0:off,1:on)
 
 [positioning.atmosphere]
-tidal_correction = "off"  # (0:off,1:on)
 ionosphere       = "est-adaptive"  # (0:off,1:brdc,2:sbas,3:dual-freq,4:est-stec,9:est-adaptive)
 troposphere      = "off"  # (0:off,1:saas,2:sbas,3:est-ztd,4:est-ztdgrad)
 

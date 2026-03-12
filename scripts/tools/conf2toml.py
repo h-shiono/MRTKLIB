@@ -72,7 +72,7 @@ MAPPING: list[tuple[str, str, str, str]] = [
     # ── positioning.atmosphere ───────────────────────────────────────────────
     ("pos1-ionoopt",    "positioning.atmosphere", "ionosphere",       "enum"),
     ("pos1-tropopt",    "positioning.atmosphere", "troposphere",      "enum"),
-    ("pos1-tidecorr",   "positioning.atmosphere", "tidal_correction", "enum"),
+    ("pos1-tidecorr",   "positioning.corrections", "tidal_correction", "enum"),
 
     # ── ambiguity_resolution ─────────────────────────────────────────────────
     ("pos2-armode",     "ambiguity_resolution", "mode",         "enum"),

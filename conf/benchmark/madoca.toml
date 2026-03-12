@@ -24,9 +24,9 @@ satellite_antenna = true
 receiver_antenna  = true
 phase_windup      = "on"
 raim_fde          = false
+tidal_correction = "on"
 
 [positioning.atmosphere]
-tidal_correction = "on"
 ionosphere       = "dual-freq"
 troposphere      = "est-ztd"
 
