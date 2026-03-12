@@ -51,7 +51,7 @@ incrementally back-ported to each engine:
 | **v0.5.4** | All | Signals update: frequency / physical band separation and structuring | ✅ Released |
 | **v0.5.5** | PPP-RTK | Bug fix: CLAS real-time positioning via UBX does not work ([#31](https://github.com/h-shiono/MRTKLIB/issues/31)) | ✅ Released |
 | **v0.5.6** | All | RINEX 4.00 CNAV/CNV2 NAV support (GPS, QZSS, BDS) | ✅ Released |
-| **v0.5.x** | — | Port remaining RTKLIB console apps: `convbin`, `str2str` | 💭 Backlog |
+| **v0.5.7** | — | Port RTKLIB `convbin` and `str2str` CLI applications | ✅ Released |
 | **v0.5.x** | All | Doxygen docstring coverage expansion | 💭 Backlog |
 | **v0.6.0** | All | Single CLI App: Unified `mrtk` executable with subcommands | 💭 Backlog |
 
@@ -103,7 +103,7 @@ cmake -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build -j
 ```
 
-Compiled applications (e.g., rnx2rtkp, rtkrcv) will be located in the `build/` directory.
+Compiled applications (e.g., rnx2rtkp, rtkrcv, convbin, str2str) will be located in the `build/` directory.
 
 ### Running Applications
 Configuration files (TOML) are stored in the `conf/` directory.
@@ -166,7 +166,6 @@ For detailed licensing information, please refer to [LICENSE](LICENSE).
 The kinematic positioning benchmark uses the **PPC-Dataset** (Precise Positioning
 Challenge 2024), kindly released as open data by:
 
-> [!NOTE]
 > **Taro Suzuki**, Chiba Institute of Technology
 > <https://github.com/taroz/PPC-Dataset>
 

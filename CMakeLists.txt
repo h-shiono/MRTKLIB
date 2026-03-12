@@ -53,6 +53,7 @@ add_library(mrtklib STATIC
     src/data/mrtk_obs.c
     src/data/mrtk_nav.c
     src/data/mrtk_rinex.c
+    src/data/mrtk_convrnx.c
     src/data/mrtk_ionex.c
     src/data/mrtk_bias_sinex.c
     src/data/mrtk_fcb.c
@@ -101,6 +102,7 @@ add_library(mrtklib STATIC
     # ── stream/ (リアルタイム基盤) ─────────────────────────────────────────────
     src/stream/mrtk_stream.c
     src/stream/mrtk_rtksvr.c
+    src/stream/mrtk_streamsvr.c
 )
 target_include_directories(mrtklib PUBLIC include ${CMAKE_BINARY_DIR}/include)
 set_target_properties(mrtklib PROPERTIES C_STANDARD 11 C_STANDARD_REQUIRED ON)
@@ -164,9 +166,21 @@ add_executable(dumpcssr
 )
 target_link_libraries(dumpcssr PRIVATE mrtklib)
 
+# ── convbin ──────────────────────────────────────────────────────────────────
+add_executable(convbin
+    apps/convbin/convbin.c
+)
+target_link_libraries(convbin PRIVATE mrtklib)
+
+# ── str2str ──────────────────────────────────────────────────────────────────
+add_executable(str2str
+    apps/str2str/str2str.c
+)
+target_link_libraries(str2str PRIVATE mrtklib pthread)
+
 # ── Install ───────────────────────────────────────────────────────────────────
 # cmake --install build  →  copies binaries to bin/ (matches make install)
-install(TARGETS rnx2rtkp rtkrcv recvbias ssr2obs ssr2osr dumpcssr RUNTIME DESTINATION bin)
+install(TARGETS rnx2rtkp rtkrcv recvbias ssr2obs ssr2osr dumpcssr convbin str2str RUNTIME DESTINATION bin)
 
 # ── Utility tools (optional) ─────────────────────────────────────────────────
 # Build with: cmake --preset default -DBUILD_UTILS=ON
