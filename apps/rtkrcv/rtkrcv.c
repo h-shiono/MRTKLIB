@@ -740,13 +740,18 @@ static void prsolution(vt_t* vt, const sol_t* sol, const double* rb) {
     vt_printf(vt, "\n");
 }
 /* print status --------------------------------------------------------------*/
+static rtcm_t* prstatus_rtcm = NULL;
+static pthread_once_t prstatus_once = PTHREAD_ONCE_INIT;
+
+static void init_prstatus_rtcm(void) { prstatus_rtcm = (rtcm_t*)calloc(3, sizeof(rtcm_t)); }
+
 static void prstatus(vt_t* vt) {
     rtk_t rtk;
     const char* svrstate[] = {"stop", "run"};
     const char* sol[] = {"-", "fix", "float", "SBAS", "DGPS", "single", "PPP", ""};
     const char* mode[] = {"single", "DGPS", "kinematic", "static", "moving-base", "fixed", "PPP-kinema", "PPP-static"};
     const char* freq[] = {"-", "L1", "L1+L2", "L1+L2+L3", "L1+L2+L3+L4", "L1+L2+L3+L4+L5", ""};
-    static rtcm_t* rtcm = NULL;
+    rtcm_t* rtcm;
     int i, j, n, thread, cycle, state, rtkstat, nsat0, nsat1, prcout, nave;
     int cputime, nb[3] = {0}, nmsg[3][10] = {{0}};
     char tstr[64], s[1024], *p, tmp[64];
@@ -755,11 +760,10 @@ static void prstatus(vt_t* vt) {
 
     trace(NULL, 4, "prstatus:\n");
 
+    pthread_once(&prstatus_once, init_prstatus_rtcm);
+    rtcm = prstatus_rtcm;
     if (!rtcm) {
-        rtcm = (rtcm_t*)calloc(3, sizeof(rtcm_t));
-        if (!rtcm) {
-            return;
-        }
+        return;
     }
 
     rtksvrlock(svr);

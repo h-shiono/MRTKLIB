@@ -939,14 +939,6 @@ static void readpreceph(char** infile, int n, const prcopt_t* prcopt, nav_t* nav
         nav->seph[i] = seph0;
     }
 
-    /* allocate rtcm structs on heap (~103MB each) */
-    if (!rtcm) {
-        rtcm = (rtcm_t*)calloc(1, sizeof(rtcm_t));
-    }
-    if (!l6e) {
-        l6e = (rtcm_t*)calloc(1, sizeof(rtcm_t));
-    }
-
     /* set rtcm file and initialize rtcm struct */
     rtcm_file[0] = rtcm_path[0] = '\0';
     fp_rtcm = NULL;
@@ -968,11 +960,13 @@ static void readpreceph(char** infile, int n, const prcopt_t* prcopt, nav_t* nav
             strcpy(rtcm_file, infile[i]);
             if (!rtcm) {
                 rtcm = (rtcm_t*)calloc(1, sizeof(rtcm_t));
+                if (!rtcm) {
+                    rtcm_file[0] = '\0';
+                    break;
+                }
             }
-            if (rtcm) {
-                init_rtcm(rtcm);
-                strcpy(rtcm->opt, prcopt->rtcmopt);
-            }
+            init_rtcm(rtcm);
+            strcpy(rtcm->opt, prcopt->rtcmopt);
             break;
         }
     }
@@ -1002,11 +996,13 @@ static void readpreceph(char** infile, int n, const prcopt_t* prcopt, nav_t* nav
                     strcpy(qzssl6e_file, infile[i]);
                     if (!l6e) {
                         l6e = (rtcm_t*)calloc(1, sizeof(rtcm_t));
+                        if (!l6e) {
+                            qzssl6e_file[0] = '\0';
+                            continue;
+                        }
                     }
-                    if (l6e) {
-                        init_rtcm(l6e);
-                        strcpy(l6e->opt, prcopt->rtcmopt);
-                    }
+                    init_rtcm(l6e);
+                    strcpy(l6e->opt, prcopt->rtcmopt);
                 }
             }
         }
