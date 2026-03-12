@@ -64,6 +64,8 @@ tasks/
 upstream/claslib/
 upstream/madocalib/
 upstream/MALIB/
+upstream/demo5/
+upstream/RTKLIB/
 
 # PPC benchmark dataset, L6 data, and positioning results (large; download on demand)
 data/benchmark/

@@ -55,6 +55,7 @@ incrementally back-ported to each engine:
 | **v0.5.x** | All | Doxygen docstring coverage expansion | 💭 Backlog |
 | **v0.6.0** | All | Single CLI App: Unified `mrtk` executable with subcommands | 💭 Backlog |
 
+> [!NOTE]
 > **Configuration format change in v0.5.0:** Starting with v0.5.0, all configuration
 > files use TOML (`.toml`).  The legacy RTKLIB `key=value` `.conf` format is no longer
 > shipped or tested.  `loadopts()` still accepts `.conf` files at runtime, but all
@@ -62,6 +63,7 @@ incrementally back-ported to each engine:
 > If you need to continue using `.conf` files with the original bundled configurations,
 > please use the [`support/v0.4.x`](https://github.com/h-shiono/MRTKLIB/tree/support/v0.4.x) branch.
 
+> [!NOTE]
 > demo5 algorithm improvements are adapted from **[demo5 RTKLIB](https://github.com/rtklibexplorer/RTKLIB)**
 > by Tim Everett (rtklibexplorer).  Benchmark results use the
 > [PPC-Dataset](https://github.com/taroz/PPC-Dataset) (Taro Suzuki, Chiba Institute of Technology).
@@ -164,6 +166,7 @@ For detailed licensing information, please refer to [LICENSE](LICENSE).
 The kinematic positioning benchmark uses the **PPC-Dataset** (Precise Positioning
 Challenge 2024), kindly released as open data by:
 
+> [!NOTE]
 > **Taro Suzuki**, Chiba Institute of Technology
 > <https://github.com/taroz/PPC-Dataset>
 
