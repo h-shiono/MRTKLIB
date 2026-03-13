@@ -5,6 +5,27 @@ All notable changes to MRTKLIB are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v0.6.2] - 2026-03-13
+
+**Enhancement** — Documentation site with MkDocs Material + Doxygen + GitHub Pages.
+
+### Added
+
+- **MkDocs Material documentation site** — Modern, responsive docs with dark mode toggle, search, and navigation tabs.
+- **Documentation pages** — Landing page, installation guide, first-run tutorial, CLI reference, TOML configuration guide.
+- **Configuration options reference** — Auto-generated from `conf2toml.py` MAPPING table via `scripts/docs/gen_config_ref.py`.
+- **Doxygen API reference integration** — Separate HTML build linked from MkDocs site navigation.
+- **GitHub Actions deployment** — `.github/workflows/docs.yaml` deploys to GitHub Pages on push to `main`.
+
+### Changed
+
+- `Doxyfile.in`: `HTML_OUTPUT` changed from `html` to `api` for MkDocs site integration.
+- Existing technical docs (`benchmark.md`, `rtkrcv-clas-realtime.md`, `test-accuracy-methodology.md`) included in site navigation.
+
+### Test Results
+
+62/62 tests pass (no regressions).
+
 ## [v0.6.1] - 2026-03-12
 
 **Enhancement** — TOML configuration UX improvements.

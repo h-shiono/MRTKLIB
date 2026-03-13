@@ -13,6 +13,9 @@ __astcache
 # CMake build directory
 build/
 
+# MkDocs generated site
+site/
+
 # Python virtual environments
 scripts/.venv/
 

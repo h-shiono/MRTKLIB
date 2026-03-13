@@ -21,7 +21,7 @@ Ruff linting.
 
 ### Three-Tier Test Methodology
 
-A new framework document ([docs/test-accuracy-methodology.md](test-accuracy-methodology.md))
+A new framework document ([docs/test-accuracy-methodology.md](../reference/test-accuracy-methodology.md))
 defines three complementary validation layers:
 
 | Tier | Measures | Reference |

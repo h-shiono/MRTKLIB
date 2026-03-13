@@ -34,7 +34,7 @@ repository. They are **not** regenerated at test time.
 The PPP-AR and PPP-AR+iono reference `.pos` files (`pppar.pos`,
 `pppar_ion.pos`) are generated from upstream MADOCALIB **built with
 `-DLAPACK -framework Accelerate`** (macOS Accelerate framework), matching
-the solver used by MRTKLIB. See [release-notes-v0.3.1.md](release-notes-v0.3.1.md)
+the solver used by MRTKLIB. See [release-notes-v0.3.1.md](../releases/release-notes-v0.3.1.md)
 for background.
 
 ### claslib PPP-RTK / VRS-RTK reference

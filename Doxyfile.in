@@ -39,7 +39,7 @@ EXTRACT_PRIVATE        = NO
 #---------------------------------------------------------------------------
 GENERATE_HTML          = YES
 GENERATE_LATEX         = NO
-HTML_OUTPUT            = html
+HTML_OUTPUT            = api
 
 #---------------------------------------------------------------------------
 # Graphs (requires Graphviz 'dot')
