@@ -6,11 +6,10 @@ type = "*"
 
 [antenna.base]
 position_type = "llh"
-position_1    = 35.66633426  # latitude  (deg)
-position_2    = 139.79220181  # longitude (deg)
-position_3    = 59.82  # ellipsoidal height (m)
-type          = "TRM55971.00     NONE"
-delta_e       = 0.0
-delta_n       = 0.0
-delta_u       = -0.0855
-
+position_1 = 35.66633426      # latitude  (deg)
+position_2 = 139.79220181     # longitude (deg)
+position_3 = 59.82            # ellipsoidal height (m)
+type = "TRM55971.00     NONE"
+delta_e = 0.0
+delta_n = 0.0
+delta_u = -0.0855

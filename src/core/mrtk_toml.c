@@ -14,6 +14,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "mrtklib/mrtk_const.h"
 #include "mrtklib/mrtk_trace.h"
 #include "tomlc99/toml.h"
 
@@ -65,11 +66,11 @@ static const toml_map_t toml_mapping[] = {
     {"positioning.corrections", "gps_frequency", "pos1-posopt11"},
     {"positioning.corrections", "reserved", "pos1-posopt12"},
     {"positioning.corrections", "qzs_frequency", "pos1-posopt13"},
+    {"positioning.corrections", "tidal_correction", "pos1-tidecorr"},
 
     /* ── positioning.atmosphere ─────────────────────────────────────────────── */
     {"positioning.atmosphere", "ionosphere", "pos1-ionoopt"},
     {"positioning.atmosphere", "troposphere", "pos1-tropopt"},
-    {"positioning.atmosphere", "tidal_correction", "pos1-tidecorr"},
 
     /* ── ambiguity_resolution ──────────────────────────────────────────────── */
     {"ambiguity_resolution", "mode", "pos2-armode"},
@@ -443,6 +444,37 @@ static int toml_val_to_str(toml_table_t* tbl, const char* key, char* buf, int bu
     return 0;
 }
 
+/* ── constellation name → bitmask conversion ──────────────────────────────── */
+
+static int navsys_stricmp(const char* a, const char* b) {
+    for (; *a && *b; a++, b++) {
+        int ca = (*a >= 'A' && *a <= 'Z') ? *a + 32 : *a;
+        int cb = (*b >= 'A' && *b <= 'Z') ? *b + 32 : *b;
+        if (ca != cb) return ca - cb;
+    }
+    return (unsigned char)*a - (unsigned char)*b;
+}
+
+static int navsys_str2mask(const char* name) {
+    static const struct {
+        const char* str;
+        int mask;
+    } tbl[] = {
+        {"GPS", SYS_GPS},     {"G", SYS_GPS},
+        {"SBAS", SYS_SBS},    {"S", SYS_SBS},
+        {"GLONASS", SYS_GLO}, {"GLO", SYS_GLO}, {"R", SYS_GLO},
+        {"Galileo", SYS_GAL}, {"GAL", SYS_GAL}, {"E", SYS_GAL},
+        {"QZSS", SYS_QZS},   {"QZS", SYS_QZS}, {"J", SYS_QZS},
+        {"BeiDou", SYS_CMP},  {"BDS", SYS_CMP}, {"CMP", SYS_CMP}, {"C", SYS_CMP},
+        {"NavIC", SYS_IRN},   {"IRNSS", SYS_IRN}, {"IRN", SYS_IRN}, {"I", SYS_IRN},
+    };
+    int i;
+    for (i = 0; i < (int)(sizeof(tbl) / sizeof(tbl[0])); i++) {
+        if (!navsys_stricmp(name, tbl[i].str)) return tbl[i].mask;
+    }
+    return 0;
+}
+
 /* ── loadopts_toml ─────────────────────────────────────────────────────────── */
 
 extern int loadopts_toml(const char* file, opt_t* opts) {
@@ -497,6 +529,67 @@ extern int loadopts_toml(const char* file, opt_t* opts) {
             continue;
         }
         count++;
+    }
+
+    /* Handle positioning.systems string list (overrides constellations) */
+    {
+        toml_table_t* pos_tbl = navigate_table(root, "positioning");
+        if (pos_tbl) {
+            toml_array_t* arr = toml_array_in(pos_tbl, "systems");
+            if (arr) {
+                int mask = 0, nelem = toml_array_nelem(arr);
+                int k;
+                for (k = 0; k < nelem; k++) {
+                    toml_datum_t d = toml_string_at(arr, k);
+                    if (d.ok) {
+                        int sys = navsys_str2mask(d.u.s);
+                        if (sys) {
+                            mask |= sys;
+                        } else {
+                            fprintf(stderr, "TOML: unknown constellation '%s' in positioning.systems\n", d.u.s);
+                        }
+                        free(d.u.s);
+                    }
+                }
+                {
+                    opt_t* opt = searchopt("pos1-navsys", opts);
+                    if (opt) {
+                        *(int*)opt->var = mask;
+                    }
+                }
+            }
+        }
+    }
+
+    /* Handle positioning.excluded_sats as string list (joins to space-separated) */
+    {
+        toml_table_t* pos_tbl = navigate_table(root, "positioning");
+        if (pos_tbl) {
+            toml_array_t* arr = toml_array_in(pos_tbl, "excluded_sats");
+            if (arr) {
+                opt_t* opt = searchopt("pos1-exclsats", opts);
+                if (opt) {
+                    char* buf = (char*)opt->var;
+                    int nelem = toml_array_nelem(arr), k, pos = 0;
+                    buf[0] = '\0';
+                    for (k = 0; k < nelem; k++) {
+                        toml_datum_t d = toml_string_at(arr, k);
+                        if (d.ok) {
+                            if (pos > 0 && pos < 1023) {
+                                buf[pos++] = ' ';
+                            }
+                            int len = (int)strlen(d.u.s);
+                            if (pos + len < 1024) {
+                                memcpy(buf + pos, d.u.s, len);
+                                pos += len;
+                            }
+                            free(d.u.s);
+                        }
+                    }
+                    buf[pos] = '\0';
+                }
+            }
+        }
     }
 
     toml_free(root);

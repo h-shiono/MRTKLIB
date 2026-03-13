@@ -2,49 +2,50 @@
 # Converted from: madoca.conf
 
 [positioning]
-mode                = "ppp-kine"
-frequency           = "l1+2"
-solution_type       = "forward"
-elevation_mask      = 10.0
-dynamics            = true  # kinematic
+mode = "ppp-kine"
+frequency = "l1+2"
+solution_type = "forward"
+elevation_mask = 10.0
+dynamics = true                     # kinematic
 satellite_ephemeris = "brdc+ssrapc"
-excluded_sats       = ""
-constellations      = 29  # GPS + GLONASS + Galileo + QZSS; GPS+GLO+GAL+QZS
+excluded_sats = ""
+# constellations    = 29  # deprecated: use systems instead
+systems = ["GPS", "GLONASS", "Galileo", "QZSS"]
 
 [positioning.snr_mask]
 rover_enabled = false
-base_enabled  = false
-L1            = [0, 0, 0, 0, 0, 0, 0, 0, 0]
-L2            = [0, 0, 0, 0, 0, 0, 0, 0, 0]
-L5            = [0, 0, 0, 0, 0, 0, 0, 0, 0]
+base_enabled = false
+L1 = [0, 0, 0, 0, 0, 0, 0, 0, 0]
+L2 = [0, 0, 0, 0, 0, 0, 0, 0, 0]
+L5 = [0, 0, 0, 0, 0, 0, 0, 0, 0]
 
 [positioning.corrections]
 satellite_antenna = true
-receiver_antenna  = true
-phase_windup      = "on"
-raim_fde          = false
+receiver_antenna = true
+phase_windup = "on"
+raim_fde = false
+tidal_correction = "on"
 
 [positioning.atmosphere]
-tidal_correction = "on"
-ionosphere       = "dual-freq"
-troposphere      = "est-ztd"
+ionosphere = "dual-freq"
+troposphere = "est-ztd"
 
 [ambiguity_resolution]
-mode    = "off"
+mode = "off"
 systems = 57
 
 [ambiguity_resolution.thresholds]
-ratio          = 1.5
-ratio1         = 1.5
+ratio = 1.5
+ratio1 = 1.5
 elevation_mask = 15.0
 
 [ambiguity_resolution.counters]
-min_fix        = 600
+min_fix = 600
 max_iterations = 10
 
 [rejection]
 innovation = 50.0
-gdop       = 30.0
+gdop = 30.0
 
 [slip_detection]
 threshold = 0.15
@@ -55,84 +56,83 @@ iterations = 1
 [kalman_filter.measurement_error]
 code_phase_ratio_L1 = 300.0
 code_phase_ratio_L2 = 300.0
-ura_ratio           = 0.1
-phase               = 0.003
-phase_elevation     = 0.003
+ura_ratio = 0.1
+phase = 0.003
+phase_elevation = 0.003
 
 [kalman_filter.process_noise]
-bias        = 1.00e-04
-ionosphere  = 0.01
+bias = 1.00e-04
+ionosphere = 0.01
 troposphere = 1.00e-04
-position    = 0.0
-ifb         = 1.00e-05
+position = 0.0
+ifb = 1.00e-05
 
 [signals]
-gps     = "L1/L2/L5"
-qzs     = "L1/L5/L2"
+gps = "L1/L2/L5"
+qzs = "L1/L5/L2"
 galileo = "E1/E5a/E5b/E6"
-bds2    = "B1I/B3I/B2I"
-bds3    = "B1I/B3I/B2a"
+bds2 = "B1I/B3I/B2I"
+bds3 = "B1I/B3I/B2a"
 
 [receiver]
 iono_correction = false
 
 [antenna.rover]
 position_type = "single"
-type          = "*"
-delta_e       = 0.0
-delta_n       = 0.0
-delta_u       = 0.0
+type = "*"
+delta_e = 0.0
+delta_n = 0.0
+delta_u = 0.0
 
 [antenna.base]
-position_type      = "llh"
-position_1         = 90.0
-position_2         = 0.0
-position_3         = -6335367.6285
-type               = ""
-delta_e            = 0.0
-delta_n            = 0.0
-delta_u            = 0.0
+position_type = "llh"
+position_1 = 90.0
+position_2 = 0.0
+position_3 = -6335367.6285
+type = ""
+delta_e = 0.0
+delta_n = 0.0
+delta_u = 0.0
 max_average_epochs = 0
-init_reset         = false
+init_reset = false
 
 [output]
-format            = "nmea"
-header            = true
-options           = true
-velocity          = false
-time_system       = "gpst"
-time_format       = "tow"  # GPS TOW for time matching
-time_decimals     = 3
+format = "nmea"
+header = true
+options = true
+velocity = false
+time_system = "gpst"
+time_format = "tow"         # GPS TOW for time matching
+time_decimals = 3
 coordinate_format = "deg"
-field_separator   = ""
-single_output     = false
-max_solution_std  = 0.0
-height_type       = "ellipsoidal"
-geoid_model       = "internal"
-static_solution   = "all"
-nmea_interval_1   = 0.0
-nmea_interval_2   = 0.0
-solution_status   = "off"
+field_separator = ""
+single_output = false
+max_solution_std = 0.0
+height_type = "ellipsoidal"
+geoid_model = "internal"
+static_solution = "all"
+nmea_interval_1 = 0.0
+nmea_interval_2 = 0.0
+solution_status = "off"
 
 [files]
 satellite_atx = ""
-receiver_atx  = "./tests/data/madocalib/igs20.atx"
-station_pos   = ""
-geoid         = ""
-ionosphere    = ""
-dcb           = ""
-eop           = ""
+receiver_atx = "./tests/data/madocalib/igs20.atx"
+station_pos = ""
+geoid = ""
+ionosphere = ""
+dcb = ""
+eop = ""
 ocean_loading = ""
-temp_dir      = ""
-geexe         = ""
+temp_dir = ""
+geexe = ""
 solution_stat = ""
-trace         = ""
+trace = ""
 
 [server]
 time_interpolation = true
-sbas_satellite     = "0"
-rinex_option_1     = ""
-rinex_option_2     = ""
-ppp_option         = ""
-rtcm_option        = ""
-
+sbas_satellite = "0"
+rinex_option_1 = ""
+rinex_option_2 = ""
+ppp_option = ""
+rtcm_option = ""

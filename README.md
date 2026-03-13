@@ -53,6 +53,7 @@ incrementally back-ported to each engine:
 | **v0.5.6** | All | RINEX 4.00 CNAV/CNV2 NAV support (GPS, QZSS, BDS) | ✅ Released |
 | **v0.5.7** | — | Port RTKLIB `convbin` and `str2str` CLI applications | ✅ Released |
 | **v0.6.0** | All | Single CLI App: Unified `mrtk` binary with subcommands (`run`, `post`, `relay`, `convert`, etc.); BSS reduced from 3 GB to 34 MB | ✅ Released |
+| **v0.6.1** | All | Config UX: `systems` string list, `excluded_sats` list, `taplo` formatter, section reorganization | ✅ Released |
 | **v0.6.x** | All | Doxygen docstring coverage expansion | 💭 Backlog |
 
 > [!NOTE]
@@ -103,7 +104,7 @@ cmake -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build -j
 ```
 
-Compiled applications (e.g., rnx2rtkp, rtkrcv, convbin, str2str) will be located in the `build/` directory.
+The unified `mrtk` binary will be located in the `build/` directory.
 
 ### Running Applications
 Configuration files (TOML) are stored in the `conf/` directory.
@@ -111,7 +112,10 @@ Test data and regression datasets are available in `tests/data/`.
 
 ```bash
 # Example: Running post-processing analysis
-./build/rnx2rtkp -k conf/malib/rnx2rtkp.toml tests/data/rtklib/rinex/xxxx.obs ...
+./build/mrtk post -k conf/malib/rnx2rtkp.toml tests/data/rtklib/rinex/xxxx.obs ...
+
+# Example: Real-time positioning
+./build/mrtk run -s -o conf/claslib/rtkrcv.toml
 ```
 
 ## 👨‍💻 For Developers

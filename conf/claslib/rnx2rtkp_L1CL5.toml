@@ -2,176 +2,176 @@
 # Converted from: rnx2rtkp_L1CL5.conf
 
 [positioning]
-mode                = "ppp-rtk"  # (9:ppp-rtk)
+mode = "ppp-rtk" # (9:ppp-rtk)
 # frequency           = "l1+2+3"  # (2:l1+2 for GPS/QZSS L1+L2, 3:l1+2+3 for GPS/QZSS L1+L2+L5 / Galileo E1+E5)
-signals             = ["G1C", "G2W", "E1C", "E5Q", "E7Q", "J1C", "J5Q"]
-solution_type       = "forward"  # (0:forward)
-elevation_mask      = 15.0  # (deg)
-dynamics            = true  # (0:off for static,1:on for kinematic)
-satellite_ephemeris = "brdc+ssrapc"  # (3:brdc+ssrapc)
-excluded_sats       = ""  # (prn ...)
-constellations      = 25  # GPS + Galileo + QZSS; (1:gps+8:gal+16:qzs)
+signals = ["G1C", "G2W", "E1C", "E5Q", "E7Q", "J1C", "J5Q"]
+solution_type = "forward"                                   # (0:forward)
+elevation_mask = 15.0                                       # (deg)
+dynamics = true                                             # (0:off for static,1:on for kinematic)
+satellite_ephemeris = "brdc+ssrapc"                         # (3:brdc+ssrapc)
+excluded_sats = ""                                          # (prn ...)
+# constellations    = 25  # deprecated: use systems instead
+systems = ["GPS", "Galileo", "QZSS"]
 
 [positioning.clas]
-grid_selection_radius  = 1000  # [m]
-receiver_type          = "Trimble NetR9"  # User receiver type
+grid_selection_radius = 1000    # [m]
+receiver_type = "Trimble NetR9" # User receiver type
 position_uncertainty_x = 10.0
 position_uncertainty_y = 10.0
 position_uncertainty_z = 10.0
 
 [positioning.snr_mask]
-rover_enabled = true  # (0:off,1:on)
-L1            = [10, 10, 10, 10, 30, 30, 30, 30, 30]
-L2            = [10, 10, 10, 10, 30, 30, 30, 30, 30]
-L5            = [10, 10, 10, 10, 30, 30, 30, 30, 30]
+rover_enabled = true                      # (0:off,1:on)
+L1 = [10, 10, 10, 10, 30, 30, 30, 30, 30]
+L2 = [10, 10, 10, 10, 30, 30, 30, 30, 30]
+L5 = [10, 10, 10, 10, 30, 30, 30, 30, 30]
 
 [positioning.corrections]
 satellite_antenna = false  # satellite antenna model(0:off,1:on)
-receiver_antenna  = true  # receiver antenna model(0:off,1:on)
-phase_windup      = "on"  # phase windup correction(0:off,1:on)
-exclude_eclipse   = true  # exclude measurements of eclipsing satellite(0:off,1:on)
-raim_fde          = true  # raim fde(0:off,1:on)
-iono_compensation = "meas"  # compensate time variation of ionosphere delay(0:off,1:ssr,2:meas)
-partial_ar        = true  # partial ambiguity resolution(0:off,1:on)
-shapiro_delay     = true  # shapiro time delay correction (0:off,1:on)
-exclude_qzs_ref   = true  # exclude QZS as a reference satellite (0:off,1:on)
+receiver_antenna = true    # receiver antenna model(0:off,1:on)
+phase_windup = "on"        # phase windup correction(0:off,1:on)
+exclude_eclipse = true     # exclude measurements of eclipsing satellite(0:off,1:on)
+raim_fde = true            # raim fde(0:off,1:on)
+iono_compensation = "meas" # compensate time variation of ionosphere delay(0:off,1:ssr,2:meas)
+partial_ar = true          # partial ambiguity resolution(0:off,1:on)
+shapiro_delay = true       # shapiro time delay correction (0:off,1:on)
+exclude_qzs_ref = true     # exclude QZS as a reference satellite (0:off,1:on)
 no_phase_bias_adj = false  # don't adjust phase bias (0:off,1:on)
 # gps_frequency     = "l1+l2"  # gps freq (2:l1+l2,3:l1+l5)
 # qzs_frequency     = "l1+l5"  # qzs freq (2:l1+l2,3:l1+l5)
+tidal_correction = "solid+otl-clasgrid+pole" # (0:off,1:solid,2:solid+otl-station+pole,3:solid+otl-clasgrid+pole)
 
 [positioning.atmosphere]
-tidal_correction = "solid+otl-clasgrid+pole"  # (0:off,1:solid,2:solid+otl-station+pole,3:solid+otl-clasgrid+pole)
-ionosphere       = "est-adaptive"  # (0:off,1:brdc,2:sbas,3:dual-freq,4:est-stec,9:est-adaptive)
-troposphere      = "off"  # (0:off,1:saas,2:sbas,3:est-ztd,4:est-ztdgrad)
+ionosphere = "est-adaptive" # (0:off,1:brdc,2:sbas,3:dual-freq,4:est-stec,9:est-adaptive)
+troposphere = "off"         # (0:off,1:saas,2:sbas,3:est-ztd,4:est-ztdgrad)
 
 [ambiguity_resolution]
-mode   = "fix-and-hold"  # (3:fix-and-hold)
-qzs_ar = true  # (0:off,1:on,2:gps-qzs)
+mode = "fix-and-hold" # (3:fix-and-hold)
+qzs_ar = true         # (0:off,1:on,2:gps-qzs)
 
 [ambiguity_resolution.thresholds]
-alpha          = "10%"  # significance level (0:0.1%,1:0.5%,2:1%,3:5%,4:10%,5:20%)
-elevation_mask = 20.0  # elevation mask of AR for rising satellite (deg)
-hold_elevation = 30.0  # (deg)
+alpha = "10%"         # significance level (0:0.1%,1:0.5%,2:1%,3:5%,4:10%,5:20%)
+elevation_mask = 20.0 # elevation mask of AR for rising satellite (deg)
+hold_elevation = 30.0 # (deg)
 
 [ambiguity_resolution.counters]
-lock_count = 5  # min lock count to fix ambiguity
-out_count  = 1
-min_fix    = 0
+lock_count = 5 # min lock count to fix ambiguity
+out_count = 1
+min_fix = 0
 
 [ambiguity_resolution.partial_ar]
-min_ambiguities   = 6  # min number of ambiguities for PAR
-max_excluded_sats = 4  # max number of excluded satellites for PAR
+min_ambiguities = 6   # min number of ambiguities for PAR
+max_excluded_sats = 4 # max number of excluded satellites for PAR
 
 [ambiguity_resolution.hold]
-variance = 0.001  # variance for fix-and-hold psuedo measurements (cycle^2)
+variance = 0.001 # variance for fix-and-hold psuedo measurements (cycle^2)
 
 [rejection]
-l1_l2_residual       = 2.0  # (sigma) reject threshold for L1/L2 residuals
-dispersive           = 3.0  # (sigma) reject threshold for dispersive residuals
-non_dispersive       = 3.0  # (sigma) reject threshold for non-dispersive (l0) residuals
-hold_chi_square      = 0.5  # (-) Fix&Hold threshold  (chi-square times)
-fix_chi_square       = 5.0  # (-) Fix threshold   (chi-square times)
-pseudorange_diff     = 10.0  # [m]
-position_error_count = 5  # [cnt]
+l1_l2_residual = 2.0     # (sigma) reject threshold for L1/L2 residuals
+dispersive = 3.0         # (sigma) reject threshold for dispersive residuals
+non_dispersive = 3.0     # (sigma) reject threshold for non-dispersive (l0) residuals
+hold_chi_square = 0.5    # (-) Fix&Hold threshold  (chi-square times)
+fix_chi_square = 5.0     # (-) Fix threshold   (chi-square times)
+pseudorange_diff = 10.0  # [m]
+position_error_count = 5 # [cnt]
 
 [slip_detection]
-threshold = 0.05  # (m)
+threshold = 0.05 # (m)
 
 [kalman_filter]
 iterations = 1
 
 [kalman_filter.measurement_error]
-code_phase_ratio_L1 = 50.0  # code/phase error ratio
-phase               = 0.01  # (m) measurement error
-phase_elevation     = 0.005  # (m) measurement error elevation dependant
-phase_baseline      = 0.0  # (m/10km)
-doppler             = 10.0  # (Hz)
+code_phase_ratio_L1 = 50.0 # code/phase error ratio
+phase = 0.01               # (m) measurement error
+phase_elevation = 0.005    # (m) measurement error elevation dependant
+phase_baseline = 0.0       # (m/10km)
+doppler = 10.0             # (Hz)
 
 [kalman_filter.initial_std]
-bias        = 100.0  # initial-state std bias (cycle)
-ionosphere  = 0.01  # initial-state std iono (m) L1 iono
-troposphere = 0.005  # initial-state std trop (m)
+bias = 100.0        # initial-state std bias (cycle)
+ionosphere = 0.01   # initial-state std iono (m) L1 iono
+troposphere = 0.005 # initial-state std trop (m)
 
 [kalman_filter.process_noise]
-accel_h         = 0.2  # process-noise std acc h (m/s^2)
-accel_v         = 0.1  # process-noise std acc v (m/s^2)
-position_h      = 0.0  # process-noise std pos h (m)
-position_v      = 0.0  # process-noise std pos v (m)
-bias            = 0.001  # process-noise std bias(m)
-ionosphere      = 0.001  # process-noise std iono(m) L1 iono
-iono_max        = 0.05  # (m)    for adaptive filter
-troposphere     = 0.001  # process-noise std trop(m)
-iono_time_const = 10.0  # time constant of ionosphere variation (s)
-clock_stability = 5.00e-12  # (s/s)
+accel_h = 0.2              # process-noise std acc h (m/s^2)
+accel_v = 0.1              # process-noise std acc v (m/s^2)
+position_h = 0.0           # process-noise std pos h (m)
+position_v = 0.0           # process-noise std pos v (m)
+bias = 0.001               # process-noise std bias(m)
+ionosphere = 0.001         # process-noise std iono(m) L1 iono
+iono_max = 0.05            # (m)    for adaptive filter
+troposphere = 0.001        # process-noise std trop(m)
+iono_time_const = 10.0     # time constant of ionosphere variation (s)
+clock_stability = 5.00e-12 # (s/s)
 
 [adaptive_filter]
-iono_forgetting = 0.3  # forgetting factor of iono (0.0~1.0)
-iono_gain       = 3.0  # adaptive filter gain in iono estimation
-enabled         = false  # adjust adaptively pos/vel/acc process noise (0:off,1:on)
-pva_forgetting  = 0.3  # forgetting factor of pos/vel/acc (0.0~1.0)
-pva_gain        = 1.0  # adaptive Filter gain in pos/vel/acc
+iono_forgetting = 0.3 # forgetting factor of iono (0.0~1.0)
+iono_gain = 3.0       # adaptive filter gain in iono estimation
+enabled = false       # adjust adaptively pos/vel/acc process noise (0:off,1:on)
+pva_forgetting = 0.3  # forgetting factor of pos/vel/acc (0.0~1.0)
+pva_gain = 1.0        # adaptive Filter gain in pos/vel/acc
 
 [receiver]
-isb             = false  # isb correction method (0:off,1:table)
-phase_shift     = "table"  # 1/4 cycle phase shift correction method in case of L2C (0:off,1:table)
-reference_type  = "CLAS"  # Reference receiver type (always fixed as CLAS)
-baseline_length = 0.0  # (m)
-baseline_sigma  = 0.0  # (m)
-max_age         = 30.0  # (s)
+isb = false             # isb correction method (0:off,1:table)
+phase_shift = "table"   # 1/4 cycle phase shift correction method in case of L2C (0:off,1:table)
+reference_type = "CLAS" # Reference receiver type (always fixed as CLAS)
+baseline_length = 0.0   # (m)
+baseline_sigma = 0.0    # (m)
+max_age = 30.0          # (s)
 
 [antenna.rover]
-type          = "TRM59800.80     NONE"  # User antenna type
-position_type = "single"  # (0:llh,1:xyz,2:single,3:posfile,4:rinexhead,5:rtcm)
-delta_e       = 0.0  # (m)
-delta_n       = 0.0  # (m)
-delta_u       = 0.0  # (m)
+type = "TRM59800.80     NONE" # User antenna type
+position_type = "single"      # (0:llh,1:xyz,2:single,3:posfile,4:rinexhead,5:rtcm)
+delta_e = 0.0                 # (m)
+delta_n = 0.0                 # (m)
+delta_u = 0.0                 # (m)
 
 [antenna.base]
-position_type = "llh"  # (0:llh,1:xyz,2:single,3:posfile,4:rinexhead,5:rtcm)
-position_1    = 0.0  # (deg|m)
-position_2    = 0.0  # (deg|m)
-position_3    = 0.0  # (m|m)
-type          = "*"
-delta_e       = 0.0  # (m)
-delta_n       = 0.0  # (m)
-delta_u       = 0.0  # (m)
+position_type = "llh" # (0:llh,1:xyz,2:single,3:posfile,4:rinexhead,5:rtcm)
+position_1 = 0.0      # (deg|m)
+position_2 = 0.0      # (deg|m)
+position_3 = 0.0      # (m|m)
+type = "*"
+delta_e = 0.0         # (m)
+delta_n = 0.0         # (m)
+delta_u = 0.0         # (m)
 
 [output]
-format            = "nmea"  # (0:llh,1:xyz,2:enu,3:nmea)
-header            = true  # (0:off,1:on)
-options           = true  # (0:off,1:on)
-time_system       = "gpst"  # (0:gpst,1:utc,2:jst)
-time_format       = "tow"  # (0:tow,1:hms)
-time_decimals     = 3
-coordinate_format = "deg"  # (0:deg,1:dms)
-field_separator   = ""
-height_type       = "ellipsoidal"  # (0:ellipsoidal,1:geodetic)
-geoid_model       = "internal"  # (0:internal,1:egm96,2:egm08_2.5,3:egm08_1,4:gsi2000)
-static_solution   = "all"  # (0:all,1:single)
-nmea_interval_1   = 0.0  # (s)
-nmea_interval_2   = 0.0  # (s)
-solution_status   = "residual"  # (0:off,1:state,2:residual)
+format = "nmea"              # (0:llh,1:xyz,2:enu,3:nmea)
+header = true                # (0:off,1:on)
+options = true               # (0:off,1:on)
+time_system = "gpst"         # (0:gpst,1:utc,2:jst)
+time_format = "tow"          # (0:tow,1:hms)
+time_decimals = 3
+coordinate_format = "deg"    # (0:deg,1:dms)
+field_separator = ""
+height_type = "ellipsoidal"  # (0:ellipsoidal,1:geodetic)
+geoid_model = "internal"     # (0:internal,1:egm96,2:egm08_2.5,3:egm08_1,4:gsi2000)
+static_solution = "all"      # (0:all,1:single)
+nmea_interval_1 = 0.0        # (s)
+nmea_interval_2 = 0.0        # (s)
+solution_status = "residual" # (0:off,1:state,2:residual)
 
 [files]
-cssr_grid     = "./tests/data/claslib/clas_grid.def"
-ocean_loading = "./tests/data/claslib/clas_grid.blq"  # for static or moving rovers
-eop           = "./tests/data/claslib/igu00p01.erp"
-receiver_atx  = "./tests/data/claslib/igs14_L5copy.atx"
-isb_table     = "./tests/data/claslib/isb.tbl"
-phase_cycle   = "./tests/data/claslib/l2csft.tbl"
+cssr_grid = "./tests/data/claslib/clas_grid.def"
+ocean_loading = "./tests/data/claslib/clas_grid.blq"   # for static or moving rovers
+eop = "./tests/data/claslib/igu00p01.erp"
+receiver_atx = "./tests/data/claslib/igs14_L5copy.atx"
+isb_table = "./tests/data/claslib/isb.tbl"
+phase_cycle = "./tests/data/claslib/l2csft.tbl"
 satellite_atx = ""
-station_pos   = ""
-geoid         = ""
-dcb           = ""
-temp_dir      = ""
-geexe         = ""
+station_pos = ""
+geoid = ""
+dcb = ""
+temp_dir = ""
+geexe = ""
 solution_stat = ""
-trace         = ""
+trace = ""
 
 [server]
-rinex_option_1     = "-JL1X"  # signal priority (Default:L2P(GPS) L1C/A(QZS),-GL2X:L2C(GPS),-JL1X:L1C(QZS))
-time_interpolation = true  # (0:off,1:on)
-sbas_satellite     = "all"  # (0:all)
-max_obs_loss       = 90.0
-float_count        = 15  # (epoch)
-
+rinex_option_1 = "-JL1X"  # signal priority (Default:L2P(GPS) L1C/A(QZS),-GL2X:L2C(GPS),-JL1X:L1C(QZS))
+time_interpolation = true # (0:off,1:on)
+sbas_satellite = "all"    # (0:all)
+max_obs_loss = 90.0
+float_count = 15          # (epoch)

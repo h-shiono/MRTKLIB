@@ -39,8 +39,9 @@ MAPPING: list[tuple[str, str, str, str]] = [
     ("pos1-elmask",     "positioning", "elevation_mask",   "float"),
     ("pos1-dynamics",   "positioning", "dynamics",         "bool"),
     ("pos1-sateph",     "positioning", "satellite_ephemeris", "enum"),
-    ("pos1-navsys",     "positioning", "constellations",   "navsys"),
+    ("pos1-navsys",     "positioning", "systems",          "navsys"),
     ("pos1-exclsats",   "positioning", "excluded_sats",    "str"),
+    ("pos1-signals",    "positioning", "signals",          "siglist"),
     ("pos1-gridsel",    "positioning.clas", "grid_selection_radius", "int"),
     ("pos1-rectype",    "positioning.clas", "receiver_type",  "str"),
     ("pos1-rux",        "positioning.clas", "position_uncertainty_x", "float"),
@@ -72,7 +73,7 @@ MAPPING: list[tuple[str, str, str, str]] = [
     # ── positioning.atmosphere ───────────────────────────────────────────────
     ("pos1-ionoopt",    "positioning.atmosphere", "ionosphere",       "enum"),
     ("pos1-tropopt",    "positioning.atmosphere", "troposphere",      "enum"),
-    ("pos1-tidecorr",   "positioning.atmosphere", "tidal_correction", "enum"),
+    ("pos1-tidecorr",   "positioning.corrections", "tidal_correction", "enum"),
 
     # ── ambiguity_resolution ─────────────────────────────────────────────────
     ("pos2-armode",     "ambiguity_resolution", "mode",         "enum"),
@@ -414,14 +415,22 @@ def convert_value(raw: str, vtype: str, legacy_key: str = "") -> Any:
             return float(raw)
         except ValueError:
             return raw
+    if vtype == "siglist":
+        # Comma-separated signal codes → list of strings
+        parts = [s.strip() for s in raw.split(",") if s.strip()]
+        return parts if parts else []
     if vtype == "snr":
         parts = [s.strip() for s in raw.split(",") if s.strip()]
         return [float(x) if "." in x else int(x) for x in parts]
     if vtype == "navsys":
         try:
-            return int(raw)
+            val = int(raw)
         except ValueError:
             return raw
+        # Convert bitmask to list of constellation names
+        names = [(1, "GPS"), (2, "SBAS"), (4, "GLONASS"), (8, "Galileo"),
+                 (16, "QZSS"), (32, "BeiDou"), (64, "NavIC")]
+        return [name for bit, name in names if val & bit]
     if vtype == "enum":
         # Resolve pure-integer values to their string names
         resolved = _resolve_enum(legacy_key, raw) if legacy_key else raw
@@ -456,16 +465,6 @@ def _toml_value(val: Any) -> str:
     return f'"{val}"'
 
 
-def _navsys_comment(val: int) -> str:
-    """Generate a human-readable comment for navsys bitmask."""
-    systems = []
-    names = [(1, "GPS"), (2, "SBAS"), (4, "GLONASS"), (8, "Galileo"),
-             (16, "QZSS"), (32, "BDS"), (64, "NavIC")]
-    for bit, name in names:
-        if val & bit:
-            systems.append(name)
-    return " + ".join(systems) if systems else "none"
-
 
 def write_toml(sections: dict[str, OrderedDict], out_path: Path,
                source_name: str = "") -> None:
@@ -494,11 +493,9 @@ def write_toml(sections: dict[str, OrderedDict], out_path: Path,
             continue
 
         lines.append(f"[{section}]")
-        max_key_len = max(len(k) for k in items) if items else 0
         for key, (val, comment) in items.items():
             val_str = _toml_value(val)
-            pad = " " * (max_key_len - len(key))
-            line = f"{key}{pad} = {val_str}"
+            line = f"{key} = {val_str}"
             if comment:
                 line += f"  # {comment}"
             lines.append(line)
@@ -593,17 +590,11 @@ def parse_conf(path: Path) -> dict[str, OrderedDict]:
                 val = convert_value(raw_val, vtype, legacy_key=key)
                 sect = _ensure_section(sec)
 
-                # Add navsys comment
-                extra_comment = comment
-                if vtype == "navsys" and isinstance(val, int):
-                    nc = _navsys_comment(val)
-                    extra_comment = nc if not comment else f"{nc}; {comment}"
-
                 # Skip duplicate alias (prndcb → prnifb)
                 if key == "stats-prndcb" and "ifb" in sect:
                     continue
 
-                sect[tkey] = (val, extra_comment)
+                sect[tkey] = (val, comment)
             else:
                 # Unknown key — put in [unknown] section
                 sect = _ensure_section("unknown")

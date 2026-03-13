@@ -5,6 +5,34 @@ All notable changes to MRTKLIB are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v0.6.1] - 2026-03-12
+
+**Enhancement** — TOML configuration UX improvements.
+
+### Added
+
+- **`positioning.systems` string list** — Human-readable constellation selection
+  (e.g., `["GPS", "Galileo", "QZSS"]`) as alternative to numeric `constellations` bitmask.
+- **`excluded_sats` string list** — Satellite exclusion as TOML array
+  (e.g., `["G01", "G02", "+E05"]`) alongside legacy space-separated string.
+- **`taplo` TOML formatter** — Project-wide formatter config (`taplo.toml`) with
+  VSCode format-on-save integration via Even Better TOML extension.
+
+### Changed
+
+- `tidal_correction` moved from `[positioning.atmosphere]` to `[positioning.corrections]`.
+- All 20 TOML config files formatted with `taplo` and migrated to `systems` string list.
+- `conf2toml.py` updated: outputs `systems` list, adds `siglist` type, taplo-compatible output.
+
+### Removed
+
+- Obsolete `[unknown]` sections from `conf/malib/*.toml` (per-satellite-type signal
+  options tracked in [#59](https://github.com/h-shiono/MRTKLIB/issues/59)).
+
+### Test Results
+
+62/62 tests pass (no regressions).
+
 ## [v0.6.0] - 2026-03-12
 
 **Feature** — Unified `mrtk` single CLI binary.

@@ -1,0 +1,11 @@
+# taplo configuration — https://taplo.tamasfe.dev/configuration/
+# Applies to all TOML files in the repository.
+
+[formatting]
+align_entries = false       # Don't pad keys with spaces for alignment
+align_comments = true       # Align trailing comments within a section
+array_trailing_comma = true # Always add trailing comma in multi-line arrays
+compact_arrays = true       # Single-line arrays when they fit
+column_width = 120          # Wrap threshold
+indent_string = "  "        # 2-space indent for nested structures
+reorder_keys = false        # Preserve key order (important for config semantics)

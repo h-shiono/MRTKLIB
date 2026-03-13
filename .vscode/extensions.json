@@ -1,6 +1,7 @@
 {
   "recommendations": [
     "llvm-vs-code-extensions.vscode-clangd",
-    "charliermarsh.ruff"
+    "charliermarsh.ruff",
+    "tamasfe.even-better-toml"
   ]
 }

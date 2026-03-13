@@ -2,52 +2,53 @@
 # Converted from: rnx2rtkp_pppar.conf
 
 [positioning]
-mode                = "ppp-kine"  # (6:ppp-kine,7:ppp-static)
-frequency           = "l1+2+3+4"  # (1:l1,2:l1+2,3:l1+2+3,4:l1+2+3+4)
-solution_type       = "forward"  # (0:forward)
-elevation_mask      = 10.0  # (deg)
-dynamics            = false  # (0:off,1:on)
-satellite_ephemeris = "brdc+ssrapc"  # (0:brdc,1:precise,3:brdc+ssrapc,4:brdc+ssrcom)
-excluded_sats       = ""  # (prn ...)
-constellations      = 61  # GPS + GLONASS + Galileo + QZSS + BDS; (1:gps+4:glo+8:gal+16:qzs+32:bds)
+mode = "ppp-kine"                   # (6:ppp-kine,7:ppp-static)
+frequency = "l1+2+3+4"              # (1:l1,2:l1+2,3:l1+2+3,4:l1+2+3+4)
+solution_type = "forward"           # (0:forward)
+elevation_mask = 10.0               # (deg)
+dynamics = false                    # (0:off,1:on)
+satellite_ephemeris = "brdc+ssrapc" # (0:brdc,1:precise,3:brdc+ssrapc,4:brdc+ssrcom)
+excluded_sats = ""                  # (prn ...)
+# constellations    = 61  # deprecated: use systems instead
+systems = ["GPS", "GLONASS", "Galileo", "QZSS", "BeiDou"]
 
 [positioning.snr_mask]
-rover_enabled = false  # (0:off,1:on)
-base_enabled  = false  # (0:off,1:on)
-L1            = [0, 0, 0, 0, 0, 0, 0, 0, 0]
-L2            = [0, 0, 0, 0, 0, 0, 0, 0, 0]
-L5            = [0, 0, 0, 0, 0, 0, 0, 0, 0]
+rover_enabled = false            # (0:off,1:on)
+base_enabled = false             # (0:off,1:on)
+L1 = [0, 0, 0, 0, 0, 0, 0, 0, 0]
+L2 = [0, 0, 0, 0, 0, 0, 0, 0, 0]
+L5 = [0, 0, 0, 0, 0, 0, 0, 0, 0]
 
 [positioning.corrections]
-satellite_antenna = false  # satellite antenna pcv correction (0:off,1:on)
-receiver_antenna  = true  # receiver antenna pco/pcv correction (0:off,1:on)
-phase_windup      = "on"  # phase windup correction (0:off,1:on,2:precise)
-raim_fde          = false  # raim fde (0:off,1:on)
+satellite_antenna = false # satellite antenna pcv correction (0:off,1:on)
+receiver_antenna = true   # receiver antenna pco/pcv correction (0:off,1:on)
+phase_windup = "on"       # phase windup correction (0:off,1:on,2:precise)
+raim_fde = false          # raim fde (0:off,1:on)
+tidal_correction = "on"   # (0:off,1:on,2:otl)
 
 [positioning.atmosphere]
-tidal_correction = "on"  # (0:off,1:on,2:otl)
-ionosphere       = "est-stec"  # (0:off,1:brdc,3:dual-freq,4:est-stec)
-troposphere      = "est-ztd"  # (0:off,1:saas,2:sbas,3:est-ztd,4:est-ztdgrad)
+ionosphere = "est-stec" # (0:off,1:brdc,3:dual-freq,4:est-stec)
+troposphere = "est-ztd" # (0:off,1:saas,2:sbas,3:est-ztd,4:est-ztdgrad)
 
 [ambiguity_resolution]
-mode    = "continuous"  # (0:off,1:continuous,3:fix-and-hold)
-systems = 57  # (1:gps+8:gal+16:qzs+32:bds)
+mode = "continuous" # (0:off,1:continuous,3:fix-and-hold)
+systems = 57        # (1:gps+8:gal+16:qzs+32:bds)
 
 [ambiguity_resolution.thresholds]
-ratio          = 1.5  # validation ratio for lambda search
-ratio1         = 1.5  # max std-dev (3d-pos) to start narrow-lane integer ambiguity search (m)
-elevation_mask = 15.0  # (deg)
+ratio = 1.5           # validation ratio for lambda search
+ratio1 = 1.5          # max std-dev (3d-pos) to start narrow-lane integer ambiguity search (m)
+elevation_mask = 15.0 # (deg)
 
 [ambiguity_resolution.counters]
-min_fix        = 600  # duration time of continuous fix for fix-and-hold (s)
-max_iterations = 10  # max number of iterations for integer ambiguity search
+min_fix = 600       # duration time of continuous fix for fix-and-hold (s)
+max_iterations = 10 # max number of iterations for integer ambiguity search
 
 [rejection]
-innovation = 50.0  # (m)
-gdop       = 30.0
+innovation = 50.0 # (m)
+gdop = 30.0
 
 [slip_detection]
-threshold = 0.15  # (m)
+threshold = 0.15 # (m)
 
 [kalman_filter]
 iterations = 1
@@ -55,87 +56,86 @@ iterations = 1
 [kalman_filter.measurement_error]
 code_phase_ratio_L1 = 300.0
 code_phase_ratio_L2 = 300.0
-ura_ratio           = 0.1
-phase               = 0.003  # (m)
-phase_elevation     = 0.003  # (m)
+ura_ratio = 0.1
+phase = 0.003               # (m)
+phase_elevation = 0.003     # (m)
 
 [kalman_filter.process_noise]
-bias        = 1.00e-04  # (m/sqrt(s))
-ionosphere  = 0.01  # (m/sqrt(s))
-troposphere = 1.00e-04  # (m/sqrt(s))
-position    = 0.0  # (m/sqrt(s))
-ifb         = 1.00e-05  # (m/sqrt(s))
+bias = 1.00e-04        # (m/sqrt(s))
+ionosphere = 0.01      # (m/sqrt(s))
+troposphere = 1.00e-04 # (m/sqrt(s))
+position = 0.0         # (m/sqrt(s))
+ifb = 1.00e-05         # (m/sqrt(s))
 
 [signals]
-gps     = "L1/L2/L5"  # (0:L1/L2,1:L1/L5,2:L1/L2/L5)
-qzs     = "L1/L5/L2"  # (0:L1/L5,1:L1/L2,2:L1/L5/L2)
-galileo = "E1/E5a/E5b/E6"  # (0:E1/E5a,1:E1/E5b,3:E1/E5a/E5b/E6,4:E1/E5a/E6/E5b)
-bds2    = "B1I/B3I/B2I"  # (0:B1I/B3I,1:B1I/B2I,2:B1I/B3I/B2I)
-bds3    = "B1I/B3I/B2a"  # (0:B1I/B3I,1:B1I/B2a,2:B1I/B3I/B2a)
+gps = "L1/L2/L5"          # (0:L1/L2,1:L1/L5,2:L1/L2/L5)
+qzs = "L1/L5/L2"          # (0:L1/L5,1:L1/L2,2:L1/L5/L2)
+galileo = "E1/E5a/E5b/E6" # (0:E1/E5a,1:E1/E5b,3:E1/E5a/E5b/E6,4:E1/E5a/E6/E5b)
+bds2 = "B1I/B3I/B2I"      # (0:B1I/B3I,1:B1I/B2I,2:B1I/B3I/B2I)
+bds3 = "B1I/B3I/B2a"      # (0:B1I/B3I,1:B1I/B2a,2:B1I/B3I/B2a)
 
 [receiver]
-iono_correction = false  # (0:off,1:on)
+iono_correction = false # (0:off,1:on)
 
 [antenna.rover]
-position_type = "llh"  # (0:llh,1:xyz,2:single,3:posfile,4:rinexhead,5:rtcm,6:raw)
-position_1    = 90.0  # (deg|m)
-position_2    = 0.0  # (deg|m)
-position_3    = -6335367.6285  # (m|m)
-type          = "*"
-delta_e       = 0.0  # (m)
-delta_n       = 0.0  # (m)
-delta_u       = 0.0  # (m)
+position_type = "llh"      # (0:llh,1:xyz,2:single,3:posfile,4:rinexhead,5:rtcm,6:raw)
+position_1 = 90.0          # (deg|m)
+position_2 = 0.0           # (deg|m)
+position_3 = -6335367.6285 # (m|m)
+type = "*"
+delta_e = 0.0              # (m)
+delta_n = 0.0              # (m)
+delta_u = 0.0              # (m)
 
 [antenna.base]
-position_type      = "llh"  # (0:llh,1:xyz,2:single,3:posfile,4:rinexhead,5:rtcm,6:raw)
-position_1         = 90.0  # (deg|m)
-position_2         = 0.0  # (deg|m)
-position_3         = -6335367.6285  # (m|m)
-type               = ""
-delta_e            = 0.0  # (m)
-delta_n            = 0.0  # (m)
-delta_u            = 0.0  # (m)
+position_type = "llh"      # (0:llh,1:xyz,2:single,3:posfile,4:rinexhead,5:rtcm,6:raw)
+position_1 = 90.0          # (deg|m)
+position_2 = 0.0           # (deg|m)
+position_3 = -6335367.6285 # (m|m)
+type = ""
+delta_e = 0.0              # (m)
+delta_n = 0.0              # (m)
+delta_u = 0.0              # (m)
 max_average_epochs = 0
-init_reset         = false  # (0:off,1:on)
+init_reset = false         # (0:off,1:on)
 
 [output]
-format            = "llh"  # (0:llh,1:xyz,2:enu,3:nmea)
-header            = true  # (0:off,1:on)
-options           = true  # (0:off,1:on)
-velocity          = false  # (0:off,1:on)
-time_system       = "gpst"  # (0:gpst,1:utc,2:jst)
-time_format       = "hms"  # (0:tow,1:hms)
-time_decimals     = 3
-coordinate_format = "deg"  # (0:deg,1:dms)
-field_separator   = ""
-single_output     = false  # (0:off,1:on)
-max_solution_std  = 0.0  # (m)
-height_type       = "ellipsoidal"  # (0:ellipsoidal,1:geodetic)
-geoid_model       = "internal"  # (0:internal,1:egm96,2:egm08_2.5,3:egm08_1,4:gsi2000)
-static_solution   = "all"  # (0:all,1:single)
-nmea_interval_1   = 0.0  # (s)
-nmea_interval_2   = 0.0  # (s)
-solution_status   = "off"  # (0:off,1:state,2:residual)
+format = "llh"              # (0:llh,1:xyz,2:enu,3:nmea)
+header = true               # (0:off,1:on)
+options = true              # (0:off,1:on)
+velocity = false            # (0:off,1:on)
+time_system = "gpst"        # (0:gpst,1:utc,2:jst)
+time_format = "hms"         # (0:tow,1:hms)
+time_decimals = 3
+coordinate_format = "deg"   # (0:deg,1:dms)
+field_separator = ""
+single_output = false       # (0:off,1:on)
+max_solution_std = 0.0      # (m)
+height_type = "ellipsoidal" # (0:ellipsoidal,1:geodetic)
+geoid_model = "internal"    # (0:internal,1:egm96,2:egm08_2.5,3:egm08_1,4:gsi2000)
+static_solution = "all"     # (0:all,1:single)
+nmea_interval_1 = 0.0       # (s)
+nmea_interval_2 = 0.0       # (s)
+solution_status = "off"     # (0:off,1:state,2:residual)
 
 [files]
 satellite_atx = ""
-receiver_atx  = "./tests/data/madocalib/igs20.atx"
-station_pos   = ""
-geoid         = ""
-ionosphere    = ""
-dcb           = ""
-eop           = ""
+receiver_atx = "./tests/data/madocalib/igs20.atx"
+station_pos = ""
+geoid = ""
+ionosphere = ""
+dcb = ""
+eop = ""
 ocean_loading = ""
-temp_dir      = ""
-geexe         = ""
+temp_dir = ""
+geexe = ""
 solution_stat = ""
-trace         = ""
+trace = ""
 
 [server]
-time_interpolation = false  # (0:off,1:on)
-sbas_satellite     = "0"  # (0:all)
-rinex_option_1     = ""
-rinex_option_2     = ""
-ppp_option         = ""
-rtcm_option        = ""
-
+time_interpolation = false # (0:off,1:on)
+sbas_satellite = "0"       # (0:all)
+rinex_option_1 = ""
+rinex_option_2 = ""
+ppp_option = ""
+rtcm_option = ""
