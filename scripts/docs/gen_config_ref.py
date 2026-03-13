@@ -164,7 +164,7 @@ def main() -> int:
     lines.append("|-----|-------------|")
     lines.append("| `type` | Stream type: `serial`, `file`, `tcpsvr`, `tcpcli`, `ntrip`, `off` |")
     lines.append("| `path` | Stream path (device, file, URL) |")
-    lines.append("| `format` | Data format: `rtcm3`, `ubx`, `sbf`, `binex`, `rinex`, etc. |")
+    lines.append("| `format` | Data format: `rtcm3`, `ubx`, `sbf`, `binex`, `rinex`, `clas`, `l6e`, etc. |")
     lines.append("| `nmeareq` | Send NMEA request to stream (boolean) |")
     lines.append("| `nmealat` | NMEA request latitude (float) |")
     lines.append("| `nmealon` | NMEA request longitude (float) |")
