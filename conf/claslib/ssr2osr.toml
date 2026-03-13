@@ -28,8 +28,6 @@ shapiro_delay = true                         # shapiro time delay correction (0:
 no_phase_bias_adj = false                    # don't adjust phase bias (0:off,1:on)
 tidal_correction = "solid+otl-clasgrid+pole" # (0:off,3:solid+otl-clasgrid+pole)
 
-[positioning.atmosphere]
-
 [kalman_filter.measurement_error]
 code_phase_ratio_L1 = 50.0 # code/phase error ratio
 phase = 0.01               # (m) measurement error

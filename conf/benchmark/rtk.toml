@@ -11,7 +11,7 @@ dynamics = true                                                                 
 satellite_ephemeris = "brdc"
 excluded_sats = ""
 # constellations    = 57  # deprecated: use systems instead
-systems = ["GPS", "SBAS", "GLONASS", "Galileo", "QZSS", "BeiDou"]
+systems = ["GPS", "Galileo", "QZSS", "BeiDou"]
 
 [positioning.snr_mask]
 rover_enabled = true

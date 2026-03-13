@@ -17,8 +17,6 @@ shapiro_delay = true                         # shapiro time delay correction (0:
 no_phase_bias_adj = false                    # don't adjust phase bias (0:off,1:on)
 tidal_correction = "solid+otl-clasgrid+pole" # (0:off,3:solid+otl-clasgrid+pole)
 
-[positioning.atmosphere]
-
 [antenna.rover]
 position_type = "llh"         # (0:llh,1:xyz)
 position_1 = 36.1036338527778
