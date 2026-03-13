@@ -1,0 +1,132 @@
+site_name: MRTKLIB Documentation
+site_description: Modern RTKLIB — Unified GNSS Positioning Library
+site_url: https://h-shiono.github.io/MRTKLIB/
+repo_url: https://github.com/h-shiono/MRTKLIB
+repo_name: h-shiono/MRTKLIB
+edit_uri: edit/main/docs/
+
+theme:
+  name: material
+  language: en
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      accent: cyan
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      accent: cyan
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - navigation.sections
+    - navigation.top
+    - navigation.path
+    - navigation.indexes
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.code.select
+    - content.tabs.link
+    - content.action.edit
+  font:
+    text: Roboto
+    code: Roboto Mono
+  icon:
+    repo: fontawesome/brands/github
+    logo: material/satellite-uplink
+
+validation:
+  links:
+    absolute_links: relative_to_docs
+    unrecognized_links: warn
+
+plugins:
+  - search:
+      separator: '[\s\-,:!=\[\]()"`/]+'
+  - minify:
+      minify_html: true
+
+markdown_extensions:
+  - abbr
+  - admonition
+  - attr_list
+  - def_list
+  - footnotes
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.highlight:
+      anchor_linenums: true
+      auto_title: true
+  - pymdownx.inlinehilite
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - pymdownx.snippets:
+      base_path: ["."]
+      check_paths: false
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+
+nav:
+  - Home: index.md
+  - Getting Started:
+    - Installation: getting-started/install.md
+    - First Run: getting-started/first-run.md
+  - User Guide:
+    - CLI Reference: guide/cli.md
+    - Configuration (TOML): guide/configuration.md
+  - Reference:
+    - Configuration Options: reference/config-options.md
+    - API Reference (Doxygen): /api/
+    - Benchmark: reference/benchmark.md
+    - Real-Time CLAS: reference/rtkrcv-clas-realtime.md
+    - Test Methodology: reference/test-accuracy-methodology.md
+  - Releases:
+    - Changelog: releases/changelog.md
+    - v0.6.2: releases/release-notes-v0.6.2.md
+    - v0.6.1: releases/release-notes-v0.6.1.md
+    - v0.6.0: releases/release-notes-v0.6.0.md
+    - v0.5.7: releases/release-notes-v0.5.7.md
+    - v0.5.6: releases/release-notes-v0.5.6.md
+    - v0.5.5: releases/release-notes-v0.5.5.md
+    - v0.5.4: releases/release-notes-v0.5.4.md
+    - v0.5.3: releases/release-notes-v0.5.3.md
+    - v0.5.2: releases/release-notes-v0.5.2.md
+    - v0.5.1: releases/release-notes-v0.5.1.md
+    - v0.5.0: releases/release-notes-v0.5.0.md
+    - v0.4.4: releases/release-notes-v0.4.4.md
+    - v0.4.3: releases/release-notes-v0.4.3.md
+    - v0.4.2: releases/release-notes-v0.4.2.md
+    - v0.4.1: releases/release-notes-v0.4.1.md
+    - v0.3.3: releases/release-notes-v0.3.3.md
+    - v0.3.2: releases/release-notes-v0.3.2.md
+    - v0.3.1: releases/release-notes-v0.3.1.md
+    - v0.3.0: releases/release-notes-v0.3.0.md
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/h-shiono/MRTKLIB
+
+extra_css:
+  - stylesheets/extra.css
+
+copyright: Copyright &copy; 2024-2026 MRTKLIB Contributors. Licensed under BSD 2-Clause.

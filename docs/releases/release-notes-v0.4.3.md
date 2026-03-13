@@ -24,7 +24,7 @@ the post-processing engine's 99.86% steady-state fix rate after convergence.
   RTKLIB-compatible `.tag` files for synchronised `::T::xN` file replay.
 - **CTest `rtkrcv_rt_clas`** — Automated regression test replaying 1 hour of BINEX+L6
   data at 10x speed (~370s wall time), verifying >=90% output line coverage.
-- **Documentation** — [docs/rtkrcv-clas-realtime.md](rtkrcv-clas-realtime.md) with
+- **Documentation** — [docs/rtkrcv-clas-realtime.md](../reference/rtkrcv-clas-realtime.md) with
   setup guide, PP vs RT performance comparison, architecture overview, and
   troubleshooting notes.
 

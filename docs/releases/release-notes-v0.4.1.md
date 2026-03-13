@@ -210,7 +210,7 @@ FIX tier (Q = 4) only.  Parameters are not tuned; see the disclaimer above.
 
 ### Full result tables
 
-See [docs/benchmark.md](benchmark.md) for complete three-tier (FIX/FF/ALL) tables
+See [docs/benchmark.md](../reference/benchmark.md) for complete three-tier (FIX/FF/ALL) tables
 including CLAS PPP-RTK and MADOCA PPP results.
 
 ---

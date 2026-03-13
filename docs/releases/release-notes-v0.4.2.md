@@ -193,7 +193,7 @@ retains the original fixed-threshold check.
 ## Benchmark Results
 
 All benchmarks use `--skip-epochs 60`, PPC-Dataset urban driving runs (6 × nagoya/tokyo).
-See [docs/benchmark.md](benchmark.md) for full three-tier tables.
+See [docs/benchmark.md](../reference/benchmark.md) for full three-tier tables.
 
 ### CLAS (PPP-RTK) — FIX tier (Q = 4)
 

@@ -1,0 +1,18 @@
+/* MRTKLIB custom styles */
+
+/* Card grid on landing page */
+.md-typeset .grid.cards > ul > li {
+  border: 1px solid var(--md-default-fg-color--lightest);
+  border-radius: 0.4rem;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.md-typeset .grid.cards > ul > li:hover {
+  border-color: var(--md-accent-fg-color);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+/* Slightly wider content area */
+.md-grid {
+  max-width: 1400px;
+}

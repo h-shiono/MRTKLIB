@@ -1,0 +1,70 @@
+name: Deploy Documentation
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: true
+
+jobs:
+  build-docs:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install MkDocs dependencies
+        run: pip install -r docs/requirements.txt
+
+      - name: Generate config reference
+        run: python scripts/docs/gen_config_ref.py > docs/reference/config-options.md
+
+      - name: Build MkDocs
+        run: mkdocs build
+
+      - name: Install Doxygen and Graphviz
+        run: sudo apt-get update && sudo apt-get install -y doxygen graphviz
+
+      - name: Build Doxygen API reference
+        run: |
+          # Substitute CMake variables directly (no full cmake configure needed)
+          sed \
+            -e 's|@CMAKE_SOURCE_DIR@|.|g' \
+            -e 's|@CMAKE_BINARY_DIR@|build|g' \
+            -e "s|@MRTKLIB_VERSION_STRING@|$(grep 'project.*VERSION' CMakeLists.txt | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')|g" \
+            Doxyfile.in > Doxyfile
+          mkdir -p build/doc
+          doxygen Doxyfile
+
+      - name: Merge Doxygen into MkDocs site
+        run: cp -r build/doc/api site/api
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    needs: build-docs
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
