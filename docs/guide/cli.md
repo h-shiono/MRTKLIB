@@ -13,7 +13,7 @@ mrtk [COMMAND] [OPTIONS]
 Run post-processing positioning (formerly `rnx2rtkp`).
 
 ```bash
-mrtk post [options] obsfile navfile [navfile...] [-l6 l6file...]
+mrtk post [options] obsfile navfile [navfile...] [l6file...]
 ```
 
 | Option | Description |
@@ -25,24 +25,25 @@ mrtk post [options] obsfile navfile [navfile...] [-l6 l6file...]
 | `-ti tint` | Processing interval (seconds) |
 | `-p mode` | Positioning mode (0:single, 1:dgps, ..., 9:ppp-rtk) |
 | `-f freq` | Number of frequencies (1, 2, or 3) |
-| `-l6 file` | L6E/L6D correction file(s) |
 | `-x level` | Debug trace level (0-5) |
+
+L6E/L6D correction files are passed as additional positional inputs after the navigation file(s).
 
 **Examples:**
 
 ```bash
 # MADOCA PPP
-mrtk post -k conf/madocalib/rnx2rtkp.toml obs.obs nav.nav -l6 l6e.l6
+mrtk post -k conf/madocalib/rnx2rtkp.toml obs.obs nav.nav l6e.l6
 
 # MADOCA PPP-AR
-mrtk post -k conf/madocalib/rnx2rtkp_pppar.toml obs.obs nav.nav -l6 l6e.l6
+mrtk post -k conf/madocalib/rnx2rtkp_pppar.toml obs.obs nav.nav l6e.l6
 
 # CLAS PPP-RTK (single channel)
-mrtk post -k conf/claslib/rnx2rtkp.toml obs.obs nav.nav -l6 clas.l6
+mrtk post -k conf/claslib/rnx2rtkp.toml obs.obs nav.nav clas.l6
 
 # CLAS PPP-RTK (dual channel)
 mrtk post -k conf/claslib/rnx2rtkp.toml obs.obs nav.nav \
-  -l6 clas_ch1.l6 -l6 clas_ch2.l6
+  clas_ch1.l6 clas_ch2.l6
 ```
 
 ---
@@ -133,7 +134,7 @@ mrtk convert -r ubx -v 3.04 -o obs.obs -n nav.nav raw.ubx
 Convert SSR corrections to pseudo-observations.
 
 ```bash
-mrtk ssr2obs [options] obsfile navfile [navfile...] [-l6 l6file...]
+mrtk ssr2obs [options] obsfile navfile [navfile...] [l6file...]
 ```
 
 | Option | Description |
@@ -148,7 +149,7 @@ mrtk ssr2obs [options] obsfile navfile [navfile...] [-l6 l6file...]
 Convert SSR corrections to Observation Space Representation (OSR).
 
 ```bash
-mrtk ssr2osr [options] obsfile navfile [navfile...] [-l6 l6file...]
+mrtk ssr2osr [options] obsfile navfile [navfile...] [l6file...]
 ```
 
 ---
@@ -160,7 +161,7 @@ mrtk ssr2osr [options] obsfile navfile [navfile...] [-l6 l6file...]
 Estimate receiver fractional cycle biases (formerly `recvbias`).
 
 ```bash
-mrtk bias [options] obsfile navfile [-l6 l6file...]
+mrtk bias [options] obsfile navfile [l6file...]
 ```
 
 | Option | Description |
@@ -175,7 +176,7 @@ mrtk bias [options] obsfile navfile [-l6 l6file...]
 Dump stream data to human-readable format (formerly `dumpcssr`).
 
 ```bash
-mrtk dump cssr [options] l6file [l6file...]
+mrtk dump [options] l6file [navfile...]
 ```
 
 | Option | Description |

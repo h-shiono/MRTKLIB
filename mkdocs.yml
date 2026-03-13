@@ -95,7 +95,7 @@ nav:
     - Configuration (TOML): guide/configuration.md
   - Reference:
     - Configuration Options: reference/config-options.md
-    - API Reference (Doxygen): /api/
+    - API Reference (Doxygen): reference/api.md
     - Benchmark: reference/benchmark.md
     - Real-Time CLAS: reference/rtkrcv-clas-realtime.md
     - Test Methodology: reference/test-accuracy-methodology.md

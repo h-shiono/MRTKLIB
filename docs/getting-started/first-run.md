@@ -9,22 +9,18 @@ Post-processing computes positions from recorded observation and navigation file
 ### PPP (Precise Point Positioning)
 
 ```bash
-mrtk post -k conf/madocalib/ppp.toml \
-  obs.obs nav.nav \
-  -l6 correction.l6
+mrtk post -k conf/madocalib/rnx2rtkp.toml \
+  obs.obs nav.nav correction.l6
 ```
 
 - `-k` — Configuration file (TOML format)
-- First positional argument — Observation file (RINEX)
-- Second positional argument — Navigation file (RINEX)
-- `-l6` — L6E/L6D correction file
+- Positional arguments — Observation file, navigation file, and optionally L6 correction file(s)
 
 ### PPP-RTK (CLAS)
 
 ```bash
-mrtk post -k conf/claslib/ppprtk_clas_1ch.toml \
-  obs.obs nav.nav \
-  -l6 clas.l6
+mrtk post -k conf/claslib/rnx2rtkp.toml \
+  obs.obs nav.nav clas.l6
 ```
 
 ### Output Format
@@ -47,7 +43,7 @@ Real-time processing receives live GNSS data streams and computes positions cont
 ### CLAS PPP-RTK (Single Channel)
 
 ```bash
-mrtk run -s -o conf/claslib/rtkrcv_clas_1ch.toml
+mrtk run -s -o conf/claslib/rtkrcv.toml
 ```
 
 - `-s` — Start processing immediately
@@ -56,7 +52,7 @@ mrtk run -s -o conf/claslib/rtkrcv_clas_1ch.toml
 ### CLAS PPP-RTK (Dual Channel)
 
 ```bash
-mrtk run -s -o conf/claslib/rtkrcv_clas_2ch.toml
+mrtk run -s -o conf/claslib/rtkrcv_2ch.toml
 ```
 
 !!! tip "Stream Configuration"

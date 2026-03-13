@@ -389,7 +389,7 @@ format = "ubx"
 [streams.input.correction]
 type = "file"
 path = "correction.l6::T::+1"
-format = "sbf"
+format = "clas"
 
 [streams.output.stream1]
 type = "file"
@@ -404,7 +404,7 @@ path = "rover.log"
 |-----|-------------|
 | `type` | Stream type: `serial`, `file`, `tcpsvr`, `tcpcli`, `ntrip`, `off` |
 | `path` | Stream path (device, file, URL) |
-| `format` | Data format: `rtcm3`, `ubx`, `sbf`, `binex`, `rinex`, etc. |
+| `format` | Data format: `rtcm3`, `ubx`, `sbf`, `binex`, `rinex`, `clas`, `l6e`, etc. |
 | `nmeareq` | Send NMEA request to stream (boolean) |
 | `nmealat` | NMEA request latitude (float) |
 | `nmealon` | NMEA request longitude (float) |
