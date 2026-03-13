@@ -5,6 +5,25 @@ All notable changes to MRTKLIB are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v0.6.3] - 2026-03-13
+
+**Feature** — CSSR to RTCM3 real-time converter (`mrtk cssr2rtcm3`).
+
+### Added
+
+- **`mrtk cssr2rtcm3` subcommand** — Real-time converter from QZSS CLAS L6D (CSSR)
+  to RTCM3 MSM4 messages, enabling CLAS-incompatible GNSS receivers to use CLAS
+  corrections as a VRS source. Supports Septentrio SBF single-stream mode
+  (multiplexed L6D + decoded NAV + PVT).
+- **Septentrio SBF decoded navigation decoders** — `GPSNav(5891)`, `GLONav(4004)`,
+  `GALNav(4002)`, `BDSNav(4081)`, `QZSNav(4095)`, `PVTGeodetic(4007)`,
+  `QZSRawL6D(4270)` block decoders added to `mrtk_rcv_septentrio.c`.
+- **`conf/cssr2rtcm3.toml`** — Default TOML configuration for CSSR→RTCM3 conversion.
+
+### Test Results
+
+62/62 tests pass (no regressions).
+
 ## [v0.6.2] - 2026-03-13
 
 **Enhancement** — Documentation site with MkDocs Material + Doxygen + GitHub Pages.

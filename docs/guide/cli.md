@@ -154,6 +154,32 @@ mrtk ssr2osr [options] obsfile navfile [navfile...] [l6file...]
 
 ---
 
+### mrtk cssr2rtcm3
+
+Convert CLAS CSSR corrections to RTCM3 MSM4 messages in real time, enabling CLAS-incompatible receivers to use CLAS as a VRS source.
+
+```bash
+mrtk cssr2rtcm3 [options]
+```
+
+| Option | Description |
+|--------|-------------|
+| `-k file` | Configuration file (TOML) |
+| `-in stream` | Input stream (Septentrio SBF with L6D + NAV + PVT) |
+| `-out stream` | Output RTCM3 stream (e.g., `tcpsvr://:2101`) |
+| `-gga stream` | NMEA GGA input for rover position (optional) |
+| `-x level` | Debug trace level (0-5) |
+
+**Stream URI formats:**
+
+- Serial: `serial://ttyACM0:115200`
+- TCP server: `tcpsvr://:port`
+- TCP client: `tcpcli://host:port`
+- NTRIP client: `ntripcli://user:pass@host:port/mount`
+- File: `file://path`
+
+---
+
 ## Utilities
 
 ### mrtk bias

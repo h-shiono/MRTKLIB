@@ -55,6 +55,7 @@ incrementally back-ported to each engine:
 | **v0.6.0** | All | Single CLI App: Unified `mrtk` binary with subcommands (`run`, `post`, `relay`, `convert`, etc.); BSS reduced from 3 GB to 34 MB | ✅ Released |
 | **v0.6.1** | All | Config UX: `systems` string list, `excluded_sats` list, `taplo` formatter, section reorganization | ✅ Released |
 | **v0.6.2** | — | Documentation: MkDocs Material site + Doxygen API reference + GitHub Pages deployment | ✅ Released |
+| **v0.6.3** | PPP-RTK | CSSR→RTCM3: Real-time CLAS CSSR to RTCM3 MSM4 converter (`mrtk cssr2rtcm3`) for VRS use | ✅ Released |
 | **v0.6.x** | All | Doxygen docstring coverage expansion | 💭 Backlog |
 
 > [!NOTE]

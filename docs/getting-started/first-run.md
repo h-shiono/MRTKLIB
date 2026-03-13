@@ -70,6 +70,7 @@ mrtk run -s -o conf/claslib/rtkrcv_2ch.toml
 | `mrtk convert` | Convert raw data to RINEX | `mrtk convert raw.ubx -o output.obs` |
 | `mrtk ssr2obs` | SSR to pseudo-observations | `mrtk ssr2obs -k conf/claslib/ssr2obs.toml ...` |
 | `mrtk bias` | Estimate receiver biases | `mrtk bias -k conf/madocalib/recvbias.toml ...` |
+| `mrtk cssr2rtcm3` | CLAS CSSR to RTCM3 MSM4 (VRS) | `mrtk cssr2rtcm3 -k conf/cssr2rtcm3.toml -in serial://...` |
 
 ## Next Steps
 
