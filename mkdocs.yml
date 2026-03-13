@@ -93,6 +93,8 @@ nav:
   - User Guide:
     - CLI Reference: guide/cli.md
     - Configuration (TOML): guide/configuration.md
+  - Hardware:
+    - CLAS Positioning with mosaic-G5: hardware/cssr2rtcm3-mosaic-g5.md
   - Reference:
     - Configuration Options: reference/config-options.md
     - API Reference (Doxygen): reference/api.md
