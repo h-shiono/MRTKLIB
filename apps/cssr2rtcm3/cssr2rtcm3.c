@@ -949,7 +949,7 @@ int mrtk_cssr2rtcm3(int argc, char **argv)
             continue;
         }
 
-        /* Output RTCM3 at configured interval */
+        /* Output RTCM3 at configured interval (1-second grid catch-up) */
         now = clas->l6buf[0].time;
         if (now.time == 0) {
             dbg_notime++;
@@ -957,50 +957,66 @@ int mrtk_cssr2rtcm3(int argc, char **argv)
             continue;
         }
 
-        if (last_output.time == 0 ||
-            timediff(now, last_output) >= output_interval - 0.01) {
-
-            rtk.sol.time = now;
-
-            /* generate dummy observations from satellite geometry */
-            if (actualdist(now, &obs, nav, user_pos) < 0) {
-                dbg_nogeom++;
-                sleepms(10);
-                continue;
-            }
-
-            /* convert SSR to OSR */
-            {
-                int obs_in = obs.n;
-                obs.n = clas_ssr2osr(&rtk, obs.data, obs.n, nav, osr, 0, clas);
-                if (obs.n == 0 && dbg_noosr < 3) {
-                    int week;
-                    double tow = time2gpst(now, &week);
-                    fprintf(stderr, "  OSR fail: week=%d tow=%.1f obs_in=%d nav.n=%d pos=%.1f,%.1f,%.1f\n",
-                            week, tow, obs_in, nav->n,
-                            user_pos[0], user_pos[1], user_pos[2]);
-                }
-            }
-
-            if (obs.n > 0) {
-                int bytes = encode_and_send_rtcm3(&strm_out, rtcm,
-                                                   &obs, nav, user_pos);
-                epoch_count++;
-                osr_count += obs.n;
-
-                {
-                    int week;
-                    double tow = time2gpst(now, &week);
-                    fprintf(stderr, "\rEpoch %d: week=%d tow=%.0f sats=%d "
-                            "bytes=%d",
-                            epoch_count, week, tow, obs.n, bytes);
-                    fflush(stderr);
-                }
-            } else {
-                dbg_noosr++;
-            }
-
+        /* Initialize last_output on first valid epoch */
+        if (last_output.time == 0) {
             last_output = now;
+        }
+
+        /* Generate MSM4 for all 1-second grid epochs from last_output to now */
+        {
+            double gap = timediff(now, last_output);
+            if (gap >= output_interval - 0.01) {
+                int nsteps = (int)(gap / output_interval);
+                int step;
+                for (step = 1; step <= nsteps; step++) {
+                    gtime_t t = timeadd(last_output, output_interval * step);
+
+                    rtk.sol.time = t;
+
+                    /* generate dummy observations from satellite geometry */
+                    if (actualdist(t, &obs, nav, user_pos) < 0) {
+                        dbg_nogeom++;
+                        continue;
+                    }
+
+                    /* convert SSR to OSR */
+                    {
+                        int obs_in = obs.n;
+                        obs.n = clas_ssr2osr(&rtk, obs.data, obs.n, nav, osr,
+                                             0, clas);
+                        if (obs.n == 0 && dbg_noosr < 3) {
+                            int week;
+                            double tow = time2gpst(t, &week);
+                            fprintf(stderr,
+                                    "  OSR fail: week=%d tow=%.1f obs_in=%d "
+                                    "nav.n=%d pos=%.1f,%.1f,%.1f\n",
+                                    week, tow, obs_in, nav->n, user_pos[0],
+                                    user_pos[1], user_pos[2]);
+                        }
+                    }
+
+                    if (obs.n > 0) {
+                        int bytes = encode_and_send_rtcm3(&strm_out, rtcm,
+                                                           &obs, nav,
+                                                           user_pos);
+                        epoch_count++;
+                        osr_count += obs.n;
+
+                        {
+                            int week;
+                            double tow = time2gpst(t, &week);
+                            fprintf(stderr,
+                                    "\rEpoch %d: week=%d tow=%.0f sats=%d "
+                                    "bytes=%d",
+                                    epoch_count, week, tow, obs.n, bytes);
+                            fflush(stderr);
+                        }
+                    } else {
+                        dbg_noosr++;
+                    }
+                }
+                last_output = timeadd(last_output, output_interval * nsteps);
+            }
         }
 
         sleepms(10);
