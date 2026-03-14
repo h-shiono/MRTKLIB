@@ -469,18 +469,32 @@ static int decoderaw(rtksvr_t* svr, int index) {
                   time_str(obs->data[0].time,0),obs->n);
         }
 #endif
-        /* update rtk server (skip update_ssr for UBX L6D: ret=10 means
+        /* update rtk server (skip update_ssr for UBX/SBF L6D: ret=10 means
          * "L6 payload ready for CLAS redirect", not "SSR message decoded") */
-        if (ret > 0 && !(ret == 10 && svr->format[index] == STRFMT_UBX)) {
+        if (ret > 0 && !(ret == 10 && (svr->format[index] == STRFMT_UBX ||
+                                        svr->format[index] == STRFMT_SEPT))) {
             update_svr(svr, ret, obs, nav, ephsat, ephset, sbsmsg, index, fobs);
         }
-        /* redirect L6 payload to CLAS decoder (UBX/L6E → CLAS path) */
-        if (svr->clas && ret == 10 && (svr->format[index] == STRFMT_UBX || svr->format[index] == STRFMT_L6E)) {
+        /* redirect L6 payload to CLAS decoder (UBX/L6E/SBF → CLAS path) */
+        if (svr->clas && ret == 10 && (svr->format[index] == STRFMT_UBX ||
+                                        svr->format[index] == STRFMT_L6E ||
+                                        svr->format[index] == STRFMT_SEPT)) {
             int k, ch, cret, max_cret = 0;
 
             if (svr->format[index] == STRFMT_UBX) {
                 /* UBX: demux L6D frames by PRN (both channels in same stream) */
                 int l6prn = svr->rtcm[index].buff[4]; /* PRN from L6 frame header */
+                if (svr->clas->l6delivery[0] < 0 || svr->clas->l6delivery[0] == l6prn) {
+                    ch = 0;
+                } else {
+                    ch = 1;
+                }
+            } else if (svr->format[index] == STRFMT_SEPT) {
+                /* SBF: demux L6D frames by PRN from raw->ephsat */
+                int l6prn = 0, sat = svr->raw[index].ephsat;
+                if (sat > 0) {
+                    satsys(sat, &l6prn);
+                }
                 if (svr->clas->l6delivery[0] < 0 || svr->clas->l6delivery[0] == l6prn) {
                     ch = 0;
                 } else {
@@ -1165,7 +1179,8 @@ extern int rtksvrstart(rtksvr_t* svr, int cycle, int buffsize, int* strs, char**
     /* initialize CLAS context if L6 source is available for PPP-RTK */
     for (i = 0; i < 3; i++) {
         if ((formats[i] == STRFMT_CLAS ||
-             ((formats[i] == STRFMT_UBX || formats[i] == STRFMT_L6E) && prcopt->mode == PMODE_PPP_RTK)) &&
+             ((formats[i] == STRFMT_UBX || formats[i] == STRFMT_L6E ||
+               formats[i] == STRFMT_SEPT) && prcopt->mode == PMODE_PPP_RTK)) &&
             !svr->clas) {
             svr->clas = (clas_ctx_t*)calloc(1, sizeof(clas_ctx_t));
             if (svr->clas) {
