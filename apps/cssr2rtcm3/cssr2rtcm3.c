@@ -988,12 +988,13 @@ int mrtk_cssr2rtcm3(int argc, char **argv)
                 epoch_count++;
                 osr_count += obs.n;
 
-                if (epoch_count % 60 == 0) {
+                {
                     int week;
                     double tow = time2gpst(now, &week);
                     fprintf(stderr, "\rEpoch %d: week=%d tow=%.0f sats=%d "
                             "bytes=%d",
                             epoch_count, week, tow, obs.n, bytes);
+                    fflush(stderr);
                 }
             } else {
                 dbg_noosr++;
