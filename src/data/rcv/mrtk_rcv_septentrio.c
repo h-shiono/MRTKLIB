@@ -1032,6 +1032,67 @@ static int decode_qzsrawl6(raw_t* raw, rtcm_t* rtcm) {
 
     return ret;
 }
+/* decode SBF QZSRawL6D block (CLAS L6D) ------------------------------------
+ * Extracts the 250-byte L6D data part from the SBF QZSRawL6D (4270) block
+ * and copies it into rtcm->buff WITHOUT passing through the MADOCA L6E
+ * decoder.  Returns 10 to signal "L6D frame ready" to the caller.
+ *---------------------------------------------------------------------------*/
+static int decode_qzsrawl6d(raw_t* raw, rtcm_t* rtcm) {
+    double tow;
+    int prn, sat, week, i, j;
+    unsigned char svid, parity, rscnt, source, rxchannel;
+    uint8_t* p = (raw->buff) + 8; /* jump to TOW location */
+    unsigned char buff[256];
+
+    if (raw->len < 272) {
+        trace(NULL, 2, "SBF decode_qzsrawl6d frame length error: len=%d\n",
+              raw->len);
+        return -1;
+    }
+
+    /* time */
+    tow = U4(p);
+    week = U2(p + 4);
+    raw->time = gpst2time(week, tow * 0.001);
+
+    svid      = U1(p + 6);
+    parity    = U1(p + 7);
+    rscnt     = U1(p + 8);
+    source    = U1(p + 9);
+    rxchannel = U1(p + 11);
+
+    prn = svid - 180 + MINPRNQZS - 1;
+    sat = satno(SYS_QZS, prn);
+
+    if (sat == 0) {
+        trace(NULL, 2, "SBF decode_qzsrawl6d SVID error: SVID=%d prn=%d\n",
+              svid, prn);
+        return -1;
+    }
+    trace(NULL, 3, "SBF QZSRawL6D: %s prn=%d SVID=%d Parity=%d Source=%d\n",
+          time_str(raw->time, 0), prn, svid, parity, source);
+
+    if (parity == 0) {
+        trace(NULL, 2, "SBF decode_qzsrawl6d RS decode error\n");
+        return -1;
+    }
+
+    /* extract 252 bytes (63 x 4B words) → use first 250 bytes */
+    for (i = 0, j = 0; i < 63; i++, j += 4) {
+        buff[j]     = (U4(p + 12 + i * 4) >> 24) & 0xFF;
+        buff[j + 1] = (U4(p + 12 + i * 4) >> 16) & 0xFF;
+        buff[j + 2] = (U4(p + 12 + i * 4) >>  8) & 0xFF;
+        buff[j + 3] =  U4(p + 12 + i * 4)        & 0xFF;
+    }
+
+    memcpy(rtcm->buff, buff, 250);
+
+    /* store satellite number for caller (e.g., cssr2rtcm3 PRN filtering) */
+    raw->ephsat = sat;
+
+    /* return 10 = L6D frame ready (skip MADOCA decoder) */
+    return 10;
+}
 /* decode SBF NavIC/IRNSS subframe -------------------------------------------*/
 static int decode_navicraw(raw_t* raw) {
     eph_t eph = {0};
@@ -1501,7 +1562,7 @@ static int decode_sbf(raw_t* raw, rtcm_t* rtcm) {
         case SBF_QZSRAWL6:
             return decode_qzsrawl6(raw, rtcm);
         case SBF_QZSRAWL6D:
-            return decode_qzsrawl6(raw, rtcm);
+            return decode_qzsrawl6d(raw, rtcm);
         case SBF_NAVICRAW:
             return decode_navicraw(raw);
         /* decoded navigation blocks */

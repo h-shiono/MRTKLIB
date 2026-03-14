@@ -324,12 +324,15 @@ static int actualdist(gtime_t time, obs_t *obs, nav_t *nav, const double *x)
     int svh1;
 
     obs->n = 0;
-    for (i = 0; i < MAXOBS; i++) obsd[i].time = time;
+    for (i = 0; i < MAXOBS; i++) {
+        obsd[i].time = time;
+    }
 
+    /* build satellite list from broadcast ephemeris */
     for (i = n = 0; i < MAXSAT; i++) {
-        if (!nav->ssr_ch[0][i].t0[0].time || !nav->ssr_ch[0][i].t0[1].time)
-            continue;
-        lsat[n++] = i + 1;
+        if (nav->eph[i].sat == i + 1 && nav->eph[i].toe.time > 0) {
+            lsat[n++] = i + 1;
+        }
     }
 
     for (i = 0; i < 3; i++) rr[i] = x[i];
@@ -428,28 +431,45 @@ static int encode_and_send_rtcm3(stream_t *strm_out, rtcm_t *rtcm,
 static void update_corrections(clas_ctx_t *clas, nav_t *nav, int ch)
 {
     int net = clas->grid[ch].network;
+    int rc;
 
     if (net > 0) {
-        if (clas_bank_get_close(clas, clas->l6buf[ch].time,
-                                net, ch, &clas->current[ch]) == 0) {
+        rc = clas_bank_get_close(clas, clas->l6buf[ch].time,
+                                 net, ch, &clas->current[ch]);
+        if (rc == 0) {
             clas_update_global(nav, &clas->current[ch], ch);
             clas_check_grid_status(clas, &clas->current[ch], ch);
+        } else {
+            fprintf(stderr, "  bank_get failed: net=%d ch=%d rc=%d\n", net, ch, rc);
         }
     }
 
     /* bootstrap: scan all networks when network is unknown */
     if (clas->grid[ch].network <= 0 && clas->bank[ch] && clas->bank[ch]->use) {
         clas_corr_t *tmp = (clas_corr_t *)calloc(1, sizeof(clas_corr_t));
+        int found = 0;
         if (tmp) {
             for (net = 1; net < CLAS_MAX_NETWORK; net++) {
                 if (clas_bank_get_close(clas, clas->l6buf[ch].time,
                                         net, ch, tmp) == 0) {
                     clas_check_grid_status(clas, tmp, ch);
                     clas_update_global(nav, tmp, ch);
+                    found++;
                 }
+            }
+            if (found == 0) {
+                fprintf(stderr, "  bootstrap: no network found (bank.use=%d)\n",
+                        clas->bank[ch]->use);
+            } else {
+                fprintf(stderr, "  bootstrap: found %d networks, grid.network=%d\n",
+                        found, clas->grid[ch].network);
             }
             free(tmp);
         }
+    } else if (clas->grid[ch].network <= 0) {
+        fprintf(stderr, "  no grid network: bank=%p use=%d\n",
+                (void*)clas->bank[ch],
+                clas->bank[ch] ? clas->bank[ch]->use : -1);
     }
 }
 
@@ -498,6 +518,14 @@ int mrtk_cssr2rtcm3(int argc, char **argv)
     int pos_updated = 0;
     int epoch_count = 0;
     int osr_count = 0;
+    long total_bytes = 0;
+    int nav_count = 0, l6d_count = 0, pvt_count = 0;
+    int dbg_nopos = 0, dbg_notime = 0, dbg_nogeom = 0, dbg_noosr = 0;
+    int dbg_cssr_decode = 0;
+    int dbg_subtype[16] = {0};
+    int l6d_prn_filter = 0;  /* auto-select first QZS satellite for L6D */
+    int l6d_prn_count[MAXSAT + 1];  /* L6D block count per satellite */
+    memset(l6d_prn_count, 0, sizeof(l6d_prn_count));
 
     /* parse command-line arguments */
     for (i = 1; i < argc; i++) {
@@ -617,6 +645,23 @@ int mrtk_cssr2rtcm3(int argc, char **argv)
         goto cleanup;
     }
 
+    /* initialize nav_t arrays (eph, geph, etc.) */
+    nav->eph  = NULL;
+    nav->geph = NULL;
+    nav->seph = NULL;
+    if (!(nav->eph  = (eph_t  *)calloc(MAXSAT * 2, sizeof(eph_t))) ||
+        !(nav->geph = (geph_t *)calloc(NSATGLO,    sizeof(geph_t))) ||
+        !(nav->seph = (seph_t *)calloc(NSATSBS * 2, sizeof(seph_t)))) {
+        fprintf(stderr, "Navigation data allocation error.\n");
+        goto cleanup;
+    }
+    nav->n    = 0;
+    nav->nmax = MAXSAT * 2;
+    nav->ng   = 0;
+    nav->ngmax = NSATGLO;
+    nav->ns   = 0;
+    nav->nsmax = NSATSBS * 2;
+
     /* initialize CLAS context */
     if (clas_ctx_init(clas) != 0) {
         fprintf(stderr, "CLAS context init error.\n");
@@ -652,7 +697,10 @@ int mrtk_cssr2rtcm3(int argc, char **argv)
             fprintf(stderr, "Memory allocation error (raw_t).\n");
             goto cleanup;
         }
-        raw_sbf->format = STRFMT_SEPT;
+        if (!init_raw(raw_sbf, STRFMT_SEPT)) {
+            fprintf(stderr, "Failed to initialize raw_t.\n");
+            goto cleanup;
+        }
         fprintf(stderr, "SBF mode: single-stream input (L6D + NAV + PVT)\n");
     }
 
@@ -753,29 +801,87 @@ int mrtk_cssr2rtcm3(int argc, char **argv)
         /* ── Read and decode input ── */
         n = strread(&strm_in, buf, sizeof(buf));
 
+        /* detect end of file: readfile() sets stream msg to "end" */
+        if (n == 0 && !strncmp(strm_in.msg, "end", 3)) {
+            fprintf(stderr, "\nEnd of input stream.\n");
+            break;
+        }
+
+        if (n > 0) {
+            total_bytes += n;
+        }
+
         if (sbf_mode && n > 0) {
             /* SBF mode: demux L6D, NAV, and PVT from single SBF stream */
             for (i = 0; i < n; i++) {
                 ret = input_sbf(raw_sbf, rtcm, buf[i]);
 
                 if (ret == 10) {
-                    /* L6D frame decoded → feed to CLAS byte-by-byte */
-                    int cret;
-                    for (k = 0; k < 250; k++) {
-                        clas_input_cssr(clas, rtcm->buff[k], 0);
-                        cret = clas_decode_msg(clas, 0);
-                        if (cret == 10) update_corrections(clas, nav, 0);
+                    /* L6D frame decoded */
+                    int cret, l6d_sat, fprn;
+                    l6d_sat = raw_sbf->ephsat;
+                    l6d_count++;
+                    if (l6d_sat > 0 && l6d_sat <= MAXSAT) {
+                        l6d_prn_count[l6d_sat]++;
+                    }
+
+                    /* auto-select first QZS satellite for L6D filtering */
+                    if (l6d_prn_filter == 0 && l6d_sat > 0) {
+                        l6d_prn_filter = l6d_sat;
+                        satsys(l6d_sat, &fprn);
+                        fprintf(stderr, "L6D: auto-selected J%d for CLAS input\n", fprn);
+                    }
+
+                    /* only feed L6D from selected satellite (avoid frame corruption) */
+                    if (l6d_sat == l6d_prn_filter) {
+                        for (k = 0; k < 250; k++) {
+                            clas_input_cssr(clas, rtcm->buff[k], 0);
+                            cret = clas_decode_msg(clas, 0);
+                            if (cret == 10) {
+                                dbg_cssr_decode++;
+                                if (clas->l6buf[0].subtype < 16) {
+                                    dbg_subtype[clas->l6buf[0].subtype]++;
+                                }
+                                update_corrections(clas, nav, 0);
+                            }
+                        }
+                        /* drain remaining CSSR messages in buffer */
+                        while ((cret = clas_decode_msg(clas, 0)) != 0) {
+                            if (cret == 10) {
+                                dbg_cssr_decode++;
+                                if (clas->l6buf[0].subtype < 16) {
+                                    dbg_subtype[clas->l6buf[0].subtype]++;
+                                }
+                                update_corrections(clas, nav, 0);
+                            }
+                        }
                     }
                 }
                 else if (ret == 2) {
+                    nav_count++;
                     /* ephemeris → copy to nav */
                     int esat = raw_sbf->ephsat;
+                    int sys = satsys(esat, NULL);
                     if (esat > 0 && esat <= MAXSAT) {
-                        nav->eph[esat - 1] = raw_sbf->nav.eph[esat - 1];
-                        if (nav->n < esat) nav->n = esat;
+                        if (sys == SYS_GLO) {
+                            int prn;
+                            satsys(esat, &prn);
+                            if (prn >= 1 && prn <= NSATGLO) {
+                                nav->geph[prn - 1] = raw_sbf->nav.geph[prn - 1];
+                                if (nav->ng < prn) nav->ng = prn;
+                            }
+                        } else {
+                            nav->eph[esat - 1] = raw_sbf->nav.eph[esat - 1];
+                            if (raw_sbf->ephset) {
+                                nav->eph[esat - 1 + MAXSAT] =
+                                    raw_sbf->nav.eph[esat - 1 + MAXSAT];
+                            }
+                            if (nav->n < esat) nav->n = esat;
+                        }
                     }
                 }
                 else if (ret == 5) {
+                    pvt_count++;
                     /* PVTGeodetic → update user position (unless -p override) */
                     if (!has_fixed_pos && norm(raw_sbf->sta.pos, 3) > 0.0) {
                         matcpy(user_pos, raw_sbf->sta.pos, 3, 1);
@@ -838,6 +944,7 @@ int mrtk_cssr2rtcm3(int argc, char **argv)
 
         /* Check if position is available */
         if (norm(user_pos, 3) <= 0.0) {
+            dbg_nopos++;
             sleepms(100);
             continue;
         }
@@ -845,6 +952,7 @@ int mrtk_cssr2rtcm3(int argc, char **argv)
         /* Output RTCM3 at configured interval */
         now = clas->l6buf[0].time;
         if (now.time == 0) {
+            dbg_notime++;
             sleepms(10);
             continue;
         }
@@ -856,12 +964,23 @@ int mrtk_cssr2rtcm3(int argc, char **argv)
 
             /* generate dummy observations from satellite geometry */
             if (actualdist(now, &obs, nav, user_pos) < 0) {
+                dbg_nogeom++;
                 sleepms(10);
                 continue;
             }
 
             /* convert SSR to OSR */
-            obs.n = clas_ssr2osr(&rtk, obs.data, obs.n, nav, osr, 0, clas);
+            {
+                int obs_in = obs.n;
+                obs.n = clas_ssr2osr(&rtk, obs.data, obs.n, nav, osr, 0, clas);
+                if (obs.n == 0 && dbg_noosr < 3) {
+                    int week;
+                    double tow = time2gpst(now, &week);
+                    fprintf(stderr, "  OSR fail: week=%d tow=%.1f obs_in=%d nav.n=%d pos=%.1f,%.1f,%.1f\n",
+                            week, tow, obs_in, nav->n,
+                            user_pos[0], user_pos[1], user_pos[2]);
+                }
+            }
 
             if (obs.n > 0) {
                 int bytes = encode_and_send_rtcm3(&strm_out, rtcm,
@@ -876,6 +995,8 @@ int mrtk_cssr2rtcm3(int argc, char **argv)
                             "bytes=%d",
                             epoch_count, week, tow, obs.n, bytes);
                 }
+            } else {
+                dbg_noosr++;
             }
 
             last_output = now;
@@ -885,6 +1006,49 @@ int mrtk_cssr2rtcm3(int argc, char **argv)
     }
 
     fprintf(stderr, "\nShutting down...\n");
+    /* dump bank state for debugging */
+    if (clas->bank[0] && clas->bank[0]->use) {
+        clas_bank_ctrl_t *bnk = clas->bank[0];
+        fprintf(stderr, "Bank: use=%d NextOrbit=%d NextClock=%d NextBias=%d NextTrop=%d\n",
+                bnk->use, bnk->NextOrbit, bnk->NextClock, bnk->NextBias, bnk->NextTrop);
+        for (i = 0; i < bnk->NextOrbit && i < 3; i++) {
+            int week;
+            double tow = time2gpst(bnk->OrbitBank[i].time, &week);
+            fprintf(stderr, "  orbit[%d]: net=%d week=%d tow=%.0f\n",
+                    i, bnk->OrbitBank[i].network, week, tow);
+        }
+        for (i = 0; i < bnk->NextClock && i < 3; i++) {
+            int week;
+            double tow = time2gpst(bnk->ClockBank[i].time, &week);
+            fprintf(stderr, "  clock[%d]: net=%d week=%d tow=%.0f\n",
+                    i, bnk->ClockBank[i].network, week, tow);
+        }
+    }
+    fprintf(stderr, "Grid: network=%d num=%d\n",
+            clas->grid[0].network, clas->grid[0].num);
+    fprintf(stderr, "Read: %ld bytes, NAV: %d, L6D: %d, PVT: %d\n",
+            total_bytes, nav_count, l6d_count, pvt_count);
+    fprintf(stderr, "CSSR decoded: %d (ST1=%d ST2=%d ST3=%d ST4=%d ST5=%d ST7=%d ST11=%d ST12=%d)\n",
+            dbg_cssr_decode, dbg_subtype[1], dbg_subtype[2], dbg_subtype[3],
+            dbg_subtype[4], dbg_subtype[5], dbg_subtype[7], dbg_subtype[11], dbg_subtype[12]);
+    /* L6D satellite breakdown */
+    fprintf(stderr, "L6D by PRN: ");
+    for (i = 0; i <= MAXSAT; i++) {
+        if (l6d_prn_count[i] > 0) {
+            int sprn;
+            satsys(i, &sprn);
+            fprintf(stderr, "J%d=%d ", sprn, l6d_prn_count[i]);
+        }
+    }
+    fprintf(stderr, "(filter=J");
+    if (l6d_prn_filter > 0) {
+        int sprn;
+        satsys(l6d_prn_filter, &sprn);
+        fprintf(stderr, "%d", sprn);
+    }
+    fprintf(stderr, ")\n");
+    fprintf(stderr, "Skipped: nopos=%d notime=%d nogeom=%d noosr=%d\n",
+            dbg_nopos, dbg_notime, dbg_nogeom, dbg_noosr);
     fprintf(stderr, "Total: %d epochs, %d satellite-observations\n",
             epoch_count, osr_count);
 
@@ -900,6 +1064,7 @@ cleanup:
     if (rtcm) { free_rtcm(rtcm); free(rtcm); }
     if (nav) { freenav(nav, 0xFF); free(nav); }
     if (clas) { clas_ctx_free(clas); free(clas); }
+    if (raw_sbf) free_raw(raw_sbf);
     free(raw_sbf);
     free(obsdata);
     free(osr);
