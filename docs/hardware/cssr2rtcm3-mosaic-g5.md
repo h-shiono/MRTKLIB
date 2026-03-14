@@ -215,7 +215,34 @@ mrtk cssr2rtcm3 \
 
 ## Running — Approach 2: MRTKLIB Engine
 
-*Section to be completed after field testing.*
+Instead of converting CLAS to RTCM3 and relying on the receiver's RTK engine,
+you can run MRTKLIB's own CLAS PPP-RTK engine directly.
+
+### Step 1: Start `mrtk relay`
+
+Same as Approach 1:
+
+```bash
+mrtk relay \
+  -in serial://ttyACM0:115200#sbf \
+  -out tcpsvr://:9000#sbf
+```
+
+### Step 2: Start `mrtk run`
+
+```bash
+mrtk run -k conf/claslib/rtkrcv_mosaic_g5.toml
+```
+
+The MRTKLIB engine reads the SBF stream from the relay, automatically
+extracts L6D (CLAS) data from `QZSRawL6D` blocks, and performs PPP-RTK
+positioning.  The NMEA solution is written to `./clas_rt.nmea` by default.
+
+To output the solution to a TCP server (e.g., for downstream applications):
+
+```bash
+mrtk run -k conf/claslib/rtkrcv_mosaic_g5.toml -out tcpsvr://:9002
+```
 
 ## Configuration
 

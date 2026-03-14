@@ -1,0 +1,251 @@
+# MRTKLIB Configuration (TOML v1.0.0)
+# Real-time CLAS PPP-RTK with Septentrio mosaic-G5 P3 (SBF via TCP)
+#
+# The mosaic-G5 outputs a single SBF stream containing observations,
+# navigation messages, and QZSS L6D (CLAS) data.  rtksvr automatically
+# redirects QZSRawL6D blocks from the rover SBF stream to the CLAS
+# decoder — no separate correction stream is needed.
+#
+# Usage:
+#   mrtk run -k conf/claslib/rtkrcv_mosaic_g5.toml
+#
+# Prerequisite: mrtk relay forwarding serial SBF to TCP port 9000
+#   mrtk relay -in serial:///dev/ttyACM0:115200 -out tcpsvr://:9000
+
+[positioning]
+mode = "ppp-rtk"
+signals = ["G1C", "G2W", "E1C", "E5Q", "J1C", "J2L"]
+solution_type = "forward"
+elevation_mask = 15.0
+dynamics = true
+satellite_ephemeris = "brdc+ssrapc"
+excluded_sats = ""
+systems = ["GPS", "Galileo", "QZSS"]
+
+[positioning.clas]
+grid_selection_radius = 1000
+receiver_type = ""
+position_uncertainty_x = 10.0
+position_uncertainty_y = 10.0
+position_uncertainty_z = 10.0
+
+[positioning.snr_mask]
+rover_enabled = true
+base_enabled = false
+L1 = [10, 10, 10, 10, 30, 30, 30, 30, 30]
+L2 = [10, 10, 10, 10, 30, 30, 30, 30, 30]
+L5 = [10, 10, 10, 10, 30, 30, 30, 30, 30]
+
+[positioning.corrections]
+satellite_antenna = false
+receiver_antenna = false
+phase_windup = "on"
+exclude_eclipse = true
+raim_fde = true
+iono_compensation = "meas"
+partial_ar = true
+shapiro_delay = true
+exclude_qzs_ref = true
+no_phase_bias_adj = false
+tidal_correction = "solid+otl-clasgrid+pole"
+
+[positioning.atmosphere]
+ionosphere = "est-adaptive"
+troposphere = "off"
+
+[ambiguity_resolution]
+mode = "fix-and-hold"
+qzs_ar = true
+
+[ambiguity_resolution.thresholds]
+alpha = "10%"
+elevation_mask = 20.0
+hold_elevation = 30.0
+
+[ambiguity_resolution.counters]
+lock_count = 5
+out_count = 1
+min_fix = 0
+
+[ambiguity_resolution.partial_ar]
+min_ambiguities = 6
+max_excluded_sats = 4
+
+[ambiguity_resolution.hold]
+variance = 0.001
+
+[rejection]
+l1_l2_residual = 2.0
+dispersive = 3.0
+non_dispersive = 3.0
+hold_chi_square = 0.5
+fix_chi_square = 5.0
+pseudorange_diff = 10.0
+position_error_count = 5
+
+[slip_detection]
+threshold = 0.05
+
+[kalman_filter]
+iterations = 1
+
+[kalman_filter.measurement_error]
+code_phase_ratio_L1 = 50.0
+phase = 0.01
+phase_elevation = 0.005
+phase_baseline = 0.0
+doppler = 10.0
+
+[kalman_filter.initial_std]
+bias = 100.0
+ionosphere = 0.01
+troposphere = 0.005
+
+[kalman_filter.process_noise]
+accel_h = 0.2
+accel_v = 0.1
+position_h = 0.0
+position_v = 0.0
+bias = 0.001
+ionosphere = 0.001
+iono_max = 0.05
+troposphere = 0.001
+iono_time_const = 10.0
+clock_stability = 5.00e-12
+
+# Per-system frequency pair selection for PPP/PPP-RTK engine
+# GPS:  0=L1/L2, 1=L1/L5, 2=L1/L2/L5
+# QZS:  0=L1/L5, 1=L1/L2, 2=L1/L5/L2
+# GAL:  0=E1/E5a, 1=E1/E5b, 2=E1/E6, 3=E1/E5a/E5b/E6, 4=E1/E5a/E6/E5b
+[signals]
+gps = 0     # L1/L2
+qzs = 1     # L1/L2
+galileo = 0 # E1/E5a
+
+[adaptive_filter]
+iono_forgetting = 0.3
+iono_gain = 3.0
+enabled = false
+pva_forgetting = 0.3
+pva_gain = 1.0
+
+[receiver]
+baseline_length = 0.0
+baseline_sigma = 0.0
+max_age = 30.0
+isb = false
+phase_shift = "table"
+reference_type = "CLAS"
+
+[antenna.rover]
+position_type = "single"
+type = "*"
+delta_e = 0.0
+delta_n = 0.0
+delta_u = 0.0
+
+[antenna.base]
+position_type = "llh"
+position_1 = 0.0
+position_2 = 0.0
+position_3 = 0.0
+type = "*"
+delta_e = 0.0
+delta_n = 0.0
+delta_u = 0.0
+max_average_epochs = 0
+init_reset = false
+
+[output]
+format = "nmea"
+header = true
+options = true
+velocity = false
+time_system = "gpst"
+time_format = "tow"
+time_decimals = 3
+coordinate_format = "deg"
+field_separator = ""
+single_output = false
+max_solution_std = 0.0
+height_type = "ellipsoidal"
+geoid_model = "internal"
+static_solution = "all"
+nmea_interval_1 = 0.0
+nmea_interval_2 = 0.0
+solution_status = "off"
+
+[files]
+cssr_grid = "./tests/data/claslib/clas_grid.def"
+ocean_loading = "./tests/data/claslib/clas_grid.blq"
+eop = "./tests/data/claslib/igu00p01.erp"
+receiver_atx = "./tests/data/claslib/igs14_L5copy.atx"
+isb_table = "./tests/data/claslib/isb.tbl"
+phase_cycle = "./tests/data/claslib/l2csft.tbl"
+satellite_atx = ""
+station_pos = ""
+geoid = ""
+dcb = ""
+temp_dir = ""
+geexe = ""
+solution_stat = ""
+trace = ""
+
+[server]
+cycle_ms = 10
+timeout_ms = 10000
+reconnect_ms = 10000
+nmea_cycle_ms = 5000
+buffer_size = 32768
+nav_msg_select = "all"
+proxy = ""
+swap_margin = 30
+time_interpolation = true
+max_obs_loss = 90.0
+float_count = 15
+
+# Rover: SBF stream carries obs + nav + L6D (all from single TCP relay)
+# L6D (QZSRawL6D) blocks are automatically redirected to CLAS decoder
+[streams.input.rover]
+type = "tcpcli"
+path = "localhost:9000"
+format = "sbf"
+
+[streams.input.base]
+type = "off"
+path = ""
+format = ""
+
+[streams.input.correction]
+type = "off"
+path = ""
+format = ""
+
+# Output: NMEA solution
+[streams.output.stream1]
+type = "file"
+path = "./clas_rt.nmea"
+format = "nmea"
+
+[streams.output.stream2]
+type = "off"
+path = ""
+format = "nmea"
+
+[streams.log.stream1]
+type = "off"
+path = ""
+
+[streams.log.stream2]
+type = "off"
+path = ""
+
+[streams.log.stream3]
+type = "off"
+path = ""
+
+[console]
+passwd = ""
+timetype = "gpst"
+soltype = "deg"
+solflag = "off"
