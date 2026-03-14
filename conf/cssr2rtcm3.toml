@@ -18,4 +18,6 @@ ionosphere = "est-adaptive"
 troposphere = "off"
 
 [files]
+# CLAS compact network grid definition (shared across all CLAS configs).
+# Path is relative to the working directory where mrtk is invoked.
 cssr_grid = "./tests/data/claslib/clas_grid.def"
