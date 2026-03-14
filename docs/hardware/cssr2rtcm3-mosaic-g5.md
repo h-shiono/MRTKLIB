@@ -14,7 +14,7 @@ The [mosaic-G5 P3](https://www.septentrio.com/en/products/gnss-receivers/gnss-re
 is one of the few commercially available receivers that can directly track
 the QZSS L6 band and output raw L6D data.
 In this tutorial we used the
-[mosaic-go G5 P3 evaluation kit](https://www.septentrio.com/en/products/gnss-receivers/gnss-receiver-modules/mosaic-go-g5-p3-evaluation-kit),
+[mosaic-go G5 P3 evaluation kit (mosaic-go G5)](https://www.septentrio.com/en/products/gnss-receivers/gnss-receiver-modules/mosaic-go-g5-p3-evaluation-kit),
 which provides a convenient out-of-the-box setup for evaluating the
 mosaic-G5 P3 module.
 
@@ -88,39 +88,71 @@ flowchart LR
 | **GNSS antenna** | All-band antenna (L1/L2/L5/L6) |
 | **Host PC / SBC** | Linux or macOS machine with MRTKLIB built (PC, laptop, or SBC such as Raspberry Pi) |
 
-## mosaic-G5 SBF Stream Configuration
+## Setting Up the Receiver
 
-The mosaic-G5 must be configured to output a **single SBF stream** containing
-all required data blocks.  Configure the receiver using RxTools or the
-Septentrio command interface (the mosaic-G5 module does not have a Web UI).
+[RxTools](https://www.septentrio.com/en/products/gps-gnss-receiver-software/rxtools) is a GNSS receiver control and analysis software suite by Septentrio.
+Configure the mosaic-G5 using RxTools (the mosaic-G5 module does not have a Web UI).
 
-### Required SBF Blocks
+1. **Download and install RxTools**: Download and install the latest version of RxTools on your computer.
 
-| SBF Block | ID | Purpose |
-|-----------|----|---------|
-| QZSRawL6 | 4066 | QZSS L6 raw data (L6E) |
-| QZSRawL6D | 4270 | QZSS L6D raw data (CLAS CSSR) |
-| GPSNav | 5891 | GPS broadcast ephemeris |
-| GALNav | 4002 | Galileo broadcast ephemeris |
-| QZSNav | 4095 | QZSS broadcast ephemeris |
-| GLONav | 4004 | GLONASS broadcast ephemeris (optional) |
-| BDSNav | 4081 | BDS broadcast ephemeris (optional) |
-| PVTGeodetic | 4007 | Receiver position (used for OSR computation) |
+2. **Connect the receiver**: Connect the receiver via USB. The mosaic-go G5 will be powered over USB and the LED will turn on.
 
-### RxTools / Command-Line Configuration
+3. **Launch RxControl**: Open RxControl and configure the connection (first time only).
 
-Configure the SBF output via the Septentrio command interface (RxTools terminal
-or serial connection):
+    - Select `Serial Connection` > `Create New...`
 
-```
-# Enable SBF output on the USB serial port (COM1)
-setSBFOutput, Stream1, COM1, QZSRawL6+QZSRawL6D+GPSNav+GALNav+QZSNav+PVTGeodetic, sec1
-```
+    <div style="text-align: center;"><img src="images/mosaic-g5/select_connection.png" style="max-width: 360px; width: 100%;"></div>
 
-!!! tip "GLONav and BDSNav"
-    GLONav and BDSNav are optional.  Include them if you want GLONASS or BDS
-    satellites in the RTCM3 output.  The default `conf/cssr2rtcm3.toml`
-    uses GPS + Galileo + QZSS only.
+    - Choose the USB COM port, set a `Connection Name`, and click `Finish`.
+
+    <div style="text-align: center;"><img src="images/mosaic-g5/specify_the_serial_settings.png" style="max-width: 480px; width: 100%;"></div>
+
+    - RxControl will launch after the connection is established.
+
+    <div style="text-align: center;"><img src="images/mosaic-g5/rx_control.png" style="max-width: 520px; width: 100%;"></div>
+
+4. **Set SBF output**: Go to `Communication` > `Output Settings` > `SBF Output` and configure `Stream 1` as follows:
+    - Ports: `USB2`
+    - Off: unchecked
+    - Support: checked
+
+    Click `Apply`, then `OK` to close.
+
+    <div style="text-align: center;"><img src="images/mosaic-g5/sbf_output.png" style="max-width: 640px; width: 100%;"></div>
+
+    <details>
+    <summary>Required SBF blocks (reference)</summary>
+
+    | SBF Block | ID | Purpose |
+    |-----------|----|---------|
+    | QZSRawL6 | 4066 | QZSS L6 raw data (L6E) |
+    | QZSRawL6D | 4270 | QZSS L6D raw data (CLAS CSSR) |
+    | GPSNav | 5891 | GPS broadcast ephemeris |
+    | GALNav | 4002 | Galileo broadcast ephemeris |
+    | QZSNav | 4095 | QZSS broadcast ephemeris |
+    | GLONav | 4004 | GLONASS broadcast ephemeris (optional) |
+    | BDSNav | 4081 | BDS broadcast ephemeris (optional) |
+    | PVTGeodetic | 4007 | Receiver position (used for OSR computation) |
+
+    </details>
+
+5. **Enable L6 tracking**: Go to `Navigation` > `Advanced User Settings` > `Tracking`, select the `Signal Tracking` tab, and enable `QZSSL6`. Click `Apply`, then `OK` to close.
+
+    !!! warning "L6 tracking is disabled by default"
+        The mosaic-G5 does not track QZSS L6 signals out of the box.
+        Without this step, the SBF stream will contain no `QZSRawL6D` blocks
+        and `cssr2rtcm3` will receive no CLAS data.
+
+    <div style="text-align: center;"><img src="images/mosaic-g5/signal_tracking.png" style="max-width: 420px; width: 100%;"></div>
+
+6. **Save configuration to the receiver**: Go to `File` > `Copy Configuration` and set:
+
+    | Field  | Value   |
+    | ------ | ------- |
+    | Source | Current |
+    | Target | Boot    |
+
+    Click `Apply`, then `OK` to close.
 
 ## Running — Approach 1: VRS
 
