@@ -237,6 +237,7 @@ static void dump_clas_state(const clas_ctx_t *clas, const clas_corr_t *corr)
     char id[8];
 
     fprintf(stderr, "\n=== CLAS Correction State Dump ===\n");
+    fprintf(stderr, "corr->network=%d corr->facility=%d\n", corr->network, corr->facility);
 
     /* ST1: Global satellite and signal masks */
     fprintf(stderr, "\n[ST1] Satellite/Signal Masks (global):\n");
@@ -1260,7 +1261,7 @@ int mrtk_cssr2rtcm3(int argc, char **argv)
                         epoch_count++;
                         osr_count += obs.n;
 
-                        /* dump CLAS state once after first output */
+                        /* dump CLAS state after corrections stabilize */
                         if (epoch_count == 1) {
                             dump_clas_state(clas, &clas->current[0]);
                         }
