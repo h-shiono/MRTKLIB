@@ -1136,6 +1136,18 @@ int clas_osr_zdres(const obsd_t* obs, int n, const double* rs, const double* dts
         sys = satsys(sat, &prn);
         osr[i].sat = sat;
 
+        /* VRS mode (y==NULL): pre-populate obs codes from CLAS smode
+         * so that clas_osr_corrmeas can match bias corrections.
+         * Guard with code[j]==0 to avoid overwriting real receiver codes
+         * in PPP-RTK mode. */
+        if (y == NULL && sat > 0 && sat <= MAXSAT) {
+            for (j = 0; j < nf; j++) {
+                if (obs_copy[i].code[j] == 0) {
+                    obs_copy[i].code[j] = corr->smode[sat - 1][j];
+                }
+            }
+        }
+
         /* compute wavelengths for this satellite */
         sat_wavelengths(sat, obs_copy + i, nav, lam);
 
@@ -1178,6 +1190,18 @@ int clas_osr_zdres(const obsd_t* obs, int n, const double* rs, const double* dts
 
         /* frequency pair selection */
         qj = clas_osr_selfreqpair(sat, opt, obs_copy + i);
+
+        /* VRS mode: if selfreqpair returns 0 (L1 only) but CLAS has
+         * secondary frequency corrections, use them. This handles
+         * Galileo E5a which selfreqpair misses (checks E5b first). */
+        if (y == NULL && qj == 0) {
+            for (j = 1; j < nf; j++) {
+                if (corr->smode[sat - 1][j] != 0) {
+                    qj = j;
+                    break;
+                }
+            }
+        }
         nftmp = nf;
         tmp_r = -1.0;
         tmp_dts = 0.0;

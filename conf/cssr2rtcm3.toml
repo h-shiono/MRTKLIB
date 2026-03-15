@@ -21,3 +21,14 @@ troposphere = "off"
 # CLAS compact network grid definition (shared across all CLAS configs).
 # Path is relative to the working directory where mrtk is invoked.
 cssr_grid = "./tests/data/claslib/clas_grid.def"
+
+# Signal code remapping: CLAS code → receiver tracking code.
+# Key format: {G|R|E|J|C}{RINEX obs code}  (e.g. G2X = GPS L2X)
+# Value: target RINEX obs code string       (e.g. "2W" = L2W)
+#
+# Uncomment and adjust for your receiver. Example for Septentrio mosaic-G5:
+[signal_remap]
+# G2X = "2W"    # GPS     L2C(M+L) → L2P(Y)  (usually not needed — RTK selects by priority)
+E1X = "1C"    # Galileo E1(B+C)  → E1C
+E5X = "5Q"    # Galileo E5a(I+Q) → E5aQ
+J2X = "2L"    # QZS     L2C(M+L) → L2L

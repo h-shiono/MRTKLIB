@@ -81,6 +81,252 @@
 static const int rtcm3_msm_types[] = {1074, 1084, 1094, 1114, 0};
 static const int rtcm3_msm_sys[]   = {SYS_GPS, SYS_GLO, SYS_GAL, SYS_QZS, 0};
 
+/* signal code remapping table (CLAS code → receiver code) */
+#define MAX_SIG_REMAP 32
+
+typedef struct {
+    int sys;            /* satellite system (SYS_GPS, etc.) */
+    uint8_t from;       /* source obs code (CODE_L??) */
+    uint8_t to;         /* target obs code (CODE_L??) */
+} sig_remap_t;
+
+static sig_remap_t sig_remap[MAX_SIG_REMAP];
+static int n_sig_remap = 0;
+
+/**
+ * @brief Parse a signal remap key like "G2X" into system + obs code.
+ * @return 1 on success, 0 on failure.
+ */
+static int parse_sig_remap_key(const char *key, int *sys, uint8_t *code) {
+    char obs[4];
+    switch (key[0]) {
+        case 'G': *sys = SYS_GPS; break;
+        case 'R': *sys = SYS_GLO; break;
+        case 'E': *sys = SYS_GAL; break;
+        case 'J': *sys = SYS_QZS; break;
+        case 'C': *sys = SYS_CMP; break;
+        default: return 0;
+    }
+    if (strlen(key + 1) < 2 || strlen(key + 1) > 3) return 0;
+    strncpy(obs, key + 1, 3);
+    obs[3] = '\0';
+    *code = obs2code(obs);
+    return *code != CODE_NONE;
+}
+
+/**
+ * @brief Apply signal code remapping to observations before RTCM3 encoding.
+ *
+ * Replaces obs.code[] entries according to the [signal_remap] table.
+ * Only the MSM signal ID changes; observation values are unchanged
+ * (same frequency band).
+ */
+static void apply_sig_remap(obs_t *obs) {
+    int i, j, k, sys;
+    if (n_sig_remap <= 0) return;
+    for (i = 0; i < obs->n; i++) {
+        sys = satsys(obs->data[i].sat, NULL);
+        for (j = 0; j < NFREQ + NEXOBS; j++) {
+            if (obs->data[i].code[j] == 0) continue;
+            for (k = 0; k < n_sig_remap; k++) {
+                if (sig_remap[k].sys == sys &&
+                    sig_remap[k].from == obs->data[i].code[j]) {
+                    obs->data[i].code[j] = sig_remap[k].to;
+                    break;
+                }
+            }
+        }
+    }
+}
+
+/**
+ * @brief Load [signal_remap] section from TOML config file.
+ *
+ * Parses lines like: G2X = "2W"  (key = system + RINEX code, value = target code)
+ * Populates the global sig_remap[] table.
+ */
+static void load_sig_remap(const char *conffile) {
+    FILE *fp;
+    char line[256], key[16], val[16];
+    int in_section = 0, sys;
+    uint8_t from_code, to_code;
+
+    if (!conffile || !*conffile) return;
+    if (!(fp = fopen(conffile, "r"))) return;
+
+    n_sig_remap = 0;
+    while (fgets(line, sizeof(line), fp)) {
+        char *p = line;
+        /* skip whitespace */
+        while (*p == ' ' || *p == '\t') p++;
+        /* skip comments and blank lines */
+        if (*p == '#' || *p == '\n' || *p == '\r' || *p == '\0') continue;
+
+        /* section header */
+        if (*p == '[') {
+            in_section = (strstr(p, "[signal_remap]") != NULL);
+            continue;
+        }
+        if (!in_section) continue;
+
+        /* parse: KEY = "VALUE" */
+        if (sscanf(p, "%15[A-Za-z0-9] = \"%15[A-Za-z0-9]\"", key, val) != 2) {
+            continue;
+        }
+        if (!parse_sig_remap_key(key, &sys, &from_code)) {
+            fprintf(stderr, "signal_remap: unknown key '%s'\n", key);
+            continue;
+        }
+        to_code = obs2code(val);
+        if (to_code == CODE_NONE) {
+            fprintf(stderr, "signal_remap: unknown obs code '%s'\n", val);
+            continue;
+        }
+        if (n_sig_remap < MAX_SIG_REMAP) {
+            sig_remap[n_sig_remap].sys = sys;
+            sig_remap[n_sig_remap].from = from_code;
+            sig_remap[n_sig_remap].to = to_code;
+            n_sig_remap++;
+            fprintf(stderr, "signal_remap: %s -> %s\n", key, val);
+        }
+    }
+    fclose(fp);
+}
+
+/**
+ * @brief Extract satellite list from a 40-bit CSSR satellite mask.
+ * @return Number of satellites extracted.
+ */
+static int svmask_to_sats(uint64_t svmask, int gnss_id, int *sat, int maxsat)
+{
+    int j, n = 0, prn_min;
+    int sys = cssr_gnss2sys(gnss_id, &prn_min);
+    if (sys == SYS_NONE) return 0;
+    for (j = 0; j < 40 && n < maxsat; j++) {
+        if ((svmask >> (39 - j)) & 1) {
+            sat[n++] = satno(sys, prn_min + j);
+        }
+    }
+    return n;
+}
+
+/**
+ * @brief Count bits set in a 16-bit mask.
+ */
+static int popcount16(uint16_t v)
+{
+    int n = 0;
+    while (v) { n += v & 1; v >>= 1; }
+    return n;
+}
+
+/**
+ * @brief Dump CLAS correction state for diagnostics.
+ *
+ * Prints ST1 satellite/signal masks, bias smode, and STEC availability
+ * per constellation. Called once after corrections stabilize.
+ */
+static void dump_clas_state(const clas_ctx_t *clas, const clas_corr_t *corr)
+{
+    static const char *gnss_name[] = {"GPS","GLO","GAL","BDS","SBS","QZS"};
+    static const int gnss_ids[] = {CSSR_SYS_GPS, CSSR_SYS_GLO, CSSR_SYS_GAL,
+                                   CSSR_SYS_BDS, CSSR_SYS_SBS, CSSR_SYS_QZS};
+    const cssr_t *cssr = &clas->cssr[0];
+    int g, i, j, nsat_g, lsat[64];
+    int all_sat[64], nsat_all = 0;
+    char id[8];
+
+    fprintf(stderr, "\n=== CLAS Correction State Dump ===\n");
+
+    /* ST1: Global satellite and signal masks */
+    fprintf(stderr, "\n[ST1] Satellite/Signal Masks (global):\n");
+    for (g = 0; g < 6; g++) {
+        int gid = gnss_ids[g];
+        if (cssr->svmask[gid] == 0) continue;
+        nsat_g = svmask_to_sats(cssr->svmask[gid], gid, lsat, 64);
+        fprintf(stderr, "  %s: %d sats, sigmask=0x%04X (%d sigs)\n",
+                gnss_name[g], nsat_g, cssr->sigmask[gid],
+                popcount16(cssr->sigmask[gid]));
+        fprintf(stderr, "    sats:");
+        for (i = 0; i < nsat_g; i++) {
+            satno2id(lsat[i], id);
+            fprintf(stderr, " %s", id);
+        }
+        fprintf(stderr, "\n");
+    }
+    /* build global sat list for net_svmask interpretation */
+    for (g = 0; g < 6; g++) {
+        int gid = gnss_ids[g];
+        if (cssr->svmask[gid] == 0) continue;
+        nsat_all += svmask_to_sats(cssr->svmask[gid], gid,
+                                    all_sat + nsat_all, 64 - nsat_all);
+    }
+
+    /* Bias: corr->smode (from bank after ST4/ST6 merge) */
+    fprintf(stderr, "\n[ST4/ST6] corr->smode (bias signal modes):\n");
+    for (i = 0; i < MAXSAT; i++) {
+        int sys = satsys(i + 1, NULL);
+        int has = 0;
+        if (!(sys & (SYS_GPS|SYS_GAL|SYS_QZS))) continue;
+        for (j = 0; j < MAXCODE; j++) {
+            if (corr->smode[i][j] != 0) { has = 1; break; }
+        }
+        if (!has) continue;
+        satno2id(i + 1, id);
+        fprintf(stderr, "  %s:", id);
+        for (j = 0; j < MAXCODE; j++) {
+            if (corr->smode[i][j] != 0) {
+                fprintf(stderr, " [%d]=%s(cb=%.3f pb=%.3f)", j,
+                        code2obs(corr->smode[i][j]),
+                        corr->cbias[i][j], corr->pbias[i][j]);
+            }
+        }
+        fprintf(stderr, "\n");
+    }
+
+    /* ST12 STEC: per-network satellite list */
+    fprintf(stderr, "\n[ST12] STEC per network:\n");
+    for (i = 0; i < CSSR_MAX_NET; i++) {
+        if (cssr->net_svmask[i] == 0 && cssr->ssrn[i].ngp == 0) continue;
+        fprintf(stderr, "  net=%d: ngp=%d\n", i, cssr->ssrn[i].ngp);
+        /* decode net_svmask bits → satellite names */
+        if (cssr->net_svmask[i] != 0 && nsat_all > 0) {
+            fprintf(stderr, "    STEC sats:");
+            for (j = 0; j < nsat_all; j++) {
+                if ((cssr->net_svmask[i] >> (nsat_all - 1 - j)) & 1) {
+                    satno2id(all_sat[j], id);
+                    fprintf(stderr, " %s", id);
+                }
+            }
+            fprintf(stderr, "\n");
+        }
+        /* show STEC satellite list from ssrn for first GP */
+        if (cssr->ssrn[i].ngp > 0 && cssr->ssrn[i].nsat[0] > 0) {
+            fprintf(stderr, "    GP0 sats(%d):", cssr->ssrn[i].nsat[0]);
+            for (j = 0; j < cssr->ssrn[i].nsat[0] && j < CSSR_MAX_LOCAL_SV; j++) {
+                satno2id(cssr->ssrn[i].sat[0][j], id);
+                fprintf(stderr, " %s(%.2f)", id, cssr->ssrn[i].stec[0][j]);
+            }
+            fprintf(stderr, "\n");
+        }
+    }
+
+    /* corr->stec (after bank merge) — check grid 0 */
+    fprintf(stderr, "\n[Bank] corr->stec GP0:\n");
+    if (corr->stec[0].n > 0) {
+        fprintf(stderr, "  n=%d sats:", corr->stec[0].n);
+        for (i = 0; i < corr->stec[0].n; i++) {
+            satno2id(corr->stec[0].data[i].sat, id);
+            fprintf(stderr, " %s(%.3f)", id, corr->stec[0].data[i].iono);
+        }
+        fprintf(stderr, "\n");
+    } else {
+        fprintf(stderr, "  (empty)\n");
+    }
+
+    fprintf(stderr, "=== End Dump ===\n\n");
+}
+
 /* global state for signal handler */
 static volatile sig_atomic_t g_shutdown = 0;
 
@@ -328,11 +574,12 @@ static int actualdist(gtime_t time, obs_t *obs, nav_t *nav, const double *x)
         obsd[i].time = time;
     }
 
-    /* build satellite list from broadcast ephemeris */
+    /* build satellite list from SSR corrections (orbit + clock required) */
     for (i = n = 0; i < MAXSAT; i++) {
-        if (nav->eph[i].sat == i + 1 && nav->eph[i].toe.time > 0) {
-            lsat[n++] = i + 1;
+        if (!nav->ssr_ch[0][i].t0[0].time || !nav->ssr_ch[0][i].t0[1].time) {
+            continue;
         }
+        lsat[n++] = i + 1;
     }
 
     for (i = 0; i < 3; i++) rr[i] = x[i];
@@ -614,6 +861,9 @@ int mrtk_cssr2rtcm3(int argc, char **argv)
             return -1;
         }
         getsysopts(&prcopt, &solopt, &filopt);
+
+        /* load [signal_remap] section */
+        load_sig_remap(conffile);
     }
 
     /* set user position */
@@ -1000,12 +1250,20 @@ int mrtk_cssr2rtcm3(int argc, char **argv)
                         }
                     }
 
+                    /* remap signal codes to match receiver tracking */
+                    apply_sig_remap(&obs);
+
                     if (obs.n > 0) {
                         int bytes = encode_and_send_rtcm3(&strm_out, rtcm,
                                                            &obs, nav,
                                                            user_pos);
                         epoch_count++;
                         osr_count += obs.n;
+
+                        /* dump CLAS state once after first output */
+                        if (epoch_count == 1) {
+                            dump_clas_state(clas, &clas->current[0]);
+                        }
 
                         {
                             int week;
@@ -1071,6 +1329,7 @@ int mrtk_cssr2rtcm3(int argc, char **argv)
     fprintf(stderr, ")\n");
     fprintf(stderr, "Skipped: nopos=%d notime=%d nogeom=%d noosr=%d\n",
             dbg_nopos, dbg_notime, dbg_nogeom, dbg_noosr);
+    fprintf(stderr, "Nav: n=%d ng=%d nmax=%d\n", nav->n, nav->ng, nav->nmax);
     fprintf(stderr, "Total: %d epochs, %d satellite-observations\n",
             epoch_count, osr_count);
 
