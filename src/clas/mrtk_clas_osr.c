@@ -75,6 +75,28 @@ static inline int NT_RTK(const prcopt_t* opt) {
 /** Earth gravitational constant (m^3/s^2) -- for Shapiro correction */
 #define GME 3.986004415E+14
 
+/**
+ * @brief Check if two obs codes are on the same frequency band.
+ *
+ * CLAS corrections use combined tracking codes (e.g. L2X = L2C M+L),
+ * while receivers report specific codes (e.g. L2W, L2L). These are
+ * equivalent for bias correction purposes since CLAS biases are
+ * frequency-band level, not tracking-mode specific.
+ *
+ * @param[in] sys   Satellite system (SYS_GPS, SYS_GAL, etc.)
+ * @param[in] code1 First obs code (CODE_L??)
+ * @param[in] code2 Second obs code (CODE_L??)
+ * @return 1 if codes are on the same frequency band, 0 otherwise
+ */
+static int code_on_same_freq(int sys, uint8_t code1, uint8_t code2) {
+    int f1, f2;
+    if (code1 == code2) return 1;
+    if (code1 == 0 || code2 == 0) return 0;
+    f1 = code2freq_idx(sys, code1);
+    f2 = code2freq_idx(sys, code2);
+    return (f1 >= 0 && f1 == f2);
+}
+
 /** Frequency pair selection modes (upstream claslib rtklib.h) */
 #define POSL1 1      /* L1 single freq positioning */
 #define POSL1L2 2    /* L1+L2 dual freq positioning */
@@ -578,16 +600,29 @@ int clas_osr_corrmeas(const obsd_t* obs, nav_t* nav, const double* pos, const do
 
     /* decode phase and code bias (non-VRS / CSSR path) */
     nsig = count_nsig(corr->smode[sat - 1]);
-    for (i = 0; i < nf; i++) {
-        for (j = 0; j < nsig && j < MAXCODE; j++) {
-            smode = corr->smode[sat - 1][j];
-            if (smode == 0) {
-                continue;
+    {
+        int sys = satsys(sat, NULL);
+        for (i = 0; i < nf; i++) {
+            /* pass 1: exact code match (preferred) */
+            for (j = 0; j < nsig && j < MAXCODE; j++) {
+                smode = corr->smode[sat - 1][j];
+                if (smode == 0) continue;
+                if (obs->code[i] == smode) {
+                    pbias[i] = nav->ssr_ch[ch][sat - 1].pbias[smode - 1];
+                    cbias[i] = nav->ssr_ch[ch][sat - 1].cbias[smode - 1];
+                    break;
+                }
             }
-            if (obs->code[i] == smode) {
-                pbias[i] = nav->ssr_ch[ch][sat - 1].pbias[smode - 1];
-                cbias[i] = nav->ssr_ch[ch][sat - 1].cbias[smode - 1];
-                break;
+            if (pbias[i] != CLAS_CSSRINVALID) continue;
+            /* pass 2: same-frequency fallback (e.g. L2X↔L2W, L1X↔L1C) */
+            for (j = 0; j < nsig && j < MAXCODE; j++) {
+                smode = corr->smode[sat - 1][j];
+                if (smode == 0) continue;
+                if (code_on_same_freq(sys, obs->code[i], smode)) {
+                    pbias[i] = nav->ssr_ch[ch][sat - 1].pbias[smode - 1];
+                    cbias[i] = nav->ssr_ch[ch][sat - 1].cbias[smode - 1];
+                    break;
+                }
             }
         }
     }
