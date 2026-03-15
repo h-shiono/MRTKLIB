@@ -717,25 +717,30 @@ int mrtk_cssr2rtcm3(int argc, char **argv)
         fprintf(stderr, "Loaded %d navigation records.\n", nav->n);
     }
 
-    /* initialize GPS week reference from navigation data or system time.
-     * CSSR decoder needs a valid GPS week to interpret ToW fields. */
+    /* initialize GPS week reference.
+     * CSSR decoder needs a valid GPS week to interpret ToW fields.
+     * For SBF file replay, defer to the first SBF timestamp (L922)
+     * to avoid week mismatch between system time and recorded data. */
     {
-        int iw, week;
+        int iw, week = 0;
         gtime_t tref = {0};
 
-        /* prefer first ephemeris toe */
-        if (nav->n > 0 && nav->eph[0].toe.time > 0) {
+        if (!sbf_mode && nav->n > 0 && nav->eph[0].toe.time > 0) {
+            /* stream mode: use ephemeris if available */
             tref = nav->eph[0].toe;
-        } else {
-            /* fallback: current system time */
+            time2gpst(tref, &week);
+        } else if (!sbf_mode) {
+            /* stream mode fallback: current system time */
             tref = utc2gpst(timeget());
+            time2gpst(tref, &week);
         }
-        time2gpst(tref, &week);
+        /* SBF file mode: week=0, will be set from first SBF timestamp */
         for (iw = 0; iw < CSSR_REF_MAX; iw++) {
             clas->week_ref[iw] = week;
             clas->tow_ref[iw] = -1;
         }
-        fprintf(stderr, "GPS week reference: %d\n", week);
+        fprintf(stderr, "GPS week reference: %d%s\n", week,
+                week == 0 ? " (deferred to SBF)" : "");
     }
 
     /* initialize RTK structure */
