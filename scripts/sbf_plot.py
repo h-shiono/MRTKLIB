@@ -183,21 +183,12 @@ class SbfPlotter:
         self.q = queue.Queue()
 
         self.fig, self.ax = plt.subplots(figsize=(8, 8))
-        self.scat = self.ax.scatter([], [], s=4, c=[])
-        # Always display in ENU (meters). If --ref not given, first point
-        # becomes the reference automatically.
-        self.ax.set_xlabel("East (m)")
-        self.ax.set_ylabel("North (m)")
-        self.ax.set_aspect("equal")
-        self.ax.grid(True, alpha=0.3)
         self.ax.set_title("SBF PVT — waiting for data...")
 
     def start(self, host, port):
         self.receiver = SbfReceiver(host, port, self.q)
         self.receiver.start()
-        self.ani = FuncAnimation(
-            self.fig, self._update, interval=200, cache_frame_data=False
-        )
+        self.ani = FuncAnimation(self.fig, self._update, interval=200, cache_frame_data=False)
         plt.show()
         self.receiver.stop()
 
@@ -226,15 +217,31 @@ class SbfPlotter:
             self.pts.append((x, y, pvt["color"], pvt["mode"]))
             changed = True
 
-        if not changed:
-            return (self.scat,)
+        if not changed or not self.pts:
+            return []
 
         xs = [p[0] for p in self.pts]
         ys = [p[1] for p in self.pts]
         cs = [p[2] for p in self.pts]
 
-        self.scat.set_offsets(list(zip(xs, ys)))
-        self.scat.set_facecolors(cs)
+        # redraw scatter each frame (robust across matplotlib versions)
+        self.ax.clear()
+        self.ax.scatter(xs, ys, s=8, c=cs, edgecolors="none")
+        if self._get_ref():
+            self.ax.plot(0, 0, "k+", markersize=12, markeredgewidth=2)
+        self.ax.set_xlabel("East (m)")
+        self.ax.set_ylabel("North (m)")
+        self.ax.set_aspect("equal")
+        self.ax.grid(True, alpha=0.3)
+
+        # auto-scale with margin
+        xmin, xmax = min(xs), max(xs)
+        ymin, ymax = min(ys), max(ys)
+        dx = max(xmax - xmin, 0.1) * 0.1
+        dy = max(ymax - ymin, 0.1) * 0.1
+        margin = max(dx, dy, 0.5)
+        self.ax.set_xlim(xmin - margin, xmax + margin)
+        self.ax.set_ylim(ymin - margin, ymax + margin)
 
         # stats
         modes = [p[3] for p in self.pts]
@@ -247,29 +254,17 @@ class SbfPlotter:
         self.ax.set_title(
             f"SBF PVT — {total} pts | "
             f"Fix:{n_fix}({fix_pct:.1f}%) Float:{n_float} SPP:{n_spp} | "
-            f"Last: {PVT_MODES.get(last[3], ('?',''))[0]}"
+            f"Last: {PVT_MODES.get(last[3], ('?', ''))[0]}"
         )
 
-        # auto-scale with margin
-        if xs:
-            xmin, xmax = min(xs), max(xs)
-            ymin, ymax = min(ys), max(ys)
-            dx = max(xmax - xmin, 0.1) * 0.1
-            dy = max(ymax - ymin, 0.1) * 0.1
-            margin = max(dx, dy, 0.5)
-            self.ax.set_xlim(xmin - margin, xmax + margin)
-            self.ax.set_ylim(ymin - margin, ymax + margin)
-
-        return (self.scat,)
+        return []
 
 
 # ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
 def main():
-    parser = argparse.ArgumentParser(
-        description="Real-time SBF position plotter"
-    )
+    parser = argparse.ArgumentParser(description="Real-time SBF position plotter")
     parser.add_argument("--host", default="localhost", help="TCP host")
     parser.add_argument("--port", type=int, default=30001, help="TCP port")
     parser.add_argument(
