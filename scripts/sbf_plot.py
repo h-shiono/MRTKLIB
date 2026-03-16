@@ -177,19 +177,17 @@ class SbfReceiver(threading.Thread):
 class SbfPlotter:
     def __init__(self, ref=None, max_points=3600):
         self.ref = ref  # (lat_deg, lon_deg) or None
+        self.auto_ref = None  # auto-set from first point if ref not given
         self.max_points = max_points
         self.pts = deque(maxlen=max_points)  # list of (x, y, color, mode)
         self.q = queue.Queue()
 
         self.fig, self.ax = plt.subplots(figsize=(8, 8))
         self.scat = self.ax.scatter([], [], s=4, c=[])
-        if self.ref:
-            self.ax.set_xlabel("East (m)")
-            self.ax.set_ylabel("North (m)")
-            self.ax.plot(0, 0, "k+", markersize=12)  # reference marker
-        else:
-            self.ax.set_xlabel("Longitude (deg)")
-            self.ax.set_ylabel("Latitude (deg)")
+        # Always display in ENU (meters). If --ref not given, first point
+        # becomes the reference automatically.
+        self.ax.set_xlabel("East (m)")
+        self.ax.set_ylabel("North (m)")
         self.ax.set_aspect("equal")
         self.ax.grid(True, alpha=0.3)
         self.ax.set_title("SBF PVT — waiting for data...")
@@ -203,6 +201,10 @@ class SbfPlotter:
         plt.show()
         self.receiver.stop()
 
+    def _get_ref(self):
+        """Return reference (lat_deg, lon_deg) — explicit or auto."""
+        return self.ref or self.auto_ref
+
     def _update(self, _frame):
         changed = False
         while not self.q.empty():
@@ -210,15 +212,17 @@ class SbfPlotter:
                 pvt = self.q.get_nowait()
             except queue.Empty:
                 break
-            if self.ref:
-                x, y = geodetic_to_enu(
-                    math.radians(pvt["lat"]),
-                    math.radians(pvt["lon"]),
-                    math.radians(self.ref[0]),
-                    math.radians(self.ref[1]),
-                )
-            else:
-                x, y = pvt["lon"], pvt["lat"]
+            # auto-set reference from first point
+            if not self.ref and not self.auto_ref:
+                self.auto_ref = (pvt["lat"], pvt["lon"])
+                self.ax.plot(0, 0, "k+", markersize=12)
+            ref = self._get_ref()
+            x, y = geodetic_to_enu(
+                math.radians(pvt["lat"]),
+                math.radians(pvt["lon"]),
+                math.radians(ref[0]),
+                math.radians(ref[1]),
+            )
             self.pts.append((x, y, pvt["color"], pvt["mode"]))
             changed = True
 
@@ -250,9 +254,9 @@ class SbfPlotter:
         if xs:
             xmin, xmax = min(xs), max(xs)
             ymin, ymax = min(ys), max(ys)
-            dx = max(xmax - xmin, 0.001) * 0.1
-            dy = max(ymax - ymin, 0.001) * 0.1
-            margin = max(dx, dy, 0.5 if self.ref else 1e-6)
+            dx = max(xmax - xmin, 0.1) * 0.1
+            dy = max(ymax - ymin, 0.1) * 0.1
+            margin = max(dx, dy, 0.5)
             self.ax.set_xlim(xmin - margin, xmax + margin)
             self.ax.set_ylim(ymin - margin, ymax + margin)
 
