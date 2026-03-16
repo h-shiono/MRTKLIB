@@ -1,0 +1,14 @@
+# Debug/test data for cssr2rtcm3 (large binary files)
+# Keep locally, do not commit to Git.
+# Decision on permanent test data TBD after #67 is resolved.
+*.sbf
+*.sbf.tag
+*.nav
+*.obs
+*.rtcm3
+*.pos
+*.pos.*
+*.sbs
+*.l6
+*.nmea
+*.log
