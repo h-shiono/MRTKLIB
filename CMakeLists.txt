@@ -139,6 +139,7 @@ add_executable(mrtk
     apps/recvbias/recvbias.c
     apps/dumpcssr/dumpcssr.c
     apps/cssr2rtcm3/cssr2rtcm3.c
+    apps/l6extract/l6extract.c
 )
 target_include_directories(mrtk PRIVATE apps/rtkrcv)
 target_compile_definitions(mrtk PRIVATE SVR_REUSEADDR)
