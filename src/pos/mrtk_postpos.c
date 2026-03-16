@@ -1556,7 +1556,8 @@ static int execses(mrtk_ctx_t* ctx, gtime_t ts, gtime_t te, double ti, const prc
             freeobsnav(&obss, &navs);
             return 0;
         }
-    } else if (PMODE_DGPS <= popt_.mode && popt_.mode <= PMODE_STATIC) {
+    } else if ((PMODE_DGPS <= popt_.mode && popt_.mode <= PMODE_STATIC) ||
+               popt_.mode == PMODE_VRS_RTK) {
         if (!antpos(ctx, &popt_, 2, &obss, &navs, stas, fopt->stapos)) {
             freeobsnav(&obss, &navs);
             return 0;
