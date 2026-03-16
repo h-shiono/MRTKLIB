@@ -859,6 +859,14 @@ static void zdres_sat(int base, double r, const obsd_t* obs, const nav_t* nav, c
     }
 
     qj = selfreqpair(obs->sat, opt, obs);
+
+    /* fallback: if preferred secondary freq has no data, try index 1
+     * (e.g. Galileo E5b selected but only E5a available from cssr2rtcm3) */
+    if (qj > 1 && obs->L[qj] == 0.0 && obs->P[qj] == 0.0 &&
+        (obs->L[1] != 0.0 || obs->P[1] != 0.0)) {
+        qj = 1;
+    }
+
     for (i = 0; i < nf; i++) {
         if (lam_arr[i] == 0.0) {
             continue;
