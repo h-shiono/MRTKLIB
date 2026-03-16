@@ -634,6 +634,7 @@ static int encode_and_send_rtcm3(stream_t *strm_out, rtcm_t *rtcm,
     if (obs->n <= 0) return 0;
 
     rtcm->time = obs->data[0].time;
+    rtcm->staid = 1;  /* non-zero station ID for receiver acceptance */
     matcpy(rtcm->sta.pos, pos, 3, 1);
 
     /* station coordinates message (1005); sync=1 — MSM follows */
@@ -1218,9 +1219,15 @@ int mrtk_cssr2rtcm3(int argc, char **argv)
             last_output = now;
         }
 
-        /* Generate MSM4 for all 1-second grid epochs from last_output to now */
+        /* Generate MSM4 for all 1-second grid epochs from last_output to now.
+         * In real-time, skip ahead if gap is too large (> 10s) to avoid
+         * sending stale observations that the receiver will reject. */
         {
             double gap = timediff(now, last_output);
+            if (gap > 10.0) {
+                last_output = timeadd(now, -output_interval);
+                gap = output_interval;
+            }
             if (gap >= output_interval - 0.01) {
                 int nsteps = (int)(gap / output_interval);
                 int step;
