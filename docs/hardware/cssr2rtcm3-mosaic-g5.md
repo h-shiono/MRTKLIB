@@ -33,8 +33,8 @@ mosaic-G5 P3 module.
 |  | VRS (`mrtk cssr2rtcm3`) | MRTKLIB Engine (`mrtk run`) |
 |--|------------------------|----------------------------|
 | **How it works** | Converts CLAS to RTCM3 and feeds corrections back to the receiver's built-in RTK engine | MRTKLIB's CLAS-dedicated PPP-RTK engine computes the position directly |
-| **Advantages** | Lightweight — only format conversion runs on the host, so a minimal SBC (e.g. Raspberry Pi Zero) is sufficient | Purpose-built CLAS engine with optimised correction handling; potentially better accuracy and fix rate |
-| **Disadvantages** | Relies on the receiver's generic RTK engine, which is not optimised for CLAS corrections | Requires more compute resources on the host for real-time positioning |
+| **Advantages** | Lightweight — only format conversion runs on the host, so a minimal SBC (e.g. Raspberry Pi Zero) is sufficient | Purpose-built CLAS engine with optimized correction handling; potentially better accuracy and fix rate |
+| **Disadvantages** | Relies on the receiver's generic RTK engine, which is not optimized for CLAS corrections | Requires more compute resources on the host for real-time positioning |
 
 !!! note "Performance comparison pending"
     Actual accuracy and fix-rate numbers for both approaches will be added
@@ -93,9 +93,9 @@ flowchart LR
 [RxTools](https://www.septentrio.com/en/products/gps-gnss-receiver-software/rxtools) is a GNSS receiver control and analysis software suite by Septentrio.
 Configure the mosaic-G5 using RxTools (the mosaic-G5 module does not have a Web UI).
 
-1. **Download and install RxTools**: Download and install the latest version of RxTools on your computer.
+1. **Download and install RxTools**: Download the latest version of RxTools from the [Septentrio website](https://www.septentrio.com/en/products/gps-gnss-receiver-software/rxtools) and install it on your computer.
 
-2. **Connect the receiver**: Connect the receiver via USB. The mosaic-go G5 will be powered over USB and the LED will turn on.
+2. **Connect the receiver**: Connect the mosaic-go G5 via USB. The board will be powered over USB and the LED will turn on.
 
 3. **Launch RxControl**: Open RxControl and configure the connection (first time only).
 
@@ -160,6 +160,11 @@ The VRS approach requires two processes running simultaneously: `mrtk relay`
 to bridge the serial connection, and `mrtk cssr2rtcm3` to convert CLAS
 corrections to RTCM3.
 
+| Port                        | USB  | Usage |
+| --------------------------- | ---- | ----- |
+| `/dev/*.usbmodem01000124301` | USB1 | RTCM3 input to receiver |
+| `/dev/*.usbmodem01000124303` | USB2 | SBF output from receiver |
+
 ### Step 1: Start `mrtk relay`
 
 `mrtk relay` connects to the mosaic-G5 serial port, exposes the SBF stream
@@ -169,16 +174,14 @@ using the `-b` (relay-back) option.
 ```bash
 # Terminal 1: Bridge serial <-> TCP
 mrtk relay \
-  -in serial://ttyACM0:115200#sbf \
+  -in serial://tty.usbmodem01000124303:115200#sbf \
   -out tcpsvr://:9000#sbf \
   -out file://mosaic-g5.sbf#sbf \
-  -b 1
 ```
 
-- `-in serial://ttyACM0:115200#sbf` — read SBF from the mosaic-G5 USB serial port
+- `-in serial://tty.usbmodem01000124303:115200#sbf` — read SBF from the mosaic-G5 `USB2` serial port
 - `-out tcpsvr://:9000#sbf` — serve the SBF stream on TCP port 9000 (for `mrtk cssr2rtcm3`)
 - `-out file://mosaic-g5.sbf#sbf` — log raw SBF data to file (optional, for post-analysis)
-- `-b 1` — relay messages from output stream 1 (TCP port 9000) back to the serial input, so RTCM3 corrections from `mrtk cssr2rtcm3` are forwarded to the receiver
 
 ### Step 2: Start `mrtk cssr2rtcm3`
 
@@ -191,15 +194,39 @@ TCP connection.
 mrtk cssr2rtcm3 \
   -k conf/cssr2rtcm3.toml \
   -in sbf://tcpcli://localhost:9000 \
-  -out tcpcli://localhost:9000
+  -out serial://cu.usbmodem01000124301
 ```
 
-- `-in sbf://tcpcli://localhost:9000` — connect to relay and read SBF (single-stream mode extracts L6D, NAV, and PVT)
-- `-out tcpcli://localhost:9000` — send RTCM3 MSM4 back to relay, which forwards it to the mosaic-G5 via `-b 1`
+- `-in sbf://tcpcli://localhost:9000` — connect to relay and read SBF (single-stream mode: L6D, NAV, and PVT are all extracted from the same SBF stream)
+- `-out serial://cu.usbmodem01000124301` — send RTCM3 MSM4 corrections to the mosaic-G5 via `USB1`
 
-The mosaic-G5 receives the RTCM3 corrections and performs VRS-RTK positioning
-internally. The positioning result is available in the SBF/NMEA output from
+Once CLAS corrections converge (typically 1–2 minutes after startup), the
+mosaic-G5 receives the RTCM3 corrections and performs VRS-RTK positioning
+internally. The positioning result is available in the SBF output from
 the receiver (forwarded by `mrtk relay`).
+
+!!! warning "macOS: use `cu.*` instead of `tty.*` for serial output"
+    On macOS, `/dev/tty.*` devices wait for the DCD (Data Carrier Detect) signal
+    before completing the open, causing writes to block silently.
+    Always use `/dev/cu.*` for serial output to the receiver.
+    This does not affect serial input (`mrtk relay -in` reads correctly with either).
+
+### Monitoring with `sbf_plot`
+
+`sbf_plot.py` connects to the relay's TCP port and plots the receiver's
+position and fix quality in real time.
+
+```bash
+# Terminal 3: Real-time position plot
+python3 scripts/plotting/sbf_plot.py --port 9000
+```
+
+- Points are colored by fix quality: **green** = RTK Fix, **orange** = RTK Float, **red** = SPP
+- The first received position is used as the reference origin (ENU in meters)
+- To use an explicit reference: `--ref 35.3231,139.5221`
+- Fix rate and satellite count are shown in the title bar
+
+Requires `matplotlib` (`pip install matplotlib`).
 
 ### Debug Trace
 
@@ -209,7 +236,7 @@ Add `-d 3` to `mrtk cssr2rtcm3` for detailed processing logs:
 mrtk cssr2rtcm3 \
   -k conf/cssr2rtcm3.toml \
   -in sbf://tcpcli://localhost:9000 \
-  -out tcpcli://localhost:9000 \
+  -out serial://cu.usbmodem01000124301 \
   -d 3
 ```
 
@@ -224,7 +251,7 @@ Same as Approach 1:
 
 ```bash
 mrtk relay \
-  -in serial://ttyACM0:115200#sbf \
+  -in serial://tty.usbmodem01000124303:115200#sbf \
   -out tcpsvr://:9000#sbf
 ```
 
@@ -236,7 +263,7 @@ mrtk run -k conf/claslib/rtkrcv_mosaic_g5.toml
 
 The MRTKLIB engine reads the SBF stream from the relay, automatically
 extracts L6D (CLAS) data from `QZSRawL6D` blocks, and performs PPP-RTK
-positioning.  The NMEA solution is written to `./clas_rt.nmea` by default.
+positioning. The NMEA solution is written to `./clas_rt.nmea` by default.
 
 To output the solution to a TCP server (e.g., for downstream applications):
 
@@ -264,11 +291,27 @@ Key parameters:
 
 ## Test Results
 
-!!! note "Coming Soon"
-    Real-world test results with the mosaic-G5 P3 will be added after
-    field testing is complete.  Expected metrics include:
+### Test Configuration
 
-    - CSSR decode rate and latency
-    - RTCM3 output message rate
-    - Downstream receiver fix rate and positioning accuracy
-    - Convergence time comparison (VRS vs. MRTKLIB engine)
+**Test Site**
+
+<div style="text-align: center;"><img src="images/mosaic-g5/PXL_20260317_025914063.jpg" style="max-width: 640px; width: 100%;"></div>
+
+**Block Diagram**
+
+```mermaid
+flowchart LR
+    A["mosaic-G5 P3"] -- "Serial/USB2" --> B["mrtk relay<br/>(SBF)"]
+    subgraph "Host (PC / SBC)"
+    B -- "SBF" --> C["mrtk cssr2rtcm3<br/>(RTCM Conversion)"]
+    B -- "SBF" --> D["mrtk run<br/>(Realtime Processing)"]
+    B --> E[("Log (SBF)")]
+    B --> F["sbf_plot"]
+    D --> G[("Log (NMEA)")]
+    end
+    C -- "Serial/USB1 (RTCM3)" --> A
+```
+
+### Accuracy Comparison (VRS vs. MRTKLIB Engine)
+
+*Results will be added after field testing.*
