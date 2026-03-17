@@ -88,7 +88,11 @@ def parse_nmea(path):
                 if len(parts) < 15:
                     continue
                 try:
-                    t_utc = datetime.strptime(ddmmyy + parts[1], "%d%m%y%H%M%S.%f")
+                    if ddmmyy:
+                        t_utc = datetime.strptime(ddmmyy + parts[1], "%d%m%y%H%M%S.%f")
+                    else:
+                        # No RMC date available; use time-only with epoch date
+                        t_utc = datetime.strptime("010180" + parts[1], "%d%m%y%H%M%S.%f")
                     t_utc = t_utc.replace(tzinfo=timezone.utc)
                     # Convert UTC to GPST (add leap seconds)
                     t = t_utc + timedelta(seconds=18)
@@ -205,33 +209,34 @@ def parse_sbf(path):
 def to_enu(pts, ref=None):
     """Convert lat/lon/hgt to ENU (meters) relative to a reference.
 
+    Uses rigorous ECEF-based ENU transformation via blh2xyz/xyz2enu,
+    accounting for ellipsoidal height.
+
     Args:
         pts: list of dicts from parse_nmea/parse_sbf
-        ref: (lat_deg, lon_deg) or None (use first point)
+        ref: (lat_deg, lon_deg[, hgt_m]) or None (use first point)
 
     Returns list of dicts with added keys: e, n, u (meters).
     """
     if not pts:
         return pts
     if ref is None:
-        ref = (pts[0]["lat"], pts[0]["lon"])
+        ref_lat, ref_lon, ref_hgt = pts[0]["lat"], pts[0]["lon"], pts[0]["hgt"]
+    elif len(ref) >= 3:
+        ref_lat, ref_lon, ref_hgt = ref[0], ref[1], ref[2]
+    else:
+        ref_lat, ref_lon, ref_hgt = ref[0], ref[1], pts[0]["hgt"]
 
-    lat0 = math.radians(ref[0])
-    lon0 = math.radians(ref[1])
-    slat = math.sin(lat0)
-    clat = math.cos(lat0)
-    rn = WGS84_A / math.sqrt(1.0 - WGS84_E2 * slat * slat)
-    rm = rn * (1.0 - WGS84_E2) / (1.0 - WGS84_E2 * slat * slat)
-    hgt0 = pts[0]["hgt"]
+    # Reference point in ECEF
+    posblh_ref = np.array([math.radians(ref_lat), math.radians(ref_lon), ref_hgt])
+    posxyz_ref = blh2xyz(posblh_ref)
 
     result = []
     for p in pts:
-        dlat = math.radians(p["lat"]) - lat0
-        dlon = math.radians(p["lon"]) - lon0
-        e = dlon * rn * clat
-        n = dlat * rm
-        u = p["hgt"] - hgt0
-        result.append({**p, "e": e, "n": n, "u": u})
+        posblh = np.array([math.radians(p["lat"]), math.radians(p["lon"]), p["hgt"]])
+        posxyz = blh2xyz(posblh)
+        enu = xyz2enu(posxyz, posxyz_ref)
+        result.append({**p, "e": float(enu[0]), "n": float(enu[1]), "u": float(enu[2])})
     return result
 
 
