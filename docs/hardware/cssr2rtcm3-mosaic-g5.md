@@ -326,6 +326,14 @@ The following mosaic-G5 settings were changed from their defaults for this test:
 | Maximum RTK Correction Age (`setDiffCorrMaxAge`) | 20.0 s  | 60.0 s     | Accommodate the CLAS-to-RTCM3 pipeline latency  |
 | Solution Selectivity (`setSolutionSelectivity`)  | Medium  | Medium     | Default kept; `Loose` may improve Float retention |
 
+**Runtime Screenshot**
+
+The screenshot below shows the test in progress.  Left: `sbf_plot` displaying
+the mosaic-G5 position scatter in real time (orange = RTK Float).  Right:
+`mrtk run` console output showing the MRTKLIB PPP-RTK engine status.
+
+<div style="text-align: center;"><img src="images/mosaic-g5/screenshot_20260317120530.png" style="max-width: 640px; width: 100%;"></div>
+
 ### Accuracy Comparison (VRS vs. MRTKLIB Engine)
 
 The figure below compares the MRTKLIB PPP-RTK engine (`mrtk run`) with the
