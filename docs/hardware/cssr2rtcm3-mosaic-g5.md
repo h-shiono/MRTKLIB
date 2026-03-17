@@ -293,10 +293,6 @@ Key parameters:
 
 ### Test Configuration
 
-**Test Site**
-
-<div style="text-align: center;"><img src="images/mosaic-g5/PXL_20260317_025914063.jpg" style="max-width: 640px; width: 100%;"></div>
-
 **Block Diagram**
 
 ```mermaid
@@ -314,4 +310,11 @@ flowchart LR
 
 ### Accuracy Comparison (VRS vs. MRTKLIB Engine)
 
-*Results will be added after field testing.*
+**Test Site**
+
+<div style="text-align: center;"><img src="images/mosaic-g5/PXL_20260317_025914063.jpg" style="max-width: 640px; width: 100%;"></div>
+
+
+
+
+<div style="text-align: center;"><img src="images/mosaic-g5/CLA0076d_G5P3076d_pos.png" style="max-width: 640px; width: 100%;"></div>
