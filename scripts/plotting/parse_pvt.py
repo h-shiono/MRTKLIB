@@ -82,7 +82,9 @@ def parse_nmea(path):
                     continue
                 quality = int(parts[6]) if parts[6] else 0
                 ns = int(parts[7]) if parts[7] else 0
+                hdop = float(parts[8]) if parts[8] else 0.0
                 hgt = float(parts[9]) if parts[9] else 0.0
+                age = float(parts[13]) if parts[13] else 0.0
                 results.append(
                     {
                         "time_gpst": time_str,
@@ -91,6 +93,8 @@ def parse_nmea(path):
                         "hgt": hgt,
                         "mode": gga_mode.get(quality, quality),
                         "ns": ns,
+                        "hdop": hdop,
+                        "age": age,
                     }
                 )
             except (ValueError, IndexError):
@@ -148,8 +152,13 @@ def parse_sbf(path):
                     s = tow_s % 60
                     time_str = "%02d:%02d:%04.1f" % (h, m, s)
 
-                    # NrSV at offset 66 if block is long enough
+                    # NrSV at offset 66, MeanCorrAge at offset 70 (u2, 0.01s)
                     ns = p[66] if len(p) > 66 else 0
+                    age_raw = struct.unpack_from("<H", p, 70)[0] if len(p) > 72 else 0xFFFF
+                    age = age_raw * 0.01 if age_raw != 0xFFFF else -1.0
+                    # HDOP at offset 36 (u2, 0.01) — actually in PosCovGeodetic, not here
+                    # PVTGeodetic doesn't have DOP; use -1 as placeholder
+                    hdop = -1.0
 
                     results.append(
                         {
@@ -159,6 +168,8 @@ def parse_sbf(path):
                             "hgt": hgt,
                             "mode": _SBF_MODE.get(mode_raw, mode_raw),
                             "ns": ns,
+                            "hdop": hdop,
+                            "age": age,
                         }
                     )
         pos = idx + max(blk_len, 2)
