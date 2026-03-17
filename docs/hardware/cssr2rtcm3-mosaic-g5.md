@@ -36,11 +36,6 @@ mosaic-G5 P3 module.
 | **Advantages** | Lightweight — only format conversion runs on the host, so a minimal SBC (e.g. Raspberry Pi Zero) is sufficient | Purpose-built CLAS engine with optimized correction handling; potentially better accuracy and fix rate |
 | **Disadvantages** | Relies on the receiver's generic RTK engine, which is not optimized for CLAS corrections | Requires more compute resources on the host for real-time positioning |
 
-!!! note "Performance comparison pending"
-    Actual accuracy and fix-rate numbers for both approaches will be added
-    after field testing.  The trade-offs listed above are expected
-    characteristics based on the architectural differences.
-
 #### Approach 1 — VRS (`mrtk cssr2rtcm3`)
 
 In this approach, MRTKLIB converts CLAS corrections into standard RTCM3 MSM4
@@ -293,6 +288,12 @@ Key parameters:
 
 ### Test Configuration
 
+To compare the two approaches, we conducted a static test with the following setup.
+
+**Test Site**
+
+<div style="text-align: center;"><img src="images/mosaic-g5/PXL_20260317_025914063.jpg" style="max-width: 640px; width: 100%;"></div>
+
 **Block Diagram**
 
 ```mermaid
@@ -308,13 +309,42 @@ flowchart LR
     C -- "Serial/USB1 (RTCM3)" --> A
 ```
 
+| Process           | Role                                                                     |
+| ----------------- | ------------------------------------------------------------------------ |
+| `mrtk relay`      | Relay SBF stream to `mrtk cssr2rtcm3` and `mrtk run`                     |
+| `mrtk cssr2rtcm3` | Convert CLAS CSSR to RTCM3 MSM4 in real time                             |
+| `mrtk run`        | Perform CLAS PPP-RTK positioning in real time                            |
+| `sbf_plot`        | Monitor the mosaic-G5 positioning status (PVT mode and position scatter) |
+
+
+**Receiver Settings (non-default)**
+
+The following mosaic-G5 settings were changed from their defaults for this test:
+
+| Setting (command)                                | Default | Test Value | Reason                                          |
+| ------------------------------------------------ | ------- | ---------- | ----------------------------------------------- |
+| Maximum RTK Correction Age (`setDiffCorrMaxAge`) | 20.0 s  | 60.0 s     | Accommodate the CLAS-to-RTCM3 pipeline latency  |
+| Solution Selectivity (`setSolutionSelectivity`)  | Medium  | Medium     | Default kept; `Loose` may improve Float retention |
+
 ### Accuracy Comparison (VRS vs. MRTKLIB Engine)
 
-**Test Site**
+The figure below compares the MRTKLIB PPP-RTK engine (`mrtk run`) with the
+mosaic-G5's built-in RTK engine fed by `mrtk cssr2rtcm3`.
+The left panel shows the East, North, and Up components over time;
+the right panel shows the horizontal scatter.
 
-<div style="text-align: center;"><img src="images/mosaic-g5/PXL_20260317_025914063.jpg" style="max-width: 640px; width: 100%;"></div>
+The MRTKLIB engine (green) achieved a **Fix** solution within approximately
+30 seconds and maintained centimetre-level accuracy throughout the session.
+The mosaic-G5 internal RTK engine (orange/red) entered **Float** within
+the first few minutes but reverted to **SPP** after approximately 30 minutes.
+This is likely caused by the `Solution Selectivity = Medium` setting, which
+applies strict quality checks that the VRS-based corrections may not satisfy
+consistently.  Setting `Loose` may help retain the Float solution longer.
 
-
-
+MRTKLIB's PPP-RTK engine is purpose-built for CLAS and applies dedicated
+correction handling (STEC interpolation, phase bias application, network-aware
+grid selection).  The VRS approach, by contrast, relies on the receiver's
+generic RTK engine, which treats the RTCM3 corrections as ordinary base
+station observations without CLAS-specific optimizations.
 
 <div style="text-align: center;"><img src="images/mosaic-g5/CLA0076d_G5P3076d_pos.png" style="max-width: 640px; width: 100%;"></div>
