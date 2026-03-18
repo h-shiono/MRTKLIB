@@ -713,6 +713,12 @@ static int encode_and_send_rtcm3(stream_t *strm_out, rtcm_t *rtcm,
     rtcm->staid = 1;  /* non-zero station ID for receiver acceptance */
     matcpy(rtcm->sta.pos, pos, 3, 1);
 
+    /* load all obs into rtcm->obs so encode_type1005 can detect constellations */
+    rtcm->obs.n = 0;
+    for (i = 0; i < obs->n && rtcm->obs.n < MAXOBS; i++) {
+        rtcm->obs.data[rtcm->obs.n++] = obs->data[i];
+    }
+
     /* station coordinates message (1005); sync=1 — MSM follows */
     if (gen_rtcm3(rtcm, 1005, 0, 1)) {
         strwrite(strm_out, rtcm->buff, rtcm->nbyte);
