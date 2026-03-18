@@ -1,5 +1,5 @@
 # MRTKLIB Configuration (TOML v1.0.0)
-# cssr2rtcm3: CSSR to RTCM3 MSM4 converter
+# cssr2rtcm3: CSSR to RTCM3 MSM converter
 
 [positioning]
 mode = "ssr2osr"
@@ -8,7 +8,7 @@ satellite_ephemeris = "brdc+ssrapc"
 systems = ["GPS", "Galileo", "QZSS"]
 
 [positioning.corrections]
-tidal_correction = "solid"
+tidal_correction = "solid+otl-clasgrid+pole"
 phase_windup = "on"
 exclude_eclipse = true
 receiver_antenna = false
@@ -28,7 +28,12 @@ cssr_grid = "./tests/data/claslib/clas_grid.def"
 #
 # Uncomment and adjust for your receiver. Example for Septentrio mosaic-G5:
 [signal_remap]
-G2X = "2W" # GPS     L2C(M+L) → L2W  (needed: CLAS smode[1]=2X for most GPS sats)
-E1X = "1C" # Galileo E1(B+C)  → E1C
-E5X = "5Q" # Galileo E5a(I+Q) → E5aQ
-J2X = "2L" # QZS     L2C(M+L) → L2L
+#G2X = "2W" # GPS     L2C(M+L) → L2W  (needed: CLAS smode[1]=2X for most GPS sats)
+#E1X = "1C" # Galileo E1(B+C)  → E1C
+#E5X = "5Q" # Galileo E5a(I+Q) → E5aQ
+#J2X = "2L" # QZS     L2C(M+L) → L2L
+
+# cssr2rtcm3-specific settings
+[cssr2rtcm3]
+# MSM message type: 4 (compact), 5 (+ Doppler), 7 (full resolution + Doppler)
+msm_type = 7

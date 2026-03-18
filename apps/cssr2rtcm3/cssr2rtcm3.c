@@ -1,5 +1,5 @@
 /*------------------------------------------------------------------------------
- * cssr2rtcm3.c : real-time QZSS CSSR (CLAS) to RTCM3 MSM4 (OSR) converter
+ * cssr2rtcm3.c : real-time QZSS CSSR (CLAS) to RTCM3 MSM7 (OSR) converter
  *
  * Copyright (C) 2026 H.SHIONO (MRTKLIB Project)
  * Copyright (C) 2023-2025 Cabinet Office, Japan
@@ -15,10 +15,10 @@
  *----------------------------------------------------------------------------*/
 /**
  * @file cssr2rtcm3.c
- * @brief Real-time QZSS CSSR (CLAS L6D) to RTCM3 MSM4 (OSR) converter.
+ * @brief Real-time QZSS CSSR (CLAS L6D) to RTCM3 MSM7 (OSR) converter.
  *
  * Receives QZSS CLAS L6D CSSR correction data via stream (serial/TCP/NTRIP/
- * file) and converts it to RTCM3 MSM4 (OSR) messages in real-time. This
+ * file) and converts it to RTCM3 MSM7 (OSR) messages in real-time. This
  * enables CLAS-unsupported GNSS receivers to use CLAS corrections as a
  * Virtual Reference Station (VRS) via NTRIP/TCP.
  *
@@ -28,9 +28,9 @@
  * Data flow (per epoch):
  *   1. strread(stream_in) → L6 bytes → clas_input_cssr() → CSSR decode
  *   2. clas_decode_msg() == 10 → epoch boundary → update corrections
- *   3. actualdist() → satellite positions → dummy observations
+ *   3. actualdist() → satellite positions + Doppler → dummy observations
  *   4. clas_ssr2osr() → OSR (VRS pseudo-observations)
- *   5. gen_rtcm3(1005+MSM4) → RTCM3 binary → strwrite(stream_out)
+ *   5. gen_rtcm3(1005+MSM7) → RTCM3 binary → strwrite(stream_out)
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -77,8 +77,11 @@
 #define D2R         (3.1415926535897932384626433832795/180.0)
 #endif
 
-/* RTCM3 MSM4 message types per constellation */
-static const int rtcm3_msm_types[] = {1074, 1084, 1094, 1114, 0};
+/* RTCM3 MSM7 message types per constellation */
+static const int rtcm3_msm7_types[] = {1077, 1087, 1097, 1117, 0};
+static const int rtcm3_msm5_types[] = {1075, 1085, 1095, 1115, 0};
+static const int rtcm3_msm4_types[] = {1074, 1084, 1094, 1114, 0};
+static const int *rtcm3_msm_types   = rtcm3_msm7_types; /* default: MSM7 */
 static const int rtcm3_msm_sys[]   = {SYS_GPS, SYS_GLO, SYS_GAL, SYS_QZS, 0};
 
 /* signal code remapping table (CLAS code → receiver code) */
@@ -188,6 +191,46 @@ static void load_sig_remap(const char *conffile) {
             sig_remap[n_sig_remap].to = to_code;
             n_sig_remap++;
             fprintf(stderr, "signal_remap: %s -> %s\n", key, val);
+        }
+    }
+    fclose(fp);
+}
+
+/**
+ * @brief Load [cssr2rtcm3] section from TOML config file.
+ *
+ * Supported keys:
+ *   msm_type = 4 | 5 | 7   (default: 7)
+ */
+static void load_cssr2rtcm3_config(const char *conffile) {
+    FILE *fp;
+    char line[256];
+    int in_section = 0, val;
+
+    if (!conffile || !*conffile) return;
+    if (!(fp = fopen(conffile, "r"))) return;
+
+    while (fgets(line, sizeof(line), fp)) {
+        char *p = line;
+        while (*p == ' ' || *p == '\t') p++;
+        if (*p == '#' || *p == '\n' || *p == '\r' || *p == '\0') continue;
+
+        if (*p == '[') {
+            in_section = (strstr(p, "[cssr2rtcm3]") != NULL);
+            continue;
+        }
+        if (!in_section) continue;
+
+        if (sscanf(p, "msm_type = %d", &val) == 1) {
+            switch (val) {
+            case 4:  rtcm3_msm_types = rtcm3_msm4_types; break;
+            case 5:  rtcm3_msm_types = rtcm3_msm5_types; break;
+            case 7:  rtcm3_msm_types = rtcm3_msm7_types; break;
+            default:
+                fprintf(stderr, "cssr2rtcm3: invalid msm_type=%d (use 4,5,7)\n", val);
+                break;
+            }
+            fprintf(stderr, "cssr2rtcm3: msm_type=%d\n", val);
         }
     }
     fclose(fp);
@@ -607,6 +650,11 @@ static int actualdist(gtime_t time, obs_t *obs, nav_t *nav, const double *x)
                 obsd[i].time = time;
                 obsd[i].sat = sat;
                 obsd[i].P[0] = r + CLIGHT * (-dts1[0]);
+                /* Doppler from satellite velocity projected onto LOS */
+                {
+                    double rate = dot(rs1 + 3, e1, 3); /* range rate (m/s) */
+                    obsd[i].D[0] = (float)(-rate * FREQ1 / CLIGHT);
+                }
                 break;
             }
         }
@@ -615,15 +663,43 @@ static int actualdist(gtime_t time, obs_t *obs, nav_t *nav, const double *x)
     return 0;
 }
 
+/**
+ * @brief Scale L1 Doppler to per-frequency Doppler for all observations.
+ *
+ * actualdist() stores an approximate L1 Doppler in D[0]. After clas_ssr2osr()
+ * assigns signal codes, this function scales D[0] by frequency ratio to fill
+ * D[j] for each active signal.
+ */
+static void fill_doppler(obs_t *obs)
+{
+    int i, j;
+    for (i = 0; i < obs->n; i++) {
+        float d0 = obs->data[i].D[0];
+        double freq;
+        if (d0 == 0.0f) {
+            continue;
+        }
+        for (j = 0; j < NFREQ + NEXOBS; j++) {
+            if (obs->data[i].code[j] == 0 || obs->data[i].L[j] == 0.0) {
+                obs->data[i].D[j] = 0.0f;
+                continue;
+            }
+            freq = code2freq(satsys(obs->data[i].sat, NULL),
+                             obs->data[i].code[j], 0);
+            obs->data[i].D[j] = (freq > 0.0) ? (float)(d0 * freq / FREQ1) : 0.0f;
+        }
+    }
+}
+
 /*============================================================================
  * RTCM3 Output
  *===========================================================================*/
 
 /**
- * @brief Encode and send RTCM3 MSM4 messages to output stream.
+ * @brief Encode and send RTCM3 MSM messages to output stream.
  *
- * Generates RTCM3 1005 (station position) + MSM4 per constellation
- * (1074/1084/1094/1114) and writes to the output stream.
+ * Generates RTCM3 1005 (station position) + MSM per constellation
+ * (default MSM7: 1077/1087/1097/1117) and writes to the output stream.
  */
 static int encode_and_send_rtcm3(stream_t *strm_out, rtcm_t *rtcm,
                                   const obs_t *obs, nav_t *nav,
@@ -866,6 +942,9 @@ int mrtk_cssr2rtcm3(int argc, char **argv)
 
         /* load [signal_remap] section */
         load_sig_remap(conffile);
+
+        /* load [cssr2rtcm3] section (msm_type, etc.) */
+        load_cssr2rtcm3_config(conffile);
     }
 
     /* set user position */
@@ -1260,6 +1339,9 @@ int mrtk_cssr2rtcm3(int argc, char **argv)
 
                     /* remap signal codes to match receiver tracking */
                     apply_sig_remap(&obs);
+
+                    /* scale L1 Doppler to per-frequency for MSM7 rate fields */
+                    fill_doppler(&obs);
 
                     if (obs.n > 0) {
                         int bytes = encode_and_send_rtcm3(&strm_out, rtcm,
