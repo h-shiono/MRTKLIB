@@ -60,6 +60,12 @@ __pycache__/
 # MacOS metadata files
 .DS_Store
 
+# Claude Code project config/memory
+.claude/
+
+# Build/tool caches
+.cache/
+
 # Task tracking (session-specific, not source code)
 tasks/
 
