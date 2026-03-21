@@ -38,12 +38,12 @@ mosaic-G5 P3 module.
 
 #### Approach 1 — VRS (`mrtk cssr2rtcm3`)
 
-In this approach, MRTKLIB converts CLAS corrections into standard RTCM3 MSM4
+In this approach, MRTKLIB converts CLAS corrections into standard RTCM3 MSM7
 messages and feeds them back to the mosaic-G5, which then computes a
 VRS-based RTK position using its built-in engine.
 
 1. `mrtk relay` bridges the serial connection to the mosaic-G5, forwarding SBF data to `mrtk cssr2rtcm3` and returning RTCM3 corrections
-2. `mrtk cssr2rtcm3` decodes L6D CSSR, computes OSR via `clas_ssr2osr()`, and encodes RTCM3 MSM4
+2. `mrtk cssr2rtcm3` decodes L6D CSSR, computes OSR via `clas_ssr2osr()`, and encodes RTCM3 MSM7
 3. The mosaic-G5 receives the RTCM3 corrections and computes a VRS-RTK position
 4. `mrtk relay` also outputs the positioning result (SBF/NMEA)
 
@@ -140,7 +140,9 @@ Configure the mosaic-G5 using RxTools (the mosaic-G5 module does not have a Web 
 
     <div style="text-align: center;"><img src="images/mosaic-g5/signal_tracking.png" style="max-width: 420px; width: 100%;"></div>
 
-6. **Save configuration to the receiver**: Go to `File` > `Copy Configuration` and set:
+6. **Enable RTK Float solutions**: Go to `Navigation` > `Positioning Mode` and set `Rover mode` to `all` (this allows the receiver to output Float solutions in addition to Fix). Click `Apply`, then `OK` to close.
+
+7. **Save configuration to the receiver**: Go to `File` > `Copy Configuration` and set:
 
     | Field  | Value   |
     | ------ | ------- |
@@ -155,9 +157,9 @@ The VRS approach requires two processes running simultaneously: `mrtk relay`
 to bridge the serial connection, and `mrtk cssr2rtcm3` to convert CLAS
 corrections to RTCM3.
 
-| Port                        | USB  | Usage |
-| --------------------------- | ---- | ----- |
-| `/dev/*.usbmodem01000124301` | USB1 | RTCM3 input to receiver |
+| Port                         | USB  | Usage                    |
+| ---------------------------- | ---- | ------------------------ |
+| `/dev/*.usbmodem01000124301` | USB1 | RTCM3 input to receiver  |
 | `/dev/*.usbmodem01000124303` | USB2 | SBF output from receiver |
 
 ### Step 1: Start `mrtk relay`
@@ -181,7 +183,7 @@ mrtk relay \
 ### Step 2: Start `mrtk cssr2rtcm3`
 
 `mrtk cssr2rtcm3` connects to the relay's TCP port, decodes CLAS CSSR from
-the SBF stream, and sends RTCM3 MSM4 corrections back through the same
+the SBF stream, and sends RTCM3 MSM7 corrections back through the same
 TCP connection.
 
 ```bash
@@ -193,7 +195,7 @@ mrtk cssr2rtcm3 \
 ```
 
 - `-in sbf://tcpcli://localhost:9000` — connect to relay and read SBF (single-stream mode: L6D, NAV, and PVT are all extracted from the same SBF stream)
-- `-out serial://cu.usbmodem01000124301` — send RTCM3 MSM4 corrections to the mosaic-G5 via `USB1`
+- `-out serial://cu.usbmodem01000124301` — send RTCM3 MSM7 corrections to the mosaic-G5 via `USB1`
 
 Once CLAS corrections converge (typically 1–2 minutes after startup), the
 mosaic-G5 receives the RTCM3 corrections and performs VRS-RTK positioning
@@ -212,16 +214,17 @@ the receiver (forwarded by `mrtk relay`).
 position and fix quality in real time.
 
 ```bash
+# First time only: set up the Python virtual environment
+# cd scripts && uv sync && source .venv/bin/activate && cd ..
+
 # Terminal 3: Real-time position plot
-python3 scripts/plotting/sbf_plot.py --port 9000
+python scripts/plotting/sbf_plot.py --port 9000
 ```
 
 - Points are colored by fix quality: **green** = RTK Fix, **orange** = RTK Float, **red** = SPP
 - The first received position is used as the reference origin (ENU in meters)
 - To use an explicit reference: `--ref 35.3231,139.5221`
 - Fix rate and satellite count are shown in the title bar
-
-Requires `matplotlib` (`pip install matplotlib`).
 
 ### Debug Trace
 
@@ -312,19 +315,10 @@ flowchart LR
 | Process           | Role                                                                     |
 | ----------------- | ------------------------------------------------------------------------ |
 | `mrtk relay`      | Relay SBF stream to `mrtk cssr2rtcm3` and `mrtk run`                     |
-| `mrtk cssr2rtcm3` | Convert CLAS CSSR to RTCM3 MSM4 in real time                             |
+| `mrtk cssr2rtcm3` | Convert CLAS CSSR to RTCM3 MSM7 in real time                             |
 | `mrtk run`        | Perform CLAS PPP-RTK positioning in real time                            |
 | `sbf_plot`        | Monitor the mosaic-G5 positioning status (PVT mode and position scatter) |
 
-
-**Receiver Settings (non-default)**
-
-The following mosaic-G5 settings were changed from their defaults for this test:
-
-| Setting (command)                                | Default | Test Value | Reason                                          |
-| ------------------------------------------------ | ------- | ---------- | ----------------------------------------------- |
-| Maximum RTK Correction Age (`setDiffCorrMaxAge`) | 20.0 s  | 60.0 s     | Accommodate the CLAS-to-RTCM3 pipeline latency  |
-| Solution Selectivity (`setSolutionSelectivity`)  | Medium  | Medium     | Default kept; `Loose` may improve Float retention |
 
 **Runtime Screenshot**
 

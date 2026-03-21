@@ -82,7 +82,7 @@ static const int rtcm3_msm7_types[] = {1077, 1087, 1097, 1117, 0};
 static const int rtcm3_msm5_types[] = {1075, 1085, 1095, 1115, 0};
 static const int rtcm3_msm4_types[] = {1074, 1084, 1094, 1114, 0};
 static const int *rtcm3_msm_types   = rtcm3_msm7_types; /* default: MSM7 */
-static const int rtcm3_msm_sys[]   = {SYS_GPS, SYS_GLO, SYS_GAL, SYS_QZS, 0};
+static int rtcm3_msm_sys[]   = {SYS_GPS, SYS_GLO, SYS_GAL, SYS_QZS, 0};
 
 /* signal code remapping table (CLAS code → receiver code) */
 #define MAX_SIG_REMAP 32
@@ -197,10 +197,55 @@ static void load_sig_remap(const char *conffile) {
 }
 
 /**
+ * @brief Rebuild rtcm3_msm_sys[] to contain only the requested systems.
+ *
+ * @param[in] systems  Comma- or space-separated system names (e.g. "GPS,Galileo")
+ *                     Recognised names (case-insensitive): GPS, GLO/GLONASS, GAL/Galileo, QZS/QZSS
+ */
+static void set_msm_systems(const char *systems) {
+    int n = 0;
+    const char *p = systems;
+    char tok[32];
+
+    while (*p) {
+        int len = 0;
+        while (*p && (*p == ',' || *p == ' ' || *p == '\t' || *p == '"'
+                || *p == '[' || *p == ']')) p++;
+        while (*p && *p != ',' && *p != ' ' && *p != '\t' && *p != '"'
+                && *p != ']' && len < (int)sizeof(tok) - 1)
+            tok[len++] = *p++;
+        tok[len] = '\0';
+        if (!len) continue;
+
+        /* case-insensitive match */
+        if (!strcasecmp(tok, "GPS"))                         rtcm3_msm_sys[n++] = SYS_GPS;
+        else if (!strcasecmp(tok, "GLO") || !strcasecmp(tok, "GLONASS")) rtcm3_msm_sys[n++] = SYS_GLO;
+        else if (!strcasecmp(tok, "GAL") || !strcasecmp(tok, "Galileo")) rtcm3_msm_sys[n++] = SYS_GAL;
+        else if (!strcasecmp(tok, "QZS") || !strcasecmp(tok, "QZSS"))   rtcm3_msm_sys[n++] = SYS_QZS;
+        else fprintf(stderr, "cssr2rtcm3: unknown system '%s'\n", tok);
+    }
+    rtcm3_msm_sys[n] = 0;
+
+    {
+        int i;
+        fprintf(stderr, "cssr2rtcm3: systems=");
+        for (i = 0; rtcm3_msm_sys[i]; i++) {
+            const char *name = rtcm3_msm_sys[i] == SYS_GPS ? "GPS" :
+                               rtcm3_msm_sys[i] == SYS_GLO ? "GLO" :
+                               rtcm3_msm_sys[i] == SYS_GAL ? "GAL" :
+                               rtcm3_msm_sys[i] == SYS_QZS ? "QZS" : "?";
+            fprintf(stderr, "%s%s", i ? "," : "", name);
+        }
+        fprintf(stderr, "\n");
+    }
+}
+
+/**
  * @brief Load [cssr2rtcm3] section from TOML config file.
  *
  * Supported keys:
  *   msm_type = 4 | 5 | 7   (default: 7)
+ *   systems  = ["GPS", "Galileo"]  (default: GPS,GLO,GAL,QZS)
  */
 static void load_cssr2rtcm3_config(const char *conffile) {
     FILE *fp;
@@ -231,6 +276,11 @@ static void load_cssr2rtcm3_config(const char *conffile) {
                 break;
             }
             fprintf(stderr, "cssr2rtcm3: msm_type=%d\n", val);
+        }
+        /* systems = ["GPS", "Galileo"] or systems = GPS,Galileo */
+        if (strncmp(p, "systems", 7) == 0) {
+            char *eq = strchr(p, '=');
+            if (eq) set_msm_systems(eq + 1);
         }
     }
     fclose(fp);
@@ -719,8 +769,8 @@ static int encode_and_send_rtcm3(stream_t *strm_out, rtcm_t *rtcm,
         rtcm->obs.data[rtcm->obs.n++] = obs->data[i];
     }
 
-    /* station coordinates message (1005); sync=1 — MSM follows */
-    if (gen_rtcm3(rtcm, 1005, 0, 1)) {
+    /* station coordinates message (1006); sync=1 — MSM follows */
+    if (gen_rtcm3(rtcm, 1006, 0, 1)) {
         strwrite(strm_out, rtcm->buff, rtcm->nbyte);
         total += rtcm->nbyte;
     }

@@ -224,7 +224,7 @@ format = ""
 # Output: NMEA solution
 [streams.output.stream1]
 type = "file"
-path = "./clas_rt.nmea"
+path = "./CLA0%n%H.nmea::S=1h"
 format = "nmea"
 
 [streams.output.stream2]

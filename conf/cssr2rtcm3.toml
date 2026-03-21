@@ -37,3 +37,6 @@ J2X = "2L" # QZS     L2C(M+L) → L2L
 [cssr2rtcm3]
 # MSM message type: 4 (compact), 5 (+ Doppler), 7 (full resolution + Doppler)
 msm_type = 7
+# Constellations to include in RTCM3 MSM output (default: all CLAS systems)
+# Recognised: GPS, Galileo, QZSS, GLONASS
+systems = ["GPS", "Galileo"]
