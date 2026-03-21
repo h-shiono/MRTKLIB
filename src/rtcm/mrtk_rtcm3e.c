@@ -750,7 +750,7 @@ static int encode_type1005(rtcm_t* rtcm, int sync) {
     i += 1; /* glonass indicator */
     setbitu(rtcm->buff, i, 1, has_gal);
     i += 1; /* galileo indicator */
-    setbitu(rtcm->buff, i, 1, 0);
+    setbitu(rtcm->buff, i, 1, 1);
     i += 1; /* ref station indicator */
     set38bits(rtcm->buff, i, p[0] / 0.0001);
     i += 38; /* antenna ref point ecef-x */
@@ -801,7 +801,7 @@ static int encode_type1006(rtcm_t* rtcm, int sync) {
     i += 1; /* glonass indicator */
     setbitu(rtcm->buff, i, 1, has_gal);
     i += 1; /* galileo indicator */
-    setbitu(rtcm->buff, i, 1, 0);
+    setbitu(rtcm->buff, i, 1, 1);
     i += 1; /* ref station indicator */
     set38bits(rtcm->buff, i, p[0] / 0.0001);
     i += 38; /* antenna ref point ecef-x */

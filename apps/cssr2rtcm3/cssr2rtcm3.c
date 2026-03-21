@@ -760,7 +760,7 @@ static int encode_and_send_rtcm3(stream_t *strm_out, rtcm_t *rtcm,
     if (obs->n <= 0) return 0;
 
     rtcm->time = obs->data[0].time;
-    rtcm->staid = 1;  /* non-zero station ID for receiver acceptance */
+    rtcm->staid = 0;  /* match mosaic-CLAS default */
     matcpy(rtcm->sta.pos, pos, 3, 1);
 
     /* load all obs into rtcm->obs so encode_type1005 can detect constellations */
