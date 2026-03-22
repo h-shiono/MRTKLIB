@@ -668,12 +668,29 @@ static int actualdist(gtime_t time, obs_t *obs, nav_t *nav, const double *x)
         obsd[i].time = time;
     }
 
-    /* build satellite list from SSR corrections (orbit + clock required) */
+    /* build satellite list from broadcast ephemeris (covers GPS+GAL+QZS+GLO).
+     * SSR-only filtering was previously used here, but CLAS corrections are
+     * stored separately from nav->ssr_ch, causing Galileo/QZS satellites to
+     * be excluded.  Using broadcast eph ensures all CLAS-corrected satellites
+     * get dummy observations; clas_ssr2osr() will discard those without
+     * actual CLAS corrections. */
     for (i = n = 0; i < MAXSAT; i++) {
-        if (!nav->ssr_ch[0][i].t0[0].time || !nav->ssr_ch[0][i].t0[1].time) {
-            continue;
+        int j, found = 0;
+        /* check broadcast ephemeris exists */
+        for (j = 0; j < nav->n; j++) {
+            if (nav->eph[j].sat == i + 1 && nav->eph[j].toe.time > 0) {
+                found = 1; break;
+            }
         }
-        lsat[n++] = i + 1;
+        if (!found) {
+            /* also check GLONASS ephemeris */
+            for (j = 0; j < nav->ng; j++) {
+                if (nav->geph[j].sat == i + 1 && nav->geph[j].toe.time > 0) {
+                    found = 1; break;
+                }
+            }
+        }
+        if (found) lsat[n++] = i + 1;
     }
 
     for (i = 0; i < 3; i++) rr[i] = x[i];
@@ -1416,8 +1433,9 @@ int mrtk_cssr2rtcm3(int argc, char **argv)
                             double tow = time2gpst(t, &week);
                             fprintf(stderr,
                                     "\rEpoch %d: week=%d tow=%.0f sats=%d "
-                                    "bytes=%d",
-                                    epoch_count, week, tow, obs.n, bytes);
+                                    "bytes=%d pos=%.1f,%.1f,%.1f",
+                                    epoch_count, week, tow, obs.n, bytes,
+                                    user_pos[0], user_pos[1], user_pos[2]);
                             fflush(stderr);
                         }
                     } else {
