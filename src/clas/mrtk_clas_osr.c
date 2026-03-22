@@ -1220,6 +1220,19 @@ int clas_osr_zdres(const obsd_t* obs, int n, const double* rs, const double* dts
         /* ionosphere, satellite code/phase bias and phase windup corrected */
         if (!clas_osr_corrmeas(obs_copy + i, nav, pos, azel + i * 2, opt, grid, corr, ssat[sat - 1], &brk, osr + i,
                                ssat[sat - 1].pbreset, ch, osr_ctx)) {
+            {
+                static int dbg_corr = 0;
+                int dsys = satsys(sat, NULL);
+                if (dbg_corr < 20 && (dsys == SYS_GAL || dsys == SYS_QZS)) {
+                    char id[8]; satno2id(sat, id);
+                    fprintf(stderr, "corrmeas_fail: %s code=[%d,%d] smode=[%d,%d] pbias=[%.3f,%.3f] cbias=[%.3f,%.3f]\n",
+                            id, obs_copy[i].code[0], obs_copy[i].code[1],
+                            corr->smode[sat-1][0], corr->smode[sat-1][1],
+                            osr[i].pbias[0], osr[i].pbias[1],
+                            osr[i].cbias[0], osr[i].cbias[1]);
+                    dbg_corr++;
+                }
+            }
             continue;
         }
 

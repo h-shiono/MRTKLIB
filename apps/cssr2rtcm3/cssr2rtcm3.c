@@ -77,12 +77,18 @@
 #define D2R         (3.1415926535897932384626433832795/180.0)
 #endif
 
-/* RTCM3 MSM7 message types per constellation */
-static const int rtcm3_msm7_types[] = {1077, 1087, 1097, 1117, 0};
-static const int rtcm3_msm5_types[] = {1075, 1085, 1095, 1115, 0};
-static const int rtcm3_msm4_types[] = {1074, 1084, 1094, 1114, 0};
-static const int *rtcm3_msm_types   = rtcm3_msm7_types; /* default: MSM7 */
-static int rtcm3_msm_sys[]   = {SYS_GPS, SYS_GLO, SYS_GAL, SYS_QZS, 0};
+/* RTCM3 MSM base message type per constellation (MSM1 = base + 0, MSM7 = base + 6) */
+static int msm_base_type(int sys) {
+    switch (sys) {
+    case SYS_GPS: return 1071;
+    case SYS_GLO: return 1081;
+    case SYS_GAL: return 1091;
+    case SYS_QZS: return 1111;
+    default:      return 0;
+    }
+}
+static int rtcm3_msm_grade = 7; /* MSM grade: 4, 5, or 7 */
+static int rtcm3_msm_sys[] = {SYS_GPS, SYS_GLO, SYS_GAL, SYS_QZS, 0};
 
 /* signal code remapping table (CLAS code → receiver code) */
 #define MAX_SIG_REMAP 32
@@ -268,9 +274,9 @@ static void load_cssr2rtcm3_config(const char *conffile) {
 
         if (sscanf(p, "msm_type = %d", &val) == 1) {
             switch (val) {
-            case 4:  rtcm3_msm_types = rtcm3_msm4_types; break;
-            case 5:  rtcm3_msm_types = rtcm3_msm5_types; break;
-            case 7:  rtcm3_msm_types = rtcm3_msm7_types; break;
+            case 4: case 5: case 7:
+                rtcm3_msm_grade = val;
+                break;
             default:
                 fprintf(stderr, "cssr2rtcm3: invalid msm_type=%d (use 4,5,7)\n", val);
                 break;
@@ -811,7 +817,7 @@ static int encode_and_send_rtcm3(stream_t *strm_out, rtcm_t *rtcm,
                 }
             }
         }
-        if (gen_rtcm3(rtcm, rtcm3_msm_types[k], 0, sync)) {
+        if (gen_rtcm3(rtcm, msm_base_type(sys) + rtcm3_msm_grade - 1, 0, sync)) {
             strwrite(strm_out, rtcm->buff, rtcm->nbyte);
             total += rtcm->nbyte;
         }
