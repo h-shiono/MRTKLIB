@@ -1220,29 +1220,17 @@ int clas_osr_zdres(const obsd_t* obs, int n, const double* rs, const double* dts
         /* ionosphere, satellite code/phase bias and phase windup corrected */
         if (!clas_osr_corrmeas(obs_copy + i, nav, pos, azel + i * 2, opt, grid, corr, ssat[sat - 1], &brk, osr + i,
                                ssat[sat - 1].pbreset, ch, osr_ctx)) {
-            {
-                static int dbg_corr = 0;
-                int dsys = satsys(sat, NULL);
-                if (dbg_corr < 20 && (dsys == SYS_GAL || dsys == SYS_QZS)) {
-                    char id[8]; satno2id(sat, id);
-                    fprintf(stderr, "corrmeas_fail: %s code=[%d,%d] smode=[%d,%d] pbias=[%.3f,%.3f] cbias=[%.3f,%.3f]\n",
-                            id, obs_copy[i].code[0], obs_copy[i].code[1],
-                            corr->smode[sat-1][0], corr->smode[sat-1][1],
-                            osr[i].pbias[0], osr[i].pbias[1],
-                            osr[i].cbias[0], osr[i].cbias[1]);
-                    dbg_corr++;
-                }
-            }
             continue;
         }
 
         /* frequency pair selection */
         qj = clas_osr_selfreqpair(sat, opt, obs_copy + i);
 
-        /* VRS mode: if selfreqpair returns 0 (L1 only) but CLAS has
-         * secondary frequency corrections, use them. This handles
-         * Galileo E5a which selfreqpair misses (checks E5b first). */
-        if (y == NULL && qj == 0) {
+        /* If selfreqpair returns 0 (L1 only) but CLAS has secondary
+         * frequency corrections, use them. This handles Galileo E5a
+         * when obsdef places it at index 1 instead of index 2 (e.g.
+         * signals=["E1C","E5Q"] without E7Q). */
+        if (qj == 0) {
             for (j = 1; j < nf; j++) {
                 if (corr->smode[sat - 1][j] != 0) {
                     qj = j;
@@ -1390,7 +1378,11 @@ int clas_osr_zdres(const obsd_t* obs, int n, const double* rs, const double* dts
                     if (f > 0 && !(f & qj)) {
                         continue;
                     }
-                    if (f == 1 && (satsys(sat, NULL) == SYS_GAL)) {
+                    /* GAL has no L2 band — skip only if slot f is
+                     * actually L2 (freq_num==2). When obsdef places E5a
+                     * at slot 1 (e.g. signals=["E1C","E5Q"]), do NOT skip. */
+                    if (satsys(sat, NULL) == SYS_GAL &&
+                        code2freq_num(obs_copy[i].code[f]) == 2) {
                         continue;
                     }
                     if (j == 0 && (osr[i].pbias[f] == CLAS_CSSRINVALID)) {
@@ -1412,8 +1404,8 @@ int clas_osr_zdres(const obsd_t* obs, int n, const double* rs, const double* dts
         /* store pbias time */
         osr_ctx->pt0tmp[sat - 1] = nav->ssr_ch[ch][sat - 1].t0[5];
 
-        /* GAL: clear L2 slots (non-VRS path) */
-        if (sys == SYS_GAL) {
+        /* GAL: clear L2 slots only if slot 1 is actually L2 band */
+        if (sys == SYS_GAL && code2freq_num(obs_copy[i].code[1]) == 2) {
             osr[i].antr[1] = 0.0;
             osr[i].wupL[1] = 0.0;
             osr[i].CPC[1] = 0.0;
