@@ -14,7 +14,7 @@
 
 [positioning]
 mode = "ppp-rtk"
-signals = ["G1C", "G2W", "E1C", "E5Q", "J1C", "J2L"]
+signals = ["G1C", "G2W", "E1C", "E5Q", "E7Q", "J1C", "J2L"]
 solution_type = "forward"
 elevation_mask = 15.0
 dynamics = true
