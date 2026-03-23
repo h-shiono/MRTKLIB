@@ -29,8 +29,8 @@ cssr_grid = "./tests/data/claslib/clas_grid.def"
 # Uncomment and adjust for your receiver. Example for Septentrio mosaic-G5:
 [signal_remap]
 G2X = "2W" # GPS     L2C(M+L) → L2W  (needed: CLAS smode[1]=2X for most GPS sats)
-E1X = "1C" # Galileo E1(B+C)  → E1C
-E5X = "5Q" # Galileo E5a(I+Q) → E5aQ
+#E1X = "1C" # Galileo E1(B+C)  → E1C
+#E5X = "5Q" # Galileo E5a(I+Q) → E5aQ
 J2X = "2L" # QZS     L2C(M+L) → L2L
 
 # cssr2rtcm3-specific settings
