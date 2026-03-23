@@ -1370,8 +1370,12 @@ int mrtk_cssr2rtcm3(int argc, char **argv)
             continue;
         }
 
-        /* Output RTCM3 at configured interval (1-second grid catch-up) */
-        now = clas->l6buf[0].time;
+        /* Output RTCM3 at configured interval.
+         * Use SBF stream time (updated every PVT epoch, ~1s) rather than
+         * L6D decode time (updated every ~5s) to avoid bursty output that
+         * causes Age-of-Correction spikes in the rover receiver. */
+        now = (raw_sbf && raw_sbf->time.time > 0) ? raw_sbf->time
+                                                   : clas->l6buf[0].time;
         if (now.time == 0) {
             dbg_notime++;
             sleepms(10);
