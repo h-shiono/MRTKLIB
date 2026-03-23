@@ -1297,7 +1297,12 @@ int mrtk_cssr2rtcm3(int argc, char **argv)
                 }
                 else if (ret == 5) {
                     pvt_count++;
-                    /* PVTGeodetic → update user position (unless -p override) */
+                    /* PVTGeodetic → latch user position on first valid fix.
+                     * VRS base coordinates must be stable across epochs;
+                     * per-epoch SPP updates cause meter-level jumps that
+                     * destroy DD ambiguity continuity in the rover RTK
+                     * engine.  Once a valid position is obtained, lock it
+                     * for the remainder of the session. */
                     if (!has_fixed_pos && norm(raw_sbf->sta.pos, 3) > 0.0) {
                         matcpy(user_pos, raw_sbf->sta.pos, 3, 1);
                         for (k = 0; k < 3; k++) {
@@ -1306,6 +1311,7 @@ int mrtk_cssr2rtcm3(int argc, char **argv)
                             rtk.x[k] = user_pos[k];
                         }
                         pos_updated = 1;
+                        has_fixed_pos = 1; /* latch: no further updates */
                     }
                 }
             }
