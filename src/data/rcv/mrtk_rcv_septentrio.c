@@ -412,43 +412,52 @@ static int decode_measepoch(raw_t* raw) {
             p += len1 + len2 * n2;
             continue;
         }
-        if ((idx = sig2idx(sat, sig, raw->opt, &code)) < 0) {
-            trace(NULL, 2, "sbf measepoch sig error: sat=%d sig=%d\n", sat, sig);
-            p += len1 + len2 * n2;
-            continue;
-        }
         init_obsd(raw->time, sat, raw->obs.data + n);
         P1 = D1 = 0.0;
         sys = satsys(sat, NULL);
-        freq1 = code2freq(sys, code, fcn);
 
+        /* extract Type-1 pseudorange and Doppler (needed as base for Type-2
+         * delta values) regardless of whether this signal is accepted */
         if ((U1(p + 3) & 0x1f) != 0 || U4(p + 4) != 0) {
             P1 = (U1(p + 3) & 0x0f) * 4294967.296 + U4(p + 4) * 0.001;
-            raw->obs.data[n].P[idx] = P1;
         }
         if (I4(p + 8) != (-2147483647 - 1)) {
             D1 = I4(p + 8) * 0.0001;
-            raw->obs.data[n].D[idx] = (float)D1;
         }
-        lock = U2(p + 16);
-        if (P1 != 0.0 && freq1 > 0.0 && lock != 65535 && (I1(p + 14) != -128 || U2(p + 12) != 0)) {
-            L1 = I1(p + 14) * 65.536 + U2(p + 12) * 0.001;
-            raw->obs.data[n].L[idx] = P1 * freq1 / CLIGHT + L1;
-            LLI = 0;
-            if (lock < raw->lockt[sat - 1][idx]) {
-                LLI += 1;
+
+        if ((idx = sig2idx(sat, sig, raw->opt, &code)) < 0) {
+            /* Type-1 signal not in obsdef — still process Type-2 sub-blocks
+             * which may contain accepted signals (e.g. GAL E7Q rejected but
+             * E1C/E5Q accepted in Type-2). P1/D1 are retained as base values. */
+            trace(NULL, 3, "sbf measepoch sig skip (type1): sat=%d sig=%d\n", sat, sig);
+        } else {
+            freq1 = code2freq(sys, code, fcn);
+            if (P1 != 0.0) {
+                raw->obs.data[n].P[idx] = P1;
             }
-            if (info & (1 << 2)) {
-                LLI += 2;
+            if (D1 != 0.0) {
+                raw->obs.data[n].D[idx] = (float)D1;
             }
-            raw->obs.data[n].LLI[idx] = (uint8_t)LLI;
-            raw->lockt[sat - 1][idx] = lock;
+            lock = U2(p + 16);
+            if (P1 != 0.0 && freq1 > 0.0 && lock != 65535 && (I1(p + 14) != -128 || U2(p + 12) != 0)) {
+                L1 = I1(p + 14) * 65.536 + U2(p + 12) * 0.001;
+                raw->obs.data[n].L[idx] = P1 * freq1 / CLIGHT + L1;
+                LLI = 0;
+                if (lock < raw->lockt[sat - 1][idx]) {
+                    LLI += 1;
+                }
+                if (info & (1 << 2)) {
+                    LLI += 2;
+                }
+                raw->obs.data[n].LLI[idx] = (uint8_t)LLI;
+                raw->lockt[sat - 1][idx] = lock;
+            }
+            if (U1(p + 15) != 255) {
+                S1 = U1(p + 15) * 0.25 + ((sig == 1 || sig == 2) ? 0.0 : 10.0);
+                raw->obs.data[n].SNR[idx] = (uint16_t)(S1 / SNR_UNIT + 0.5);
+            }
+            raw->obs.data[n].code[idx] = code;
         }
-        if (U1(p + 15) != 255) {
-            S1 = U1(p + 15) * 0.25 + ((sig == 1 || sig == 2) ? 0.0 : 10.0);
-            raw->obs.data[n].SNR[idx] = (uint16_t)(S1 / SNR_UNIT + 0.5);
-        }
-        raw->obs.data[n].code[idx] = code;
 
         for (j = 0, p += len1; j < n2 && p + 12 <= raw->buff + raw->len; j++, p += len2) {
             sig = U1(p) & 0x1f;
@@ -499,7 +508,14 @@ static int decode_measepoch(raw_t* raw) {
             }
             raw->obs.data[n].code[idx] = code;
         }
-        n++;
+        /* only advance obs counter if at least one signal was accepted */
+        {
+            int has_obs = 0, k;
+            for (k = 0; k < NFREQ + NEXOBS; k++) {
+                if (raw->obs.data[n].code[k] != 0) { has_obs = 1; break; }
+            }
+            if (has_obs) n++;
+        }
     }
     raw->obs.n = n;
     return 1;
