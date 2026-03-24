@@ -965,6 +965,9 @@ int mrtk_cssr2rtcm3(int argc, char **argv)
                 navfiles[nnav++] = argv[++i];
             }
         }
+        else if (!strcmp(argv[i], "-prn") && i + 1 < argc) {
+            l6d_prn_filter = satno(SYS_QZS, atoi(argv[++i]));
+        }
         else if (!strcmp(argv[i], "-d") && i + 1 < argc) {
             trace_level = atoi(argv[++i]);
         }
@@ -1370,12 +1373,8 @@ int mrtk_cssr2rtcm3(int argc, char **argv)
             continue;
         }
 
-        /* Output RTCM3 at configured interval.
-         * Use SBF stream time (updated every PVT epoch, ~1s) rather than
-         * L6D decode time (updated every ~5s) to avoid bursty output that
-         * causes Age-of-Correction spikes in the rover receiver. */
-        now = (raw_sbf && raw_sbf->time.time > 0) ? raw_sbf->time
-                                                   : clas->l6buf[0].time;
+        /* Output RTCM3 at configured interval (L6D subframe timing) */
+        now = clas->l6buf[0].time;
         if (now.time == 0) {
             dbg_notime++;
             sleepms(10);
