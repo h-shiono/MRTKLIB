@@ -1243,11 +1243,23 @@ int mrtk_cssr2rtcm3(int argc, char **argv)
                         l6d_prn_count[l6d_sat]++;
                     }
 
-                    /* auto-select first QZS satellite for L6D filtering */
+                    /* auto-select QZS satellite for L6D filtering.
+                     * Prefer QZO (PRN < 199) over GEO (PRN >= 199) —
+                     * GEO satellites use different broadcast patterns
+                     * that may not produce valid corrections. */
                     if (l6d_prn_filter == 0 && l6d_sat > 0) {
                         l6d_prn_filter = l6d_sat;
                         satsys(l6d_sat, &fprn);
                         fprintf(stderr, "L6D: auto-selected J%d for CLAS input\n", fprn);
+                    } else if (l6d_prn_filter > 0 && l6d_sat > 0) {
+                        int cur_prn, new_prn;
+                        satsys(l6d_prn_filter, &cur_prn);
+                        satsys(l6d_sat, &new_prn);
+                        if (cur_prn >= 199 && new_prn < 199) {
+                            l6d_prn_filter = l6d_sat;
+                            fprintf(stderr, "L6D: switched to QZO J%d (prefer over GEO J%d)\n",
+                                    new_prn, cur_prn);
+                        }
                     }
 
                     /* only feed L6D from selected satellite (avoid frame corruption) */
