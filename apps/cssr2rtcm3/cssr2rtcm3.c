@@ -923,7 +923,7 @@ int mrtk_cssr2rtcm3(int argc, char **argv)
     int epoch_count = 0;
     int osr_count = 0;
     long total_bytes = 0;
-    int nav_count = 0, l6d_count = 0, pvt_count = 0;
+    int nav_count = 0, l6d_count = 0, pvt_count = 0, pvt_trigger = 0;
     int dbg_nopos = 0, dbg_notime = 0, dbg_nogeom = 0, dbg_noosr = 0;
     int dbg_cssr_decode = 0;
     int dbg_subtype[16] = {0};
@@ -1312,6 +1312,7 @@ int mrtk_cssr2rtcm3(int argc, char **argv)
                 }
                 else if (ret == 5) {
                     pvt_count++;
+                    pvt_trigger = 1; /* trigger RTCM3 output */
                     /* PVTGeodetic → latch user position on first valid fix.
                      * VRS base coordinates must be stable across epochs;
                      * per-epoch SPP updates cause meter-level jumps that
@@ -1385,95 +1386,97 @@ int mrtk_cssr2rtcm3(int argc, char **argv)
             continue;
         }
 
-        /* Output RTCM3 at configured interval (L6D subframe timing) */
+        /* Output RTCM3 at 1-second intervals, triggered by PVT reception.
+         * Time base: CSSR ST1 GPS Epoch (l6buf[0].time), 1s grid. */
+        if (!pvt_trigger) {
+            sleepms(10);
+            continue;
+        }
+        pvt_trigger = 0;
+
         now = clas->l6buf[0].time;
         if (now.time == 0) {
             dbg_notime++;
-            sleepms(10);
             continue;
         }
 
         /* Initialize last_output on first valid epoch */
         if (last_output.time == 0) {
-            last_output = now;
+            last_output = timeadd(now, -output_interval);
         }
 
-        /* Generate MSM4 for all 1-second grid epochs from last_output to now.
-         * In real-time, skip ahead if gap is too large (> 10s) to avoid
-         * sending stale observations that the receiver will reject. */
+        /* Advance one epoch on the CSSR 1-second grid.
+         * If gap > 10s (e.g. after startup), skip ahead to avoid
+         * sending stale observations. */
         {
             double gap = timediff(now, last_output);
             if (gap > 10.0) {
                 last_output = timeadd(now, -output_interval);
-                gap = output_interval;
             }
-            if (gap >= output_interval - 0.01) {
-                int nsteps = (int)(gap / output_interval);
-                int step;
-                for (step = 1; step <= nsteps; step++) {
-                    gtime_t t = timeadd(last_output, output_interval * step);
+            if (timediff(now, last_output) >= output_interval - 0.01) {
+                gtime_t t = timeadd(last_output, output_interval);
 
-                    rtk.sol.time = t;
+                rtk.sol.time = t;
 
-                    /* generate dummy observations from satellite geometry */
-                    if (actualdist(t, &obs, nav, user_pos) < 0) {
-                        dbg_nogeom++;
-                        continue;
-                    }
+                /* generate dummy observations from satellite geometry */
+                if (actualdist(t, &obs, nav, user_pos) < 0) {
+                    dbg_nogeom++;
+                    goto next;
+                }
 
-                    /* convert SSR to OSR */
-                    {
-                        int obs_in = obs.n;
-                        obs.n = clas_ssr2osr(&rtk, obs.data, obs.n, nav, osr,
-                                             0, clas);
-                        if (obs.n == 0 && dbg_noosr < 3) {
-                            int week;
-                            double tow = time2gpst(t, &week);
-                            fprintf(stderr,
-                                    "  OSR fail: week=%d tow=%.1f obs_in=%d "
-                                    "nav.n=%d pos=%.1f,%.1f,%.1f\n",
-                                    week, tow, obs_in, nav->n, user_pos[0],
-                                    user_pos[1], user_pos[2]);
-                        }
-                    }
-
-                    /* remap signal codes to match receiver tracking */
-                    apply_sig_remap(&obs);
-
-                    /* scale L1 Doppler to per-frequency for MSM7 rate fields */
-                    fill_doppler(&obs);
-
-                    if (obs.n > 0) {
-                        int bytes = encode_and_send_rtcm3(&strm_out, rtcm,
-                                                           &obs, nav,
-                                                           user_pos);
-                        epoch_count++;
-                        osr_count += obs.n;
-
-                        /* dump CLAS state after corrections stabilize */
-                        if (epoch_count == 1) {
-                            dump_clas_state(clas, &clas->current[0]);
-                        }
-
-                        {
-                            int week;
-                            double tow = time2gpst(t, &week);
-                            fprintf(stderr,
-                                    "\rEpoch %d: week=%d tow=%.0f sats=%d "
-                                    "bytes=%d pos=%.1f,%.1f,%.1f",
-                                    epoch_count, week, tow, obs.n, bytes,
-                                    user_pos[0], user_pos[1], user_pos[2]);
-                            fflush(stderr);
-                        }
-                    } else {
-                        dbg_noosr++;
+                /* convert SSR to OSR */
+                {
+                    int obs_in = obs.n;
+                    obs.n = clas_ssr2osr(&rtk, obs.data, obs.n, nav, osr,
+                                         0, clas);
+                    if (obs.n == 0 && dbg_noosr < 3) {
+                        int week;
+                        double tow = time2gpst(t, &week);
+                        fprintf(stderr,
+                                "  OSR fail: week=%d tow=%.1f obs_in=%d "
+                                "nav.n=%d pos=%.1f,%.1f,%.1f\n",
+                                week, tow, obs_in, nav->n, user_pos[0],
+                                user_pos[1], user_pos[2]);
                     }
                 }
-                last_output = timeadd(last_output, output_interval * nsteps);
+
+                /* remap signal codes to match receiver tracking */
+                apply_sig_remap(&obs);
+
+                /* scale L1 Doppler to per-frequency for MSM7 rate fields */
+                fill_doppler(&obs);
+
+                if (obs.n > 0) {
+                    int bytes = encode_and_send_rtcm3(&strm_out, rtcm,
+                                                       &obs, nav,
+                                                       user_pos);
+                    epoch_count++;
+                    osr_count += obs.n;
+
+                    /* dump CLAS state after corrections stabilize */
+                    if (epoch_count == 1) {
+                        dump_clas_state(clas, &clas->current[0]);
+                    }
+
+                    {
+                        int week;
+                        double tow = time2gpst(t, &week);
+                        fprintf(stderr,
+                                "\rEpoch %d: week=%d tow=%.0f sats=%d "
+                                "bytes=%d pos=%.1f,%.1f,%.1f",
+                                epoch_count, week, tow, obs.n, bytes,
+                                user_pos[0], user_pos[1], user_pos[2]);
+                        fflush(stderr);
+                    }
+                } else {
+                    dbg_noosr++;
+                }
+
+                last_output = t;
             }
         }
-
-        sleepms(10);
+next:
+        ; /* PVT-triggered loop continues */
     }
 
     fprintf(stderr, "\nShutting down...\n");
