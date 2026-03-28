@@ -39,4 +39,4 @@ J2X = "2L" # QZS     L2C(M+L) → L2L
 msm_type = 7
 # Constellations to include in RTCM3 MSM output (default: all CLAS systems)
 # Recognised: GPS, Galileo, QZSS, GLONASS
-systems = ["GPS", "Galileo"]
+systems = ["GPS", "Galileo", "QZSS"]

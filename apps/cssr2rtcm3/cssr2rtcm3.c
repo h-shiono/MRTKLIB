@@ -774,6 +774,54 @@ static void fill_doppler(obs_t *obs)
  * Generates RTCM3 1005 (station position) + MSM per constellation
  * (default MSM7: 1077/1087/1097/1117) and writes to the output stream.
  */
+/**
+ * @brief Send broadcast ephemeris as RTCM3 messages for observed satellites.
+ *
+ * Sends 1019 (GPS), 1045 (GAL F/NAV), and 1044 (QZS) for each satellite
+ * in the observation set whose ephemeris IODE has changed since the last
+ * transmission. This keeps the rover's ephemeris in sync with the base.
+ */
+static int send_ephemeris(stream_t *strm_out, rtcm_t *rtcm, const obs_t *obs,
+                          nav_t *nav)
+{
+    static int last_iode[MAXSAT];
+    static int initialized = 0;
+    int i, sat, sys, type, total = 0;
+
+    if (!initialized) {
+        memset(last_iode, -1, sizeof(last_iode));
+        initialized = 1;
+    }
+
+    for (i = 0; i < obs->n; i++) {
+        sat = obs->data[i].sat;
+        if (sat <= 0 || sat > MAXSAT) { continue; }
+        sys = satsys(sat, NULL);
+
+        /* select RTCM3 ephemeris message type */
+        switch (sys) {
+        case SYS_GPS: type = 1019; break;
+        case SYS_GAL: type = 1045; break;
+        case SYS_QZS: type = 1044; break;
+        default: continue;
+        }
+
+        /* check if ephemeris exists and IODE changed */
+        if (nav->eph[sat - 1].sat != sat) { continue; }
+        if (nav->eph[sat - 1].iode == last_iode[sat - 1]) { continue; }
+
+        /* copy ephemeris to rtcm and encode */
+        rtcm->nav.eph[sat - 1] = nav->eph[sat - 1];
+        rtcm->ephsat = sat;
+        if (gen_rtcm3(rtcm, type, 0, 0)) {
+            strwrite(strm_out, rtcm->buff, rtcm->nbyte);
+            total += rtcm->nbyte;
+        }
+        last_iode[sat - 1] = nav->eph[sat - 1].iode;
+    }
+    return total;
+}
+
 static int encode_and_send_rtcm3(stream_t *strm_out, rtcm_t *rtcm,
                                   const obs_t *obs, nav_t *nav,
                                   const double *pos)
@@ -791,6 +839,9 @@ static int encode_and_send_rtcm3(stream_t *strm_out, rtcm_t *rtcm,
     for (i = 0; i < obs->n && rtcm->obs.n < MAXOBS; i++) {
         rtcm->obs.data[rtcm->obs.n++] = obs->data[i];
     }
+
+    /* broadcast ephemeris for IODE synchronization with rover */
+    total += send_ephemeris(strm_out, rtcm, obs, nav);
 
     /* station coordinates message (1006); sync=1 — MSM follows */
     if (gen_rtcm3(rtcm, 1006, 0, 1)) {
