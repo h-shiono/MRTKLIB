@@ -63,7 +63,7 @@ mrtk post -k conf/claslib/rnx2rtkp.toml \
 
 ### Expected Output
 
-After ~1 minute of convergence, the solution should reach **Fix (Q=1)**:
+After ~1 minute of convergence, the solution should reach **Fix (Q=4)**:
 
 ```
 $GNGGA,160131.00,3908.109031,N,14107.972285,E,4,08,...

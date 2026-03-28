@@ -13,7 +13,6 @@ convenient reference, but may not list every key the loader supports.
 """
 from __future__ import annotations
 
-import re
 import sys
 from collections import OrderedDict
 from pathlib import Path
@@ -304,7 +303,7 @@ def get_enum_values(legacy_key: str) -> str:
 
 
 def format_enum_values(raw: str) -> str:
-    """Format raw enum string into readable dot-separated list without numeric prefixes.
+    """Format raw enum string into readable middle-dot-separated list without numeric prefixes.
 
     Input:  "0:single,1:dgps,2:kinematic"
     Output: "`single` · `dgps` · `kinematic`"
