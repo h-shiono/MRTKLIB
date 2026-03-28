@@ -49,12 +49,12 @@ VRS-based RTK position using its built-in engine.
 
 ```mermaid
 flowchart LR
-    A["mosaic-G5 P3"] <-- "Serial" --> B["mrtk relay<br/>(SBF + RTCM3)"]
+    A["mosaic-G5 P3"] -- "Serial(SBF)" --> B["mrtk relay"]
     subgraph "Host (PC / SBC)"
-    B -- "SBF" --> C["mrtk cssr2rtcm3"]
-    C -- "RTCM3" --> B
+    B -- "TCP/IP(SBF)" --> C["mrtk cssr2rtcm3"]
     B -- "SBF" --> D@{ shape: stadium, label: "Output" }
     end
+    C -- "Serial(RTCM3)" --> A
 ```
 
 #### Approach 2 — MRTKLIB Engine (`mrtk run`)
@@ -69,7 +69,7 @@ all positioning computation happens on the host.
 
 ```mermaid
 flowchart LR
-    A["mosaic-G5 P3"] -- "Serial / TCP" --> B["mrtk run"]
+    A["mosaic-G5 P3"] -- "Serial (SBF)" --> B["mrtk run"]
     subgraph "Host (PC / SBC)"
     B -- "Positioning Result" --> C@{ shape: stadium, label: "Output" }
     end
@@ -140,7 +140,14 @@ Configure the mosaic-G5 using RxTools (the mosaic-G5 module does not have a Web 
 
     <div style="text-align: center;"><img src="images/mosaic-g5/signal_tracking.png" style="max-width: 420px; width: 100%;"></div>
 
-6. **Enable RTK Float solutions**: Go to `Navigation` > `Positioning Mode` and set `Rover mode` to `all` (this allows the receiver to output Float solutions in addition to Fix). Click `Apply`, then `OK` to close.
+6. **Set Positioning Mode**: Go to `Navigation` > `Positioning Mode`:
+    - In the `PVT Mode` tab:
+        - **Enable RTK Float solutions**: In the `PVT Mode` panel, set `Rover mode` to `all` (this allows the receiver to output Float solutions in addition to Fix).
+        - **Change Solution Selectivity**: In the `Solution Selectivity` panel, set `Level` to `Loose` (this relaxes the strictness with which the PVT engine filters satellite signals and transitions between PVT modes).
+    - In the `PPP and Differential Corrections` tab:
+        - **Change Max Age of Differential Corrections**: In the `Max Age of Differential Corrections` panel, set `Maximum age of RTK data` to `60.0` s (aligned with the CLAS correction update interval).
+
+    Click `Apply`, then `OK` to close.
 
 7. **Save configuration to the receiver**: Go to `File` > `Copy Configuration` and set:
 
@@ -161,6 +168,9 @@ corrections to RTCM3.
 | ---------------------------- | ---- | ------------------------ |
 | `/dev/*.usbmodem01000124301` | USB1 | RTCM3 input to receiver  |
 | `/dev/*.usbmodem01000124303` | USB2 | SBF output from receiver |
+
+!!! note
+    Serial port numbers are device-specific and will differ on your system.
 
 ### Step 1: Start `mrtk relay`
 
