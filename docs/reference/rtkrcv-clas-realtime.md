@@ -61,7 +61,7 @@ Use `conf/claslib/rtkrcv.toml` (single-channel) or `rtkrcv_2ch.toml`
 ```toml
 [positioning]
 mode                = "ppp-rtk"
-frequency           = "l1+2"       # CLAS does not provide E5a bias; use nf=2
+frequency           = "l1+2"       # CLAS does not provide E5b bias; use nf=2
 satellite_ephemeris = "brdc+ssrapc"
 constellations      = 25           # GPS + Galileo + QZSS
 
@@ -93,9 +93,9 @@ phase_cycle   = "./tests/data/claslib/l2csft.tbl"
 ```
 
 > **Important:** Use `frequency = "l1+2"` (nf=2) for CLAS.  CLAS does not
-> provide Galileo E5a bias corrections; using `"l1+2+3"` (nf=3) causes
-> false L1-L5 geometry-free cycle slip detection that destroys Galileo
-> ambiguities and severely degrades AR fix rate.
+> provide Galileo E5b bias corrections; using `"l1+2+3"` (nf=3) adds the
+> E5b slot without valid bias, causing false geometry-free cycle slip
+> detection that destroys Galileo ambiguities and severely degrades AR fix rate.
 
 ### 3. Run
 
@@ -257,7 +257,7 @@ conflicts with the MADOCA `rtkrcv_rt` test.
 | TOML Key | Value | Description |
 |----------|-------|-------------|
 | `positioning.mode` | `"ppp-rtk"` | CLAS PPP-RTK positioning mode |
-| `positioning.frequency` | `"l1+2"` | **Must be nf=2** (CLAS has no E5a bias) |
+| `positioning.frequency` | `"l1+2"` | **Must be nf=2** (CLAS has no E5b bias) |
 | `positioning.satellite_ephemeris` | `"brdc+ssrapc"` | Broadcast + SSR (antenna phase centre) |
 | `positioning.constellations` | `25` | GPS(1) + Galileo(8) + QZSS(16) |
 | `positioning.dynamics` | `true` | Enable kinematic dynamics model |
@@ -291,9 +291,9 @@ conflicts with the MADOCA `rtkrcv_rt` test.
 levels, with frequent ambiguity resets on Galileo satellites.
 
 **Cause:** `frequency = "l1+2+3"` (nf=3) in the config.  CLAS does not
-provide Galileo E5a (L5) phase bias corrections.  With nf=3, the L1-L5
-geometry-free cycle slip detector (`detslp_gf()` in `mrtk_ppp_rtk.c`)
-fires false slips at every epoch because `pbias[2]` remains invalid.
+provide Galileo E5b phase bias corrections.  With nf=3, the E5b frequency
+slot has no valid bias, causing the geometry-free cycle slip detector
+(`detslp_gf()` in `mrtk_ppp_rtk.c`) to fire false slips at every epoch.
 This destroys Galileo ambiguities and prevents AR convergence.
 
 **Fix:** Set `frequency = "l1+2"` (nf=2).  This skips the L1-L5 GF

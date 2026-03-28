@@ -93,6 +93,8 @@ nav:
   - User Guide:
     - CLI Reference: guide/cli.md
     - Configuration (TOML): guide/configuration.md
+    - "Quick Start: CLAS PPP-RTK": guide/quickstart-clas.md
+    - "Quick Start: MADOCA-PPP": guide/quickstart-madoca-ppp.md
   - Reference:
     - Configuration Options: reference/config-options.md
     - API Reference (Doxygen): reference/api.md
