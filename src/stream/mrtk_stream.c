@@ -834,6 +834,24 @@ static void syncfile(file_t* file1, file_t* file2) {
     file2->repmode = 1;
     file2->offset = (int)(file1->tick_f - file2->tick_f);
 }
+/* decode percent-encoded characters in-place (%XX -> char) -----------------*/
+static void urldecode(char* str) {
+    char *src = str, *dst = str;
+    while (*src) {
+        if (*src == '%' && src[1] && src[2]) {
+            int hi = src[1], lo = src[2];
+            hi = (hi >= '0' && hi <= '9') ? hi - '0' : (hi >= 'A' && hi <= 'F') ? hi - 'A' + 10 : (hi >= 'a' && hi <= 'f') ? hi - 'a' + 10 : -1;
+            lo = (lo >= '0' && lo <= '9') ? lo - '0' : (lo >= 'A' && lo <= 'F') ? lo - 'A' + 10 : (lo >= 'a' && lo <= 'f') ? lo - 'a' + 10 : -1;
+            if (hi >= 0 && lo >= 0) {
+                *dst++ = (char)((hi << 4) | lo);
+                src += 3;
+                continue;
+            }
+        }
+        *dst++ = *src++;
+    }
+    *dst = '\0';
+}
 /* decode tcp/ntrip path (path=[user[:passwd]@]addr[:port][/mntpnt[:str]]) ---*/
 static void decodetcppath(const char* path, char* addr, char* port, char* user, char* passwd, char* mntpnt, char* str) {
     char buff[MAXSTRPATH], *p, *q;
@@ -884,6 +902,10 @@ static void decodetcppath(const char* path, char* addr, char* port, char* user, 
         }
         if (user) {
             sprintf(user, "%.255s", buff);
+            urldecode(user);
+        }
+        if (passwd) {
+            urldecode(passwd);
         }
     } else {
         p = buff;
