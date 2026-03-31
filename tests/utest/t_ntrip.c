@@ -13,14 +13,20 @@
 
 static int n_pass = 0;
 static int n_fail = 0;
+static int test_failed = 0; /* per-test failure flag */
 
 #define TEST(name)                                      \
     static void name(void);                             \
     static void name##_run(void) {                      \
         printf("  %-50s ", #name);                      \
+        test_failed = 0;                                \
         name();                                         \
-        printf("PASS\n");                               \
-        n_pass++;                                       \
+        if (test_failed) {                              \
+            n_fail++;                                   \
+        } else {                                        \
+            printf("PASS\n");                           \
+            n_pass++;                                   \
+        }                                               \
     }                                                   \
     static void name(void)
 
@@ -29,7 +35,7 @@ static int n_fail = 0;
         if (!(cond)) {                                  \
             printf("FAIL\n    %s:%d: %s\n",             \
                    __FILE__, __LINE__, #cond);           \
-            n_fail++;                                   \
+            test_failed = 1;                            \
             return;                                     \
         }                                               \
     } while (0)

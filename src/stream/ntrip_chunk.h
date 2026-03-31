@@ -75,7 +75,7 @@ static int chunk_decode(chunk_dec_t *dec, const uint8_t **pin, int *pnin,
     int nin = *pnin;
     int nw = 0; /* bytes written to out */
 
-    while (nin > 0 && dec->state != 3) {
+    while (nin > 0 && dec->state != 3) { /* 3 = DONE (terminal) */
         switch (dec->state) {
         case 0: /* SIZE: read chunk-size line */
             while (nin > 0) {
@@ -116,7 +116,7 @@ static int chunk_decode(chunk_dec_t *dec, const uint8_t **pin, int *pnin,
                     dec->remain = (int)size;
 
                     if (dec->remain == 0) {
-                        dec->state = 3; /* last chunk */
+                        dec->state = 4; /* consume final trailer CRLF */
                     } else {
                         dec->state = 1; /* data follows */
                     }
@@ -164,6 +164,18 @@ static int chunk_decode(chunk_dec_t *dec, const uint8_t **pin, int *pnin,
                     break;
                 }
                 /* skip \r, ignore other chars in trailer */
+            }
+            break;
+
+        case 4: /* FINAL_TRAIL: consume trailing \r\n after zero-length chunk */
+            while (nin > 0) {
+                char c = (char)*in++;
+                nin--;
+
+                if (c == '\n') {
+                    dec->state = 3; /* DONE */
+                    break;
+                }
             }
             break;
         }
@@ -230,10 +242,20 @@ static int http_status_code(const uint8_t *buff, int nb) {
     if (strncmp((const char *)buff, "HTTP/", 5) != 0) {
         return 0;
     }
-    /* find first space within nb */
+    /* find first space within nb, then parse exactly 3 digits within bounds */
     for (i = 5; i < nb; i++) {
         if (buff[i] == ' ') {
-            return atoi((const char *)buff + i + 1);
+            if (i + 3 >= nb) {
+                return 0;
+            }
+            if (buff[i + 1] >= '0' && buff[i + 1] <= '9' &&
+                buff[i + 2] >= '0' && buff[i + 2] <= '9' &&
+                buff[i + 3] >= '0' && buff[i + 3] <= '9') {
+                return (buff[i + 1] - '0') * 100 +
+                       (buff[i + 2] - '0') * 10 +
+                       (buff[i + 3] - '0');
+            }
+            return 0;
         }
     }
     return 0;

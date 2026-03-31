@@ -1668,11 +1668,31 @@ static int rspntrip_c(ntrip_t* ntrip, char* msg) {
             if (http_find_header(ntrip->buff, body_off, "Content-Type", val, sizeof(val)) &&
                 strstr(val, "sourcetable")) {
                 if (!*ntrip->mntpnt) { /* source table request */
+                    int is_chunked = 0;
                     ntrip->state = 2;
                     ntrip->ver_neg = NTRIP_VER_2;
+                    /* check for chunked encoding before shifting headers away */
+                    if (http_find_header(ntrip->buff, body_off, "Transfer-Encoding", val, sizeof(val)) &&
+                        strstr(val, "chunked")) {
+                        is_chunked = 1;
+                    }
                     /* shift body to start of buffer */
                     ntrip->nb -= body_off;
                     memmove(ntrip->buff, ntrip->buff + body_off, ntrip->nb);
+                    /* decode chunked body if applicable */
+                    if (is_chunked && ntrip->nb > 0) {
+                        chunk_dec_t dec;
+                        const uint8_t *in = ntrip->buff;
+                        int nin = ntrip->nb;
+                        uint8_t tmp[NTRIP_MAXRSP];
+                        int nd;
+                        chunk_dec_init(&dec);
+                        nd = chunk_decode(&dec, &in, &nin, tmp, sizeof(tmp));
+                        if (nd > 0) {
+                            memcpy(ntrip->buff, tmp, nd);
+                            ntrip->nb = nd;
+                        }
+                    }
                     sprintf(msg, "source table received");
                     tracet(NULL, 3, "rspntrip_c: v2 source table nb=%d\n", ntrip->nb);
                     return 1;
@@ -1837,7 +1857,19 @@ static int parse_ntrip_query(char* mntpnt, char* host_override, int host_size) {
                 ver = NTRIP_VER_2;
             }
         } else if (strncmp(p, "host=", 5) == 0) {
-            snprintf(host_override, host_size, "%s", p + 5);
+            const char *h = p + 5;
+            int valid = 1, hlen = 0;
+            /* reject control characters and whitespace to prevent header injection */
+            while (h[hlen]) {
+                if ((unsigned char)h[hlen] < 0x20 || h[hlen] == 0x7F) {
+                    valid = 0;
+                    break;
+                }
+                hlen++;
+            }
+            if (valid && hlen > 0) {
+                snprintf(host_override, host_size, "%s", h);
+            }
         }
 
         if (next) {
@@ -2141,6 +2173,7 @@ static void send_rsp_ok(int ver, socket_t sock) {
         p += sprintf(p, "Date: %s\r\n", tstr);
         p += sprintf(p, "Cache-Control: no-store, no-cache, max-age=0\r\n");
         p += sprintf(p, "Pragma: no-cache\r\n");
+        p += sprintf(p, "Transfer-Encoding: chunked\r\n");
         p += sprintf(p, "Connection: close\r\n");
         p += sprintf(p, "Content-Type: gnss/data\r\n\r\n");
     }
@@ -2326,8 +2359,7 @@ static int writentripc(ntripc_t* ntripc, uint8_t* buff, int n, char* msg) {
                 if (cn < 0) {
                     break;
                 }
-                ns = send_nb(ntripc->tcp->cli[i].sock, cbuf, cn);
-                if (ns < cn) {
+                if (send_nb(ntripc->tcp->cli[i].sock, cbuf, cn) < cn) {
                     if ((err = errsock())) {
                         tracet(NULL, 2, "writentripc: send error i=%d err=%d\n", i, err);
                     }
@@ -2339,6 +2371,7 @@ static int writentripc(ntripc_t* ntripc, uint8_t* buff, int n, char* msg) {
             }
             if (remaining <= 0) {
                 ntripc->tcp->cli[i].tact = tickget();
+                ns = n; /* return payload bytes, not encoded bytes */
             }
         } else {
             /* v1 client: raw data */

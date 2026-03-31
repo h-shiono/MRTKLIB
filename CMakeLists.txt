@@ -210,7 +210,7 @@ endforeach()
 
 # NTRIP v2 chunked codec test (header-only, no library dependency)
 add_executable(t_ntrip ${_UTEST_DIR}/t_ntrip.c)
-target_compile_options(t_ntrip PRIVATE -std=c11)
+target_compile_features(t_ntrip PRIVATE c_std_11)
 add_test(NAME utest_t_ntrip COMMAND t_ntrip
          WORKING_DIRECTORY ${_UTEST_DIR})
 set_tests_properties(utest_t_ntrip PROPERTIES LABELS "utest")
