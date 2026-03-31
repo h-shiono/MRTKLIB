@@ -41,14 +41,14 @@ static int n_fail = 0;
 /* single complete chunk */
 TEST(test_chunk_decode_single) {
     chunk_dec_t dec;
+    chunk_dec_init(&dec);
+
     const uint8_t input[] = "5\r\nHello\r\n0\r\n\r\n";
     const uint8_t *pin = input;
     int nin = (int)sizeof(input) - 1;
     uint8_t out[64];
-    int nd;
 
-    chunk_dec_init(&dec);
-    nd = chunk_decode(&dec, &pin, &nin, out, sizeof(out));
+    int nd = chunk_decode(&dec, &pin, &nin, out, sizeof(out));
     ASSERT(nd == 5);
     ASSERT(memcmp(out, "Hello", 5) == 0);
     ASSERT(dec.state == 3);
@@ -57,14 +57,14 @@ TEST(test_chunk_decode_single) {
 /* multiple chunks in sequence */
 TEST(test_chunk_decode_multi) {
     chunk_dec_t dec;
+    chunk_dec_init(&dec);
+
     const uint8_t input[] = "5\r\nHello\r\n6\r\n World\r\n0\r\n\r\n";
     const uint8_t *pin = input;
     int nin = (int)sizeof(input) - 1;
     uint8_t out[64];
-    int nd;
 
-    chunk_dec_init(&dec);
-    nd = chunk_decode(&dec, &pin, &nin, out, sizeof(out));
+    int nd = chunk_decode(&dec, &pin, &nin, out, sizeof(out));
     ASSERT(nd == 11);
     ASSERT(memcmp(out, "Hello World", 11) == 0);
     ASSERT(dec.state == 3);
@@ -73,14 +73,14 @@ TEST(test_chunk_decode_multi) {
 /* partial input: feed one byte at a time */
 TEST(test_chunk_decode_partial) {
     chunk_dec_t dec;
+    chunk_dec_init(&dec);
+
     const uint8_t input[] = "a\r\n0123456789\r\n0\r\n\r\n";
     int total_len = (int)sizeof(input) - 1;
     uint8_t out[64];
     int total_out = 0;
-    int i;
 
-    chunk_dec_init(&dec);
-    for (i = 0; i < total_len; i++) {
+    for (int i = 0; i < total_len; i++) {
         const uint8_t *pin = &input[i];
         int nin = 1;
         int nd = chunk_decode(&dec, &pin, &nin, out + total_out,
@@ -96,14 +96,14 @@ TEST(test_chunk_decode_partial) {
 /* zero-length chunk (immediate terminator) */
 TEST(test_chunk_decode_zero) {
     chunk_dec_t dec;
+    chunk_dec_init(&dec);
+
     const uint8_t input[] = "0\r\n\r\n";
     const uint8_t *pin = input;
     int nin = (int)sizeof(input) - 1;
     uint8_t out[64];
-    int nd;
 
-    chunk_dec_init(&dec);
-    nd = chunk_decode(&dec, &pin, &nin, out, sizeof(out));
+    int nd = chunk_decode(&dec, &pin, &nin, out, sizeof(out));
     ASSERT(nd == 0);
     ASSERT(dec.state == 3);
 }
@@ -111,14 +111,14 @@ TEST(test_chunk_decode_zero) {
 /* hex size with uppercase letters */
 TEST(test_chunk_decode_hex_upper) {
     chunk_dec_t dec;
+    chunk_dec_init(&dec);
+
     const uint8_t input[] = "1A\r\nabcdefghijklmnopqrstuvwxyz\r\n0\r\n\r\n";
     const uint8_t *pin = input;
     int nin = (int)sizeof(input) - 1;
     uint8_t out[64];
-    int nd;
 
-    chunk_dec_init(&dec);
-    nd = chunk_decode(&dec, &pin, &nin, out, sizeof(out));
+    int nd = chunk_decode(&dec, &pin, &nin, out, sizeof(out));
     ASSERT(nd == 26);
     ASSERT(memcmp(out, "abcdefghijklmnopqrstuvwxyz", 26) == 0);
     ASSERT(dec.state == 3);
@@ -127,14 +127,14 @@ TEST(test_chunk_decode_hex_upper) {
 /* chunk with extension (semicolon after hex size) */
 TEST(test_chunk_decode_extension) {
     chunk_dec_t dec;
+    chunk_dec_init(&dec);
+
     const uint8_t input[] = "5;ext=val\r\nHello\r\n0\r\n\r\n";
     const uint8_t *pin = input;
     int nin = (int)sizeof(input) - 1;
     uint8_t out[64];
-    int nd;
 
-    chunk_dec_init(&dec);
-    nd = chunk_decode(&dec, &pin, &nin, out, sizeof(out));
+    int nd = chunk_decode(&dec, &pin, &nin, out, sizeof(out));
     ASSERT(nd == 5);
     ASSERT(memcmp(out, "Hello", 5) == 0);
 }
@@ -142,16 +142,15 @@ TEST(test_chunk_decode_extension) {
 /* output buffer smaller than chunk data */
 TEST(test_chunk_decode_output_limited) {
     chunk_dec_t dec;
+    chunk_dec_init(&dec);
+
     const uint8_t input[] = "a\r\n0123456789\r\n0\r\n\r\n";
     const uint8_t *pin = input;
     int nin = (int)sizeof(input) - 1;
     uint8_t out[5];
-    int nd;
-
-    chunk_dec_init(&dec);
 
     /* first call: only 5 bytes fit */
-    nd = chunk_decode(&dec, &pin, &nin, out, 5);
+    int nd = chunk_decode(&dec, &pin, &nin, out, 5);
     ASSERT(nd == 5);
     ASSERT(memcmp(out, "01234", 5) == 0);
 
@@ -168,9 +167,8 @@ TEST(test_chunk_decode_output_limited) {
 TEST(test_chunk_encode_basic) {
     uint8_t out[64];
     const uint8_t data[] = "Hello";
-    int n;
 
-    n = chunk_encode(out, sizeof(out), data, 5);
+    int n = chunk_encode(out, sizeof(out), data, 5);
     ASSERT(n > 0);
     ASSERT(memcmp(out, "5\r\nHello\r\n", 10) == 0);
     ASSERT(n == 10);
@@ -178,9 +176,8 @@ TEST(test_chunk_encode_basic) {
 
 TEST(test_chunk_encode_empty) {
     uint8_t out[64];
-    int n;
 
-    n = chunk_encode(out, sizeof(out), NULL, 0);
+    int n = chunk_encode(out, sizeof(out), NULL, 0);
     ASSERT(n > 0);
     ASSERT(memcmp(out, "0\r\n\r\n", 5) == 0);
     ASSERT(n == 5);
@@ -189,9 +186,8 @@ TEST(test_chunk_encode_empty) {
 TEST(test_chunk_encode_buffer_too_small) {
     uint8_t out[5];
     const uint8_t data[] = "Hello World";
-    int n;
 
-    n = chunk_encode(out, sizeof(out), data, 11);
+    int n = chunk_encode(out, sizeof(out), data, 11);
     ASSERT(n == -1);
 }
 
@@ -202,28 +198,25 @@ TEST(test_chunk_encode_buffer_too_small) {
 TEST(test_chunk_roundtrip) {
     const uint8_t original[] = "RTCM3 correction data payload for GNSS";
     int orig_len = (int)sizeof(original) - 1;
-    uint8_t encoded[128];
-    int elen, tlen;
-    chunk_dec_t dec;
-    const uint8_t *pin;
-    int nin;
-    uint8_t decoded[128];
-    int dlen;
 
     /* encode */
-    elen = chunk_encode(encoded, sizeof(encoded), original, orig_len);
+    uint8_t encoded[128];
+    int elen = chunk_encode(encoded, sizeof(encoded), original, orig_len);
     ASSERT(elen > 0);
 
     /* append terminator chunk */
-    tlen = chunk_encode(encoded + elen, (int)sizeof(encoded) - elen, NULL, 0);
+    int tlen = chunk_encode(encoded + elen, (int)sizeof(encoded) - elen, NULL, 0);
     ASSERT(tlen > 0);
     elen += tlen;
 
     /* decode */
+    chunk_dec_t dec;
     chunk_dec_init(&dec);
-    pin = encoded;
-    nin = elen;
-    dlen = chunk_decode(&dec, &pin, &nin, decoded, sizeof(decoded));
+    const uint8_t *pin = encoded;
+    int nin = elen;
+    uint8_t decoded[128];
+
+    int dlen = chunk_decode(&dec, &pin, &nin, decoded, sizeof(decoded));
     ASSERT(dlen == orig_len);
     ASSERT(memcmp(decoded, original, orig_len) == 0);
     ASSERT(dec.state == 3);
