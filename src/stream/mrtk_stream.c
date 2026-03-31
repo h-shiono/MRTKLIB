@@ -45,6 +45,7 @@
 #include <termios.h>
 
 #include "mrtklib/mrtk_trace.h"
+#include "ntrip_chunk.h"
 
 /* constants -----------------------------------------------------------------*/
 
@@ -160,18 +161,25 @@ typedef struct {      /* serial control type */
 typedef struct {                /* ntrip control type */
     int state;                  /* state (0:close,1:wait,2:connect) */
     int type;                   /* type (0:server,1:client) */
+    int ver;                    /* requested version (NTRIP_VER_AUTO/1/2) */
+    int ver_neg;                /* negotiated version after handshake */
+    int chunked;                /* chunked transfer encoding flag */
+    int v2_tried;               /* v2 attempt flag for AUTO fallback */
     int nb;                     /* response buffer size */
     char url[MAXSTRPATH];       /* url for proxy */
+    char host[256];             /* host header value (addr:port) */
     char mntpnt[256];           /* mountpoint */
     char user[256];             /* user */
     char passwd[256];           /* password */
     char str[NTRIP_MAXSTR];     /* mountpoint string for server */
     uint8_t buff[NTRIP_MAXRSP]; /* response buffer */
     tcpcli_t* tcp;              /* tcp client */
+    chunk_dec_t cdec;           /* chunked transfer decoder */
 } ntrip_t;
 
 typedef struct {                /* ntrip client/server connection type */
     int state;                  /* state (0:close,1:connect) */
+    int ver;                    /* detected NTRIP version */
     char mntpnt[256];           /* mountpoint */
     char str[NTRIP_MAXSTR];     /* mountpoint string for server */
     int nb;                     /* request buffer size */
@@ -233,7 +241,8 @@ static int ticonnect = 10000;    /* interval to re-connect (ms) */
 static int tirate = 1000;        /* averaging time for data rate (ms) */
 static int buffsize = 32768;     /* receive/send buffer size (bytes) */
 static char localdir[1024] = ""; /* local directory for ftp/http */
-static char proxyaddr[256] = ""; /* http/ntrip/ftp proxy address */
+static char proxyaddr[256] = "";           /* http/ntrip/ftp proxy address */
+static int ntrip_ver_default = NTRIP_VER_AUTO; /* default ntrip version */
 static uint32_t tick_master = 0; /* time tick master for replay */
 static int fswapmargin = 30;     /* file swap margin (s) */
 
@@ -1438,74 +1447,143 @@ static int encbase64(char* str, const uint8_t* byte, int n) {
 }
 /* send ntrip server request -------------------------------------------------*/
 static int reqntrip_s(ntrip_t* ntrip, char* msg) {
-    char buff[1024 + NTRIP_MAXSTR], *p = buff;
+    char buff[1024 + NTRIP_MAXSTR], user[514], *p = buff;
+    int use_v2 = (ntrip->ver == NTRIP_VER_2 || (ntrip->ver == NTRIP_VER_AUTO && !ntrip->v2_tried));
 
-    tracet(NULL, 3, "reqntrip_s: state=%d\n", ntrip->state);
+    tracet(NULL, 3, "reqntrip_s: state=%d ver=%d\n", ntrip->state, ntrip->ver);
 
-    p += sprintf(p, "SOURCE %s %s\r\n", ntrip->passwd, ntrip->mntpnt);
-    p += sprintf(p, "Source-Agent: NTRIP %s\r\n", NTRIP_AGENT);
-    p += sprintf(p, "STR: %s\r\n", ntrip->str);
-    p += sprintf(p, "\r\n");
+    if (use_v2) {
+        /* NTRIP v2: POST with HTTP/1.1 */
+        p += sprintf(p, "POST /%s HTTP/1.1\r\n", ntrip->mntpnt);
+        p += sprintf(p, "Host: %s\r\n", ntrip->host);
+        p += sprintf(p, "Ntrip-Version: Ntrip/2.0\r\n");
+        p += sprintf(p, "User-Agent: NTRIP %s\r\n", NTRIP_AGENT);
+        if (*ntrip->user) {
+            sprintf(user, "%s:%s", ntrip->user, ntrip->passwd);
+            p += sprintf(p, "Authorization: Basic ");
+            p += encbase64(p, (uint8_t*)user, strlen(user));
+            p += sprintf(p, "\r\n");
+        }
+        p += sprintf(p, "Transfer-Encoding: chunked\r\n");
+        p += sprintf(p, "\r\n");
+    } else {
+        /* NTRIP v1: SOURCE command */
+        p += sprintf(p, "SOURCE %s %s\r\n", ntrip->passwd, ntrip->mntpnt);
+        p += sprintf(p, "Source-Agent: NTRIP %s\r\n", NTRIP_AGENT);
+        p += sprintf(p, "STR: %s\r\n", ntrip->str);
+        p += sprintf(p, "\r\n");
+    }
 
-    if (writetcpcli(ntrip->tcp, (uint8_t*)buff, p - buff, msg) != p - buff) {
+    if (writetcpcli(ntrip->tcp, (uint8_t*)buff, (int)(p - buff), msg) != (int)(p - buff)) {
         return 0;
     }
 
-    tracet(NULL, 3, "reqntrip_s: send request state=%d ns=%d\n", ntrip->state, p - buff);
-    tracet(NULL, 5, "reqntrip_s: n=%d buff=\n%s\n", p - buff, buff);
+    tracet(NULL, 3, "reqntrip_s: send request state=%d ns=%d v2=%d\n", ntrip->state, (int)(p - buff), use_v2);
+    tracet(NULL, 5, "reqntrip_s: n=%d buff=\n%s\n", (int)(p - buff), buff);
     ntrip->state = 1;
     return 1;
 }
 /* send ntrip client request -------------------------------------------------*/
 static int reqntrip_c(ntrip_t* ntrip, char* msg) {
     char buff[MAXSTRPATH + 1024], user[514], *p = buff;
+    int use_v2 = (ntrip->ver == NTRIP_VER_2 || (ntrip->ver == NTRIP_VER_AUTO && !ntrip->v2_tried));
 
-    tracet(NULL, 3, "reqntrip_c: state=%d\n", ntrip->state);
+    tracet(NULL, 3, "reqntrip_c: state=%d ver=%d\n", ntrip->state, ntrip->ver);
 
-    p += sprintf(p, "GET %s/%s HTTP/1.0\r\n", ntrip->url, ntrip->mntpnt);
-    p += sprintf(p, "User-Agent: NTRIP %s\r\n", NTRIP_AGENT);
+    if (use_v2) {
+        /* NTRIP v2: HTTP/1.1 with Host and Ntrip-Version headers */
+        p += sprintf(p, "GET %s/%s HTTP/1.1\r\n", ntrip->url, ntrip->mntpnt);
+        p += sprintf(p, "Host: %s\r\n", ntrip->host);
+        p += sprintf(p, "Ntrip-Version: Ntrip/2.0\r\n");
+        p += sprintf(p, "User-Agent: NTRIP %s\r\n", NTRIP_AGENT);
 
-    if (!*ntrip->user) {
-        p += sprintf(p, "Accept: */*\r\n");
+        if (*ntrip->user) {
+            sprintf(user, "%s:%s", ntrip->user, ntrip->passwd);
+            p += sprintf(p, "Authorization: Basic ");
+            p += encbase64(p, (uint8_t*)user, strlen(user));
+            p += sprintf(p, "\r\n");
+        }
         p += sprintf(p, "Connection: close\r\n");
+        p += sprintf(p, "\r\n");
     } else {
-        sprintf(user, "%s:%s", ntrip->user, ntrip->passwd);
-        p += sprintf(p, "Authorization: Basic ");
-        p += encbase64(p, (uint8_t*)user, strlen(user));
+        /* NTRIP v1: HTTP/1.0 (original) */
+        p += sprintf(p, "GET %s/%s HTTP/1.0\r\n", ntrip->url, ntrip->mntpnt);
+        p += sprintf(p, "User-Agent: NTRIP %s\r\n", NTRIP_AGENT);
+
+        if (!*ntrip->user) {
+            p += sprintf(p, "Accept: */*\r\n");
+            p += sprintf(p, "Connection: close\r\n");
+        } else {
+            sprintf(user, "%s:%s", ntrip->user, ntrip->passwd);
+            p += sprintf(p, "Authorization: Basic ");
+            p += encbase64(p, (uint8_t*)user, strlen(user));
+            p += sprintf(p, "\r\n");
+        }
         p += sprintf(p, "\r\n");
     }
-    p += sprintf(p, "\r\n");
 
     if (writetcpcli(ntrip->tcp, (uint8_t*)buff, p - buff, msg) != p - buff) {
         return 0;
     }
 
-    tracet(NULL, 3, "reqntrip_c: send request state=%d ns=%d\n", ntrip->state, p - buff);
-    tracet(NULL, 5, "reqntrip_c: n=%d buff=\n%s\n", p - buff, buff);
+    tracet(NULL, 3, "reqntrip_c: send request state=%d ns=%d v2=%d\n", ntrip->state, (int)(p - buff), use_v2);
+    tracet(NULL, 5, "reqntrip_c: n=%d buff=\n%s\n", (int)(p - buff), buff);
     ntrip->state = 1;
     return 1;
 }
 /* test ntrip server response ------------------------------------------------*/
 static int rspntrip_s(ntrip_t* ntrip, char* msg) {
-    int i, nb;
+    int i, nb, body_off, status;
     char *p, *q;
 
     tracet(NULL, 3, "rspntrip_s: state=%d nb=%d\n", ntrip->state, ntrip->nb);
-    ntrip->buff[ntrip->nb] = '0';
+    ntrip->buff[ntrip->nb] = '\0';
     tracet(NULL, 5, "rspntrip_s: n=%d buff=\n%s\n", ntrip->nb, ntrip->buff);
 
-    if ((p = strstr((char*)ntrip->buff, NTRIP_RSP_OK_SVR))) { /* ok */
+    if ((p = strstr((char*)ntrip->buff, NTRIP_RSP_OK_SVR))) { /* v1 ok */
         q = (char*)ntrip->buff;
         p += strlen(NTRIP_RSP_OK_SVR);
-        ntrip->nb -= p - q;
+        ntrip->nb -= (int)(p - q);
         for (i = 0; i < ntrip->nb; i++) {
             *q++ = *p++;
         }
         ntrip->state = 2;
+        ntrip->ver_neg = NTRIP_VER_1;
         sprintf(msg, "%s/%s", ntrip->tcp->svr.saddr, ntrip->mntpnt);
-        tracet(NULL, 3, "rspntrip_s: response ok nb=%d\n", ntrip->nb);
+        tracet(NULL, 3, "rspntrip_s: v1 response ok nb=%d\n", ntrip->nb);
         return 1;
-    } else if ((p = strstr((char*)ntrip->buff, NTRIP_RSP_ERROR))) { /* error */
+    }
+    /* check for HTTP/1.1 response (NTRIP v2 caster) */
+    if ((body_off = http_header_end(ntrip->buff, ntrip->nb)) > 0) {
+        status = http_status_code(ntrip->buff, ntrip->nb);
+
+        if (status == 200) {
+            ntrip->state = 2;
+            ntrip->ver_neg = NTRIP_VER_2;
+            /* shift remaining data to start of buffer */
+            ntrip->nb -= body_off;
+            if (ntrip->nb > 0) {
+                memmove(ntrip->buff, ntrip->buff + body_off, ntrip->nb);
+            }
+            sprintf(msg, "%s/%s", ntrip->tcp->svr.saddr, ntrip->mntpnt);
+            tracet(NULL, 3, "rspntrip_s: v2 response ok nb=%d\n", ntrip->nb);
+            return 1;
+        }
+        /* HTTP error response */
+        if ((q = strchr((char*)ntrip->buff, '\r'))) {
+            *q = '\0';
+        } else {
+            ntrip->buff[128] = '\0';
+        }
+        strcpy(msg, (char*)ntrip->buff);
+        tracet(NULL, 3, "rspntrip_s: http error %s nb=%d\n", msg, ntrip->nb);
+        ntrip->nb = 0;
+        ntrip->buff[0] = '\0';
+        ntrip->state = 0;
+        discontcp(&ntrip->tcp->svr, ntrip->tcp->tirecon);
+        return 0;
+    }
+    if ((p = strstr((char*)ntrip->buff, NTRIP_RSP_ERROR))) { /* v1 error */
         nb = ntrip->nb < MAXSTATMSG ? ntrip->nb : MAXSTATMSG;
         sprintf(msg, "%.*s", nb, (char*)ntrip->buff);
         if ((p = strchr(msg, '\r'))) {
@@ -1529,28 +1607,93 @@ static int rspntrip_s(ntrip_t* ntrip, char* msg) {
 }
 /* test ntrip client response ------------------------------------------------*/
 static int rspntrip_c(ntrip_t* ntrip, char* msg) {
-    int i;
-    char *p, *q;
+    int i, body_off, status;
+    char *p, *q, val[256];
 
     tracet(NULL, 3, "rspntrip_c: state=%d nb=%d\n", ntrip->state, ntrip->nb);
-    ntrip->buff[ntrip->nb] = '0';
+    ntrip->buff[ntrip->nb] = '\0';
     tracet(NULL, 5, "rspntrip_c: n=%d buff=\n%s\n", ntrip->nb, ntrip->buff);
 
-    if ((p = strstr((char*)ntrip->buff, NTRIP_RSP_OK_CLI))) { /* ok */
+    if ((p = strstr((char*)ntrip->buff, NTRIP_RSP_OK_CLI))) { /* v1 ok: ICY 200 OK */
         q = (char*)ntrip->buff;
         p += strlen(NTRIP_RSP_OK_CLI);
-        ntrip->nb -= p - q;
+        ntrip->nb -= (int)(p - q);
         for (i = 0; i < ntrip->nb; i++) {
             *q++ = *p++;
         }
         ntrip->state = 2;
+        ntrip->ver_neg = NTRIP_VER_1;
+        ntrip->chunked = 0;
+        if (ntrip->ver == NTRIP_VER_AUTO) {
+            ntrip->v2_tried = 1; /* accepted v2 request with v1 response */
+        }
         sprintf(msg, "%s/%s", ntrip->tcp->svr.saddr, ntrip->mntpnt);
-        tracet(NULL, 3, "rspntrip_c: response ok nb=%d\n", ntrip->nb);
+        tracet(NULL, 3, "rspntrip_c: v1 response ok nb=%d\n", ntrip->nb);
         return 1;
     }
-    if ((p = strstr((char*)ntrip->buff, NTRIP_RSP_SRCTBL))) { /* source table */
+    /* check for HTTP/1.1 response (NTRIP v2) */
+    if ((body_off = http_header_end(ntrip->buff, ntrip->nb)) > 0) {
+        status = http_status_code(ntrip->buff, ntrip->nb);
+
+        if (status == 200) {
+            /* check for NTRIP v2 source table */
+            if (http_find_header(ntrip->buff, body_off, "Content-Type", val, sizeof(val)) &&
+                strstr(val, "sourcetable")) {
+                if (!*ntrip->mntpnt) { /* source table request */
+                    ntrip->state = 2;
+                    ntrip->ver_neg = NTRIP_VER_2;
+                    /* shift body to start of buffer */
+                    ntrip->nb -= body_off;
+                    memmove(ntrip->buff, ntrip->buff + body_off, ntrip->nb);
+                    sprintf(msg, "source table received");
+                    tracet(NULL, 3, "rspntrip_c: v2 source table nb=%d\n", ntrip->nb);
+                    return 1;
+                }
+                sprintf(msg, "no mountp. reconnect...");
+                tracet(NULL, 2, "rspntrip_c: v2 no mount point nb=%d\n", ntrip->nb);
+                ntrip->nb = 0;
+                ntrip->buff[0] = '\0';
+                ntrip->state = 0;
+                discontcp(&ntrip->tcp->svr, ntrip->tcp->tirecon);
+                return 0;
+            }
+            /* NTRIP v2 data stream OK */
+            ntrip->state = 2;
+            ntrip->ver_neg = NTRIP_VER_2;
+
+            /* detect chunked transfer encoding */
+            if (http_find_header(ntrip->buff, body_off, "Transfer-Encoding", val, sizeof(val)) &&
+                strstr(val, "chunked")) {
+                ntrip->chunked = 1;
+                chunk_dec_init(&ntrip->cdec);
+            }
+            /* shift remaining body data to start of buffer */
+            ntrip->nb -= body_off;
+            if (ntrip->nb > 0) {
+                memmove(ntrip->buff, ntrip->buff + body_off, ntrip->nb);
+            }
+            sprintf(msg, "%s/%s", ntrip->tcp->svr.saddr, ntrip->mntpnt);
+            tracet(NULL, 3, "rspntrip_c: v2 response ok chunked=%d nb=%d\n", ntrip->chunked, ntrip->nb);
+            return 1;
+        }
+        /* HTTP error response */
+        if ((q = strchr((char*)ntrip->buff, '\r'))) {
+            *q = '\0';
+        } else {
+            ntrip->buff[128] = '\0';
+        }
+        strcpy(msg, (char*)ntrip->buff);
+        tracet(NULL, 3, "rspntrip_c: http error %s nb=%d\n", msg, ntrip->nb);
+        ntrip->nb = 0;
+        ntrip->buff[0] = '\0';
+        ntrip->state = 0;
+        discontcp(&ntrip->tcp->svr, ntrip->tcp->tirecon);
+        return 0;
+    }
+    if ((p = strstr((char*)ntrip->buff, NTRIP_RSP_SRCTBL))) { /* v1 source table */
         if (!*ntrip->mntpnt) {                                /* source table request */
             ntrip->state = 2;
+            ntrip->ver_neg = NTRIP_VER_1;
             sprintf(msg, "source table received");
             tracet(NULL, 3, "rspntrip_c: receive source table nb=%d\n", ntrip->nb);
             return 1;
@@ -1561,21 +1704,9 @@ static int rspntrip_c(ntrip_t* ntrip, char* msg) {
         ntrip->buff[0] = '\0';
         ntrip->state = 0;
         discontcp(&ntrip->tcp->svr, ntrip->tcp->tirecon);
-    } else if ((p = strstr((char*)ntrip->buff, NTRIP_RSP_HTTP))) { /* http response */
-        if ((q = strchr(p, '\r'))) {
-            *q = '\0';
-        } else {
-            ntrip->buff[128] = '\0';
-        }
-        strcpy(msg, p);
-        tracet(NULL, 3, "rspntrip_s: %s nb=%d\n", msg, ntrip->nb);
-        ntrip->nb = 0;
-        ntrip->buff[0] = '\0';
-        ntrip->state = 0;
-        discontcp(&ntrip->tcp->svr, ntrip->tcp->tirecon);
     } else if (ntrip->nb >= NTRIP_MAXRSP) { /* buffer overflow */
         sprintf(msg, "response overflow");
-        tracet(NULL, 2, "rspntrip_s: response overflow nb=%d\n", ntrip->nb);
+        tracet(NULL, 2, "rspntrip_c: response overflow nb=%d\n", ntrip->nb);
         ntrip->nb = 0;
         ntrip->buff[0] = '\0';
         ntrip->state = 0;
@@ -1597,6 +1728,12 @@ static int waitntrip(ntrip_t* ntrip, char* msg) {
 
     if (ntrip->tcp->svr.state < 2) {
         ntrip->state = 0; /* tcp disconnected */
+
+        /* AUTO fallback: if v2 was tried and failed, switch to v1 */
+        if (ntrip->ver == NTRIP_VER_AUTO && ntrip->v2_tried && ntrip->ver_neg == 0) {
+            tracet(NULL, 3, "waitntrip: v2 failed, falling back to v1\n");
+            ntrip->v2_tried = 2; /* mark as fallen back */
+        }
     }
 
     if (ntrip->state == 0) { /* send request */
@@ -1608,6 +1745,10 @@ static int waitntrip(ntrip_t* ntrip, char* msg) {
         }
         if (!req_ok) {
             return 0;
+        }
+        /* mark v2 as tried for AUTO mode */
+        if (ntrip->ver == NTRIP_VER_AUTO && !ntrip->v2_tried) {
+            ntrip->v2_tried = 1;
         }
         tracet(NULL, 3, "waitntrip: state=%d nb=%d\n", ntrip->state, ntrip->nb);
     }
@@ -1629,6 +1770,23 @@ static int waitntrip(ntrip_t* ntrip, char* msg) {
     }
     return 1;
 }
+/* parse ntrip version from mountpoint query string (?ver=1 or ?ver=2)
+ * strips the query string from mntpnt and returns the version */
+static int parse_ntrip_ver(char* mntpnt) {
+    char* q = strstr(mntpnt, "?ver=");
+    int ver = ntrip_ver_default;
+
+    if (q) {
+        int v = atoi(q + 5);
+        if (v == 1) {
+            ver = NTRIP_VER_1;
+        } else if (v == 2) {
+            ver = NTRIP_VER_2;
+        }
+        *q = '\0'; /* strip query string from mountpoint */
+    }
+    return ver;
+}
 /* open ntrip ----------------------------------------------------------------*/
 static ntrip_t* openntrip(const char* path, int type, char* msg) {
     ntrip_t* ntrip;
@@ -1644,20 +1802,32 @@ static ntrip_t* openntrip(const char* path, int type, char* msg) {
     ntrip->state = 0;
     ntrip->type = type; /* 0:server,1:client */
     ntrip->nb = 0;
+    ntrip->ver = NTRIP_VER_AUTO;
+    ntrip->ver_neg = 0;
+    ntrip->chunked = 0;
+    ntrip->v2_tried = 0;
     ntrip->url[0] = '\0';
+    ntrip->host[0] = '\0';
     ntrip->mntpnt[0] = ntrip->user[0] = ntrip->passwd[0] = ntrip->str[0] = '\0';
     for (i = 0; i < NTRIP_MAXRSP; i++) {
         ntrip->buff[i] = 0;
     }
+    chunk_dec_init(&ntrip->cdec);
 
     /* decode tcp/ntrip path */
     decodetcppath(path, addr, port, ntrip->user, ntrip->passwd, ntrip->mntpnt, ntrip->str);
+
+    /* parse ?ver= from mountpoint */
+    ntrip->ver = parse_ntrip_ver(ntrip->mntpnt);
 
     /* use default port if no port specified */
     if (!*port) {
         sprintf(port, "%d", type ? NTRIP_CLI_PORT : NTRIP_SVR_PORT);
     }
     sprintf(tpath, "%s:%s", addr, port);
+
+    /* save host header value */
+    snprintf(ntrip->host, sizeof(ntrip->host), "%s:%s", addr, port);
 
     /* ntrip access via proxy server */
     if (*proxyaddr) {
@@ -1670,6 +1840,7 @@ static ntrip_t* openntrip(const char* path, int type, char* msg) {
         free(ntrip);
         return NULL;
     }
+    tracet(NULL, 3, "openntrip: ver=%d host=%s mntpnt=%s\n", ntrip->ver, ntrip->host, ntrip->mntpnt);
     return ntrip;
 }
 /* close ntrip ---------------------------------------------------------------*/
@@ -1691,9 +1862,42 @@ static int readntrip(ntrip_t* ntrip, uint8_t* buff, int n, char* msg) {
 
     if (ntrip->nb > 0) { /* read response buffer first */
         nb = ntrip->nb <= n ? ntrip->nb : n;
-        memcpy(buff, ntrip->buff + ntrip->nb - nb, nb);
-        ntrip->nb = 0;
+        memcpy(buff, ntrip->buff, nb);
+        if (nb < ntrip->nb) {
+            memmove(ntrip->buff, ntrip->buff + nb, ntrip->nb - nb);
+        }
+        ntrip->nb -= nb;
+
+        if (ntrip->chunked) {
+            /* decode buffered data through chunked decoder */
+            const uint8_t* in = buff;
+            int nin = nb;
+            uint8_t tmp[4096];
+            int nd = chunk_decode(&ntrip->cdec, &in, &nin, tmp, MIN(nb, (int)sizeof(tmp)));
+            if (nd < 0) {
+                tracet(NULL, 2, "readntrip: chunk decode error\n");
+                return 0;
+            }
+            memcpy(buff, tmp, nd);
+            return nd;
+        }
         return nb;
+    }
+    if (ntrip->chunked) {
+        /* read raw TCP data and decode chunks */
+        uint8_t raw[4096];
+        int nr = readtcpcli(ntrip->tcp, raw, sizeof(raw), msg);
+        if (nr <= 0) {
+            return 0;
+        }
+        const uint8_t* in = raw;
+        int nin = nr;
+        int nd = chunk_decode(&ntrip->cdec, &in, &nin, buff, n);
+        if (nd < 0) {
+            tracet(NULL, 2, "readntrip: chunk decode error\n");
+            return 0;
+        }
+        return nd;
     }
     return readtcpcli(ntrip->tcp, buff, n, msg);
 }
@@ -1705,6 +1909,22 @@ static int writentrip(ntrip_t* ntrip, uint8_t* buff, int n, char* msg) {
         return 0;
     }
 
+    /* v2 server: use chunked transfer encoding */
+    if (ntrip->ver_neg == NTRIP_VER_2 && ntrip->type == 0) {
+        uint8_t cbuf[4096 + 20];
+        int remaining = n, sent = 0;
+
+        while (remaining > 0) {
+            int chunk = remaining < 4096 ? remaining : 4096;
+            int cn = chunk_encode(cbuf, sizeof(cbuf), buff + sent, chunk);
+            if (cn < 0 || writetcpcli(ntrip->tcp, cbuf, cn, msg) != cn) {
+                return sent;
+            }
+            sent += chunk;
+            remaining -= chunk;
+        }
+        return sent;
+    }
     return writetcpcli(ntrip->tcp, buff, n, msg);
 }
 /* get state ntrip -----------------------------------------------------------*/
@@ -1723,8 +1943,12 @@ static int statexntrip(ntrip_t* ntrip, char* msg) {
     }
     p += sprintf(p, "  state   = %d\n", state);
     p += sprintf(p, "  type    = %d\n", ntrip->type);
+    p += sprintf(p, "  ver     = %d\n", ntrip->ver);
+    p += sprintf(p, "  ver_neg = %d\n", ntrip->ver_neg);
+    p += sprintf(p, "  chunked = %d\n", ntrip->chunked);
     p += sprintf(p, "  nb      = %d\n", ntrip->nb);
     p += sprintf(p, "  url     = %s\n", ntrip->url);
+    p += sprintf(p, "  host    = %s\n", ntrip->host);
     p += sprintf(p, "  mntpnt  = %s\n", ntrip->mntpnt);
     p += sprintf(p, "  user    = %s\n", ntrip->user);
     p += sprintf(p, "  passwd  = %s\n", ntrip->passwd);
@@ -1749,6 +1973,7 @@ static ntripc_t* openntripc(const char* path, char* msg) {
     ntripc->mntpnt[0] = ntripc->user[0] = ntripc->passwd[0] = ntripc->srctbl[0] = '\0';
     for (i = 0; i < MAXCLI; i++) {
         ntripc->con[i].state = 0;
+        ntripc->con[i].ver = 1;
         ntripc->con[i].nb = 0;
         memset(ntripc->con[i].buff, 0, NTRIP_MAXRSP);
     }
@@ -1788,6 +2013,7 @@ static void discon_ntripc(ntripc_t* ntripc, int i) {
     discontcp(&ntripc->tcp->cli[i], ticonnect);
     ntripc->con[i].nb = 0;
     ntripc->con[i].buff[0] = '\0';
+    ntripc->con[i].ver = 1;
     ntripc->con[i].state = 0;
 }
 /* http date-time string -----------------------------------------------------*/
@@ -1929,6 +2155,7 @@ static void rsp_ntripc(ntripc_t* ntripc, int i) {
     send_rsp_ok(ver, ntripc->tcp->cli[i].sock);
 
     con->state = 1;
+    con->ver = ver;
     strcpy(con->mntpnt, mntpnt);
 }
 /* handle ntrip client connect request ---------------------------------------*/
@@ -2009,15 +2236,43 @@ static int writentripc(ntripc_t* ntripc, uint8_t* buff, int n, char* msg) {
             continue;
         }
 
-        ns = send_nb(ntripc->tcp->cli[i].sock, buff, n);
+        if (ntripc->con[i].ver >= 2) {
+            /* v2 client: use chunked transfer encoding */
+            uint8_t cbuf[4096 + 20];
+            int remaining = n, sent = 0;
 
-        if (ns < n) {
-            if ((err = errsock())) {
-                tracet(NULL, 2, "writentripc: send error i=%d sock=%d err=%d\n", i, ntripc->tcp->cli[i].sock, err);
+            while (remaining > 0) {
+                int chunk = remaining < 4096 ? remaining : 4096;
+                int cn = chunk_encode(cbuf, sizeof(cbuf), buff + sent, chunk);
+                if (cn < 0) {
+                    break;
+                }
+                ns = send_nb(ntripc->tcp->cli[i].sock, cbuf, cn);
+                if (ns < cn) {
+                    if ((err = errsock())) {
+                        tracet(NULL, 2, "writentripc: send error i=%d err=%d\n", i, err);
+                    }
+                    discon_ntripc(ntripc, i);
+                    break;
+                }
+                sent += chunk;
+                remaining -= chunk;
             }
-            discon_ntripc(ntripc, i);
+            if (remaining <= 0) {
+                ntripc->tcp->cli[i].tact = tickget();
+            }
         } else {
-            ntripc->tcp->cli[i].tact = tickget();
+            /* v1 client: raw data */
+            ns = send_nb(ntripc->tcp->cli[i].sock, buff, n);
+
+            if (ns < n) {
+                if ((err = errsock())) {
+                    tracet(NULL, 2, "writentripc: send error i=%d sock=%d err=%d\n", i, ntripc->tcp->cli[i].sock, err);
+                }
+                discon_ntripc(ntripc, i);
+            } else {
+                ntripc->tcp->cli[i].tact = tickget();
+            }
         }
     }
     return ns;
@@ -3223,6 +3478,18 @@ extern void strsetproxy(const char* addr) {
     tracet(NULL, 3, "strsetproxy: addr=%s\n", addr);
 
     strcpy(proxyaddr, addr);
+}
+/* set default ntrip version ---------------------------------------------------
+ * set default NTRIP version for new connections
+ * args   : int ver     I   NTRIP version (0:auto, 1:v1, 2:v2)
+ * return : none
+ *-----------------------------------------------------------------------------*/
+extern void strsetntripver(int ver) {
+    tracet(NULL, 3, "strsetntripver: ver=%d\n", ver);
+
+    if (ver >= 0 && ver <= 2) {
+        ntrip_ver_default = ver;
+    }
 }
 /* get stream time -------------------------------------------------------------
  * get stream time

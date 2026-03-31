@@ -262,6 +262,16 @@ void strsetdir(const char* dir);
  */
 void strsetproxy(const char* addr);
 
+/**
+ * @brief Set default NTRIP version for new connections.
+ * @param[in] ver  NTRIP version (0:auto, 1:v1, 2:v2)
+ *
+ * When set to auto (0), the client tries NTRIP v2 first and falls back to v1
+ * if the caster does not support it.  Per-stream override is available via
+ * the ?ver=N query parameter in the stream path.
+ */
+void strsetntripver(int ver);
+
 /*============================================================================
  * Stream Server Functions
  *===========================================================================*/

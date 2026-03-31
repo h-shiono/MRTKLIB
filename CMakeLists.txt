@@ -208,6 +208,12 @@ foreach(test IN LISTS _UTEST_SOURCES)
     set_tests_properties(utest_${test} PROPERTIES LABELS "utest")
 endforeach()
 
+# NTRIP v2 chunked codec test (header-only, no library dependency)
+add_executable(t_ntrip ${_UTEST_DIR}/t_ntrip.c)
+add_test(NAME utest_t_ntrip COMMAND t_ntrip
+         WORKING_DIRECTORY ${_UTEST_DIR})
+set_tests_properties(utest_t_ntrip PROPERTIES LABELS "utest")
+
 # ── RINEX 4 test data fixture (decompress BRD400 NAV) ────────────────────────
 set(_RINEX4_DIR ${CMAKE_SOURCE_DIR}/tests/data/rinex4)
 set(_BRD400_GZ  ${_RINEX4_DIR}/BRD400DLR_S_20260680000_01D_MN.rnx.gz)
