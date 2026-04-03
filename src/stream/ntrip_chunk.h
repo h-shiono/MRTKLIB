@@ -42,8 +42,9 @@
 typedef struct {               /* chunked transfer decoder state */
     int state;                 /* 0:size, 1:data, 2:trail, 3:done, 4:final_trail */
     int remain;                /* remaining bytes in current chunk */
-    char hdr[CHUNK_HDR_MAX];   /* partial chunk-size line buffer */
-    int nhdr;                  /* bytes accumulated in hdr[] */
+    char hdr[CHUNK_HDR_MAX];   /* partial chunk-size line buffer (hex digits only) */
+    int nhdr;                  /* bytes in hdr[] (-1: frozen after extension) */
+    int at_sol;                /* final_trail: at start of line flag */
 } chunk_dec_t;
 
 /*============================================================================
@@ -55,6 +56,7 @@ static void chunk_dec_init(chunk_dec_t *dec) {
     dec->state = 0;
     dec->remain = 0;
     dec->nhdr = 0;
+    dec->at_sol = 1;
 }
 
 /* decode chunked transfer encoding (incremental, non-blocking)
@@ -119,6 +121,7 @@ static int chunk_decode(chunk_dec_t *dec, const uint8_t **pin, int *pnin,
 
                     if (dec->remain == 0) {
                         dec->state = 4; /* consume final trailer CRLF */
+                        dec->at_sol = 1; /* start at line beginning */
                     } else {
                         dec->state = 1; /* data follows */
                     }
@@ -132,6 +135,11 @@ static int chunk_decode(chunk_dec_t *dec, const uint8_t **pin, int *pnin,
                         (c >= 'A' && c <= 'F')) {
                         if (dec->nhdr < CHUNK_HDR_MAX - 1) {
                             dec->hdr[dec->nhdr++] = c;
+                        } else {
+                            /* too many hex digits: reject as malformed */
+                            *pin = in;
+                            *pnin = nin;
+                            return -1;
                         }
                     } else if (c != '\r') {
                         /* non-hex, non-CR: freeze accumulation (extension/etc.) */
@@ -177,16 +185,10 @@ static int chunk_decode(chunk_dec_t *dec, const uint8_t **pin, int *pnin,
             }
             break;
 
-        case 4: { /* FINAL_TRAIL: consume optional trailer headers + final \r\n
-                  * Per RFC 7230, the last-chunk (0\r\n) is followed by optional
-                  * trailer headers and terminated by an empty line (\r\n).
-                  * Common case: 0\r\n\r\n (no trailers).
-                  * With trailers: 0\r\nFoo: bar\r\n\r\n
-                  * We track whether we're at the start of a line; an empty line
-                  * (consecutive \r\n or \n at line start) means DONE. */
-            static const int AT_LINE_START = 1;
-            int at_sol = AT_LINE_START; /* start after 0\r\n = at line start */
-
+        case 4: /* FINAL_TRAIL: consume optional trailer headers + final \r\n
+                 * Per RFC 7230, the last-chunk (0\r\n) is followed by optional
+                 * trailer headers and terminated by an empty line (\r\n).
+                 * dec->at_sol persists across calls for incremental parsing. */
             while (nin > 0 && dec->state != 3) {
                 char c = (char)*in++;
                 nin--;
@@ -195,17 +197,16 @@ static int chunk_decode(chunk_dec_t *dec, const uint8_t **pin, int *pnin,
                     continue; /* skip CR, check LF next */
                 }
                 if (c == '\n') {
-                    if (at_sol) {
+                    if (dec->at_sol) {
                         dec->state = 3; /* DONE: empty line = end of trailers */
                         break;
                     }
-                    at_sol = 1; /* next char starts a new line */
+                    dec->at_sol = 1; /* next char starts a new line */
                 } else {
-                    at_sol = 0; /* non-empty line content (trailer header) */
+                    dec->at_sol = 0; /* non-empty line content (trailer header) */
                 }
             }
             break;
-        }
         }
     }
 done:

@@ -228,6 +228,44 @@ TEST(test_chunk_roundtrip) {
     ASSERT(dec.state == 3);
 }
 
+/* final trailer split across calls: exercise FINAL_TRAIL state incrementally */
+TEST(test_chunk_decode_final_trailer_split) {
+    chunk_dec_t dec;
+    chunk_dec_init(&dec);
+
+    const uint8_t input1[] = "0\r\n\r";
+    const uint8_t input2[] = "\n";
+    const uint8_t *pin;
+    int nin;
+    uint8_t out[64];
+
+    pin = input1;
+    nin = (int)sizeof(input1) - 1;
+    ASSERT(chunk_decode(&dec, &pin, &nin, out, sizeof(out)) == 0);
+    ASSERT(dec.state == 4); /* in final_trail, waiting for \n */
+
+    pin = input2;
+    nin = (int)sizeof(input2) - 1;
+    ASSERT(chunk_decode(&dec, &pin, &nin, out, sizeof(out)) == 0);
+    ASSERT(dec.state == 3); /* done */
+}
+
+/* oversize chunk-size hex digits must be rejected */
+TEST(test_chunk_decode_header_too_long) {
+    chunk_dec_t dec;
+    chunk_dec_init(&dec);
+
+    uint8_t input[CHUNK_HDR_MAX + 3];
+    const uint8_t *pin = input;
+    int nin = (int)sizeof(input);
+    uint8_t out[64];
+
+    memset(input, 'F', CHUNK_HDR_MAX + 1);
+    input[CHUNK_HDR_MAX + 1] = '\r';
+    input[CHUNK_HDR_MAX + 2] = '\n';
+    ASSERT(chunk_decode(&dec, &pin, &nin, out, sizeof(out)) < 0);
+}
+
 /* ========================================================================== */
 /* HTTP header helper tests                                                   */
 /* ========================================================================== */
@@ -298,6 +336,8 @@ int main(void) {
     test_chunk_decode_hex_upper_run();
     test_chunk_decode_extension_run();
     test_chunk_decode_output_limited_run();
+    test_chunk_decode_final_trailer_split_run();
+    test_chunk_decode_header_too_long_run();
 
     /* chunk encoder */
     test_chunk_encode_basic_run();

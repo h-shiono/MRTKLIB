@@ -844,8 +844,9 @@ static void urldecode(char* str) {
             lo = (lo >= '0' && lo <= '9') ? lo - '0' : (lo >= 'A' && lo <= 'F') ? lo - 'A' + 10 : (lo >= 'a' && lo <= 'f') ? lo - 'a' + 10 : -1;
             if (hi >= 0 && lo >= 0) {
                 char ch = (char)((hi << 4) | lo);
-                if (ch == '\0') {
-                    /* reject %00 NUL to avoid string truncation */
+                if (ch == '\0' || ch == '\r' || ch == '\n') {
+                    /* reject NUL, CR, LF to prevent string truncation
+                     * and request/command injection */
                     src += 3;
                     continue;
                 }
@@ -1811,9 +1812,12 @@ static int waitntrip(ntrip_t* ntrip, char* msg) {
     if (ntrip->tcp->svr.state < 2) {
         ntrip->state = 0; /* tcp disconnected */
 
-        /* AUTO fallback: if v2 was tried and failed, switch to v1 */
-        if (ntrip->ver == NTRIP_VER_AUTO && ntrip->v2_tried && ntrip->ver_neg == 0) {
-            tracet(NULL, 3, "waitntrip: v2 failed, falling back to v1\n");
+        /* AUTO fallback: only switch to v1 if connection dropped before any
+         * response was received. If an HTTP response was seen (nb>0), the
+         * caster supports v2 and the error is auth/mountpoint, not protocol */
+        if (ntrip->ver == NTRIP_VER_AUTO && ntrip->v2_tried && ntrip->ver_neg == 0 &&
+            ntrip->nb == 0) {
+            tracet(NULL, 3, "waitntrip: v2 failed before response, falling back to v1\n");
             ntrip->v2_tried = 2; /* mark as fallen back */
         }
     }
