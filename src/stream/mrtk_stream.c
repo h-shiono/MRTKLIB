@@ -1499,6 +1499,8 @@ static int reqntrip_s(ntrip_t* ntrip, char* msg) {
             snprintf(user, sizeof(user), "%s:%s", ntrip->user, ntrip->passwd);
             BUFADD(p, rem, "Authorization: Basic ");
             if (rem > 0) {
+                int b64_need = (int)(((strlen(user) + 2) / 3) * 4 + 1);
+                if (b64_need > rem) { sprintf(msg, "request buffer overflow"); return 0; }
                 int n = encbase64(p, (uint8_t*)user, strlen(user));
                 p += n;
                 rem -= n;
@@ -1549,6 +1551,8 @@ static int reqntrip_c(ntrip_t* ntrip, char* msg) {
             snprintf(user, sizeof(user), "%s:%s", ntrip->user, ntrip->passwd);
             BUFADD(p, rem, "Authorization: Basic ");
             if (rem > 0) {
+                int b64_need = (int)(((strlen(user) + 2) / 3) * 4 + 1);
+                if (b64_need > rem) { sprintf(msg, "request buffer overflow"); return 0; }
                 int n = encbase64(p, (uint8_t*)user, strlen(user));
                 p += n;
                 rem -= n;
@@ -1569,6 +1573,8 @@ static int reqntrip_c(ntrip_t* ntrip, char* msg) {
             snprintf(user, sizeof(user), "%s:%s", ntrip->user, ntrip->passwd);
             BUFADD(p, rem, "Authorization: Basic ");
             if (rem > 0) {
+                int b64_need = (int)(((strlen(user) + 2) / 3) * 4 + 1);
+                if (b64_need > rem) { sprintf(msg, "request buffer overflow"); return 0; }
                 int n = encbase64(p, (uint8_t*)user, strlen(user));
                 p += n;
                 rem -= n;

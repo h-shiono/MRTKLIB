@@ -88,9 +88,11 @@ static int chunk_decode(chunk_dec_t *dec, const uint8_t **pin, int *pnin,
                 if (c == '\n') {
                     /* end of chunk-size line: parse accumulated hex digits */
                     unsigned long size = 0;
-                    int i, ndigits = 0;
+                    int i, nhex, ndigits = 0;
 
-                    for (i = 0; i < dec->nhdr; i++) {
+                    /* nhdr == -1 means frozen after extension; use strlen */
+                    nhex = (dec->nhdr >= 0) ? dec->nhdr : (int)strlen(dec->hdr);
+                    for (i = 0; i < nhex; i++) {
                         int d;
                         char h = dec->hdr[i];
                         if (h >= '0' && h <= '9') {
@@ -122,13 +124,22 @@ static int chunk_decode(chunk_dec_t *dec, const uint8_t **pin, int *pnin,
                     }
                     break;
                 }
-                /* only accumulate hex digits and ';' marker; skip extension content */
-                if (c != '\r') {
-                    if (dec->nhdr < CHUNK_HDR_MAX - 1) {
-                        dec->hdr[dec->nhdr++] = c;
+                /* accumulate hex digits only; once a non-hex char is seen
+                 * (';' extension, space, etc.), stop accumulating.
+                 * Use nhdr == -1 as "frozen" flag to skip further chars */
+                if (dec->nhdr >= 0) {
+                    if ((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') ||
+                        (c >= 'A' && c <= 'F')) {
+                        if (dec->nhdr < CHUNK_HDR_MAX - 1) {
+                            dec->hdr[dec->nhdr++] = c;
+                        }
+                    } else if (c != '\r') {
+                        /* non-hex, non-CR: freeze accumulation (extension/etc.) */
+                        dec->hdr[dec->nhdr] = '\0';
+                        dec->nhdr = -1;
                     }
-                    /* if hdr full, just skip remaining chars until \n */
                 }
+                /* \r and chars after freeze are silently skipped until \n */
             }
             break;
 
