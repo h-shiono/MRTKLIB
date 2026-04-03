@@ -11,7 +11,7 @@ connections.
 All NTRIP stream paths follow this format:
 
 ```
-[user[:password]@]host[:port]/mountpoint[?ver=N]
+[user[:password]@]host[:port]/mountpoint[?ver=N][&host=HOSTNAME]
 ```
 
 | Component | Description | Default |

@@ -40,7 +40,7 @@
 #define CHUNK_SIZE_MAX 0xFFFFFF /* max chunk size (~16 MB, well within int range) */
 
 typedef struct {               /* chunked transfer decoder state */
-    int state;                 /* 0:size, 1:data, 2:trail, 3:done */
+    int state;                 /* 0:size, 1:data, 2:trail, 3:done, 4:final_trail */
     int remain;                /* remaining bytes in current chunk */
     char hdr[CHUNK_HDR_MAX];   /* partial chunk-size line buffer */
     int nhdr;                  /* bytes accumulated in hdr[] */
@@ -215,6 +215,20 @@ static int chunk_encode(uint8_t *out, int nout, const uint8_t *data,
 /*============================================================================
  * HTTP Header Helpers
  *===========================================================================*/
+
+/* case-insensitive substring search (portable replacement for strcasestr) */
+static const char *stristr(const char *haystack, const char *needle) {
+    int nlen = (int)strlen(needle);
+    if (nlen == 0) {
+        return haystack;
+    }
+    for (; *haystack; haystack++) {
+        if (strncasecmp(haystack, needle, nlen) == 0) {
+            return haystack;
+        }
+    }
+    return NULL;
+}
 
 /* find end of HTTP headers in buffer (bounded search for \r\n\r\n)
  * returns offset to body start, or 0 if headers are incomplete */

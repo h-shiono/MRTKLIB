@@ -1476,7 +1476,9 @@ static int encbase64(char* str, const uint8_t* byte, int n) {
 /* send ntrip server request -------------------------------------------------*/
 static int reqntrip_s(ntrip_t* ntrip, char* msg) {
     char buff[1024 + NTRIP_MAXSTR], user[514], *p = buff;
-    int use_v2 = (ntrip->ver == NTRIP_VER_2 || (ntrip->ver == NTRIP_VER_AUTO && !ntrip->v2_tried));
+    int use_v2 = (ntrip->ver == NTRIP_VER_2 ||
+                  (ntrip->ver == NTRIP_VER_AUTO &&
+                   (!ntrip->v2_tried || ntrip->ver_neg == NTRIP_VER_2)));
 
     tracet(NULL, 3, "reqntrip_s: state=%d ver=%d\n", ntrip->state, ntrip->ver);
 
@@ -1514,7 +1516,9 @@ static int reqntrip_s(ntrip_t* ntrip, char* msg) {
 /* send ntrip client request -------------------------------------------------*/
 static int reqntrip_c(ntrip_t* ntrip, char* msg) {
     char buff[MAXSTRPATH + 1024], user[514], *p = buff;
-    int use_v2 = (ntrip->ver == NTRIP_VER_2 || (ntrip->ver == NTRIP_VER_AUTO && !ntrip->v2_tried));
+    int use_v2 = (ntrip->ver == NTRIP_VER_2 ||
+                  (ntrip->ver == NTRIP_VER_AUTO &&
+                   (!ntrip->v2_tried || ntrip->ver_neg == NTRIP_VER_2)));
 
     tracet(NULL, 3, "reqntrip_c: state=%d ver=%d\n", ntrip->state, ntrip->ver);
 
@@ -1673,24 +1677,31 @@ static int rspntrip_c(ntrip_t* ntrip, char* msg) {
                     ntrip->ver_neg = NTRIP_VER_2;
                     /* check for chunked encoding before shifting headers away */
                     if (http_find_header(ntrip->buff, body_off, "Transfer-Encoding", val, sizeof(val)) &&
-                        strstr(val, "chunked")) {
+                        stristr(val, "chunked")) {
                         is_chunked = 1;
                     }
                     /* shift body to start of buffer */
                     ntrip->nb -= body_off;
                     memmove(ntrip->buff, ntrip->buff + body_off, ntrip->nb);
-                    /* decode chunked body if applicable */
-                    if (is_chunked && ntrip->nb > 0) {
-                        chunk_dec_t dec;
-                        const uint8_t *in = ntrip->buff;
-                        int nin = ntrip->nb;
-                        uint8_t tmp[NTRIP_MAXRSP];
-                        int nd;
-                        chunk_dec_init(&dec);
-                        nd = chunk_decode(&dec, &in, &nin, tmp, sizeof(tmp));
-                        if (nd > 0) {
-                            memcpy(ntrip->buff, tmp, nd);
-                            ntrip->nb = nd;
+                    /* enable persistent chunked decoding for incremental reads */
+                    if (is_chunked) {
+                        ntrip->chunked = 1;
+                        chunk_dec_init(&ntrip->cdec);
+                        /* decode any body data already buffered */
+                        if (ntrip->nb > 0) {
+                            const uint8_t *in = ntrip->buff;
+                            int nin = ntrip->nb;
+                            uint8_t tmp[NTRIP_MAXRSP];
+                            int nd = chunk_decode(&ntrip->cdec, &in, &nin, tmp, sizeof(tmp));
+                            if (nd > 0) {
+                                memcpy(ntrip->buff, tmp, nd);
+                                ntrip->nb = nd;
+                            }
+                            /* preserve unconsumed bytes */
+                            if (nin > 0) {
+                                memmove(ntrip->buff + ntrip->nb, in, nin);
+                                ntrip->nb += nin;
+                            }
                         }
                     }
                     sprintf(msg, "source table received");
@@ -1711,7 +1722,7 @@ static int rspntrip_c(ntrip_t* ntrip, char* msg) {
 
             /* detect chunked transfer encoding */
             if (http_find_header(ntrip->buff, body_off, "Transfer-Encoding", val, sizeof(val)) &&
-                strstr(val, "chunked")) {
+                stristr(val, "chunked")) {
                 ntrip->chunked = 1;
                 chunk_dec_init(&ntrip->cdec);
             }
@@ -1861,7 +1872,7 @@ static int parse_ntrip_query(char* mntpnt, char* host_override, int host_size) {
             int valid = 1, hlen = 0;
             /* reject control characters and whitespace to prevent header injection */
             while (h[hlen]) {
-                if ((unsigned char)h[hlen] < 0x20 || h[hlen] == 0x7F) {
+                if ((unsigned char)h[hlen] <= 0x20 || h[hlen] == 0x7F) {
                     valid = 0;
                     break;
                 }
