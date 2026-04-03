@@ -18,7 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`strsetntripver()`** — Public API for setting the global default NTRIP version.
 - **URL percent-decoding** — `%XX` sequences in NTRIP user/password fields are now decoded (e.g., `%40` -> `@`).
 - **NTRIP streams guide** — New documentation page (`docs/guide/ntrip.md`) with path format, version selection, TLS tunnel setup (stunnel/socat), and troubleshooting.
-- **`t_ntrip` unit test** — 15 tests for chunked codec and HTTP helpers.
+- **`t_ntrip` unit test** — 17 tests for chunked codec and HTTP helpers.
 
 ### Changed
 

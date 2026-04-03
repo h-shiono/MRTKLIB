@@ -1986,6 +1986,12 @@ static ntrip_t* openntrip(const char* path, int type, char* msg) {
 static void closentrip(ntrip_t* ntrip) {
     tracet(NULL, 3, "closentrip: state=%d\n", ntrip->state);
 
+    /* send chunked terminator for v2 server before closing */
+    if (ntrip->ver_neg == NTRIP_VER_2 && ntrip->type == 0 && ntrip->state == 2) {
+        char msg_tmp[MAXSTRMSG] = "";
+        uint8_t term[] = "0\r\n\r\n";
+        writetcpcli(ntrip->tcp, term, 5, msg_tmp);
+    }
     closetcpcli(ntrip->tcp);
     free(ntrip);
 }
@@ -2153,8 +2159,16 @@ static ntripc_t* openntripc(const char* path, char* msg) {
 }
 /* close ntrip-caster --------------------------------------------------------*/
 static void closentripc(ntripc_t* ntripc) {
+    int i;
     tracet(NULL, 3, "closentripc: state=%d\n", ntripc->state);
 
+    /* send chunked terminator for all connected v2 clients */
+    for (i = 0; i < MAXCLI; i++) {
+        if (ntripc->con[i].state && ntripc->con[i].ver >= 2) {
+            uint8_t term[] = "0\r\n\r\n";
+            send_nb(ntripc->tcp->cli[i].sock, term, 5);
+        }
+    }
     closetcpsvr(ntripc->tcp);
     free(ntripc);
 }
@@ -2162,6 +2176,11 @@ static void closentripc(ntripc_t* ntripc) {
 static void discon_ntripc(ntripc_t* ntripc, int i) {
     tracet(NULL, 3, "discon_ntripc: i=%d\n", i);
 
+    /* send chunked terminator for v2 clients before disconnecting */
+    if (ntripc->con[i].ver >= 2 && ntripc->con[i].state) {
+        uint8_t term[] = "0\r\n\r\n";
+        send_nb(ntripc->tcp->cli[i].sock, term, 5);
+    }
     discontcp(&ntripc->tcp->cli[i], ticonnect);
     ntripc->con[i].nb = 0;
     ntripc->con[i].buff[0] = '\0';
