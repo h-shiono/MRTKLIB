@@ -167,17 +167,35 @@ static int chunk_decode(chunk_dec_t *dec, const uint8_t **pin, int *pnin,
             }
             break;
 
-        case 4: /* FINAL_TRAIL: consume trailing \r\n after zero-length chunk */
-            while (nin > 0) {
+        case 4: { /* FINAL_TRAIL: consume optional trailer headers + final \r\n
+                  * Per RFC 7230, the last-chunk (0\r\n) is followed by optional
+                  * trailer headers and terminated by an empty line (\r\n).
+                  * Common case: 0\r\n\r\n (no trailers).
+                  * With trailers: 0\r\nFoo: bar\r\n\r\n
+                  * We track whether we're at the start of a line; an empty line
+                  * (consecutive \r\n or \n at line start) means DONE. */
+            static const int AT_LINE_START = 1;
+            int at_sol = AT_LINE_START; /* start after 0\r\n = at line start */
+
+            while (nin > 0 && dec->state != 3) {
                 char c = (char)*in++;
                 nin--;
 
+                if (c == '\r') {
+                    continue; /* skip CR, check LF next */
+                }
                 if (c == '\n') {
-                    dec->state = 3; /* DONE */
-                    break;
+                    if (at_sol) {
+                        dec->state = 3; /* DONE: empty line = end of trailers */
+                        break;
+                    }
+                    at_sol = 1; /* next char starts a new line */
+                } else {
+                    at_sol = 0; /* non-empty line content (trailer header) */
                 }
             }
             break;
+        }
         }
     }
 done:
@@ -200,6 +218,9 @@ static int chunk_encode(uint8_t *out, int nout, const uint8_t *data,
     char hdr[16];
     int hlen = snprintf(hdr, sizeof(hdr), "%x\r\n", ndata);
 
+    if (hlen <= 0 || hlen >= (int)sizeof(hdr)) {
+        return -1; /* snprintf error or truncation */
+    }
     if (hlen + ndata + 2 > nout) {
         return -1; /* buffer too small */
     }

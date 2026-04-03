@@ -1691,16 +1691,33 @@ static int rspntrip_c(ntrip_t* ntrip, char* msg) {
                         if (ntrip->nb > 0) {
                             const uint8_t *in = ntrip->buff;
                             int nin = ntrip->nb;
-                            uint8_t tmp[NTRIP_MAXRSP];
-                            int nd = chunk_decode(&ntrip->cdec, &in, &nin, tmp, sizeof(tmp));
-                            if (nd > 0) {
-                                memcpy(ntrip->buff, tmp, nd);
-                                ntrip->nb = nd;
+                            int total = 0;
+                            uint8_t tmp[4096];
+                            while (nin > 0 && total < NTRIP_MAXRSP) {
+                                int nd = chunk_decode(&ntrip->cdec, &in, &nin, tmp,
+                                                      MIN((int)sizeof(tmp), NTRIP_MAXRSP - total));
+                                if (nd < 0) {
+                                    tracet(NULL, 2, "rspntrip_c: chunk decode error\n");
+                                    ntrip->nb = 0;
+                                    ntrip->state = 0;
+                                    discontcp(&ntrip->tcp->svr, ntrip->tcp->tirecon);
+                                    return 0;
+                                }
+                                if (nd == 0) {
+                                    break;
+                                }
+                                memcpy(ntrip->buff + total, tmp, nd);
+                                total += nd;
                             }
-                            /* preserve unconsumed bytes */
+                            ntrip->nb = total;
+                            /* preserve unconsumed encoded bytes */
                             if (nin > 0) {
-                                memmove(ntrip->buff + ntrip->nb, in, nin);
-                                ntrip->nb += nin;
+                                if (ntrip->nb + nin <= NTRIP_MAXRSP) {
+                                    memmove(ntrip->buff + ntrip->nb, in, nin);
+                                    ntrip->nb += nin;
+                                } else {
+                                    tracet(NULL, 2, "rspntrip_c: chunked buffer overflow\n");
+                                }
                             }
                         }
                     }
@@ -1991,9 +2008,15 @@ static int readntrip(ntrip_t* ntrip, uint8_t* buff, int n, char* msg) {
                 return 0;
             }
             /* preserve unconsumed encoded bytes back to response buffer */
-            if (nin > 0 && ntrip->nb + nin <= NTRIP_MAXRSP) {
-                memmove(ntrip->buff + ntrip->nb, in, nin);
-                ntrip->nb += nin;
+            if (nin > 0) {
+                if (ntrip->nb + nin <= NTRIP_MAXRSP) {
+                    memmove(ntrip->buff + ntrip->nb, in, nin);
+                    ntrip->nb += nin;
+                } else {
+                    tracet(NULL, 2, "readntrip: chunk buffer overflow, resetting\n");
+                    ntrip->nb = 0;
+                    chunk_dec_init(&ntrip->cdec);
+                }
             }
             memcpy(buff, tmp, nd);
             return nd;
@@ -2015,9 +2038,15 @@ static int readntrip(ntrip_t* ntrip, uint8_t* buff, int n, char* msg) {
             return 0;
         }
         /* preserve unconsumed encoded bytes to response buffer */
-        if (nin > 0 && ntrip->nb + nin <= NTRIP_MAXRSP) {
-            memcpy(ntrip->buff + ntrip->nb, in, nin);
-            ntrip->nb += nin;
+        if (nin > 0) {
+            if (ntrip->nb + nin <= NTRIP_MAXRSP) {
+                memcpy(ntrip->buff + ntrip->nb, in, nin);
+                ntrip->nb += nin;
+            } else {
+                tracet(NULL, 2, "readntrip: chunk buffer overflow, resetting\n");
+                ntrip->nb = 0;
+                chunk_dec_init(&ntrip->cdec);
+            }
         }
         return nd;
     }
