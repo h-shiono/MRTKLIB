@@ -5,6 +5,31 @@ All notable changes to MRTKLIB are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v0.6.3] - 2026-03-31
+
+**Feature** — NTRIP v2 (HTTP/1.1) protocol support with auto-negotiation.
+
+### Added
+
+- **NTRIP v2 client** — HTTP/1.1 GET requests with `Host:` and `Ntrip-Version: Ntrip/2.0` headers; automatic `HTTP/1.1 200 OK` response parsing.
+- **NTRIP v2 server** — HTTP/1.1 POST requests with `Transfer-Encoding: chunked` (replaces legacy `SOURCE` command).
+- **Chunked transfer encoding** — Incremental, non-blocking decoder and stateless encoder in header-only `ntrip_chunk.h`.
+- **Version auto-detection** — Tries v2 first, falls back to v1 transparently; per-stream `?ver=N` override.
+- **`strsetntripver()`** — Public API for setting the global default NTRIP version.
+- **URL percent-decoding** — `%XX` sequences in NTRIP user/password fields are now decoded (e.g., `%40` -> `@`).
+- **NTRIP streams guide** — New documentation page (`docs/guide/ntrip.md`) with path format, version selection, TLS tunnel setup (stunnel/socat), and troubleshooting.
+- **`t_ntrip` unit test** — 17 tests for chunked codec and HTTP helpers.
+
+### Changed
+
+- `ntrip_t` struct extended with version negotiation, chunked state, and host fields.
+- `ntripc_con_t` struct extended with per-client NTRIP version tracking.
+- NTRIP caster sends chunked encoding to v2 clients, raw data to v1 clients.
+
+### Test Results
+
+63/63 tests pass (62 existing + 1 new; no regressions).
+
 ## [v0.6.2] - 2026-03-13
 
 **Enhancement** — Documentation site with MkDocs Material + Doxygen + GitHub Pages.
