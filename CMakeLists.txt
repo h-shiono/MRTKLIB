@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.15)
-project(MRTKLIB VERSION 0.6.2 LANGUAGES C)
+project(MRTKLIB VERSION 0.6.3 LANGUAGES C)
 
 # ── Version header generation ─────────────────────────────────────────────────
 set(MRTKLIB_VERSION_MAJOR ${PROJECT_VERSION_MAJOR})
@@ -207,6 +207,16 @@ foreach(test IN LISTS _UTEST_SOURCES)
              WORKING_DIRECTORY ${_UTEST_DIR})
     set_tests_properties(utest_${test} PROPERTIES LABELS "utest")
 endforeach()
+
+# NTRIP v2 chunked codec test (header-only, no library dependency)
+add_executable(t_ntrip ${_UTEST_DIR}/t_ntrip.c)
+# Override global -ansi (=C90) for this target, same as mrtklib target.
+# Note: set_property(C_STANDARD 11) and target_compile_features(c_std_11) do NOT
+# override -ansi from add_compile_options(); explicit -std=c11 is required.
+target_compile_options(t_ntrip PRIVATE -std=c11)
+add_test(NAME utest_t_ntrip COMMAND t_ntrip
+         WORKING_DIRECTORY ${_UTEST_DIR})
+set_tests_properties(utest_t_ntrip PROPERTIES LABELS "utest")
 
 # ── RINEX 4 test data fixture (decompress BRD400 NAV) ────────────────────────
 set(_RINEX4_DIR ${CMAKE_SOURCE_DIR}/tests/data/rinex4)
