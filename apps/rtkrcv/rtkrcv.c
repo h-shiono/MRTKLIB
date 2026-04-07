@@ -753,7 +753,9 @@ static void prstatus(vt_t* vt) {
     rtk_t rtk;
     const char* svrstate[] = {"stop", "run"};
     const char* sol[] = {"-", "fix", "float", "SBAS", "DGPS", "single", "PPP", ""};
-    const char* mode[] = {"single", "DGPS", "kinematic", "static", "moving-base", "fixed", "PPP-kinema", "PPP-static"};
+    const char* mode[] = {"single",    "DGPS",    "kinematic", "static",      "moving-base",
+                          "fixed",     "PPP-kinema", "PPP-static", "PPP-fixed", "PPP-RTK",
+                          "SSR2OSR",   "SSR2OSR-fixed", "VRS-RTK"};
     const char* freq[] = {"-", "L1", "L1+L2", "L1+L2+L3", "L1+L2+L3+L4", "L1+L2+L3+L4+L5", ""};
     uint32_t nmsg2[3][100] = {{0}}, nmsg3[3][400] = {{0}};
     int i, j, n, thread, cycle, state, rtkstat, nsat0, nsat1, prcout, nave;
@@ -841,8 +843,10 @@ static void prstatus(vt_t* vt) {
     vt_printf(vt, "%-28s: %d\n", "rtk server thread", thread);
     vt_printf(vt, "%-28s: %s\n", "rtk server state", svrstate[state]);
     vt_printf(vt, "%-28s: %d\n", "processing cycle (ms)", cycle);
-    vt_printf(vt, "%-28s: %s\n", "positioning mode", mode[rtk.opt.mode]);
-    vt_printf(vt, "%-28s: %s\n", "frequencies", freq[rtk.opt.nf]);
+    vt_printf(vt, "%-28s: %s\n", "positioning mode",
+              rtk.opt.mode < (int)(sizeof(mode) / sizeof(mode[0])) ? mode[rtk.opt.mode] : "?");
+    vt_printf(vt, "%-28s: %s\n", "frequencies",
+              rtk.opt.nf < (int)(sizeof(freq) / sizeof(freq[0])) ? freq[rtk.opt.nf] : "?");
     vt_printf(vt, "%-28s: %02.0f:%02.0f:%04.1f\n", "accumulated time to run", rt[0], rt[1], rt[2]);
     vt_printf(vt, "%-28s: %d\n", "cpu time for a cycle (ms)", cputime);
     vt_printf(vt, "%-28s: %d\n", "missing obs data count", prcout);
