@@ -286,21 +286,30 @@ static void sigshut(int sig) {
     intflg = 1;
 }
 /* SIGSEGV handler (best-effort, async-signal-safe only) ---------------------*/
+/* pre-built sigaction struct for restoring default handler (async-signal-safe:
+ * avoids calling sigemptyset() inside the signal handler) */
+static struct sigaction sa_default;
+
 static void sigcrash(int sig) {
-    /* Keep this handler minimal: only async-signal-safe operations are used.
-     * Symbolization should be performed from a core dump if needed. */
+    /* Only async-signal-safe operations: write, sigaction, sigprocmask, kill,
+     * _exit. Symbolization should be performed from a core dump if needed. */
     static const char msg[] = "\n*** SIGSEGV ***\n";
-    struct sigaction sa;
+    sigset_t ss;
 
     (void)write(STDERR_FILENO, msg, sizeof(msg) - 1);
 
-    /* restore default handler and re-send to produce a core dump */
-    sigemptyset(&sa.sa_mask);
-    sa.sa_handler = SIG_DFL;
-    sa.sa_flags = 0;
-    (void)sigaction(sig, &sa, NULL);
+    /* restore default handler */
+    (void)sigaction(sig, &sa_default, NULL);
+
+    /* unblock the signal so kill() delivers it immediately */
+    sigemptyset(&ss);
+    sigaddset(&ss, sig);
+    (void)sigprocmask(SIG_UNBLOCK, &ss, NULL);
+
+    /* re-send to produce a core dump under the default handler */
     (void)kill(getpid(), sig);
-    /* fallback if signal re-delivery did not terminate the process */
+
+    /* fallback: should not reach here, but guard against it */
     _exit(128 + sig);
 }
 /* discard space characters at tail ------------------------------------------*/
@@ -2177,6 +2186,11 @@ int mrtk_run(int argc, char** argv) {
     signal(SIGPIPE, SIG_IGN);
     {
         struct sigaction sa_crash;
+        /* pre-build default-handler struct for use inside sigcrash() */
+        sigemptyset(&sa_default.sa_mask);
+        sa_default.sa_handler = SIG_DFL;
+        sa_default.sa_flags = 0;
+        /* register crash handler */
         sigemptyset(&sa_crash.sa_mask);
         sa_crash.sa_handler = sigcrash;
         sa_crash.sa_flags = 0;
