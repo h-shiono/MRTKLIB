@@ -1641,12 +1641,7 @@ static int rspntrip_s(ntrip_t* ntrip, char* msg) {
             return 1;
         }
         /* HTTP error response */
-        if ((q = strchr((char*)ntrip->buff, '\r'))) {
-            *q = '\0';
-        } else {
-            ntrip->buff[128] = '\0';
-        }
-        strcpy(msg, (char*)ntrip->buff);
+        snprintf(msg, MAXSTATMSG, "%s", (char*)ntrip->buff);
         tracet(NULL, 3, "rspntrip_s: http error %s nb=%d\n", msg, ntrip->nb);
         ntrip->nb = 0;
         ntrip->buff[0] = '\0';
@@ -1760,12 +1755,7 @@ static int rspntrip_c(ntrip_t* ntrip, char* msg) {
             return 1;
         }
         /* HTTP error response */
-        if ((q = strchr((char*)ntrip->buff, '\r'))) {
-            *q = '\0';
-        } else {
-            ntrip->buff[128] = '\0';
-        }
-        strcpy(msg, (char*)ntrip->buff);
+        snprintf(msg, MAXSTATMSG, "%s", (char*)ntrip->buff);
         tracet(NULL, 3, "rspntrip_c: http error %s nb=%d\n", msg, ntrip->nb);
         ntrip->nb = 0;
         ntrip->buff[0] = '\0';
