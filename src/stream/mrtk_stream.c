@@ -844,9 +844,9 @@ static void urldecode(char* str) {
             lo = (lo >= '0' && lo <= '9') ? lo - '0' : (lo >= 'A' && lo <= 'F') ? lo - 'A' + 10 : (lo >= 'a' && lo <= 'f') ? lo - 'a' + 10 : -1;
             if (hi >= 0 && lo >= 0) {
                 char ch = (char)((hi << 4) | lo);
-                if (ch == '\0' || ch == '\r' || ch == '\n') {
-                    /* reject NUL, CR, LF to prevent string truncation
-                     * and request/command injection */
+                if (ch == '\0' || ch == '\r' || ch == '\n' || ch == ' ') {
+                    /* reject NUL, CR, LF, space to prevent string truncation,
+                     * request injection, and v1 SOURCE command delimiter issues */
                     src += 3;
                     continue;
                 }
@@ -2012,7 +2012,9 @@ static int readntrip(ntrip_t* ntrip, uint8_t* buff, int n, char* msg) {
             int nin = ntrip->nb;
             int nd = chunk_decode(&ntrip->cdec, &in, &nin, buff, n);
             if (nd < 0) {
-                tracet(NULL, 2, "readntrip: chunk decode error\n");
+                tracet(NULL, 2, "readntrip: chunk decode error, resetting\n");
+                ntrip->nb = 0;
+                chunk_dec_init(&ntrip->cdec);
                 return 0;
             }
             /* compact: remove consumed bytes from ntrip->buff */
@@ -2041,7 +2043,9 @@ static int readntrip(ntrip_t* ntrip, uint8_t* buff, int n, char* msg) {
         int nin = nr;
         int nd = chunk_decode(&ntrip->cdec, &in, &nin, buff, n);
         if (nd < 0) {
-            tracet(NULL, 2, "readntrip: chunk decode error\n");
+            tracet(NULL, 2, "readntrip: chunk decode error, resetting\n");
+            ntrip->nb = 0;
+            chunk_dec_init(&ntrip->cdec);
             return 0;
         }
         /* preserve unconsumed encoded bytes to response buffer */

@@ -70,7 +70,7 @@ query parameter.
 | File | Description |
 |------|-------------|
 | `src/stream/ntrip_chunk.h` | Header-only chunked transfer codec and HTTP helpers |
-| `tests/utest/t_ntrip.c` | 15 unit tests for chunked codec and HTTP helpers |
+| `tests/utest/t_ntrip.c` | 17 unit tests for chunked codec and HTTP helpers |
 | `docs/guide/ntrip.md` | NTRIP streams user guide |
 
 ### Files Changed
