@@ -286,13 +286,25 @@ static void sigshut(int sig) {
 
     intflg = 1;
 }
-/* SIGSEGV handler with backtrace (#74 debug) --------------------------------*/
+/* SIGSEGV handler with backtrace --------------------------------------------*/
 static void sigcrash(int sig) {
+    /* all functions used here are async-signal-safe (write, backtrace,
+     * backtrace_symbols_fd, sigaction, raise) — no fprintf/malloc */
+    static const char msg[] = "\n*** SIGSEGV ***\n";
     void* frames[64];
-    int n = backtrace(frames, 64);
-    fprintf(stderr, "\n*** SIGSEGV (signal %d) ***\n", sig);
+    int n;
+    struct sigaction sa;
+
+    (void)write(STDERR_FILENO, msg, sizeof(msg) - 1);
+    n = backtrace(frames, 64);
     backtrace_symbols_fd(frames, n, STDERR_FILENO);
-    _exit(128 + sig);
+
+    /* restore default handler and re-raise to produce a core dump */
+    sigemptyset(&sa.sa_mask);
+    sa.sa_handler = SIG_DFL;
+    sa.sa_flags = 0;
+    sigaction(sig, &sa, NULL);
+    raise(sig);
 }
 /* discard space characters at tail ------------------------------------------*/
 static void chop(char* str) {
