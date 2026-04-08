@@ -82,6 +82,15 @@ incrementally back-ported to each engine:
 * **Real-time L6E**: The rtksvr provides a single correction input (`inpstr3`). Multiple QZSS L6E channels (e.g., QZS-3 and QZS-4) are supported when the receiver multiplexes them into one SBF stream.
 * **Real-time PPP-AR+iono**: Ionospheric STEC correction via L6D is available in CLAS PPP-RTK mode but not in the MADOCA PPP-AR+iono path (post-processing only).
 
+## 📊 Live Dashboard
+
+Real-time CLAS PPP-RTK positioning performance can be monitored on a public Grafana dashboard:
+
+> **[CLAS Summary Dashboard](http://34.84.98.16:3000/d/adsw2jc/clas-summary-dashboard)**
+
+The dashboard shows fix rate, ENU accuracy, satellite visibility, and correction age
+streamed from an active `mrtk run` session.
+
 ---
 
 ## 🛠️ Getting Started (How to Build)
