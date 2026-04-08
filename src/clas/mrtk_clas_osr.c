@@ -1244,9 +1244,6 @@ int clas_osr_zdres(const obsd_t* obs, int n, const double* rs, const double* dts
 
         for (j = 0; j < nf; j++) {
             f = j;
-            if (f != 0 && f != qj) {
-                continue;
-            }
 
             fi = (lam[0] > 0.0) ? lam[f] / lam[0] : 0.0;
 
