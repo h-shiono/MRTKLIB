@@ -1591,10 +1591,12 @@ int clas_ssr2osr(rtk_t* rtk, obsd_t* obs, int n, nav_t* nav, clas_osrd_t* osr, i
                 obs[ko].P[j] = osr[i].p[j];
                 obs[ko].L[j] = (lam_v[f] > 0.0) ? osr[i].c[j] / lam_v[f] : 0.0;
                 obs[ko].LLI[j] = (rtk->ssat[sati - 1].slip[j] & 1) ? 1 : 0;
-                /* elevation-dependent SNR model (~25 dB at horizon, ~45 dB at zenith) */
+                /* SNR model: elevation-dependent or fixed (via posopt[10]) */
                 {
                     double el = azel[i * 2 + 1]; /* elevation (rad), from zdres */
-                    double snr_db = 25.0 + 20.0 * sin(el);
+                    double snr_db = (opt->posopt[10] > 0.0)
+                                        ? opt->posopt[10]
+                                        : 25.0 + 20.0 * sin(el);
                     obs[ko].SNR[j] = (uint16_t)(snr_db / SNR_UNIT);
                 }
             }

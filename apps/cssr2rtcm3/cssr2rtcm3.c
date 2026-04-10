@@ -89,6 +89,7 @@ static int msm_base_type(int sys) {
 }
 static int rtcm3_msm_grade = 7; /* MSM grade: 4, 5, or 7 */
 static int rtcm3_msm_sys[] = {SYS_GPS, SYS_GLO, SYS_GAL, SYS_QZS, 0};
+static double snr_fixed = 0.0;  /* 0 = elevation-dependent model, >0 = fixed dB-Hz */
 
 /* signal code remapping table (CLAS code → receiver code) */
 #define MAX_SIG_REMAP 32
@@ -282,6 +283,14 @@ static void load_cssr2rtcm3_config(const char *conffile) {
                 break;
             }
             fprintf(stderr, "cssr2rtcm3: msm_type=%d\n", val);
+        }
+        /* snr_fixed = 50.0 → fixed 50 dB-Hz; 0 or omitted → elevation model */
+        {
+            double dval;
+            if (sscanf(p, "snr_fixed = %lf", &dval) == 1) {
+                snr_fixed = dval;
+                fprintf(stderr, "cssr2rtcm3: snr_fixed=%.1f dB-Hz\n", snr_fixed);
+            }
         }
         /* systems = ["GPS", "Galileo"] or systems = GPS,Galileo */
         if (strncmp(p, "systems", 7) == 0) {
@@ -1112,6 +1121,9 @@ int mrtk_cssr2rtcm3(int argc, char **argv)
         /* load [cssr2rtcm3] section (msm_type, etc.) */
         load_cssr2rtcm3_config(conffile);
     }
+
+    /* SNR model: pass fixed value to OSR engine via posopt[10] */
+    prcopt.posopt[10] = (int)snr_fixed;
 
     /* set user position */
     if (has_fixed_pos) {

@@ -40,3 +40,7 @@ msm_type = 7
 # Constellations to include in RTCM3 MSM output (default: all CLAS systems)
 # Recognised: GPS, Galileo, QZSS, GLONASS
 systems = ["GPS", "Galileo", "QZSS"]
+# SNR model for VRS pseudo-observations:
+#   0 or omitted = elevation-dependent (25 + 20·sin(el) dB-Hz)
+#   >0           = fixed value in dB-Hz (mosaic-CLAS uses 50)
+snr_fixed = 50.0
