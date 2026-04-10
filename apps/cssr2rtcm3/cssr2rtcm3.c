@@ -785,13 +785,18 @@ static int send_ephemeris(stream_t *strm_out, rtcm_t *rtcm, const obs_t *obs,
                           nav_t *nav)
 {
     static int last_iode[MAXSAT];
+    static double last_send_time[MAXSAT];
     static int initialized = 0;
     int i, sat, sys, type, total = 0;
+    double tow;
 
     if (!initialized) {
         memset(last_iode, -1, sizeof(last_iode));
+        memset(last_send_time, 0, sizeof(last_send_time));
         initialized = 1;
     }
+
+    tow = time2gpst(obs->data[0].time, NULL);
 
     for (i = 0; i < obs->n; i++) {
         sat = obs->data[i].sat;
@@ -806,9 +811,14 @@ static int send_ephemeris(stream_t *strm_out, rtcm_t *rtcm, const obs_t *obs,
         default: continue;
         }
 
-        /* check if ephemeris exists and IODE changed */
+        /* check if ephemeris exists */
         if (nav->eph[sat - 1].sat != sat) { continue; }
-        if (nav->eph[sat - 1].iode == last_iode[sat - 1]) { continue; }
+
+        /* send on IODE change or every 30 seconds */
+        if (nav->eph[sat - 1].iode == last_iode[sat - 1] &&
+            tow - last_send_time[sat - 1] < 30.0) {
+            continue;
+        }
 
         /* copy ephemeris to rtcm and encode */
         rtcm->nav.eph[sat - 1] = nav->eph[sat - 1];
@@ -818,6 +828,7 @@ static int send_ephemeris(stream_t *strm_out, rtcm_t *rtcm, const obs_t *obs,
             total += rtcm->nbyte;
         }
         last_iode[sat - 1] = nav->eph[sat - 1].iode;
+        last_send_time[sat - 1] = tow;
     }
     return total;
 }
