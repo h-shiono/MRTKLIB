@@ -812,9 +812,23 @@ static int send_ephemeris(stream_t *strm_out, rtcm_t *rtcm, const obs_t *obs,
         default: continue;
         }
 
-        /* find best ephemeris for this satellite via seleph() */
+        /* find best ephemeris for this satellite.
+         * seleph() has a GAL-specific filter that rejects toe >= time
+         * (AOD check), which excludes freshly-arrived Galileo ephemeris
+         * whose toe is in the near future.  For RTCM3 broadcast relay
+         * we want the most recent ephemeris regardless of AOD, so fall
+         * back to a direct search when seleph() returns NULL. */
         eph = seleph(obs->data[0].time, sat, -1, nav);
-        if (!eph) { continue; }
+        if (!eph) {
+            double tmin = 86400.0, dt;
+            int k;
+            for (k = 0; k < nav->n; k++) {
+                if (nav->eph[k].sat != sat) { continue; }
+                dt = fabs(timediff(nav->eph[k].toe, obs->data[0].time));
+                if (dt < tmin) { tmin = dt; eph = &nav->eph[k]; }
+            }
+            if (!eph) { continue; }
+        }
 
         /* send on IODE change or every 30 seconds */
         if (eph->iode == last_iode[sat - 1] &&
@@ -822,8 +836,14 @@ static int send_ephemeris(stream_t *strm_out, rtcm_t *rtcm, const obs_t *obs,
             continue;
         }
 
-        /* copy ephemeris to rtcm and encode */
+        /* copy ephemeris to rtcm and encode.
+         * encode_type1045 (GAL F/NAV) reads from eph[sat-1+MAXSAT],
+         * encode_type1046 (GAL I/NAV) reads from eph[sat-1].
+         * Store in both slots so either encoder works. */
         rtcm->nav.eph[sat - 1] = *eph;
+        if (sys == SYS_GAL) {
+            rtcm->nav.eph[sat - 1 + MAXSAT] = *eph;
+        }
         rtcm->ephsat = sat;
         if (gen_rtcm3(rtcm, type, 0, 0)) {
             strwrite(strm_out, rtcm->buff, rtcm->nbyte);
