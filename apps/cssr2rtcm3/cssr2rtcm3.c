@@ -789,6 +789,7 @@ static int send_ephemeris(stream_t *strm_out, rtcm_t *rtcm, const obs_t *obs,
     static int initialized = 0;
     int i, sat, sys, type, total = 0;
     double tow;
+    eph_t *eph;
 
     if (!initialized) {
         memset(last_iode, -1, sizeof(last_iode));
@@ -811,23 +812,24 @@ static int send_ephemeris(stream_t *strm_out, rtcm_t *rtcm, const obs_t *obs,
         default: continue;
         }
 
-        /* check if ephemeris exists */
-        if (nav->eph[sat - 1].sat != sat) { continue; }
+        /* find best ephemeris for this satellite via seleph() */
+        eph = seleph(obs->data[0].time, sat, -1, nav);
+        if (!eph) { continue; }
 
         /* send on IODE change or every 30 seconds */
-        if (nav->eph[sat - 1].iode == last_iode[sat - 1] &&
+        if (eph->iode == last_iode[sat - 1] &&
             tow - last_send_time[sat - 1] < 30.0) {
             continue;
         }
 
         /* copy ephemeris to rtcm and encode */
-        rtcm->nav.eph[sat - 1] = nav->eph[sat - 1];
+        rtcm->nav.eph[sat - 1] = *eph;
         rtcm->ephsat = sat;
         if (gen_rtcm3(rtcm, type, 0, 0)) {
             strwrite(strm_out, rtcm->buff, rtcm->nbyte);
             total += rtcm->nbyte;
         }
-        last_iode[sat - 1] = nav->eph[sat - 1].iode;
+        last_iode[sat - 1] = eph->iode;
         last_send_time[sat - 1] = tow;
     }
     return total;
