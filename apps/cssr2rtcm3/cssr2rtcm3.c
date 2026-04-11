@@ -1483,15 +1483,18 @@ int mrtk_cssr2rtcm3(int argc, char **argv)
         }
 
         /* Output RTCM3 at 1-second intervals, triggered by PVT reception.
-         * Time base: CSSR ST1 GPS Epoch (l6buf[0].time), 1s grid. */
+         * Time base: PVT epoch from SBF receiver (1 Hz).
+         * Previous implementation used l6buf[0].time (CSSR decode time),
+         * which only updates every 5s on new CSSR messages, causing
+         * ~35% epoch loss in the RTCM3 output. */
         if (!pvt_trigger) {
             sleepms(10);
             continue;
         }
         pvt_trigger = 0;
 
-        now = clas->l6buf[0].time;
-        if (now.time == 0) {
+        now = raw_sbf ? raw_sbf->time : clas->l6buf[0].time;
+        if (now.time == 0 || clas->l6buf[0].time.time == 0) {
             dbg_notime++;
             continue;
         }
