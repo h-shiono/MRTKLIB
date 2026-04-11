@@ -1514,6 +1514,11 @@ int mrtk_cssr2rtcm3(int argc, char **argv)
 
                 rtk.sol.time = t;
 
+                /* measure processing time */
+                {
+                    unsigned int t_start = tickget();
+                    unsigned int t_osr, t_end;
+
                 /* generate dummy observations from satellite geometry */
                 if (actualdist(t, &obs, nav, user_pos) < 0) {
                     dbg_nogeom++;
@@ -1535,6 +1540,7 @@ int mrtk_cssr2rtcm3(int argc, char **argv)
                                 user_pos[1], user_pos[2]);
                     }
                 }
+                t_osr = tickget();
 
                 /* remap signal codes to match receiver tracking */
                 apply_sig_remap(&obs);
@@ -1548,6 +1554,7 @@ int mrtk_cssr2rtcm3(int argc, char **argv)
                                                        user_pos);
                     epoch_count++;
                     osr_count += obs.n;
+                    t_end = tickget();
 
                     /* dump CLAS state after corrections stabilize */
                     if (epoch_count == 1) {
@@ -1559,8 +1566,9 @@ int mrtk_cssr2rtcm3(int argc, char **argv)
                         double tow = time2gpst(t, &week);
                         fprintf(stderr,
                                 "\rEpoch %d: week=%d tow=%.0f sats=%d "
-                                "bytes=%d pos=%.1f,%.1f,%.1f",
+                                "bytes=%d osr=%ums total=%ums pos=%.1f,%.1f,%.1f",
                                 epoch_count, week, tow, obs.n, bytes,
+                                t_osr - t_start, t_end - t_start,
                                 user_pos[0], user_pos[1], user_pos[2]);
                         fflush(stderr);
                     }
@@ -1570,6 +1578,7 @@ int mrtk_cssr2rtcm3(int argc, char **argv)
 
                 last_output = t;
             }
+                } /* end timing block */
         }
 next:
         ; /* PVT-triggered loop continues */
