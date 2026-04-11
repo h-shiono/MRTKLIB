@@ -853,6 +853,12 @@ typedef struct {
     clas_satcorr_t satcorr[CLAS_CH_NUM][MAXSAT];
     double saved_rr[3]; /* saved receiver position for SIS computation */
 
+    /* δBIAS discontinuity compensation (IS-QZSS-L6-005 5.5.3.2).
+     * Tracks SSR range correction (-dclk + deph·LOS) per satellite to
+     * detect orbit correction transitions and compensate bias jumps. */
+    double prev_ssr_range[MAXSAT];
+    double prev_ssr_orb_tow[MAXSAT];
+
     int initialized;
 } clas_osr_ctx_t;
 

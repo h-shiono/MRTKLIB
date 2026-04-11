@@ -1242,6 +1242,44 @@ int clas_osr_zdres(const obsd_t* obs, int n, const double* rs, const double* dts
         tmp_r = -1.0;
         tmp_dts = 0.0;
 
+        /* δBIAS discontinuity compensation (IS-QZSS-L6-005 5.5.3.2).
+         * Compute SSR range correction (-dclk + orbit·LOS) and detect
+         * orbit correction epoch transitions.  The delta is applied to
+         * CPC/PRC in the frequency loop below. */
+        {
+            const ssr_t *ssr_sat = &nav->ssr_ch[ch][sat - 1];
+            double orb_tow_cur = time2gpst(ssr_sat->t0[0], NULL);
+            double ssr_range_cur = 0.0, delta_ssr = 0.0;
+            double er_v[3], ea_v[3], ec_v[3], rc_v[3], deph_ecef[3];
+            int kk;
+
+            /* RAC basis vectors from satellite position & velocity */
+            if (normv3(rs + i * 6 + 3, ea_v)) {
+                cross3(rs + i * 6, rs + i * 6 + 3, rc_v);
+                if (normv3(rc_v, ec_v)) {
+                    cross3(ea_v, ec_v, er_v);
+
+                    /* orbit correction in ECEF */
+                    for (kk = 0; kk < 3; kk++) {
+                        deph_ecef[kk] = er_v[kk] * ssr_sat->deph[0]
+                                      + ea_v[kk] * ssr_sat->deph[1]
+                                      + ec_v[kk] * ssr_sat->deph[2];
+                    }
+                    /* range correction: -dclk + orbit_ecef · LOS */
+                    ssr_range_cur = -ssr_sat->dclk[0]
+                                  + dot(deph_ecef, e + i * 3, 3);
+
+                    /* detect orbit epoch change and compute delta */
+                    if (osr_ctx->prev_ssr_orb_tow[sat - 1] > 0.0 &&
+                        orb_tow_cur != osr_ctx->prev_ssr_orb_tow[sat - 1]) {
+                        delta_ssr = ssr_range_cur
+                                  - osr_ctx->prev_ssr_range[sat - 1];
+                    }
+                    osr_ctx->prev_ssr_range[sat - 1] = ssr_range_cur;
+                    osr_ctx->prev_ssr_orb_tow[sat - 1] = orb_tow_cur;
+                }
+            }
+
         for (j = 0; j < nf; j++) {
             f = j;
 
@@ -1259,6 +1297,12 @@ int clas_osr_zdres(const obsd_t* obs, int n, const double* rs, const double* dts
             /* carrier-phase correction */
             osr[i].CPC[j] = osr[i].trop + osr[i].relatv + osr[i].antr[f] - fi * fi * FREQ2 / FREQ1 * osr[i].iono +
                             osr[i].pbias[j] + osr[i].wupL[f] + osr[i].compL[j];
+
+            /* apply δBIAS compensation for orbit correction transition */
+            if (delta_ssr != 0.0) {
+                osr[i].CPC[j] -= delta_ssr;
+                osr[i].PRC[j] -= delta_ssr;
+            }
 
             /* SIS/IODE adjustment */
             iodeflag = 0;
@@ -1323,6 +1367,7 @@ int clas_osr_zdres(const obsd_t* obs, int n, const double* rs, const double* dts
             }
             osr_ctx->cpctmp[j * MAXSAT + sat - 1] = osr[i].orb - osr[i].clk + osr[i].CPC[j];
         }
+        } /* end δBIAS compensation block */
 
         /* ISB correction */
         if (opt->isb == ISBOPT_TABLE) {
