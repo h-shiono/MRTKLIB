@@ -22,11 +22,11 @@ Delete any section that does not apply.
 
 ## Testing
 
-<!-- How did you verify this change? Paste the `ctest` summary below. -->
+How did you verify this change? Paste the `ctest` summary below (e.g. `62/62 tests passed`).
 
 ```
 $ cd build && ctest --output-on-failure
-<!-- paste the summary line, e.g. "62/62 tests passed" -->
+# paste summary line here
 ```
 
 - [ ] Existing test suite still passes

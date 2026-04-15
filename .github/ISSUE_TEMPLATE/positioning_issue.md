@@ -2,7 +2,7 @@
 name: Positioning accuracy / Fix-rate issue
 about: Report unexpected positioning accuracy, Fix-rate degradation, or a regression against a known baseline
 title: "[Positioning] <mode> <short summary>"
-labels: ["regression", "status:needs-triage"]
+labels: ["bug", "status:needs-triage"]
 assignees: []
 ---
 
@@ -10,6 +10,9 @@ assignees: []
 Use this template when the code builds and runs, but the positioning
 solution is wrong or worse than expected (accuracy, Fix rate, convergence
 time, etc.). For crashes or build failures, use the "Bug report" template.
+
+Maintainers: re-label with `regression` once a reporter confirms this is
+a degradation vs. a known-good baseline (commit / version / dataset).
 -->
 
 ## Summary
@@ -56,17 +59,21 @@ Include commit hashes if known.
 
 ## Reproduction
 
+Paste the exact command line(s) below.
+
 ```
-<!-- Exact command line(s). -->
+# e.g. mrtk post -k conf/malib/ppp_rtk.toml rover.obs nav.nav -o out.pos
 ```
 
 ## Logs / plots
+
+Paste a trace excerpt, `.pos` tail, NMEA snippet, or similar below.
 
 <details>
 <summary>Relevant output</summary>
 
 ```
-<!-- trace excerpt, .pos tail, NMEA snippet, or similar -->
+# paste output here
 ```
 
 </details>

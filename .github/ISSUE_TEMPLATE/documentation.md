@@ -10,9 +10,9 @@ assignees: []
 
 <!--
 Where is the problem? Prefer a precise pointer.
-- README: [README.md:42](../blob/develop/README.md#L42)
+- README: https://github.com/h-shiono/MRTKLIB/blob/main/README.md#L42
 - Doxygen: function name or header file
-- MkDocs: page URL
+- MkDocs: page URL (e.g. https://h-shiono.github.io/MRTKLIB/...)
 - Inline comment: src/... line N
 -->
 

@@ -47,11 +47,13 @@ cannot be shared, describe it (receiver, duration, constellations).
 
 ## Logs / output
 
+Paste stderr / trace output below. Keep it short; attach full logs as files if large.
+
 <details>
 <summary>Relevant log excerpt</summary>
 
 ```
-<!-- Paste stderr / trace output here. Keep it short; attach full logs as files if large. -->
+# paste log output here
 ```
 
 </details>
