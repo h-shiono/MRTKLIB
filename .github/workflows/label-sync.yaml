@@ -1,0 +1,40 @@
+name: Sync labels
+
+# Syncs the repository label set from .github/labels.yml using
+# https://github.com/EndBug/label-sync.
+#
+# Policy (2026-04-16):
+#   - Runs only on the default branch so that the YAML on main is the
+#     single source of truth. PR previews of label changes are explicitly
+#     not supported; label edits land by merging to main.
+#   - delete-other-labels is false, so labels that exist on GitHub but
+#     are missing from labels.yml are left alone. This protects ad-hoc
+#     labels from accidental removal while we gain confidence in the
+#     workflow. Flip to true in a follow-up once the first few runs
+#     look clean.
+#   - workflow_dispatch is enabled for manual re-runs (e.g. after a
+#     maintainer edits a label through the UI by mistake).
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/labels.yml
+      - .github/workflows/label-sync.yaml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Sync labels from labels.yml
+        uses: EndBug/label-sync@v2
+        with:
+          config-file: .github/labels.yml
+          delete-other-labels: false
