@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: MRTKLIB documentation
+    url: https://h-shiono.github.io/MRTKLIB/
+    about: Browse the user guide and API reference before filing an issue.
+  - name: Upstream RTKLIB resources
+    url: https://www.rtklib.com/
+    about: Background on RTKLIB concepts, file formats, and positioning modes.

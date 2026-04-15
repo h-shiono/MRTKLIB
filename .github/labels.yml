@@ -1,0 +1,150 @@
+# MRTKLIB issue/PR labels
+#
+# Hybrid scheme:
+#   - The "what kind of work" axis reuses the GitHub default labels
+#     (`bug`, `enhancement`, `documentation`, `question`) so the vocabulary
+#     stays familiar to external contributors. Three extra type-like labels
+#     (`refactor`, `regression`, `performance`) are added to cover concepts
+#     the defaults do not express.
+#   - All other axes use prefix-based labels (`module:*`, `mode:*`, `gnss:*`,
+#     `priority:*`, `status:*`) so filters along each axis stay predictable.
+#
+# Conventions:
+#   - One "type" label per issue (choose from the Type section below).
+#   - Other axes may have multiple labels on the same issue.
+#   - Keep this list minimal; add new labels only when an existing one no
+#     longer fits.
+#
+# This file is a declarative source of truth. Syncing to GitHub (via e.g.
+# EndBug/label-sync) is deferred to a follow-up PR.
+
+# -----------------------------------------------------------------------------
+# Type — kind of work (GitHub defaults retained, plus three additions)
+# -----------------------------------------------------------------------------
+- name: "bug"
+  color: "d73a4a"
+  description: "Something is not working as intended"
+- name: "enhancement"
+  color: "a2eeef"
+  description: "New feature or enhancement request"
+- name: "documentation"
+  color: "0075ca"
+  description: "Improvements or additions to documentation"
+- name: "question"
+  color: "d876e3"
+  description: "Usage question or request for information"
+- name: "refactor"
+  color: "c5def5"
+  description: "Internal code change with no behavior change"
+- name: "regression"
+  color: "b60205"
+  description: "Previously-working behavior has degraded"
+- name: "performance"
+  color: "fbca04"
+  description: "Speed, memory, or resource-usage improvement"
+
+# -----------------------------------------------------------------------------
+# module:* — which part of the codebase is affected
+# (cssr2rtcm3 label deliberately omitted until that tool is publicly released)
+# -----------------------------------------------------------------------------
+- name: "module:ppp"
+  color: "5319e7"
+  description: "PPP / PPP-AR engines and related corrections"
+- name: "module:rtk"
+  color: "5319e7"
+  description: "RTK / PPP-RTK / VRS-RTK engines"
+- name: "module:rtkrcv"
+  color: "5319e7"
+  description: "Real-time server (mrtk run)"
+- name: "module:rnx2rtkp"
+  color: "5319e7"
+  description: "Post-processing binary (mrtk post)"
+- name: "module:clas"
+  color: "5319e7"
+  description: "QZSS CLAS L6D decoding and correction handling"
+- name: "module:madoca"
+  color: "5319e7"
+  description: "MADOCA L6E / MADOCA-PPP decoding and correction handling"
+- name: "module:toml-config"
+  color: "5319e7"
+  description: "TOML configuration loader and schema"
+- name: "module:build"
+  color: "5319e7"
+  description: "CMake, vcpkg, CI, packaging"
+
+# -----------------------------------------------------------------------------
+# mode:* — processing type
+# -----------------------------------------------------------------------------
+- name: "mode:realtime"
+  color: "0e8a16"
+  description: "Real-time processing path"
+- name: "mode:post-processing"
+  color: "0e8a16"
+  description: "Post-processing path"
+
+# -----------------------------------------------------------------------------
+# gnss:* — constellation scope
+# -----------------------------------------------------------------------------
+- name: "gnss:gps"
+  color: "fef2c0"
+  description: "Affects GPS"
+- name: "gnss:galileo"
+  color: "fef2c0"
+  description: "Affects Galileo"
+- name: "gnss:qzss"
+  color: "fef2c0"
+  description: "Affects QZSS"
+- name: "gnss:glonass"
+  color: "fef2c0"
+  description: "Affects GLONASS"
+- name: "gnss:beidou"
+  color: "fef2c0"
+  description: "Affects BeiDou"
+
+# -----------------------------------------------------------------------------
+# priority:* — maintainer triage signal
+# -----------------------------------------------------------------------------
+- name: "priority:high"
+  color: "d93f0b"
+  description: "Should be addressed soon"
+- name: "priority:medium"
+  color: "fbca04"
+  description: "Normal priority"
+- name: "priority:low"
+  color: "c2e0c6"
+  description: "Nice to have; no deadline"
+
+# -----------------------------------------------------------------------------
+# status:* — current state of the issue
+# -----------------------------------------------------------------------------
+- name: "status:needs-triage"
+  color: "ededed"
+  description: "Awaiting initial maintainer review"
+- name: "status:confirmed"
+  color: "ededed"
+  description: "Reproduced or accepted by a maintainer"
+- name: "status:blocked"
+  color: "ededed"
+  description: "Blocked on external input or another issue"
+- name: "status:waiting-for-info"
+  color: "ededed"
+  description: "Waiting for more information from the reporter"
+
+# -----------------------------------------------------------------------------
+# Community signals (GitHub defaults retained)
+# -----------------------------------------------------------------------------
+- name: "good first issue"
+  color: "7057ff"
+  description: "Good for newcomers"
+- name: "help wanted"
+  color: "008672"
+  description: "Extra attention is needed"
+- name: "duplicate"
+  color: "cfd3d7"
+  description: "This issue or pull request already exists"
+- name: "wontfix"
+  color: "ffffff"
+  description: "This will not be worked on"
+- name: "invalid"
+  color: "e4e669"
+  description: "This does not seem right"
