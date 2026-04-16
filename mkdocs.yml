@@ -104,6 +104,7 @@ nav:
     - Test Methodology: reference/test-accuracy-methodology.md
   - Releases:
     - Changelog: releases/changelog.md
+    - v0.6.4: releases/release-notes-v0.6.4.md
     - v0.6.3: releases/release-notes-v0.6.3.md
     - v0.6.2: releases/release-notes-v0.6.2.md
     - v0.6.1: releases/release-notes-v0.6.1.md
