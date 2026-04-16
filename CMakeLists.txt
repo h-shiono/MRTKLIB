@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.15)
-project(MRTKLIB VERSION 0.6.3 LANGUAGES C)
+project(MRTKLIB VERSION 0.6.4 LANGUAGES C)
 
 # ── Version header generation ─────────────────────────────────────────────────
 set(MRTKLIB_VERSION_MAJOR ${PROJECT_VERSION_MAJOR})
