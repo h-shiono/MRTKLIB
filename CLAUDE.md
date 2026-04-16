@@ -19,16 +19,16 @@ feature expansion.
 4. ~~demo5 Algorithm Porting~~ — RTK (v0.4.1), PPP-RTK/PPP (v0.4.2) ✅
 5. ~~Real-Time CLAS PPP-RTK~~ — rtkrcv 1ch (v0.4.3) + 2ch (v0.4.4) ✅
 
-### Test Status (59 tests)
+### Test Status (62 tests)
 
 | Test Suite | Count | Status |
 |------------|-------|--------|
-| Unit tests | 12 | PASS |
+| Unit tests | 13 | PASS |
 | SPP / receiver bias | 4 | PASS |
 | rtkrcv real-time (MADOCA + CLAS 1ch + CLAS 2ch) | 3 | PASS |
 | MADOCA PPP / PPP-AR / PPP-AR+iono | 10 | PASS |
 | CLAS PPP-RTK + VRS-RTK | 19 | PASS |
-| ssr2obs / ssr2osr / BINEX | 4 | PASS |
+| ssr2obs / ssr2osr / BINEX | 5 | PASS |
 | Tier 2 absolute accuracy | 2 | PASS |
 | Tier 3 position scatter | 2 | PASS |
 | Fixtures | 3 | PASS |
