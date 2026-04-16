@@ -13,8 +13,9 @@ Report it privately using GitHub's **Private Vulnerability Reporting**:
    - Affected version or commit hash
    - Steps to reproduce, ideally with a minimal dataset or command line
    - The impact you observed or can demonstrate
-3. Submit the advisory. Only the maintainers and invited collaborators
-   will be able to see it.
+3. Submit the advisory. You (the reporter), the maintainers, and any
+   invited collaborators will be able to see it, and it remains private
+   from the public until disclosure.
 
 You will receive an acknowledgement within a reasonable time frame.
 Because MRTKLIB is maintained by a small team, please be patient if the
@@ -46,3 +47,17 @@ We follow a coordinated-disclosure model. After triage we will work with
 you on a fix timeline; public disclosure happens once a patch is
 available or after a mutually agreed deadline. You will be credited in
 the advisory unless you prefer to remain anonymous.
+
+## Code of Conduct reports
+
+Private reports of [Code of Conduct](CODE_OF_CONDUCT.md) violations are
+routed through the same GitHub Security Advisory channel described above.
+When filing, please state in the advisory title or summary that the
+report concerns conduct rather than a technical vulnerability, so it is
+triaged on the conduct path instead of the security path.
+
+Using the advisory channel for conduct reports is a pragmatic choice for
+a small project: it reuses an existing private, auditable intake without
+introducing a separate email address or form. We may introduce a
+dedicated conduct-report channel in the future if volume or scope
+warrants it.

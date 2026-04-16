@@ -78,11 +78,19 @@ feel free to go straight to a PR.
 
 ### 2. Fork and branch
 
-Fork the repository on GitHub, then create a topic branch off `develop`:
+Fork the repository on GitHub. On your first fork-based contribution, add
+this repository as an `upstream` remote so you can stay in sync with the
+canonical `develop` branch (rather than the copy on your fork):
 
 ```bash
-git checkout develop
-git pull origin develop
+git remote add upstream https://github.com/h-shiono/MRTKLIB.git
+```
+
+Then create a topic branch off the upstream `develop`:
+
+```bash
+git fetch upstream
+git checkout -B develop upstream/develop
 git checkout -b feat/short-descriptive-name
 ```
 
