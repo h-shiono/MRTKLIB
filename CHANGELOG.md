@@ -5,6 +5,30 @@ All notable changes to MRTKLIB are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [v0.6.4] - 2026-04-16
+
+**Patch** — rtkrcv stability fixes and GitHub Community Profile completion.
+
+### Fixed
+
+- **rtkrcv status-poll SIGSEGV** (#74) — `prstatus()` `mode[]` array had 8 entries but `PMODE_PPP_RTK`/`PMODE_VRS_RTK` etc. index beyond that. Expanded to 13 entries with bounds checks on both `mode[]` and `freq[]`.
+- **rtkrcv status-path data race** (#74) — `prstatus()` shallow-copied `rtk_t` under lock, leaving `x`/`P`/`xa`/`Pa` aliased to heap buffers the processing thread keeps mutating via `rtkpos()`. Now extracts position + covariance diagonal into local variables under the lock and nulls the shared pointers after unlock.
+- **rtkrcv SIGSEGV handler safety** (#82, #85) — Crash handler is now async-signal-safe (`write(2)` instead of `fprintf()`) and re-raises the signal after restoring the default handler, so OS core-dump capture still fires.
+
+### Added
+
+- **GitHub issue and PR templates** (#88) — Five issue templates (`bug_report`, `positioning_issue`, `feature_request`, `documentation`, `question`) plus a PR template with `ctest` slot and positioning-regression check.
+- **Declarative label scheme** (#88, #90) — `.github/labels.yml` with 34 labels across six axes (type/module/mode/gnss/priority/status), synced to GitHub by `EndBug/label-sync@v2` on push to `main`.
+- **CONTRIBUTING.md** (#92) — Issue reporting, fork + upstream-remote workflow, branch/PR conventions targeting `develop`, coding standards, positioning-regression guard, label reference, BSD 2-clause inbound=outbound.
+- **SECURITY.md** (#92) — Private Vulnerability Reporting flow; scope explicitly also covers Code of Conduct reports via the same advisory channel.
+- **CODE_OF_CONDUCT.md** (#92) — Contributor Covenant 2.1 verbatim.
+- **Crash-diagnostic build flags** — `-rdynamic` on Linux for SIGSEGV backtrace symbolization.
+- **CLAS real-time Grafana dashboard link** in README for users monitoring `mrtk run`.
+
+### Test Results
+
+62/62 tests pass (no regressions).
+
 ## [v0.6.3] - 2026-03-31
 
 **Feature** — NTRIP v2 (HTTP/1.1) protocol support with auto-negotiation.

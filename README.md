@@ -56,6 +56,7 @@ incrementally back-ported to each engine:
 | **v0.6.1** | All | Config UX: `systems` string list, `excluded_sats` list, `taplo` formatter, section reorganization | ✅ Released |
 | **v0.6.2** | — | Documentation: MkDocs Material site + Doxygen API reference + GitHub Pages deployment | ✅ Released |
 | **v0.6.3** | Stream | NTRIP v2 (HTTP/1.1) protocol support with auto-negotiation, chunked transfer encoding, URL percent-decoding | ✅ Released |
+| **v0.6.4** | rtkrcv / Repo | rtkrcv status-path stability fixes (data race + OOB + async-signal-safe SIGSEGV handler); GitHub Community Profile (issue/PR templates, labels, CONTRIBUTING/SECURITY/CoC) | ✅ Released |
 | **v0.6.x** | All | Doxygen docstring coverage expansion | 💭 Backlog |
 
 > [!NOTE]
