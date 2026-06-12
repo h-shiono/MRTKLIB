@@ -279,6 +279,17 @@ add_test(NAME utest_has_mt1 COMMAND utest_has_mt1
          WORKING_DIRECTORY ${_UTEST_DIR})
 set_tests_properties(utest_has_mt1 PROPERTIES LABELS "utest")
 
+# BeiDou PPP-B2b decoder test. Drives the public b2b_input_msg() API with
+# synthetic 61-byte messages (no real signal data); same explicit registration
+# as utest_has_mt1 (source name is utest_b2b.c, not t_*.c).
+add_executable(utest_b2b ${_UTEST_DIR}/utest_b2b.c)
+# Override global -ansi (=C90): this test uses C99 for-loop declarations (P-01).
+target_compile_options(utest_b2b PRIVATE -std=c11)
+target_link_libraries(utest_b2b PRIVATE mrtklib)
+add_test(NAME utest_b2b COMMAND utest_b2b
+         WORKING_DIRECTORY ${_UTEST_DIR})
+set_tests_properties(utest_b2b PROPERTIES LABELS "utest")
+
 # NTRIP v2 chunked codec test (header-only, no library dependency)
 add_executable(t_ntrip ${_UTEST_DIR}/t_ntrip.c)
 # Override global -ansi (=C90) for this target, same as mrtklib target.

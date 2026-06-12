@@ -83,3 +83,6 @@ data/benchmark/
 # (3.5 GB zip -> 16 GB extracted; manual download, see docs/reference/benchmark-gsdc.md)
 tests/data/sdc2023.zip
 data/gsdc/
+
+# BeiDou PPP-B2b local validation datasets (cssrlib-data downloads, .b2b files)
+data/b2b/
