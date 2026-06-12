@@ -107,6 +107,8 @@ add_library(mrtklib STATIC
     # ── has/ (Galileo HAS処理) ─────────────────────────────────────────────────
     src/has/mrtk_has.c
     src/has/mrtk_has_rs.c
+    # ── b2b/ (BeiDou PPP-B2b処理) ──────────────────────────────────────────────
+    src/b2b/mrtk_b2b.c
     # ── clas/ (CLAS CSSR処理) ──────────────────────────────────────────────────
     src/clas/mrtk_clas.c
     src/clas/mrtk_clas_grid.c
