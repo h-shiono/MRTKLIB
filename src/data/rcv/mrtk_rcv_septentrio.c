@@ -119,6 +119,7 @@
 #define SBF_GALRAWCNAV 4024 /* SBF Galileo E6-B C/NAV page (HAS) */
 #define SBF_GEORAWL1 4020   /* SBF SBAS L1 navigation frame */
 #define SBF_BDSRAW 4047     /* SBF BDS navigation page */
+#define SBF_BDSRAWB2B 4242  /* SBF BDS PPP-B2b message (B2b-I, MT1-7) */
 #define SBF_QZSRAWL1CA 4066 /* SBF QZSS C/A subframe */
 #define SBF_QZSRAWL6 4069   /* SBF QZSS L6 message */
 #define SBF_QZSRAWL6D 4270  /* SBF QZSS L6D message (mosaic-G5) */
@@ -974,6 +975,75 @@ static int decode_galrawcnav(raw_t* raw) {
     raw->has_time = raw->time; /* set by input_sbf from this block's TOW/WNc */
     return 13;
 }
+/* decode SBF BeiDou PPP-B2b message (B2b-I) ---------------------------------*/
+/**
+ * @brief Decode an SBF BDSRawB2b block (4242) into a staged PPP-B2b message.
+ *
+ * The block payload (after the 8-byte SBF header) is: TOW u4, WNc u2, SVID u1,
+ * CRCPassed u1, ViterbiCnt u1, Source u1, FreqNr u1, RxChannel u1,
+ * NAVBits u4[16]. The 16 little-endian words are concatenated MSB-first into
+ * 512 bits. The receiver has already performed LDPC channel decoding; the
+ * NAVBits carry PRN(6) + reserved(6) followed by the 486-bit PPP-B2b message
+ * (MesType(6) + data(456) + CRC-24Q(24)), so the message starts at bit 12.
+ * The staged message is routed to svr->b2b by decoderaw(). CRC failures and
+ * non-BDS SVIDs are skipped here (return 0); TOW sentinels are filtered
+ * upstream in decode_sbf.
+ *
+ * @param[in,out] raw  Receiver raw data control struct (buff holds the block;
+ *                     raw->time already set by input_sbf from this block's
+ *                     TOW/WNc)
+ * @return 14 when a valid message is staged in raw->b2b_msg/b2b_prn/b2b_time,
+ *         0 when the message is skipped, -1 on length error.
+ */
+static int decode_bdsrawb2b(raw_t* raw) {
+    uint8_t* p = raw->buff + 14;
+    uint8_t bits[64]; /* 512 bits, MSB-first */
+    int i, svid, crc_ok, sat, prn, srcbit, b;
+
+    /* need SVID(1) CRCPassed(1) ...(4) + NAVBits u4[16]: 14 hdr + 6 + 64 = 84 */
+    if (raw->len < 84) {
+        trace(NULL, 2, "sbf bdsrawb2b length error: len=%d\n", raw->len);
+        return -1;
+    }
+    svid = U1(p);
+    crc_ok = U1(p + 1);
+
+    if (!(sat = svid2sat(svid)) || satsys(sat, &prn) != SYS_CMP) {
+        trace(NULL, 2, "sbf bdsrawb2b svid error: svid=%d\n", svid);
+        return 0;
+    }
+    if (raw->outtype) {
+        sprintf(raw->msgtype + strlen(raw->msgtype), " prn=%d crc=%d", prn, crc_ok);
+    }
+    if (!crc_ok) {
+        trace(NULL, 3, "sbf bdsrawb2b crc fail: prn=%d\n", prn);
+        return 0;
+    }
+
+    /* concatenate 16 NAVBits words MSB-first into a 512-bit buffer */
+    for (i = 0; i < 16; i++) {
+        uint32_t w = U4(raw->buff + 20 + i * 4);
+        bits[i * 4] = (w >> 24) & 0xFF;
+        bits[i * 4 + 1] = (w >> 16) & 0xFF;
+        bits[i * 4 + 2] = (w >> 8) & 0xFF;
+        bits[i * 4 + 3] = w & 0xFF;
+    }
+
+    /* 486-bit PPP-B2b message = bits 12..497 (after PRN(6)+reserved(6)),
+     * MSB-first (ICD BDS-SIS-ICD-PPP-B2b-1.0 §6.1) */
+    memset(raw->b2b_msg, 0, sizeof(raw->b2b_msg));
+    for (i = 0; i < 486; i++) {
+        srcbit = 12 + i;
+        b = (bits[srcbit >> 3] >> (7 - (srcbit & 7))) & 1;
+        if (b) {
+            raw->b2b_msg[i >> 3] |= (uint8_t)(1 << (7 - (i & 7)));
+        }
+    }
+
+    raw->b2b_prn = prn;
+    raw->b2b_time = raw->time; /* set by input_sbf from this block's TOW/WNc */
+    return 14;
+}
 /* decode SBF SBAS L1 navigation frame ---------------------------------------*/
 static int decode_georawl1(raw_t* raw) {
     uint8_t *p = raw->buff + 14, buff[32];
@@ -1655,6 +1725,8 @@ static int decode_sbf(raw_t* raw, rtcm_t* rtcm) {
             return decode_georawl1(raw);
         case SBF_BDSRAW:
             return decode_bdsraw(raw);
+        case SBF_BDSRAWB2B:
+            return decode_bdsrawb2b(raw);
         case SBF_QZSRAWL1CA:
             return decode_qzsrawl1ca(raw);
         case SBF_QZSRAWL6:

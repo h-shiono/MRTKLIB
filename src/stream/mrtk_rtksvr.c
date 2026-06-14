@@ -578,6 +578,26 @@ static int decoderaw(rtksvr_t* svr, int index) {
                 trace(NULL, 2, "HAS MT1 decoded: prn=%d index=%d\n", svr->raw[index].has_prn, index);
             }
         }
+        /* route a staged BeiDou PPP-B2b message (any SBF stream slot) to the
+         * B2b decoder; on updated corrections (ret==10) copy into the SSR
+         * channel with the same IOD/time gating as mrtk_postpos.c
+         * update_bds_b2b(). */
+        if (svr->b2b && ret == 14) {
+            gtime_t btime = svr->raw[index].b2b_time;
+            int bret = b2b_input_msg(svr->b2b, svr->raw[index].b2b_prn, svr->raw[index].b2b_msg, btime);
+            if (bret == 10) {
+                int k;
+                for (k = 0; k < MAXSAT; k++) {
+                    if (!svr->b2b->ssr[k].update || svr->b2b->ssr[k].iod[0] != svr->b2b->ssr[k].iod[1] ||
+                        timediff(btime, svr->b2b->ssr[k].t0[0]) < -1E-3) {
+                        continue;
+                    }
+                    svr->nav.ssr_ch[0][k] = svr->b2b->ssr[k];
+                    svr->b2b->ssr[k].update = 0;
+                }
+                trace(NULL, 2, "PPP-B2b corrections decoded: prn=%d index=%d\n", svr->raw[index].b2b_prn, index);
+            }
+        }
         /* observation data received */
         if (ret == 1) {
             if (fobs < MAXOBSBUF) {
@@ -1020,6 +1040,7 @@ extern int rtksvrinit(rtksvr_t* svr) {
     svr->bl_reset = 10.0;
     svr->clas = NULL;
     svr->has = NULL;
+    svr->b2b = NULL;
     rtk_initlock(&svr->lock);
 
     return 1;
@@ -1049,6 +1070,10 @@ extern void rtksvrfree(rtksvr_t* svr) {
     if (svr->has) {
         has_free(svr->has);
         svr->has = NULL;
+    }
+    if (svr->b2b) {
+        b2b_free(svr->b2b);
+        svr->b2b = NULL;
     }
 }
 /* lock/unlock rtk server ------------------------------------------------------
@@ -1231,6 +1256,15 @@ extern int rtksvrstart(rtksvr_t* svr, int cycle, int buffsize, int* strs, char**
         svr->has = has_new();
         if (!svr->has) {
             tracet(NULL, 1, "rtksvrstart: HAS context alloc error\n");
+        }
+    }
+
+    /* initialize BeiDou PPP-B2b context for B2b float PPP (correction = bds-b2b).
+     * Any input stream may carry SBF BDSRawB2b messages; routing is index-agnostic. */
+    if (prcopt->correction == CORR_BDS_B2B && !svr->b2b) {
+        svr->b2b = b2b_new();
+        if (!svr->b2b) {
+            tracet(NULL, 1, "rtksvrstart: PPP-B2b context alloc error\n");
         }
     }
 

@@ -600,7 +600,16 @@ extern void b2b_free(b2b_t* b2b) { free(b2b); }
 extern int b2b_input_msg(b2b_t* b2b, int prn, const uint8_t* msg61, gtime_t time) {
     int mt;
 
-    (void)prn; /* all GEOs broadcast the same correction stream ([1] 4.1) */
+    /* PPP-B2b SSR corrections are broadcast only by the BDS-3 GEO satellites
+     * (C59-C63; [1] 4.1), and all GEOs carry the same correction stream. The
+     * B2b-I signal from the IGSO/MEO satellites instead carries B-CNAV3
+     * navigation, whose message-type field collides numerically with the
+     * PPP-B2b MTs and would corrupt the mask/orbit/clock state. Drop any
+     * non-GEO PRN so a mixed real-time B2b stream is filtered to corrections
+     * only (the post-processing .b2b path already carries GEO frames only). */
+    if (prn < 59 || prn > 63) {
+        return 0;
+    }
 
     mt = (int)getbitu(msg61, 0, 6);
     if (mt == B2B_MT_NULL) {

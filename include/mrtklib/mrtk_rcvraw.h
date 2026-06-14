@@ -103,6 +103,9 @@ typedef struct {
     uint8_t has_page[56];                   /**< Galileo HAS page (56-byte, staged for ret=13) */
     int has_prn;                            /**< Galileo HAS transmitting PRN (1-40) */
     gtime_t has_time;                       /**< Galileo HAS page reception time (GPST) */
+    uint8_t b2b_msg[61];                    /**< BeiDou PPP-B2b message (486-bit, staged for ret=14) */
+    int b2b_prn;                            /**< BeiDou PPP-B2b transmitting PRN (1-63) */
+    gtime_t b2b_time;                       /**< BeiDou PPP-B2b message reception time (GPST) */
     char opt[256];                          /**< receiver dependent options */
     mrtk_sigcfg_t sigcfg[MRTK_NSYS]; /**< #189: per-constellation signal config (drives decoder code selection) */
     int sigcfg_set;                  /**< #189: 1 if sigcfg is configured (else fall back to opt/-Rxxx defaults) */
@@ -136,7 +139,8 @@ void free_raw(raw_t* raw);
  * @param[in]     data   Stream data (1 byte)
  * @return Status (-1:error, 0:no message, 1:obs data, 2:ephemeris,
  *                 3:sbas message, 9:ion/utc parameter, 10:ssr/L6 payload,
- *                 13:Galileo HAS page staged in raw->has_page/has_prn/has_time)
+ *                 13:Galileo HAS page staged in raw->has_page/has_prn/has_time,
+ *                 14:BeiDou PPP-B2b message staged in raw->b2b_msg/b2b_prn/b2b_time)
  */
 int input_raw(raw_t* raw, rtcm_t* rtcm, int format, uint8_t data);
 
