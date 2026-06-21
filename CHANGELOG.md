@@ -7,6 +7,60 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.7.1] - 2026-06-21
+
+**Two-receiver QZSS L6 support (mosaic-CLAS / mosaic-G5) and single-SBF
+MADOCA-PPP.** The SBF/UBX raw decoders now route the QZSS L6 stream by the
+Septentrio SBF `Source` field (1 = L6D, 2 = L6E) rather than by block ID, so
+both the older generic `QZSRawL6` (4069, mosaic-CLAS) and the signal-split
+`QZSRawL6D` (4270) / `QZSRawL6E` (4271, mosaic-G5) blocks are handled. MADOCA
+L6E SSR carried in a raw SBF stream is now applied in real-time, so a single
+mosaic-G5 SBF stream (L6D + L6E) drives both `mrtk run` PPP-RTK (CLAS via L6D)
+and MADOCA-PPP (L6E SSR). Confirmed on mosaic-G5 hardware: MADOCA-PPP converges
+to ~3 cm horizontal float std with corrections applied continuously.
+
+### Added
+
+- **QZSS L6E from SBF `QZSRawL6E` (block 4271)** — the mosaic-G5 L6E block is
+  decoded by the existing MADOCA decoder (identical NavBits layout to
+  `QZSRawL6`).
+- **`Source`-field routing for the QZSRawL6 family** — `decode_qzsrawl6`
+  dispatches on the SBF `Source` byte: `Source = 1` → CLAS L6D redirect,
+  `Source = 2` → MADOCA L6E. Handles the legacy generic block (4069,
+  mosaic-CLAS) and the split blocks (4270 / 4271, mosaic-G5) uniformly; the
+  duplicate `decode_qzsrawl6d` helper is removed.
+- **Real-time MADOCA L6E SSR from a raw SBF/UBX stream** — the L6 decoders
+  return a dedicated code (15) for "L6E SSR decoded", which `rtksvr` applies via
+  `update_ssr` into `nav->ssr_ch[0]` (the same path as RTCM3 / IGS-RTS SSR),
+  outside CLAS/PPP-RTK mode. A single SBF stream can now serve as the MADOCA-PPP
+  correction source for `mrtk run`.
+
+### Fixed
+
+- **CLAS from a raw mosaic-CLAS SBF stream** — CLAS L6D in the generic 4069
+  block was previously sent to the MADOCA decoder, rejected by vendor ID and
+  dropped, so `mrtk run` PPP-RTK and `mrtk cssr2rtcm3` decoded nothing from a
+  mosaic-CLAS raw SBF stream. The `Source`-field routing fixes this.
+- **L6E leak into `mrtk cssr2rtcm3`** — with both signals present in a mixed
+  mosaic-G5 stream, completed L6E messages previously returned the same code
+  (10) as an "L6D frame ready" and, with a stale satellite id, could feed L6E
+  frames into the CLAS decoder. The dedicated L6E code (15) keeps cssr2rtcm3
+  (which acts on 10 only) limited to the L6D frames.
+
+### Validation
+
+- Real captures replayed through `input_sbff`: `G5P3100d.sbf` (mosaic-G5)
+  reports the L6D path matching the exact `QZSRawL6D` block count (no L6E leak),
+  the L6E path decoding 93 satellites of MADOCA SSR; `MCLA100e` (mosaic-CLAS,
+  L6D only) now decodes CLAS CSSR sets that were previously dropped.
+- **mosaic-G5 hardware, single SBF stream, `mrtk run` MADOCA-PPP**: SSR
+  continuously applied (the `ssr` counter climbs steadily), correction age
+  ~4 s, float std converging to ~3 cm horizontal / ~2 cm vertical
+  ([#219](https://github.com/h-shiono/MRTKLIB/issues/219),
+  [PR #220](https://github.com/h-shiono/MRTKLIB/pull/220)).
+- No positioning-algorithm or numerical changes; existing test suite unchanged
+  (the two pre-existing environment-dependent failures are unrelated).
+
 ## [v0.7.0] - 2026-06-12
 
 **Galileo HAS (High Accuracy Service) float PPP.** Opens the v0.7.x series
