@@ -1569,6 +1569,14 @@ static int ddres(rtk_t* rtk, const nav_t* nav, double* x, double* pbslip, const 
                 if (f < nf) {
                     rtk->ssat[sati - 1].vsat[f] = 1;
                     rtk->ssat[satj - 1].vsat[f] = 1;
+                    /* mark the satellite valid in the solution so the status
+                     * output (outsolstat $SAT, rtkoutstat $ION) reports it.
+                     * vs is otherwise only set by the SPP seed, which can omit
+                     * satellites that the PPP-RTK filter still uses (e.g. a
+                     * Galileo satellite usable on E1 only) -> they were missing
+                     * from the .stat. Mirrors upstream RTKLIB relpos ddres. */
+                    rtk->ssat[sati - 1].vs = 1;
+                    rtk->ssat[satj - 1].vs = 1;
                 }
 
                 vflg[nv++] = (sati << 16) | (satj << 8) | ((f < nf ? 0 : 1) << 4) | (f % nf);
