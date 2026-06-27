@@ -438,7 +438,9 @@ static clas_orbit_bank_t* get_close_orbit(clas_bank_ctrl_t* bank, gtime_t time, 
      * never cleared until a facility change) strands the lookup on an empty
      * partition while global orbit corrections keep arriving — the CLAS
      * handover fix->single freeze (#218). Mirrors get_close_net_cbias/pbias. */
-    int sep = (bank->separation & (1 << (network - 1))) ? network : 0;
+    /* guard the shift below: network is normally 1..CLAS_MAX_NETWORK-1; treat
+     * out-of-range / global (net<=0) as the global partition (no UB shift). */
+    int sep = (network >= 1 && network < CLAS_MAX_NETWORK && (bank->separation & (1u << (network - 1)))) ? network : 0;
     int trysearch[2] = {sep, 0}, ntry = (sep != 0) ? 2 : 1, t;
 
     for (t = 0; t < ntry; t++) {
@@ -470,7 +472,9 @@ static clas_orbit_bank_t* get_close_orbit(clas_bank_ctrl_t* bank, gtime_t time, 
 static clas_clock_bank_t* get_close_clock(clas_bank_ctrl_t* bank, gtime_t obstime, gtime_t time, int network,
                                           double age) {
     /* Same global (net=0) fallback as get_close_orbit — see #218. */
-    int sep = (bank->separation & (1 << (network - 1))) ? network : 0;
+    /* guard the shift below: network is normally 1..CLAS_MAX_NETWORK-1; treat
+     * out-of-range / global (net<=0) as the global partition (no UB shift). */
+    int sep = (network >= 1 && network < CLAS_MAX_NETWORK && (bank->separation & (1u << (network - 1)))) ? network : 0;
     int trysearch[2] = {sep, 0}, ntry = (sep != 0) ? 2 : 1, t;
 
     for (t = 0; t < ntry; t++) {
