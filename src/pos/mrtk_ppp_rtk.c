@@ -1185,7 +1185,7 @@ static int residual_test(rtk_t* rtk, const int* vflg, const double* v, const dou
  * @return 0 on success, non-zero on error
  */
 static int filter2_(rtk_t* rtk, const double* x, const double* P, const double* H, const double* v, const double* R,
-                    const int n, const int m, double* xp, double* Pp, const int* vflg, const int flg) {
+                    const int n, const int m, double* xp, double* Pp, double* Qp, const int* vflg, const int flg) {
     double *K, *v_, *Q_, *F_, *H_, *I, *F, *Q;
     int i, j, k, info = 0, *iv, nn[6];
 
@@ -1241,17 +1241,12 @@ static int filter2_(rtk_t* rtk, const double* x, const double* P, const double* 
         matmul("NT", n, n, k, -1.0, K, H_, 1.0, I); /* I=I-K*H' */
         matmul("NN", n, n, n, 1.0, I, P, 0.0, Pp);  /* Pp=(I-K*H')*P */
 
-        /* compute innovation covariance Qp = K*v * (K*v)^T for adaptive noise */
+        /* innovation covariance Qp = K*v * (K*v)^T for adaptive noise, in the
+           compacted (k) state space; filter2() scatters it back to full nx. */
         if (rtk->opt.ionoopt == IONOOPT_EST_ADPT || rtk->opt.prnadpt) {
             double* vd = mat(n, 1);
-            /* allocate/reallocate Qp if needed */
-            if (prtk_ctx.Qp_nx != n) {
-                free(prtk_ctx.Qp);
-                prtk_ctx.Qp = zeros(n, n);
-                prtk_ctx.Qp_nx = n;
-            }
-            matmul("NN", n, 1, k, 1.0, K, v_, 0.0, vd);           /* vd=K*v */
-            matmul("NT", n, n, 1, 1.0, vd, vd, 0.0, prtk_ctx.Qp); /* Qp=vd*vd' */
+            matmul("NN", n, 1, k, 1.0, K, v_, 0.0, vd);  /* vd=K*v */
+            matmul("NT", n, n, 1, 1.0, vd, vd, 0.0, Qp); /* Qp=vd*vd' */
             free(vd);
         }
     }
@@ -1293,8 +1288,9 @@ static int filter2_(rtk_t* rtk, const double* x, const double* P, const double* 
  */
 static int filter2(rtk_t* rtk, double* x, double* P, const double* H, const double* v, const double* R, const int n,
                    const int m, const int* vflg, const int flg) {
-    double *x_, *xp_, *P_, *Pp_, *H_;
+    double *x_, *xp_, *P_, *Pp_, *Qp_, *H_;
     int i, j, k, info, *ix;
+    int adapt = (flg == 0 && (rtk->opt.ionoopt == IONOOPT_EST_ADPT || rtk->opt.prnadpt));
 
     ix = imat(n, 1);
     for (i = k = 0; i < n; i++) {
@@ -1306,6 +1302,7 @@ static int filter2(rtk_t* rtk, double* x, double* P, const double* H, const doub
     xp_ = mat(k, 1);
     P_ = mat(k, k);
     Pp_ = mat(k, k);
+    Qp_ = mat(k, k);
     H_ = mat(k, m);
 
     for (i = 0; i < k; i++) {
@@ -1318,12 +1315,25 @@ static int filter2(rtk_t* rtk, double* x, double* P, const double* H, const doub
         }
     }
 
-    info = filter2_(rtk, x_, P_, H_, v, R, k, m, xp_, Pp_, vflg, flg);
+    info = filter2_(rtk, x_, P_, H_, v, R, k, m, xp_, Pp_, Qp_, vflg, flg);
+
+    /* scatter the compacted innovation covariance back into the full-nx Qp
+       store, so the adaptive process-noise update can index it by II_RTK(). */
+    if (adapt && prtk_ctx.Qp_nx != n) {
+        free(prtk_ctx.Qp);
+        prtk_ctx.Qp = zeros(n, n);
+        prtk_ctx.Qp_nx = n;
+    }
 
     for (i = 0; i < k; i++) {
         x[ix[i]] = xp_[i];
         for (j = 0; j < k; j++) {
             P[ix[i] + ix[j] * n] = Pp_[i + j * k];
+        }
+        if (adapt) {
+            for (j = 0; j < k; j++) {
+                prtk_ctx.Qp[ix[i] + ix[j] * n] = Qp_[i + j * k];
+            }
         }
     }
 
@@ -1332,6 +1342,7 @@ static int filter2(rtk_t* rtk, double* x, double* P, const double* H, const doub
     free(xp_);
     free(P_);
     free(Pp_);
+    free(Qp_);
     free(H_);
     return info;
 }
