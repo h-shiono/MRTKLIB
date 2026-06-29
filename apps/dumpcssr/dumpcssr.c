@@ -120,7 +120,8 @@ static FILE* open_l6(char** infile, int n) {
 
 /* long-option aliases */
 static const mrtk_optmap_t opt_aliases[] = {
-    {"--output", "-o"}, {"--start", "-ts"}, {"--end", "-te"}, {"--trace", "-x"}, {"--grid", "-grid"}, {NULL, NULL},
+    {"--output", "-o"},  {"--start", "-ts"},    {"--end", "-te"}, {"--trace", "-x"},
+    {"--grid", "-grid"}, {"--parse", "-parse"}, {NULL, NULL},
 };
 
 /* print usage ---------------------------------------------------------------*/
@@ -136,6 +137,7 @@ static const char* usage_lines[] = {
     "  -ts, --start Y/M/D H:M:S   Start time (GPST)",
     "  -te, --end   Y/M/D H:M:S   End time   (GPST)",
     "  -grid, --grid FILE         CLAS grid definition file",
+    "  -parse, --parse            Dump upstream-format per-subtype CSVs (parse_cssr_*.csv)",
     "  -o,  --output FILE         Output CSV                            [stdout]",
     "  -ch  N                     L6 channel (0 or 1)                   [0]",
     "  -x,  --trace LEVEL         Trace level                           [0]",
@@ -153,6 +155,9 @@ static void printusage(void) {
     }
 }
 
+/* upstream-format per-subtype CSV dump (cssr_parse.c) */
+extern int cssr_parse_dump(const char* gridfile, char** infile, int n);
+
 /* main ----------------------------------------------------------------------*/
 int mrtk_dump(int argc, char** argv) {
     clas_ctx_t* clas;
@@ -163,7 +168,7 @@ int mrtk_dump(int argc, char** argv) {
     char *infile[MAXFILE], *outfile = NULL, *gridfile = NULL;
     FILE *fp_in, *fp_out;
     char path[1024];
-    int i, iw, n = 0, ret, net, ch = 0, trace_level = 0;
+    int i, iw, n = 0, ret, net, ch = 0, trace_level = 0, parse_mode = 0;
 
     /* translate --long flags to their -short aliases before parsing */
     mrtk_normalize_args(argc, argv, opt_aliases);
@@ -185,6 +190,8 @@ int mrtk_dump(int argc, char** argv) {
             outfile = argv[++i];
         } else if (!strcmp(argv[i], "-grid") && i + 1 < argc) {
             gridfile = argv[++i];
+        } else if (!strcmp(argv[i], "-parse")) {
+            parse_mode = 1;
         } else if (!strcmp(argv[i], "-ch") && i + 1 < argc) {
             ch = atoi(argv[++i]);
         } else if (!strcmp(argv[i], "-x") && i + 1 < argc) {
@@ -203,6 +210,15 @@ int mrtk_dump(int argc, char** argv) {
     if (ch < 0 || ch >= CSSR_CH_MAX) {
         fprintf(stderr, "error: invalid channel %d (0 or 1)\n", ch);
         return -1;
+    }
+
+    /* upstream-format per-subtype CSV dump (parse_cssr_*.csv in CWD) */
+    if (parse_mode) {
+        if (!gridfile) {
+            fprintf(stderr, "error: --parse requires -grid FILE\n");
+            return -1;
+        }
+        return cssr_parse_dump(gridfile, infile, n);
     }
 
     /* allocate large structures on heap */

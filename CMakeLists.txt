@@ -179,6 +179,7 @@ add_executable(mrtk
     apps/ssr2osr/ssr2osr.c
     apps/recvbias/recvbias.c
     apps/dumpcssr/dumpcssr.c
+    apps/dumpcssr/cssr_parse.c
     apps/cssr2rtcm3/cssr2rtcm3.c
     apps/l6extract/l6extract.c
 )
