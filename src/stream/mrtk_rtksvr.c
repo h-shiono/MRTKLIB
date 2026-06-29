@@ -590,6 +590,7 @@ static int decoderaw(rtksvr_t* svr, int index) {
                             svr->mdciono[m].nbyte = 0;
                             svr->mdciono[m].re.rvalid = 0;
                             strncpy(svr->mdciono[m].opt, svr->rtk.opt.pppopt, sizeof(svr->mdciono[m].opt) - 1);
+                            svr->mdciono[m].opt[sizeof(svr->mdciono[m].opt) - 1] = '\0'; /* guarantee NUL termination */
                         }
                     }
                 }
