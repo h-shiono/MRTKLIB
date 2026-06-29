@@ -115,6 +115,24 @@ mrtk post -k conf/madocalib/rnx2rtkp_pppar_iono.toml \
 This adds `receiver.iono_correction = true`, enabling MADOCA-specific
 ionospheric corrections for faster convergence.
 
+### Real-Time PPP-AR/IONO (`mrtk run`)
+
+The same PPP-AR/IONO mode is available in real time. A single Septentrio SBF
+stream from a mosaic-G5 carries everything needed in one slot: rover
+observations + broadcast ephemeris, the MADOCA-PPP L6E SSR (QZSRawL6E 4271),
+and the L6D wide-area ionospheric augmentation on **PRN 200/201** (QZSRawL6D
+4270). The L6D iono frames are decoded into `nav.pppiono` and constrain the
+`est-stec` ionosphere states, exactly as the post-processing path does.
+
+```bash
+mrtk run -o conf/madocalib/rtkrcv_madoca_pppar_iono.toml -s
+```
+
+Requires that PRN 200/201 L6D be tracked (IS-QZSS-MDC-004 Table 3-1,
+"Technology Demonstration"). Set `correction = "qzs-madoca"` and
+`receiver.iono_correction = true`; the corrections ride on the rover SBF, so no
+separate correction stream is needed.
+
 ---
 
 ## Key Configuration Points

@@ -475,9 +475,11 @@ static int decoderaw(rtksvr_t* svr, int index) {
                   time_str(obs->data[0].time,0),obs->n);
         }
 #endif
-        /* update rtk server (skip update_ssr for UBX/SBF L6D: ret=10 means
-         * "L6 payload ready for CLAS redirect", not "SSR message decoded") */
-        if (ret > 0 && !(ret == 10 && (svr->format[index] == STRFMT_UBX || svr->format[index] == STRFMT_SEPT))) {
+        /* update rtk server (skip update_ssr for UBX/SBF L6 frame-ready codes:
+         * ret=10 means "L6D payload ready for CLAS redirect" and ret=16 means
+         * "L6D payload ready for MADOCA-PPP iono", neither is a decoded SSR) */
+        if (ret > 0 &&
+            !((ret == 10 || ret == 16) && (svr->format[index] == STRFMT_UBX || svr->format[index] == STRFMT_SEPT))) {
             update_svr(svr, ret, obs, nav, ephsat, ephset, sbsmsg, index, fobs);
         }
         /* redirect L6 payload to CLAS decoder (UBX/L6E/SBF → CLAS path) */
@@ -563,6 +565,52 @@ static int decoderaw(rtksvr_t* svr, int index) {
             if (max_cret > 0) {
                 trace(NULL, 2, "L6 redirect: max_cret=%d ch=%d nframe=%d havebit=%d nbit=%d\n", max_cret, ch,
                       svr->clas->l6buf[ch].nframe, svr->clas->l6buf[ch].havebit, svr->clas->l6buf[ch].nbit);
+            }
+        }
+        /* route an L6D MADOCA-PPP ionospheric frame (SBF/UBX, ret==16) to the
+         * per-PRN iono decoder; on a completed message copy the decoded region
+         * into nav.pppiono->re[rid], exactly as update_qzssl6d() does in
+         * mrtk_postpos.c. PRN 200/201 carry the wide-area iono augmentation
+         * (197 reserved for test); the L6 header PRN is at frame byte 4. */
+        if (svr->mdciono && ret == 16 && (svr->format[index] == STRFMT_UBX || svr->format[index] == STRFMT_SEPT)) {
+            int prn = svr->rtcm[index].buff[4];
+            int j = (prn == 200) ? 0 : (prn == 201) ? 1 : (prn == 197) ? 2 : -1;
+            if (j >= 0) {
+                int k, a, s;
+                /* lazily anchor the GPST week from the freshest stream time so a
+                 * recorded-stream replay decodes in the correct week (live RT
+                 * falls back to wall-clock in adjweek() otherwise). */
+                if (svr->mdciono[0].time.time == 0) {
+                    gtime_t t = svr->raw[index].time.time ? svr->raw[index].time : svr->raw[0].time;
+                    if (t.time) {
+                        int m;
+                        init_miono(t);
+                        for (m = 0; m < MIONO_MAX_PRN; m++) {
+                            svr->mdciono[m].time = t;
+                            svr->mdciono[m].nbyte = 0;
+                            svr->mdciono[m].re.rvalid = 0;
+                            strncpy(svr->mdciono[m].opt, svr->rtk.opt.pppopt, sizeof(svr->mdciono[m].opt) - 1);
+                            svr->mdciono[m].opt[sizeof(svr->mdciono[m].opt) - 1] = '\0'; /* guarantee NUL termination */
+                        }
+                    }
+                }
+                if (svr->mdciono[0].time.time) { /* feed only once the week is anchored */
+                    for (k = 0; k < 250; k++) {
+                        if (input_qzssl6d(&svr->mdciono[j], svr->rtcm[index].buff[k]) == 10 &&
+                            svr->mdciono[j].re.rvalid) {
+                            int rid = svr->mdciono[j].rid;
+                            svr->nav.pppiono->re[rid] = svr->mdciono[j].re;
+                            svr->mdciono[j].re.rvalid = 0;
+                            for (a = 0; a < MIONO_MAX_ANUM; a++) {
+                                svr->mdciono[j].re.area[a].avalid = 0;
+                                for (s = 0; s < MAXSAT; s++) {
+                                    svr->mdciono[j].re.area[a].sat[s].t0.time = 0;
+                                }
+                            }
+                            trace(NULL, 3, "L6D iono: prn=%d rid=%d index=%d\n", prn, rid, index);
+                        }
+                    }
+                }
             }
         }
         /* route a staged Galileo HAS page (any SBF stream slot) to the HAS
@@ -1026,6 +1074,7 @@ extern int rtksvrinit(rtksvr_t* svr) {
     svr->bl_reset = 10.0;
     svr->clas = NULL;
     svr->has = NULL;
+    svr->mdciono = NULL;
     rtk_initlock(&svr->lock);
 
     return 1;
@@ -1056,6 +1105,14 @@ extern void rtksvrfree(rtksvr_t* svr) {
         has_free(svr->has);
         svr->has = NULL;
     }
+    if (svr->mdciono) {
+        free(svr->mdciono);
+        svr->mdciono = NULL;
+    }
+    /* pppiono is allocated by rtksvrstart only for RT MADOCA-PPP PPP-AR/IONO;
+     * rtksvrfree frees nav arrays individually (it does not call freenav). */
+    free(svr->nav.pppiono);
+    svr->nav.pppiono = NULL;
 }
 /* lock/unlock rtk server ------------------------------------------------------
  * lock/unlock rtk server
@@ -1237,6 +1294,38 @@ extern int rtksvrstart(rtksvr_t* svr, int cycle, int buffsize, int* strs, char**
         svr->has = has_new();
         if (!svr->has) {
             tracet(NULL, 1, "rtksvrstart: HAS context alloc error\n");
+        }
+    }
+
+    /* free any iono state left over from a previous run so an in-process restart
+     * (the rtkrcv shell can `load` a new config and `restart` in the same
+     * process) starts clean: (1) a fresh mdciono re-anchors the GPST week in
+     * decoderaw() instead of reusing the stale mdciono[0].time, and (2) a stale
+     * nav.pppiono is not left non-NULL — miono_get_corr() consumes it on every
+     * PPP epoch (mrtk_rtkpos.c) regardless of correction source — when
+     * restarting into a non-PPP-AR/IONO mode (PR #235 review). */
+    if (svr->mdciono) {
+        free(svr->mdciono);
+        svr->mdciono = NULL;
+    }
+    free(svr->nav.pppiono);
+    svr->nav.pppiono = NULL;
+
+    /* initialize MADOCA-PPP L6D ionospheric augmentation contexts for real-time
+     * PPP-AR/IONO (correction = qzs-madoca, ionosphere = est-stec,
+     * iono_correction = on). The per-PRN contexts decode L6D PRN 200/201 iono
+     * into nav.pppiono, mirroring update_qzssl6d() in mrtk_postpos.c. The GPST
+     * week anchor (init_miono) is set lazily from the first observation time in
+     * decoderaw(), the same pattern CLAS uses for week_ref. */
+    if (prcopt->correction == CORR_QZS_MADOCA && prcopt->ionocorr && prcopt->ionoopt == IONOOPT_EST && !svr->mdciono) {
+        svr->mdciono = (mdcl6d_t*)calloc(MIONO_MAX_PRN, sizeof(mdcl6d_t));
+        if (svr->mdciono && !svr->nav.pppiono) {
+            svr->nav.pppiono = (pppiono_t*)calloc(1, sizeof(pppiono_t));
+        }
+        if (!svr->mdciono || !svr->nav.pppiono) {
+            tracet(NULL, 1, "rtksvrstart: MADOCA iono context alloc error\n");
+            free(svr->mdciono);
+            svr->mdciono = NULL; /* fall back to plain PPP-AR (ppp_iono no-ops) */
         }
     }
 

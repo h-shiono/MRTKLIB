@@ -1153,7 +1153,14 @@ static int decode_qzsrawl6(raw_t* raw, rtcm_t* rtcm) {
      * which self-rejects non-L6E content by vendor ID. */
     if (source == 1) {
         raw->ephsat = sat; /* CLAS satellite for redirect / cssr2rtcm3 filtering */
-        return 10;         /* L6D frame ready (skip MADOCA decoder) */
+        /* MADOCA-PPP wide-area ionospheric augmentation rides on L6D PRN 200/201
+         * ([1] Table 3-1, "Technology Demonstration"; 197 reserved for test) and
+         * is disjoint from CLAS (PRN 193-199). Return a dedicated code so rtksvr
+         * routes it to the L6D iono decoder instead of the CLAS redirect. */
+        if (prn == 200 || prn == 201 || prn == 197) {
+            return 16; /* MADOCA-PPP iono L6D frame ready */
+        }
+        return 10; /* CLAS L6D frame ready (skip MADOCA decoder) */
     }
     ret = decode_qzss_l6emsg(rtcm);
 

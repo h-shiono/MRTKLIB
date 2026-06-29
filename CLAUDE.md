@@ -49,6 +49,7 @@ See [`docs/releases/changelog.md`](docs/releases/changelog.md) for the full hist
 | v0.7.0 | Galileo HAS (E6-B C/NAV) float PPP — opens the v0.7.x global SSR correction services series |
 | v0.7.1 | Two-receiver QZSS L6 (mosaic-CLAS / mosaic-G5) + single-SBF MADOCA-PPP |
 | v0.7.2 | CLAS PPP-RTK accuracy/robustness fixes + `mrtk dump --parse` (upstream-identical parse_cssr_*.csv) |
+| v0.7.3 | Real-time MADOCA-PPP PPP-AR/IONO — L6D wide-area ionospheric augmentation (QZS PRN 200/201) wired into `mrtk run` |
 
 ### Test Status
 
