@@ -193,7 +193,9 @@ def parse_f5(filepath, eval_date_str):
     xs, ys, zs = [], [], []
     in_data = False
 
-    with open(filepath, encoding="utf-8") as fh:
+    # GSI F5 files carry a Japanese J_NAME field in legacy encodings (EUC-JP /
+    # Shift-JIS).  Only the ASCII numeric data lines matter, so decode loosely.
+    with open(filepath, encoding="ascii", errors="replace") as fh:
         for raw in fh:
             line = raw.strip()
             if line.startswith("+DATA"):

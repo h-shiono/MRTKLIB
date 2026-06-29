@@ -432,49 +432,74 @@ static clas_trop_bank_t* get_same_trop(clas_bank_ctrl_t* bank, gtime_t time) {
  *===========================================================================*/
 
 static clas_orbit_bank_t* get_close_orbit(clas_bank_ctrl_t* bank, gtime_t time, int network, double age) {
-    int search = (bank->separation & (1 << (network - 1))) ? network : 0;
-    int pos = -1, i;
+    /* Prefer the network-separated partition when its separation bit is set,
+     * but fall back to the global (net=0) partition if that has no fresh entry.
+     * Without the fallback a stale separation bit (set by an ST11 net combo and
+     * never cleared until a facility change) strands the lookup on an empty
+     * partition while global orbit corrections keep arriving — the CLAS
+     * handover fix->single freeze (#218). Mirrors get_close_net_cbias/pbias. */
+    /* guard the shift below: network is normally 1..CLAS_MAX_NETWORK-1; treat
+     * out-of-range / global (net<=0) as the global partition (no UB shift). */
+    int sep = (network >= 1 && network < CLAS_MAX_NETWORK && (bank->separation & (1u << (network - 1)))) ? network : 0;
+    int trysearch[2] = {sep, 0}, ntry = (sep != 0) ? 2 : 1, t;
 
-    for (i = 0; i < CLAS_BANK_NUM; i++) {
-        if (!bank->OrbitBank[i].use || bank->OrbitBank[i].network != search) {
-            continue;
+    for (t = 0; t < ntry; t++) {
+        int search = trysearch[t];
+        int pos = -1, i;
+        for (i = 0; i < CLAS_BANK_NUM; i++) {
+            if (!bank->OrbitBank[i].use || bank->OrbitBank[i].network != search) {
+                continue;
+            }
+            if (fabs(timediff(bank->OrbitBank[i].time, time)) > age) {
+                continue;
+            }
+            if (pos != -1 &&
+                fabs(timediff(bank->OrbitBank[pos].time, time)) < fabs(timediff(bank->OrbitBank[i].time, time))) {
+                continue;
+            }
+            if (timediff(bank->OrbitBank[i].time, time) > 0.0) {
+                continue;
+            }
+            pos = i;
         }
-        if (fabs(timediff(bank->OrbitBank[i].time, time)) > age) {
-            continue;
+        if (pos != -1) {
+            return &bank->OrbitBank[pos];
         }
-        if (pos != -1 &&
-            fabs(timediff(bank->OrbitBank[pos].time, time)) < fabs(timediff(bank->OrbitBank[i].time, time))) {
-            continue;
-        }
-        if (timediff(bank->OrbitBank[i].time, time) > 0.0) {
-            continue;
-        }
-        pos = i;
     }
-    return (pos != -1) ? &bank->OrbitBank[pos] : NULL;
+    return NULL;
 }
 
 static clas_clock_bank_t* get_close_clock(clas_bank_ctrl_t* bank, gtime_t obstime, gtime_t time, int network,
                                           double age) {
-    int search = (bank->separation & (1 << (network - 1))) ? network : 0;
-    int pos = -1, i;
+    /* Same global (net=0) fallback as get_close_orbit — see #218. */
+    /* guard the shift below: network is normally 1..CLAS_MAX_NETWORK-1; treat
+     * out-of-range / global (net<=0) as the global partition (no UB shift). */
+    int sep = (network >= 1 && network < CLAS_MAX_NETWORK && (bank->separation & (1u << (network - 1)))) ? network : 0;
+    int trysearch[2] = {sep, 0}, ntry = (sep != 0) ? 2 : 1, t;
 
-    for (i = 0; i < CLAS_BANK_NUM; i++) {
-        if (!bank->ClockBank[i].use || bank->ClockBank[i].network != search) {
-            continue;
+    for (t = 0; t < ntry; t++) {
+        int search = trysearch[t];
+        int pos = -1, i;
+        for (i = 0; i < CLAS_BANK_NUM; i++) {
+            if (!bank->ClockBank[i].use || bank->ClockBank[i].network != search) {
+                continue;
+            }
+            if (timediff(bank->ClockBank[i].time, time) >= age) {
+                continue;
+            }
+            if (pos != -1 && timediff(bank->ClockBank[pos].time, bank->ClockBank[i].time) > 0.0) {
+                continue;
+            }
+            if (timediff(bank->ClockBank[i].time, obstime) > 0.0) {
+                continue;
+            }
+            pos = i;
         }
-        if (timediff(bank->ClockBank[i].time, time) >= age) {
-            continue;
+        if (pos != -1) {
+            return &bank->ClockBank[pos];
         }
-        if (pos != -1 && timediff(bank->ClockBank[pos].time, bank->ClockBank[i].time) > 0.0) {
-            continue;
-        }
-        if (timediff(bank->ClockBank[i].time, obstime) > 0.0) {
-            continue;
-        }
-        pos = i;
     }
-    return (pos != -1) ? &bank->ClockBank[pos] : NULL;
+    return NULL;
 }
 
 static clas_bias_bank_t* get_close_cbias(clas_bank_ctrl_t* bank, gtime_t time, int network, double age) {

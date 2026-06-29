@@ -28,7 +28,7 @@
  *   dumpcssr [options] l6file [navfile...]
  *     -ts y/m/d h:m:s   start time (GPST)
  *     -te y/m/d h:m:s   end time   (GPST)
- *     -k  file           configuration file
+ *     -grid file         CLAS grid definition file
  *     -o  file           output CSV file [stdout]
  *     -ch n              L6 channel 0 or 1 [0]
  *     -x  level          trace level [0]
@@ -46,7 +46,6 @@
 #include "mrtklib/mrtk_mat.h"
 #include "mrtklib/mrtk_nav.h"
 #include "mrtklib/mrtk_obs.h"
-#include "mrtklib/mrtk_options.h"
 #include "mrtklib/mrtk_rinex.h"
 #include "mrtklib/mrtk_sol.h"
 #include "mrtklib/mrtk_sys.h"
@@ -121,7 +120,8 @@ static FILE* open_l6(char** infile, int n) {
 
 /* long-option aliases */
 static const mrtk_optmap_t opt_aliases[] = {
-    {"--config", "-k"}, {"--output", "-o"}, {"--start", "-ts"}, {"--end", "-te"}, {"--trace", "-x"}, {NULL, NULL},
+    {"--output", "-o"},  {"--start", "-ts"},    {"--end", "-te"}, {"--trace", "-x"},
+    {"--grid", "-grid"}, {"--parse", "-parse"}, {NULL, NULL},
 };
 
 /* print usage ---------------------------------------------------------------*/
@@ -136,7 +136,8 @@ static const char* usage_lines[] = {
     "Options:",
     "  -ts, --start Y/M/D H:M:S   Start time (GPST)",
     "  -te, --end   Y/M/D H:M:S   End time   (GPST)",
-    "  -k,  --config FILE         Configuration file (TOML or legacy)",
+    "  -grid, --grid FILE         CLAS grid definition file",
+    "  -parse, --parse            Dump upstream-format per-subtype CSVs (parse_cssr_*.csv)",
     "  -o,  --output FILE         Output CSV                            [stdout]",
     "  -ch  N                     L6 channel (0 or 1)                   [0]",
     "  -x,  --trace LEVEL         Trace level                           [0]",
@@ -154,6 +155,9 @@ static void printusage(void) {
     }
 }
 
+/* upstream-format per-subtype CSV dump (cssr_parse.c) */
+extern int cssr_parse_dump(const char* gridfile, char** infile, int n);
+
 /* main ----------------------------------------------------------------------*/
 int mrtk_dump(int argc, char** argv) {
     clas_ctx_t* clas;
@@ -161,10 +165,10 @@ int mrtk_dump(int argc, char** argv) {
     clas_corr_t* tmp;
     gtime_t ts = {0}, te = {0}, t;
     double es[6] = {0}, ee[6] = {0};
-    char *infile[MAXFILE], *outfile = NULL, *conffile = "";
+    char *infile[MAXFILE], *outfile = NULL, *gridfile = NULL;
     FILE *fp_in, *fp_out;
     char path[1024];
-    int i, iw, n = 0, ret, net, ch = 0, trace_level = 0;
+    int i, iw, n = 0, ret, net, ch = 0, trace_level = 0, parse_mode = 0;
 
     /* translate --long flags to their -short aliases before parsing */
     mrtk_normalize_args(argc, argv, opt_aliases);
@@ -182,10 +186,12 @@ int mrtk_dump(int argc, char** argv) {
             sscanf(argv[++i], "%lf/%lf/%lf", ee, ee + 1, ee + 2);
             sscanf(argv[++i], "%lf:%lf:%lf", ee + 3, ee + 4, ee + 5);
             te = epoch2time(ee);
-        } else if (!strcmp(argv[i], "-k") && i + 1 < argc) {
-            conffile = argv[++i];
         } else if (!strcmp(argv[i], "-o") && i + 1 < argc) {
             outfile = argv[++i];
+        } else if (!strcmp(argv[i], "-grid") && i + 1 < argc) {
+            gridfile = argv[++i];
+        } else if (!strcmp(argv[i], "-parse")) {
+            parse_mode = 1;
         } else if (!strcmp(argv[i], "-ch") && i + 1 < argc) {
             ch = atoi(argv[++i]);
         } else if (!strcmp(argv[i], "-x") && i + 1 < argc) {
@@ -204,6 +210,15 @@ int mrtk_dump(int argc, char** argv) {
     if (ch < 0 || ch >= CSSR_CH_MAX) {
         fprintf(stderr, "error: invalid channel %d (0 or 1)\n", ch);
         return -1;
+    }
+
+    /* upstream-format per-subtype CSV dump (parse_cssr_*.csv in CWD) */
+    if (parse_mode) {
+        if (!gridfile) {
+            fprintf(stderr, "error: --parse requires -grid FILE\n");
+            return -1;
+        }
+        return cssr_parse_dump(gridfile, infile, n);
     }
 
     /* allocate large structures on heap */
@@ -237,24 +252,10 @@ int mrtk_dump(int argc, char** argv) {
         }
     }
 
-    /* optional configuration file */
-    if (*conffile) {
-        prcopt_t prcopt = prcopt_default;
-        solopt_t solopt = solopt_default;
-        filopt_t filopt = {""};
-        setsysopts(&prcopt, &solopt, &filopt);
-        if (!loadopts(conffile, sysopts)) {
-            fprintf(stderr, "Config file read error: %s\n", conffile);
-            clas_ctx_free(clas);
-            free(clas);
-            free(nav);
-            free(tmp);
-            return -1;
-        }
-        getsysopts(&prcopt, &solopt, &filopt);
-        /* read grid definition if available */
-        if (filopt.grid[0]) {
-            clas_read_grid_def(clas, filopt.grid);
+    /* read CLAS grid definition (required for STEC/troposphere grid records) */
+    if (gridfile) {
+        if (clas_read_grid_def(clas, gridfile) != 0) {
+            fprintf(stderr, "Grid file read error: %s\n", gridfile);
         }
     }
 

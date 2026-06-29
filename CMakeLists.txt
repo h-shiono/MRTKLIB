@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.15)
-project(MRTKLIB VERSION 0.7.1 LANGUAGES C)
+project(MRTKLIB VERSION 0.7.2 LANGUAGES C)
 
 # ── Version header generation ─────────────────────────────────────────────────
 set(MRTKLIB_VERSION_MAJOR ${PROJECT_VERSION_MAJOR})
@@ -179,6 +179,7 @@ add_executable(mrtk
     apps/ssr2osr/ssr2osr.c
     apps/recvbias/recvbias.c
     apps/dumpcssr/dumpcssr.c
+    apps/dumpcssr/cssr_parse.c
     apps/cssr2rtcm3/cssr2rtcm3.c
     apps/l6extract/l6extract.c
 )
@@ -667,6 +668,11 @@ set_tests_properties(madocalib_pppar_abs_check PROPERTIES
 #   rtkrcv_rt_clas_2ch      Real-time CLAS PPP-RTK dual-channel L6 (rtkrcv file replay)
 set(_CLSDATA  ${CMAKE_SOURCE_DIR}/tests/data/claslib)
 set(_COMPARE_NMEA ${CMAKE_SOURCE_DIR}/scripts/tests/compare_nmea.py)
+# GSI F5 daily-coordinate truth for station 0627 (TSUKUBA3), used by the
+# *_abs_check tests.  2019 = F3/ITRF2005, 2025 = F5/ITRF2014 (set as _F5_0627
+# further down).  All CLAS PPP-RTK/VRS datasets are this station, so each has a
+# geodetic-accuracy guard, not only consistency against upstream claslib output.
+set(_F5_0627_2019 ${_CLSDATA}/960627.19.pos)
 
 # ── Fixture: extract / clean claslib test data archive ────────────────────────
 add_test(NAME claslib_setup
@@ -748,6 +754,24 @@ set_tests_properties(claslib_ppp_rtk_check PROPERTIES
     LABELS            "regression;claslib;ppp-rtk"
 )
 
+# Absolute accuracy vs GSI F5 (TSUKUBA3, 2019/08/27). The check above only
+# guards consistency with upstream claslib; this guards geodetic truth.
+# Measured 2D 95% = 4.3 cm; tolerance 0.09 m = measured + ~4 cm cross-platform
+# (LAPACK-vs-LU) headroom, tight enough to catch a real accuracy regression.
+add_test(NAME claslib_ppp_rtk_abs_check
+    COMMAND ${Python3_EXECUTABLE} ${_COMPARE_NMEA_ABS}
+        --f5 ${_F5_0627_2019}
+        --date 2019/08/27
+        --tolerance 0.090
+        ${CMAKE_BINARY_DIR}/out_claslib_ppp_rtk.nmea
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+set_tests_properties(claslib_ppp_rtk_abs_check PROPERTIES
+    DEPENDS           claslib_ppp_rtk
+    FIXTURES_REQUIRED claslib_data
+    LABELS            "absolute;claslib;ppp-rtk"
+)
+
 # ── rnx2rtkp CLAS PPP-RTK regression (L6, BINEX obs) ─────────────────────────
 # Data: 2019/08/27 16:00-17:00, 0627239Q.bnx + sept_2019239.nav + 2019239Q.l6
 # Reference: ref_L6_bnx.nmea (upstream claslib output)
@@ -777,6 +801,22 @@ set_tests_properties(claslib_ppp_rtk_bnx_check PROPERTIES
     DEPENDS           claslib_ppp_rtk_bnx
     FIXTURES_REQUIRED claslib_data
     LABELS            "regression;claslib;ppp-rtk"
+)
+
+# Absolute accuracy vs GSI F5 (TSUKUBA3, 2019/08/27). Measured 2D 95% = 4.2 cm;
+# tolerance 0.09 m (measured + ~4 cm cross-platform headroom).
+add_test(NAME claslib_ppp_rtk_bnx_abs_check
+    COMMAND ${Python3_EXECUTABLE} ${_COMPARE_NMEA_ABS}
+        --f5 ${_F5_0627_2019}
+        --date 2019/08/27
+        --tolerance 0.090
+        ${CMAKE_BINARY_DIR}/out_claslib_ppp_rtk_bnx.nmea
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+set_tests_properties(claslib_ppp_rtk_bnx_abs_check PROPERTIES
+    DEPENDS           claslib_ppp_rtk_bnx
+    FIXTURES_REQUIRED claslib_data
+    LABELS            "absolute;claslib;ppp-rtk"
 )
 
 # ── rnx2rtkp CLAS PPP-RTK regression (dual-channel L6) ────────────────────────
@@ -817,15 +857,15 @@ set_tests_properties(claslib_ppp_rtk_2ch_check PROPERTIES
 # ── Absolute accuracy check: CLAS PPP-RTK 2CH vs GSI F5 TSUKUBA3 ─────────────
 # Reference: GSI F5 station 960627 (TSUKUBA3/0627), 15-day median centred on
 # 2025/06/06 (DOY 157).  Pass/fail on 2D horizontal accuracy (1σ, 95%).
-# Tolerance 0.300 m: MRTKLIB 2CH achieves 88% fix rate (float epochs present),
-# making the 95th percentile ~26 cm.  Tier-1 test already guards convergence;
-# this Tier-2 test confirms geodetic plausibility at a generous threshold.
+# Measured 2D 95% = 5.4 cm; tolerance 0.10 m = measured + ~4 cm cross-platform
+# (LAPACK-vs-LU) headroom.  (Tightened from a stale 0.30 m "plausibility"
+# threshold whose ~26 cm / 88%-fix premise no longer holds.)
 set(_F5_0627 ${_CLSDATA}/960627.25.pos)
 add_test(NAME claslib_ppp_rtk_2ch_abs_check
     COMMAND ${Python3_EXECUTABLE} ${_COMPARE_NMEA_ABS}
         --f5 ${_F5_0627}
         --date 2025/06/06
-        --tolerance 0.300
+        --tolerance 0.100
         ${CMAKE_BINARY_DIR}/out_claslib_ppp_rtk_2ch.nmea
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
 )
@@ -866,6 +906,23 @@ set_tests_properties(claslib_vrs_rtk_check PROPERTIES
     LABELS            "regression;claslib;vrs"
 )
 
+# Absolute accuracy vs GSI F5 (TSUKUBA3, 2019/08/27). The VRS rover is the 0627
+# station, so its truth is the same F5 coordinate. Measured 2D 95% = 3.5 cm;
+# tolerance 0.08 m (measured + ~4 cm headroom).
+add_test(NAME claslib_vrs_rtk_abs_check
+    COMMAND ${Python3_EXECUTABLE} ${_COMPARE_NMEA_ABS}
+        --f5 ${_F5_0627_2019}
+        --date 2019/08/27
+        --tolerance 0.080
+        ${CMAKE_BINARY_DIR}/out_claslib_vrs_rtk.nmea
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+set_tests_properties(claslib_vrs_rtk_abs_check PROPERTIES
+    DEPENDS           claslib_vrs_rtk
+    FIXTURES_REQUIRED claslib_data
+    LABELS            "absolute;claslib;vrs"
+)
+
 # ── rnx2rtkp CLAS PPP-RTK regression (SubType 12 BINEX) ─────────────────────
 # Data: 2019/12/15 01:00-02:00, 0627349AB.bnx + sept_2019349.nav + 2019349B.l6
 # Reference: ref_ST12.nmea (upstream claslib output)
@@ -895,6 +952,22 @@ set_tests_properties(claslib_ppp_rtk_st12_check PROPERTIES
     DEPENDS           claslib_ppp_rtk_st12
     FIXTURES_REQUIRED claslib_data
     LABELS            "regression;claslib;ppp-rtk"
+)
+
+# Absolute accuracy vs GSI F5 (TSUKUBA3, 2019/12/15). Measured 2D 95% = 7.3 cm
+# (97% fix, some float epochs); tolerance 0.12 m (measured + ~4 cm headroom).
+add_test(NAME claslib_ppp_rtk_st12_abs_check
+    COMMAND ${Python3_EXECUTABLE} ${_COMPARE_NMEA_ABS}
+        --f5 ${_F5_0627_2019}
+        --date 2019/12/15
+        --tolerance 0.120
+        ${CMAKE_BINARY_DIR}/out_claslib_ppp_rtk_st12.nmea
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+set_tests_properties(claslib_ppp_rtk_st12_abs_check PROPERTIES
+    DEPENDS           claslib_ppp_rtk_st12
+    FIXTURES_REQUIRED claslib_data
+    LABELS            "absolute;claslib;ppp-rtk"
 )
 
 # ── rnx2rtkp CLAS PPP-RTK regression (L1C+L5 frequency) ─────────────────────
@@ -927,6 +1000,26 @@ set_tests_properties(claslib_ppp_rtk_l1cl5_check PROPERTIES
     LABELS            "regression;claslib;ppp-rtk"
 )
 
+# ── Absolute accuracy check: CLAS PPP-RTK L1C+L5 vs GSI F5 TSUKUBA3 ──────────
+# Reference: GSI F5 station 960627 (TSUKUBA3/0627), daily coordinate for
+# 2025/01/22 (DOY 022).  The consistency check above only compares against
+# upstream claslib output; this guards true geodetic accuracy.
+# Measured 2D 95% = 4.4 cm (fix 99.3%); tolerance 0.09 m = measured + ~4 cm
+# cross-platform (LAPACK-vs-LU) headroom, tight enough to catch a regression.
+add_test(NAME claslib_ppp_rtk_l1cl5_abs_check
+    COMMAND ${Python3_EXECUTABLE} ${_COMPARE_NMEA_ABS}
+        --f5 ${_F5_0627}
+        --date 2025/01/22
+        --tolerance 0.090
+        ${CMAKE_BINARY_DIR}/out_claslib_ppp_rtk_l1cl5.nmea
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+set_tests_properties(claslib_ppp_rtk_l1cl5_abs_check PROPERTIES
+    DEPENDS           claslib_ppp_rtk_l1cl5
+    FIXTURES_REQUIRED claslib_data
+    LABELS            "absolute;claslib;ppp-rtk"
+)
+
 # ── rnx2rtkp CLAS VRS-RTK regression (SubType 12 BINEX) ─────────────────────
 # Data: 2019/12/15 01:00-02:00, 0627349AB.bnx + sept_2019349.nav + vrs2019349B.obs
 # Reference: ref_ST12_VRS.nmea (upstream claslib output)
@@ -956,6 +1049,22 @@ set_tests_properties(claslib_vrs_rtk_st12_check PROPERTIES
     DEPENDS           claslib_vrs_rtk_st12
     FIXTURES_REQUIRED claslib_data
     LABELS            "regression;claslib;vrs"
+)
+
+# Absolute accuracy vs GSI F5 (TSUKUBA3, 2019/12/15). Measured 2D 95% = 4.4 cm;
+# tolerance 0.09 m (measured + ~4 cm headroom).
+add_test(NAME claslib_vrs_rtk_st12_abs_check
+    COMMAND ${Python3_EXECUTABLE} ${_COMPARE_NMEA_ABS}
+        --f5 ${_F5_0627_2019}
+        --date 2019/12/15
+        --tolerance 0.090
+        ${CMAKE_BINARY_DIR}/out_claslib_vrs_rtk_st12.nmea
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+set_tests_properties(claslib_vrs_rtk_st12_abs_check PROPERTIES
+    DEPENDS           claslib_vrs_rtk_st12
+    FIXTURES_REQUIRED claslib_data
+    LABELS            "absolute;claslib;vrs"
 )
 
 # ── rnx2rtkp CLAS VRS-RTK regression (dual-channel) ─────────────────────────
@@ -990,6 +1099,26 @@ set_tests_properties(claslib_vrs_rtk_2ch_check PROPERTIES
     DEPENDS           claslib_vrs_rtk_2ch
     FIXTURES_REQUIRED claslib_data
     LABELS            "regression;claslib;vrs"
+)
+
+# ── Absolute accuracy check: CLAS VRS-RTK 2CH vs GSI F5 TSUKUBA3 ─────────────
+# Reference: GSI F5 station 960627 (TSUKUBA3/0627), daily coordinate for
+# 2025/06/06 (DOY 157).  The consistency check above only compares against
+# upstream claslib output; this guards true geodetic accuracy.
+# Measured 2D 95% = 7.9 cm (fix 99.9%, VRS carries a ~6 cm bias); tolerance
+# 0.12 m = measured + ~4 cm cross-platform headroom.
+add_test(NAME claslib_vrs_rtk_2ch_abs_check
+    COMMAND ${Python3_EXECUTABLE} ${_COMPARE_NMEA_ABS}
+        --f5 ${_F5_0627}
+        --date 2025/06/06
+        --tolerance 0.120
+        ${CMAKE_BINARY_DIR}/out_claslib_vrs_rtk_2ch.nmea
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+set_tests_properties(claslib_vrs_rtk_2ch_abs_check PROPERTIES
+    DEPENDS           claslib_vrs_rtk_2ch
+    FIXTURES_REQUIRED claslib_data
+    LABELS            "absolute;claslib;vrs"
 )
 
 # ── ssr2obs regression: generate VRS and verify via VRS-RTK pipeline ─────────
