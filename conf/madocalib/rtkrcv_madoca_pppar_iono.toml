@@ -1,0 +1,212 @@
+# MRTKLIB Configuration (TOML v1.0.0)
+# Real-time MADOCA-PPP integer PPP-AR with L6D wide-area ionospheric
+# augmentation (PPP-AR/IONO) for `mrtk run`.
+#
+# A single Septentrio SBF stream from a mosaic-G5 carries everything needed:
+#   - rover observations + broadcast ephemeris (MeasEpoch / *Raw* blocks)
+#   - MADOCA-PPP L6E SSR  (QZSRawL6E 4271, Source=2)  -> orbit/clock/bias
+#   - MADOCA-PPP L6D iono (QZSRawL6D 4270, PRN 200/201) -> wide-area ionosphere
+# The L6D iono frames (PRN 200/201) are decoded into nav.pppiono and constrain
+# the est-stec ionosphere states, the real-time analogue of the post-processing
+# conf/madocalib/rnx2rtkp_pppar_iono.toml. Requires that PRN 200/201 L6D be
+# tracked ([1] IS-QZSS-MDC-004 Table 3-1, "Technology Demonstration").
+#
+#   mrtk run -o conf/madocalib/rtkrcv_madoca_pppar_iono.toml -s
+#
+# Replace the rover stream with your live receiver (serial://..., tcpcli://...).
+
+[positioning]
+mode = "ppp-kine"                                         # (6:ppp-kine,7:ppp-static)
+frequency = "l1+2+3+4"                                    # (1:l1,2:l1+2,3:l1+2+3,4:l1+2+3+4)
+solution_type = "forward"
+elevation_mask = 10.0                                     # (deg)
+dynamics = false
+satellite_ephemeris = "brdc+ssrapc"                       # MADOCA SSR = APC
+excluded_sats = ""
+systems = ["GPS", "GLONASS", "Galileo", "QZSS", "BeiDou"]
+correction = "qzs-madoca"                                 # must be set explicitly (shares brdc+ssrapc with igs-rts)
+
+[positioning.snr_mask]
+rover_enabled = false
+base_enabled = false
+L1 = [0, 0, 0, 0, 0, 0, 0, 0, 0]
+L2 = [0, 0, 0, 0, 0, 0, 0, 0, 0]
+L5 = [0, 0, 0, 0, 0, 0, 0, 0, 0]
+
+[positioning.corrections]
+satellite_antenna = false
+receiver_antenna = true
+phase_windup = "on"
+raim_fde = false
+tidal_correction = "on"
+
+[positioning.atmosphere]
+ionosphere = "est-stec" # uncombined; L6D iono augmentation constrains the STEC states
+troposphere = "est-ztd"
+
+[ambiguity_resolution]
+mode = "continuous" # (0:off,1:continuous,3:fix-and-hold)
+systems = 57        # (1:gps+8:gal+16:qzs+32:bds)
+
+[ambiguity_resolution.thresholds]
+ratio = 1.5
+ratio1 = 1.5
+elevation_mask = 15.0
+
+[ambiguity_resolution.counters]
+min_fix = 600
+max_iterations = 10
+
+[rejection]
+innovation = 50.0
+gdop = 30.0
+
+[slip_detection]
+threshold = 0.15
+
+[kalman_filter]
+iterations = 1
+
+[kalman_filter.measurement_error]
+code_phase_ratio_L1 = 300.0
+code_phase_ratio_L2 = 300.0
+ura_ratio = 0.1
+phase = 0.003
+phase_elevation = 0.003
+
+[kalman_filter.process_noise]
+bias = 1.00e-04
+ionosphere = 0.01
+troposphere = 1.00e-04
+position = 0.0
+ifb = 1.00e-05
+
+[signals]
+gps = "L1/L2/L5"
+qzs = "L1/L5/L2"
+galileo = "E1/E5a/E5b/E6"
+bds2 = "B1I/B3I/B2I"
+bds3 = "B1I/B3I/B2a"
+
+[receiver]
+iono_correction = true # enable L6D wide-area ionospheric augmentation (PPP-AR/IONO)
+max_age = 30.0
+
+[antenna.rover]
+position_type = "single" # PPP seeds position from single-point; rover is estimated
+position_1 = 0.0
+position_2 = 0.0
+position_3 = 0.0
+type = "*"               # "*" = use rover-reported antenna; set the exact ANTEX name if absent
+delta_e = 0.0
+delta_n = 0.0
+delta_u = 0.0
+
+[antenna.base]
+position_type = "llh"
+position_1 = 0.0
+position_2 = 0.0
+position_3 = 0.0
+type = ""
+delta_e = 0.0
+delta_n = 0.0
+delta_u = 0.0
+max_average_epochs = 0
+init_reset = false
+
+[output]
+format = "llh"
+header = true
+options = true
+velocity = false
+time_system = "gpst"
+time_format = "hms"
+time_decimals = 3
+coordinate_format = "deg"
+field_separator = ""
+single_output = false
+max_solution_std = 0.0
+height_type = "ellipsoidal"
+geoid_model = "internal"
+static_solution = "all"
+nmea_interval_1 = 0.0
+nmea_interval_2 = 0.0
+solution_status = "off"
+
+[files]
+satellite_atx = ""
+receiver_atx = ""  # path to an ANTEX (igs20.atx) for receiver PCV
+station_pos = ""
+geoid = ""
+ionosphere = ""
+dcb = ""
+eop = ""
+ocean_loading = ""
+temp_dir = ""
+geexe = ""
+solution_stat = ""
+trace = ""
+
+[server]
+time_interpolation = false
+sbas_satellite = "0"
+rinex_option_1 = ""
+rinex_option_2 = ""
+ppp_option = ""
+rtcm_option = ""
+cycle_ms = 10
+timeout_ms = 10000
+reconnect_ms = 10000
+nmea_cycle_ms = 5000
+buffer_size = 32768
+nav_msg_select = "all"
+proxy = ""
+swap_margin = 30
+
+[console]
+passwd = ""
+timetype = "gpst"
+soltype = "deg"
+solflag = "off"
+
+# --- Stream: single mosaic-G5 SBF carries obs + L6E SSR + L6D iono ---
+# Replace with your live receiver. For a recorded replay use type = "file".
+[streams.input.rover]
+type = "serial"
+path = "cu.usbmodem1101:115200:8:n:1:off" # macOS: cu.* (not tty.*); see docs
+format = "sbf"
+
+[streams.input.base]
+type = "off"
+path = ""
+format = ""
+nmeareq = false
+nmealat = 0.0
+nmealon = 0.0
+
+[streams.input.correction]
+type = "off" # not needed: corrections ride on the rover SBF
+path = ""
+format = ""
+
+[streams.output.stream1]
+type = "file"
+path = "madoca_pppar_iono_realtime.pos"
+format = "llh"
+
+[streams.output.stream2]
+type = "off"
+path = ""
+format = "llh"
+
+[streams.log.stream1]
+type = "off"
+path = ""
+
+[streams.log.stream2]
+type = "off"
+path = ""
+
+[streams.log.stream3]
+type = "off"
+path = ""

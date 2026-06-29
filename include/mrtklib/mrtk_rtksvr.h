@@ -37,6 +37,7 @@ extern "C" {
 #include "mrtklib/mrtk_nav.h"
 #include "mrtklib/mrtk_obs.h"
 #include "mrtklib/mrtk_opt.h"
+#include "mrtklib/mrtk_ppp.h"
 #include "mrtklib/mrtk_rcvraw.h"
 #include "mrtklib/mrtk_rtcm.h"
 #include "mrtklib/mrtk_rtkpos.h"
@@ -92,6 +93,7 @@ typedef struct {                      /* RTK server type */
     mrtk_ctx_t* ctx;                  /* runtime context */
     clas_ctx_t* clas;                 /* CLAS CSSR decoder context (NULL if unused) */
     has_t* has;                       /* Galileo HAS decoder context (NULL if unused) */
+    mdcl6d_t* mdciono;                /* MADOCA-PPP L6D iono decoder contexts (MIONO_MAX_PRN, NULL if unused) */
 } rtksvr_t;
 
 /*============================================================================
