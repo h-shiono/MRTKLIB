@@ -3492,8 +3492,9 @@ static int dumpcssr(char** infile, int n, FILE** ofp, const char* gridfile) {
 static int open_outputfiles(FILE** ofp) {
     char filename[512];
     static char parsename[512] = "parse_cssr";
+    int i;
 
-    for (int i = 0; i < CSSR_TYPE_NUM; i++) {
+    for (i = 0; i < CSSR_TYPE_NUM; i++) {
         ofp[i] = NULL;
     }
 
@@ -3662,7 +3663,7 @@ static void close_outputfiles(FILE** ofp) {
     for (i = 0; i < CSSR_TYPE_NUM; i++) {
         if (ofp[i] != NULL) {
             fclose(ofp[i]);
-            ofp[i] = NULL;  // prevent double close
+            ofp[i] = NULL; /* prevent double close */
         }
     }
 }
