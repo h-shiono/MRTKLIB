@@ -196,16 +196,23 @@ static void print_has_stats(void) {
 static void sbf_extract_l6_payload(const uint8_t* block, uint8_t* payload) {
     const uint8_t* p = block + 20; /* offset to data words */
     int i, j;
-    for (i = 0, j = 0; i < 63; i++, j += 4) {
-        /* SBF stores L6 words as 32-bit big-endian values in a
-         * little-endian block. U4() reads 4 bytes as little-endian uint32,
-         * then we extract bytes MSB-first. */
-        uint32_t w = U4(p + i * 4);
+    uint32_t w;
+    /* SBF stores L6 words as 32-bit big-endian values in a little-endian
+     * block. U4() reads 4 bytes as little-endian uint32, then we extract
+     * bytes MSB-first. The data area is 63 x 4-byte words = 252 bytes, but
+     * the L6 payload is only 250 bytes (the final 2 bytes are SBF 4-byte
+     * alignment padding). Unpack the first 62 words fully, then only the top
+     * 2 bytes of word 63 to avoid writing past payload[249]. */
+    for (i = 0, j = 0; i < 62; i++, j += 4) {
+        w = U4(p + i * 4);
         payload[j] = (w >> 24) & 0xFF;
         payload[j + 1] = (w >> 16) & 0xFF;
         payload[j + 2] = (w >> 8) & 0xFF;
         payload[j + 3] = w & 0xFF;
     }
+    w = U4(p + 62 * 4);
+    payload[248] = (w >> 24) & 0xFF;
+    payload[249] = (w >> 16) & 0xFF;
 }
 
 /* ---- SBF Galileo HAS extraction ---- */
