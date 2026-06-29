@@ -29,6 +29,7 @@
 
 #include <stdarg.h>
 #include <stdio.h>
+#include <string.h>
 
 extern void traceopen(mrtk_ctx_t* ctx, const char* file) {
     mrtk_ctx_t* c = CTX(ctx);
@@ -43,10 +44,16 @@ extern void traceopen(mrtk_ctx_t* ctx, const char* file) {
     }
 
     if (file && *file) {
-        /* expand time/station keywords (%Y %m %d %h %M ...) like stream paths do (#83) */
+        /* expand time/station keywords (%Y %m %d %h %M ...) like stream paths do (#83);
+           reppath() does an unbounded strcpy into rpath, so skip expansion for an
+           over-long path rather than overflow the buffer */
         char rpath[MAXSTRPATH];
-        reppath(file, rpath, utc2gpst(timeget()), "", "");
-        c->trace_fp = fopen(rpath, "w");
+        if (strlen(file) < sizeof(rpath)) {
+            reppath(file, rpath, utc2gpst(timeget()), "", "");
+            c->trace_fp = fopen(rpath, "w");
+        } else {
+            c->trace_fp = fopen(file, "w");
+        }
     }
     c->tick_trace = tickget();
 }
