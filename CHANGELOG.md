@@ -7,6 +7,51 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.7.3] - 2026-06-29
+
+**Real-time MADOCA-PPP PPP-AR/IONO.** The MADOCA-PPP L6D wide-area ionospheric
+augmentation (QZS PRN 200/201) is now wired into the real-time `mrtk run` path,
+so `ionosphere = est-stec` + `iono_correction = on` applies the same STEC
+constraint in real time as in post-processing. Previously this mode was
+post-processing only — L6E SSR was decoded in real time but the L6D iono
+augmentation was never routed into the server, so an `est-stec` real-time run
+silently degraded to plain PPP-AR. SBF-first (mosaic-G5): a single SBF stream
+carries observations, L6E SSR and L6D iono in one slot.
+
+### Added
+
+- **Real-time PPP-AR/IONO** — `rtksvr` decodes the L6D ionospheric frames
+  (QZSRawL6D, PRN 200/201) into `nav.pppiono` and applies the wide-area STEC
+  constraint live, mirroring `update_qzssl6d()` in the post-processing path.
+  Gated on `correction = qzs-madoca` + `ionosphere = est-stec` +
+  `iono_correction = on`. The GPST week is anchored lazily from the first stream
+  time (the CLAS `week_ref` pattern) so recorded-stream replay decodes in the
+  correct week ([#223](https://github.com/h-shiono/MRTKLIB/issues/223),
+  [PR #233](https://github.com/h-shiono/MRTKLIB/pull/233)).
+- **`conf/madocalib/rtkrcv_madoca_pppar_iono.toml`** — real-time single-SBF
+  MADOCA-PPP PPP-AR/IONO sample configuration, plus a real-time subsection in
+  the MADOCA-PPP quickstart.
+
+### Changed
+
+- **Septentrio SBF L6D routing** — the `Source = 1` (L6D) branch now returns a
+  dedicated decoder code for PRN 200/201/197 (MADOCA ionosphere) so the frame is
+  steered to the iono decoder instead of the CLAS redirect. The discriminator is
+  the PRN: 200/201 carry the iono augmentation and are disjoint from CLAS
+  (193–199) per IS-QZSS-MDC-004 Table 3-1. No effect on CLAS (in MADOCA mode the
+  CLAS context is absent; in CLAS mode PRN 200/201 were already rejected).
+
+### Validation
+
+- Offline decode of a mosaic-G5 SBF capture: 3660 L6D iono frames → 366 complete
+  decodes → `nav.pppiono` regions populated, alongside 89 L6E SSR satellites
+  from the same stream.
+- **Live mosaic-G5 hardware** (over TCP): the real-time iono path fires
+  (`pppiono` regions filled), L6E SSR age ≈ 1 s, and PPP-AR/IONO reached a fixed
+  solution (Q=1) ≈ 1 minute after start, holding continuous Q=1 at ~1.2 cm
+  horizontal / ~3.4 cm vertical std — the fast fix is the L6D ionospheric
+  augmentation working as intended.
+
 ## [v0.7.2] - 2026-06-29
 
 **CLAS PPP-RTK accuracy/robustness fixes and a CSSR dump tool.** The PPP-RTK
