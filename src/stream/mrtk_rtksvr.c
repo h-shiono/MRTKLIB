@@ -1297,6 +1297,20 @@ extern int rtksvrstart(rtksvr_t* svr, int cycle, int buffsize, int* strs, char**
         }
     }
 
+    /* free any iono state left over from a previous run so an in-process restart
+     * (the rtkrcv shell can `load` a new config and `restart` in the same
+     * process) starts clean: (1) a fresh mdciono re-anchors the GPST week in
+     * decoderaw() instead of reusing the stale mdciono[0].time, and (2) a stale
+     * nav.pppiono is not left non-NULL — miono_get_corr() consumes it on every
+     * PPP epoch (mrtk_rtkpos.c) regardless of correction source — when
+     * restarting into a non-PPP-AR/IONO mode (PR #235 review). */
+    if (svr->mdciono) {
+        free(svr->mdciono);
+        svr->mdciono = NULL;
+    }
+    free(svr->nav.pppiono);
+    svr->nav.pppiono = NULL;
+
     /* initialize MADOCA-PPP L6D ionospheric augmentation contexts for real-time
      * PPP-AR/IONO (correction = qzs-madoca, ionosphere = est-stec,
      * iono_correction = on). The per-PRN contexts decode L6D PRN 200/201 iono
