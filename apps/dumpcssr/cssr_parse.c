@@ -3478,6 +3478,7 @@ static int dumpcssr(char** infile, int n, FILE** ofp, const char* gridfile) {
     if (read_grid_def(gridfile)) {
         fprintf(stderr, "Grid file read error. %s\n", gridfile);
         showmsg("Grid file read error. %s\n", gridfile);
+        fclose(fp); /* MRTKLIB: close L6 file on error path (upstream leaks it) */
         return -1;
     }
 
@@ -3486,6 +3487,7 @@ static int dumpcssr(char** infile, int n, FILE** ofp, const char* gridfile) {
             break;
         }
     }
+    fclose(fp); /* MRTKLIB: close L6 file (upstream leaks it) */
     return 0;
 }
 
@@ -3675,6 +3677,7 @@ int cssr_parse_dump(const char* gridfile, char** infile, int n) {
 
     if (open_outputfiles(ofp) == -1) {
         fprintf(stderr, "Can't open output files.\n");
+        close_outputfiles(ofp); /* close any partially-opened CSVs */
         return -1;
     }
     stat = dumpcssr(infile, n, ofp, gridfile);
