@@ -47,6 +47,8 @@ See [`docs/releases/changelog.md`](docs/releases/changelog.md) for the full hist
 | v0.6.13 | Enhanced PPP-RTK SPP seed (C/N0 + TDCP) + RINEX converter obsdef frequency unification |
 | v0.6.14 | Real-time CLAS handover robustness + cssr2rtcm3 / VRS carrier-phase quality |
 | v0.7.0 | Galileo HAS (E6-B C/NAV) float PPP — opens the v0.7.x global SSR correction services series |
+| v0.7.1 | Two-receiver QZSS L6 (mosaic-CLAS / mosaic-G5) + single-SBF MADOCA-PPP |
+| v0.7.2 | CLAS PPP-RTK accuracy/robustness fixes + `mrtk dump --parse` (upstream-identical parse_cssr_*.csv) |
 
 ### Test Status
 

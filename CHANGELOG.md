@@ -7,6 +7,55 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.7.2] - 2026-06-29
+
+**CLAS PPP-RTK accuracy/robustness fixes and a CSSR dump tool.** The PPP-RTK
+adaptive-ionosphere process noise is restored under storm-day conditions, CLAS
+falls back to global orbit/clock corrections when a network partition goes
+stale, and `mrtk dump` gains a `--parse` mode that reproduces the upstream
+claslib `dumpcssr` per-subtype CSV output byte-identically.
+
+### Added
+
+- **`mrtk dump --parse`** — dumps decoded CLAS L6D / Compact SSR to the
+  upstream-format per-subtype CSV files (`parse_cssr_type1..12*.csv` and
+  `parse_cssr_header.csv`). Implemented as a self-contained vendored parser
+  (`apps/dumpcssr/cssr_parse.c`) ported from claslib 082; the production CLAS
+  decoder is left untouched. Requires `-grid FILE`.
+- **`mrtk dump -grid/--grid FILE`** — pass the CLAS grid definition directly
+  on the command line (replacing the `-k`/config indirection, see Changed).
+- **CLAS absolute-accuracy regression tests** — F5 (GSI daily-coordinate)
+  geodetic-truth checks for all CLAS PPP-RTK/VRS datasets (TSUKUBA3 / station
+  0627), guarding geodetic accuracy in addition to consistency-vs-claslib
+  ([PR #227](https://github.com/h-shiono/MRTKLIB/pull/227)).
+
+### Changed
+
+- **`mrtk dump` grid input** — the grid definition is now taken via `-grid`
+  instead of the `-k`/`--config` file (which existed in `dump` only to read the
+  grid path). The redundant config handling is removed.
+
+### Fixed
+
+- **PPP-RTK adaptive-ionosphere process noise** — restore the
+  compacted→full-`nx` `Qp` scatter-back that had been lost, so the adaptive
+  ionosphere noise is actually applied. Storm-day CLAS fix rate improves from
+  77% to 85% (+8 pp) ([#225](https://github.com/h-shiono/MRTKLIB/issues/225),
+  [PR #226](https://github.com/h-shiono/MRTKLIB/pull/226)).
+- **CLAS stale network partition** — fall back to global orbit/clock
+  corrections when the close-network orbit/clock partition is stale, instead of
+  dropping corrections ([#218](https://github.com/h-shiono/MRTKLIB/issues/218),
+  [PR #228](https://github.com/h-shiono/MRTKLIB/pull/228)).
+
+### Validation
+
+- `mrtk dump --parse` output is **byte-identical** to upstream claslib 082
+  `dumpcssr` / `ssr2osr -dump` on `2026121A.l6` across all per-subtype CSVs
+  (data fields; the only difference is an upstream version delta in one header
+  column label) ([PR #230](https://github.com/h-shiono/MRTKLIB/pull/230)).
+- CLAS PPP-RTK absolute accuracy: 2D 95% ≈ 4.2–4.3 cm vs GSI F5 truth
+  (TSUKUBA3, 2019/08/27).
+
 ## [v0.7.1] - 2026-06-21
 
 **Two-receiver QZSS L6 support (mosaic-CLAS / mosaic-G5) and single-SBF
