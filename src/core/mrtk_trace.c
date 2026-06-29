@@ -17,6 +17,7 @@
 
 #include "mrtklib/mrtk_nav.h"
 #include "mrtklib/mrtk_obs.h"
+#include "mrtklib/mrtk_sys.h"
 #include "mrtklib/mrtk_time.h"
 
 /**
@@ -42,7 +43,10 @@ extern void traceopen(mrtk_ctx_t* ctx, const char* file) {
     }
 
     if (file && *file) {
-        c->trace_fp = fopen(file, "w");
+        /* expand time/station keywords (%Y %m %d %h %M ...) like stream paths do (#83) */
+        char rpath[MAXSTRPATH];
+        reppath(file, rpath, utc2gpst(timeget()), "", "");
+        c->trace_fp = fopen(rpath, "w");
     }
     c->tick_trace = tickget();
 }
