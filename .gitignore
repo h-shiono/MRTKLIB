@@ -76,6 +76,11 @@ upstream/MALIB/
 upstream/demo5/
 upstream/RTKLIB/
 
+# Copyrighted reference specs / vendor guides / papers — keep local only.
+# The provenance catalogs (index.md) ARE tracked; the binaries are not.
+docs/reference/icd/*.pdf
+docs/reference/papers/*.pdf
+
 # PPC benchmark dataset, L6 data, and positioning results (large; download on demand)
 data/benchmark/
 
