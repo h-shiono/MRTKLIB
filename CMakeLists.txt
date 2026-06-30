@@ -158,11 +158,35 @@ if(CMAKE_VERSION VERSION_GREATER_EQUAL "3.22")
     set(BLA_SIZEOF_INTEGER 4 CACHE STRING
         "BLAS/LAPACK integer size (MRTKLIB requires 4)")
 endif()
+
+# Opt-in reproducible-numerics build: pin the BLAS provider to single-threaded
+# OpenBLAS so every run is bit-identical. The default (this option OFF) uses
+# whatever LAPACK CMake finds (Accelerate on macOS, system LAPACK on Linux),
+# which is faster but whose threaded reductions are not run-to-run reproducible.
+# Needed for stable benchmarking/regression of AR-margin (storm-day) cases.
+option(MRTK_DETERMINISTIC_BLAS
+    "Pin BLAS to single-threaded OpenBLAS for bit-reproducible results" OFF)
+if(MRTK_DETERMINISTIC_BLAS)
+    set(BLA_VENDOR OpenBLAS)
+    message(STATUS "MRTK_DETERMINISTIC_BLAS=ON: pinning BLAS provider to OpenBLAS (single-threaded).")
+endif()
+
 find_package(LAPACK)
 if(LAPACK_FOUND)
     target_compile_definitions(mrtklib PRIVATE LAPACK)
     target_link_libraries(mrtklib PRIVATE LAPACK::LAPACK)
+    if(MRTK_DETERMINISTIC_BLAS)
+        # Force a single thread at load time (mrtk_mat.c constructor) so the
+        # reduction order is deterministic; OpenBLAS otherwise threads by default.
+        target_compile_definitions(mrtklib PRIVATE MRTK_DETERMINISTIC_BLAS)
+        message(STATUS "Reproducible numerics: OpenBLAS forced to a single thread at startup.")
+    endif()
     message(STATUS "LAPACK found and enabled for fast matrix operations.")
+elseif(MRTK_DETERMINISTIC_BLAS)
+    message(FATAL_ERROR
+        "MRTK_DETERMINISTIC_BLAS=ON but OpenBLAS LAPACK was not found. "
+        "Install OpenBLAS (e.g. 'brew install openblas') and/or pass "
+        "-DCMAKE_PREFIX_PATH=<openblas-prefix>.")
 else()
     message(WARNING "LAPACK not found. Falling back to internal (slower) matrix math.")
 endif()
