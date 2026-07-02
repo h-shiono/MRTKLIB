@@ -123,13 +123,16 @@ static double gettgd(int sat, const nav_t* nav, int type) {
     }
 }
 /* index of the 2nd frequency for the iono-free combination -------------------
- * #135: for IGS-product PPP, when the conventional slot 1 carries no observation
- * (F9P-class GAL E5b / BDS B2I, with E5a/B3I absent), fall back to the first
- * populated higher slot. Returns 1 otherwise, so existing dual-frequency data is
- * unaffected. nav may be NULL to skip the carrier-frequency validity check
- * (e.g. for SNR masking, which only needs the observation slot). */
+ * Upstream CLAS SPP uses L1-L5 for GAL/SBS and L1-L2 otherwise. Preserve the
+ * #135 IGS-product fallback for receivers whose conventional slot 1 is absent.
+ * nav may be NULL to skip the carrier-frequency validity check (e.g. for SNR
+ * masking, which only needs the observation slot). */
 static int iflc_freq2_idx(const obsd_t* obs, const nav_t* nav, const prcopt_t* opt) {
+    int sys = satsys(obs->sat, NULL);
     int j;
+    if (opt->ionoopt == IONOOPT_IFLC && opt->correction != CORR_IGS && NFREQ >= 3 && (sys & (SYS_GAL | SYS_SBS))) {
+        return 2;
+    }
     if (opt->ionoopt == IONOOPT_IFLC && opt->correction == CORR_IGS && obs->P[1] == 0.0) {
         for (j = 2; j < NFREQ; j++) {
             if (obs->P[j] != 0.0 && (!nav || sat2freq(obs->sat, obs->code[j], nav) != 0.0)) {
