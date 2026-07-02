@@ -98,10 +98,8 @@ static int code_on_same_freq(int sys, uint8_t code1, uint8_t code2) {
 }
 
 static int claslib_pcv_slot(int f) {
-    static const int pcv_slot[NFREQ] = {0, 4, 11};
-
-    if (f < 0 || NFREQ <= f) return f;
-    return pcv_slot[f];
+    /* claslib compacts ANTEX frequency numbers {1,2,5} into OSR slots {0,1,2}. */
+    return f;
 }
 
 /** Frequency pair selection modes (upstream claslib rtklib.h) */
