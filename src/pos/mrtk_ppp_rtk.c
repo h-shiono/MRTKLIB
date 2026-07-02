@@ -1112,17 +1112,12 @@ static int residual_test(rtk_t* rtk, const int* vflg, const double* v, const dou
     for (i = 0; i < MAXSAT; i++) {
         for (k = 1; k < nf; k++) {
             int qi = 0, qj = k;
-            double q0, q1, lami, lamj;
+            double q0, q1;
 
             if (resp[i * nf + qi] == 0.0 || resp[i * nf + qj] == 0.0) {
                 continue;
             }
-            lami = sat_lambda(i + 1, qi, NULL);
-            lamj = sat_lambda(i + 1, qj, NULL);
-            if (lami <= 0.0 || lamj <= 0.0) {
-                continue;
-            }
-            gamma = SQR(lamj) / SQR(lami);
+            gamma = SQR(lam_carr[qj]) / SQR(lam_carr[qi]);
             q0 = resp[i * nf + qi];
             q1 = resp[i * nf + qj];
             vvf_ = FREQ1 / FREQ2 * (resc[i * nf + qi] - resc[i * nf + qj]) / (1.0 - gamma);
