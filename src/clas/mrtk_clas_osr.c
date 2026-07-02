@@ -97,8 +97,15 @@ static int code_on_same_freq(int sys, uint8_t code1, uint8_t code2) {
     return (f1 >= 0 && f1 == f2);
 }
 
-static int claslib_pcv_slot(int f) {
-    /* claslib compacts ANTEX frequency numbers {1,2,5} into OSR slots {0,1,2}. */
+static int pcv_slot_has_data(const pcv_t* pcv, int slot) {
+    return pcv && 0 <= slot && slot < NFREQPCV && (norm(pcv->off[slot], 3) > 0.0 || norm(pcv->var[slot], 19) > 0.0);
+}
+
+static int claslib_pcv_slot(const pcv_t* pcv, int f) {
+    /* claslib compacts ANTEX frequency numbers {1,2,5} into OSR slots {0,1,2}.
+     * Its reader ignores the constellation prefix, so C02 can overwrite the
+     * compact L2 slot after G02/J02 in multi-GNSS receiver ANTEX entries. */
+    if (f == 1 && pcv_slot_has_data(pcv, 4)) return 4;
     return f;
 }
 
@@ -694,7 +701,7 @@ int clas_osr_corrmeas(const obsd_t* obs, nav_t* nav, const double* pos, const do
     }
 
     for (i = 0; i < nf; i++) {
-        int ant_idx = claslib_pcv_slot(i);
+        int ant_idx = claslib_pcv_slot(&opt->pcvr[0], i);
         osr->wupL[i] = lam[i] * ssat.phw;
         osr->antr[i] = (0 <= ant_idx && ant_idx < NFREQPCV) ? dant[ant_idx] : 0.0;
     }
