@@ -1604,9 +1604,13 @@ int clas_ssr2osr(rtk_t* rtk, obsd_t* obs, int n, nav_t* nav, clas_osrd_t* osr, i
         return 0;
     }
 
-    /* fetch corrections from bank */
-    if (grid->network > 0 && grid->network != corr->network) {
-        if (clas_bank_get_close(clas, obs[0].time, grid->network, ch, corr) != 0) {
+    /* re-fetch corrections closest to observation time each epoch,
+     * falling back to L6 buffer time if obs lookup fails. current[ch] is a
+     * bank snapshot, not a live decode target, so a fetch gated on network
+     * change would keep serving the first correction set until it ages out. */
+    if (grid->network > 0) {
+        if (clas_bank_get_close(clas, obs[0].time, grid->network, ch, corr) != 0 &&
+            clas_bank_get_close(clas, clas->l6buf[ch].time, grid->network, ch, corr) != 0) {
             trace(NULL, 2, "clas_ssr2osr: bank lookup failed\n");
             free(rs);
             free(dts);
