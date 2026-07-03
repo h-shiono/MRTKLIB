@@ -46,6 +46,7 @@ static char signals_[1024];
 
 /* system options table ------------------------------------------------------*/
 #define SWTOPT "0:off,1:on"
+#define ISBOPT "0:off,1:table,1:on"
 #define SEEDOPT "0:off,1:cn0+tdcp,2:cn0+tdcp+robust"
 #define MODOPT                                                                                                    \
     "0:single,1:dgps,2:kinematic,3:static,4:movingbase,5:fixed,6:ppp-kine,7:ppp-static,8:ppp-fixed,9:ppp-rtk,10:" \
@@ -79,6 +80,7 @@ static char signals_[1024];
 #define COMOPT "0:off,1:ssr,2:meas"
 #define ARALPHAOPT "0:0.1%,1:0.5%,2:1%,3:5%,4:10%,5:20%"
 #define PSHFTOPT "0:off,1:table"
+#define DOPOPT "0:zd,1:sd"
 #define SATCB "0:auto,1:ssr,2:bia,3:dcb"
 #define SATPB "0:auto,1:ssr,2:bia,3:fcb"
 #define CORROPT "-1:auto,0:none,1:igs,2:igs-rts,3:qzs-madoca,4:gal-has,5:bds-b2b,6:qzs-clas"
@@ -166,6 +168,9 @@ opt_t sysopts[] = {
     {"pos2-qzsarmode", 3, (void*)&prcopt_.qzsmodear, SWTOPT},
     {"pos2-aralpha", 3, (void*)&prcopt_.alphaar, ARALPHAOPT},
     {"pos2-arminamb", 0, (void*)&prcopt_.minamb, ""},
+    {"pos2-maxpdopar", 1, (void*)&prcopt_.maxpdopar, ""},
+    {"pos2-maxpdophold", 1, (void*)&prcopt_.maxpdophold, ""},
+    {"pos2-refdop", 3, (void*)&prcopt_.refdop, DOPOPT},
     {"pos2-armaxdelsat", 0, (void*)&prcopt_.armaxdelsat, ""},
     {"pos2-varholdamb", 1, (void*)&prcopt_.varholdamb, "cyc^2"},
     {"pos2-arthres5", 1, (void*)&prcopt_.thresar[5], ""},
@@ -190,7 +195,7 @@ opt_t sysopts[] = {
     {"pos2-afgainpva", 1, (void*)&prcopt_.afgainpva, ""},
     {"pos2-phasshft", 3, (void*)&prcopt_.phasshft, PSHFTOPT},
     {"pos2-rectype", 2, (void*)prcopt_.rectype[1], ""},
-    {"pos2-isb", 3, (void*)&prcopt_.isb, SWTOPT},
+    {"pos2-isb", 3, (void*)&prcopt_.isb, ISBOPT},
 
     {"out-solformat", 3, (void*)&solopt_.posf, SOLOPT},
     {"out-outhead", 3, (void*)&solopt_.outhead, SWTOPT},
