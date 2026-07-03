@@ -158,7 +158,7 @@ static struct {
     int refsat[NFREQ * 2 * MAXREF * 6 + 1];
     int refsat2[NFREQ * 2 * 6 + 1];
 
-    /* CPC/pt0 persistent state from zdres */
+    /* CPC/pt0 persistent state from zdres (CPC is freq-major: f * MAXSAT + sat-1) */
     double cpc[MAXSAT * NFREQ];
     gtime_t pt0[MAXSAT];
 
@@ -183,6 +183,32 @@ static struct {
 
     int initialized;
 } prtk_ctx;
+
+static void load_ppp_osr_cpc(clas_osr_ctx_t* ctx, const double* cpc, const gtime_t* pt0) {
+    int f, i;
+
+    for (f = 0; f < NFREQ; f++) {
+        for (i = 0; i < MAXSAT; i++) {
+            ctx->cpctmp[f * MAXSAT + i] = cpc[f * MAXSAT + i];
+        }
+    }
+    for (i = 0; i < MAXSAT; i++) {
+        ctx->pt0tmp[i] = pt0[i];
+    }
+}
+
+static void save_ppp_osr_cpc(const clas_osr_ctx_t* ctx, double* cpc, gtime_t* pt0) {
+    int f, i;
+
+    for (f = 0; f < NFREQ; f++) {
+        for (i = 0; i < MAXSAT; i++) {
+            cpc[f * MAXSAT + i] = ctx->cpctmp[f * MAXSAT + i];
+        }
+    }
+    for (i = 0; i < MAXSAT; i++) {
+        pt0[i] = ctx->pt0tmp[i];
+    }
+}
 
 /*============================================================================
  * Helper: satellite-specific wavelength
@@ -2427,7 +2453,7 @@ extern void ppp_rtk_pos(rtk_t* rtk, const obsd_t* obs, int n, nav_t* nav) {
             for (j = 0; j < MAXSAT; j++) {
                 pt0_[j] = prtk_ctx.pt0[j];
                 for (f = 0; f < NFREQ; f++) {
-                    cpc_[j * NFREQ + f] = prtk_ctx.cpc[j * NFREQ + f];
+                    cpc_[f * MAXSAT + j] = prtk_ctx.cpc[f * MAXSAT + j];
                 }
             }
 
@@ -2435,8 +2461,10 @@ extern void ppp_rtk_pos(rtk_t* rtk, const obsd_t* obs, int n, nav_t* nav) {
             for (j = 0; j < 3; j++) {
                 pbslip[j] = xp[j];
             }
+            load_ppp_osr_cpc(&prtk_ctx.osr_ctx, cpc_, pt0_);
             nvtmp = clas_osr_zdres(obs, n, rs, dts, var, svh, nav, pbslip, y, e, azel, rtk, 1, &prtk_ctx.osr_ctx, grid,
                                    corr, rtk->ssat, &rtk->opt, &rtk->sol, NULL, 0);
+            save_ppp_osr_cpc(&prtk_ctx.osr_ctx, cpc_, pt0_);
 
             if (!nvtmp) {
                 trace(NULL, 2, "rover initial position error\n");
@@ -2461,8 +2489,10 @@ extern void ppp_rtk_pos(rtk_t* rtk, const obsd_t* obs, int n, nav_t* nav) {
             }
 
             /* recompute zero-difference residuals (postfit) */
+            load_ppp_osr_cpc(&prtk_ctx.osr_ctx, cpc_, pt0_);
             nvtmp = clas_osr_zdres(obs, n, rs, dts, var, svh, nav, xp, y, e, azel, rtk, 0, &prtk_ctx.osr_ctx, grid,
                                    corr, rtk->ssat, &rtk->opt, &rtk->sol, NULL, 0);
+            save_ppp_osr_cpc(&prtk_ctx.osr_ctx, cpc_, pt0_);
 
             if (nvtmp) {
                 nv = ddres(rtk, nav, xp, NULL, Pp, obs, y, e, azel, n, v, NULL, R, vflg, k);
@@ -2648,8 +2678,10 @@ extern void ppp_rtk_pos(rtk_t* rtk, const obsd_t* obs, int n, nav_t* nav) {
 
         if (nb > 1) {
             /* recompute zdres with fixed solution */
+            load_ppp_osr_cpc(&prtk_ctx.osr_ctx, cpc_, pt0_);
             nvtmp = clas_osr_zdres(obs, n, rs, dts, var, svh, nav, xa, y, e, azel, rtk, 0, &prtk_ctx.osr_ctx, grid,
                                    corr, rtk->ssat, &rtk->opt, &rtk->sol, NULL, 0);
+            save_ppp_osr_cpc(&prtk_ctx.osr_ctx, cpc_, pt0_);
             if (nvtmp) {
                 /* post-fix DD residuals */
                 nv = ddres(rtk, nav, xa, NULL, NULL, obs, y, e, azel, n, v, NULL, R, vflg, k);
@@ -2775,7 +2807,7 @@ extern void ppp_rtk_pos(rtk_t* rtk, const obsd_t* obs, int n, nav_t* nav) {
     for (j = 0; j < MAXSAT; j++) {
         prtk_ctx.pt0[j] = pt0_[j];
         for (f = 0; f < NFREQ; f++) {
-            prtk_ctx.cpc[j * NFREQ + f] = cpc_[j * NFREQ + f];
+            prtk_ctx.cpc[f * MAXSAT + j] = cpc_[f * MAXSAT + j];
         }
     }
 
