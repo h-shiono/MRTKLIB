@@ -1184,6 +1184,93 @@ extern int clas_bank_get_close(const clas_ctx_t* ctx, gtime_t time, int network,
     return 0;
 }
 
+static gtime_t backup_cssr_time(const clas_corr_t* corr) {
+    gtime_t time = corr->clock_time;
+
+    if (timediff(corr->orbit_time, time) > 0.0) {
+        time = corr->orbit_time;
+    }
+    if (timediff(corr->bias_time, time) > 0.0) {
+        time = corr->bias_time;
+    }
+    return time;
+}
+
+extern int clas_backup_valid(const clas_ctx_t* ctx, gtime_t obstime, int l6mrg) {
+    int ch, nch = l6mrg ? SSR_CH_NUM : 1;
+
+    if (!ctx) {
+        return 0;
+    }
+    if (nch > CLAS_CH_NUM) {
+        nch = CLAS_CH_NUM;
+    }
+    for (ch = 0; ch < nch; ch++) {
+        if (ctx->backup[ch].use && timediff(obstime, backup_cssr_time(&ctx->backup[ch])) <= 180.0) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+extern void clas_backup_current(clas_ctx_t* ctx, const clas_grid_t* grid, int l6mrg) {
+    int ch, nch = l6mrg ? SSR_CH_NUM : 1;
+
+    if (!ctx || !grid) {
+        return;
+    }
+    if (nch > CLAS_CH_NUM) {
+        nch = CLAS_CH_NUM;
+    }
+    for (ch = 0; ch < nch; ch++) {
+        memcpy(&ctx->backup[ch], &ctx->current[ch], sizeof(clas_corr_t));
+        memcpy(&ctx->backup_grid[ch], grid, sizeof(clas_grid_t));
+        init_grid_index(&ctx->backup[ch]);
+    }
+}
+
+extern void clas_restore_backup(clas_ctx_t* ctx, gtime_t time, clas_grid_t* grid, int l6mrg) {
+    clas_clock_bank_t* clock;
+    int i, ch, nch = l6mrg ? SSR_CH_NUM : 1;
+
+    if (!ctx || !grid) {
+        return;
+    }
+    if (nch > CLAS_CH_NUM) {
+        nch = CLAS_CH_NUM;
+    }
+    for (ch = 0; ch < nch; ch++) {
+        clas_bank_ctrl_t* bank = ctx->bank[ch];
+        if (!bank || !bank->use || !ctx->backup[ch].use) {
+            continue;
+        }
+        if (timediff(time, backup_cssr_time(&ctx->backup[ch])) > 180.0) {
+            continue;
+        }
+        memcpy(&ctx->current[ch], &ctx->backup[ch], sizeof(clas_corr_t));
+        memcpy(grid, &ctx->backup_grid[ch], sizeof(clas_grid_t));
+        init_grid_index(&ctx->current[ch]);
+
+        if ((clock = get_close_clock(bank, time, ctx->current[ch].orbit_time, grid->network, 30.0)) &&
+            timediff(ctx->current[ch].clock_time, clock->time) != 0.0) {
+            ctx->current[ch].clock_time = clock->time;
+            for (i = 0; i < MAXSAT; i++) {
+                if (clock->prn[i] != 0) {
+                    ctx->current[ch].time[i][1] = clock->time;
+                    ctx->current[ch].prn[i][1] = clock->prn[i];
+                    ctx->current[ch].udi[i][1] = clock->udi[i];
+                    ctx->current[ch].iod[i][1] = clock->iod[i];
+                    ctx->current[ch].c0[i] = clock->c0[i];
+                    ctx->current[ch].flag[i] |= 0x02;
+                } else {
+                    ctx->current[ch].flag[i] &= ~0x02;
+                    ctx->current[ch].prn[i][1] = 0;
+                }
+            }
+        }
+    }
+}
+
 /*============================================================================
  * Grid Status Check (from upstream cssr.c:check_cssr_grid_status)
  *===========================================================================*/

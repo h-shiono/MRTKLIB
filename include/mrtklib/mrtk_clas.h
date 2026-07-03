@@ -713,6 +713,16 @@ void clas_bank_init(clas_ctx_t* ctx, int ch);
 int clas_bank_get_close(const clas_ctx_t* ctx, gtime_t time, int network, int ch, clas_corr_t* corr);
 
 /**
+ * @brief Save/restore the latest usable CSSR snapshot for short correction gaps.
+ *
+ * Mirrors claslib's BackupCSSR/BackupGrid path. The backup is considered valid
+ * while its latest global correction time is within 180 s of the observation.
+ */
+int clas_backup_valid(const clas_ctx_t* ctx, gtime_t obstime, int l6mrg);
+void clas_backup_current(clas_ctx_t* ctx, const clas_grid_t* grid, int l6mrg);
+void clas_restore_backup(clas_ctx_t* ctx, gtime_t time, clas_grid_t* grid, int l6mrg);
+
+/**
  * @brief Apply global corrections (orbit/clock/bias) to nav_t.ssr[].
  * @param[in,out] nav   Navigation data
  * @param[in]     corr  Merged correction snapshot

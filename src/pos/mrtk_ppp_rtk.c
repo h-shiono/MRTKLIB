@@ -2111,7 +2111,7 @@ extern int ppp_rtk_na(const prcopt_t* opt) { return NR_RTK(opt); }
  * double-differencing with CLAS grid corrections (STEC, ZWD) and iterative
  * Kalman filter with LAMBDA integer ambiguity resolution.
  *
- * Simplified single-channel version (no l6mrg, no backup CSSR).
+ * Uses CLAS grid corrections with a short CSSR backup fallback matching claslib.
  *
  * @param[in,out] rtk  RTK control/result struct
  * @param[in]     obs  Observation data for epoch
@@ -2129,7 +2129,7 @@ extern void ppp_rtk_pos(rtk_t* rtk, const obsd_t* obs, int n, nav_t* nav) {
     int i, j, k, f, l, nv, nvtmp, info, nf = rtk->opt.nf, sati;
     int stat = (rtk->opt.mode <= PMODE_DGPS) ? SOLQ_DGPS : SOLQ_FLOAT;
     int vflg[MAXOBS * NFREQ * 4 + 1], nb, svh[MAXOBS];
-    int nn;
+    int nn, use_backup = 0;
     double cpc_[MAXSAT * NFREQ];
     gtime_t pt0_[MAXSAT];
 
@@ -2197,22 +2197,27 @@ extern void ppp_rtk_pos(rtk_t* rtk, const obsd_t* obs, int n, nav_t* nav) {
     corr = &clas->current[0];
     ecef2pos(rtk->x, pos);
     if ((nn = clas_get_grid_index(clas, pos, grid, opt->gridsel, obs[0].time)) <= 0) {
-        trace(NULL, 2, "ppp_rtk_pos: no valid grid\n");
-        free(azel);
-        free(e);
-        free(y);
-        free(rs);
-        free(dts);
-        free(var);
-        rtk->sol.stat = SOLQ_SINGLE;
-        return;
+        if (!clas_backup_valid(clas, obs[0].time, opt->l6mrg)) {
+            trace(NULL, 2, "ppp_rtk_pos: no valid grid\n");
+            free(azel);
+            free(e);
+            free(y);
+            free(rs);
+            free(dts);
+            free(var);
+            rtk->sol.stat = SOLQ_SINGLE;
+            return;
+        }
+        clas_restore_backup(clas, obs[0].time, grid, opt->l6mrg);
+        use_backup = 1;
     }
 
-    /* fetch and apply corrections for all active channels */
+    /* fetch corrections for all active channels, or restore a short-gap backup */
     {
         int nch = opt->l6mrg ? SSR_CH_NUM : 1;
         int ch;
-        for (ch = 0; ch < nch; ch++) {
+        int fetch_failed = 0;
+        for (ch = 0; ch < nch && !use_backup; ch++) {
             /* re-fetch corrections closest to observation time,
              * falling back to L6 buffer time if obs lookup fails */
             if (grid->network > 0) {
@@ -2223,10 +2228,29 @@ extern void ppp_rtk_pos(rtk_t* rtk, const obsd_t* obs, int n, nav_t* nav) {
                 }
                 if (bgrc != 0) {
                     trace(NULL, 3, "ppp_rtk_pos: bank lookup failed ch=%d\n", ch);
-                    continue;
+                    fetch_failed = 1;
+                    break;
                 }
                 clas_check_grid_status(clas, &clas->current[ch], ch);
             }
+        }
+        if (fetch_failed) {
+            if (!clas_backup_valid(clas, obs[0].time, opt->l6mrg)) {
+                free(azel);
+                free(e);
+                free(y);
+                free(rs);
+                free(dts);
+                free(var);
+                rtk->sol.stat = SOLQ_SINGLE;
+                return;
+            }
+            clas_restore_backup(clas, obs[0].time, grid, opt->l6mrg);
+            use_backup = 1;
+        } else if (!use_backup) {
+            clas_backup_current(clas, grid, opt->l6mrg);
+        }
+        for (ch = 0; ch < nch; ch++) {
             clas_update_global(nav, &clas->current[ch], ch);
             clas_update_local(nav, &clas->current[ch], ch);
         }
