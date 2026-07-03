@@ -476,6 +476,26 @@ extern void apply_pppsig(const int* pppsig) {
             break;
     }
 }
+
+/* apply upstream claslib PPP-RTK slot layout ---------------------------------
+ * claslib/RTKLIB uses abstract frequency slots from obsfreqs[]:
+ *   GPS: L1, L2, L5
+ *   GAL: E1, unused L2 slot, E5a, E6, E5b, E5ab
+ *   QZS: L1, L2, L5, L6
+ * MRTK's normal obsdef is physical-band oriented (GAL E5a and QZS L5 at slot 1).
+ * For QZSS CLAS PPP-RTK, keep the post-processing path slot-compatible with
+ * upstream so cssr2osr's GAL slot-1 skip and QZS L2 default select the same
+ * ambiguities as claslib.
+ *-----------------------------------------------------------------------------*/
+extern void apply_claslib_ppprtk_obsdef(void) {
+    static const int fn_gps_clas[MAXFREQ] = {1, 2, 5, 0, 0, 0, 0};
+    static const int fn_gal_clas[MAXFREQ] = {1, 0, 5, 6, 7, 8, 0};
+    static const int fn_qzs_clas[MAXFREQ] = {1, 2, 5, 6, 0, 0, 0};
+
+    set_obsdef(SYS_GPS, fn_gps_clas);
+    set_obsdef(SYS_GAL, fn_gal_clas);
+    set_obsdef(SYS_QZS, fn_qzs_clas);
+}
 /* convert frequency index to frequency number --------------------------------
  * args   : int    sys        I   satellite system
  *          int    freq_idx   I   frequency index (0,1,2,...)

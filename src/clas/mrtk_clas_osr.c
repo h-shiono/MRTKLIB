@@ -1443,10 +1443,8 @@ int clas_osr_zdres(const obsd_t* obs, int n, const double* rs, const double* dts
                     if (f > 0 && !(f & qj)) {
                         continue;
                     }
-                    /* GAL has no L2 band — skip only if slot f is
-                     * actually L2 (freq_num==2). When obsdef places E5a
-                     * at slot 1 (e.g. signals=["E1C","E5Q"]), do NOT skip. */
-                    if (satsys(sat, NULL) == SYS_GAL && code2freq_num(obs_copy[i].code[f]) == 2) {
+                    /* Keep CLAS PPP-RTK Galileo slots aligned with upstream: slot 1 is not used. */
+                    if (f == 1 && (satsys(sat, NULL) == SYS_GAL)) {
                         continue;
                     }
                     if (j == 0 && (osr[i].pbias[f] == CLAS_CSSRINVALID)) {

@@ -236,7 +236,20 @@ static uint8_t obs_code_for_freq(int sat, int f) {
 static double sat_lambda(int sat, int f, const nav_t* nav) {
     uint8_t code = obs_code_for_freq(sat, f);
     char* obs = code2obs(code);
+    int prn = 0, sys = satsys(sat, &prn);
+    int freq_num = freq_idx2freq_num(sys, f);
+    int fcn = 0;
     double freq = 0.0;
+
+    if (freq_num > 0) {
+        if (sys == SYS_GLO && nav && prn >= 1 && prn <= 32 && nav->glo_fcn[prn - 1] > 0) {
+            fcn = nav->glo_fcn[prn - 1] - 8;
+        }
+        freq = freq_num2freq(sys, freq_num, fcn);
+        if (freq > 0.0) {
+            return CLIGHT / freq;
+        }
+    }
 
     if (!obs || strlen(obs) < 2) {
         return 0.0;
@@ -1577,8 +1590,8 @@ static int ddres(rtk_t* rtk, const nav_t* nav, double* x, double* pbslip, const 
                     rtk->ssat[satj - 1].resc[f] = v[nv];
                     Ri[nv] = varerr(sati, sysi, azel[1 + i * 2], 0, opt);
                     Rj[nv] = varerr(satj, sysj, azel[1 + j * 2], 0, opt);
-                    /* L2 scaling factor */
-                    if (f == 1) {
+                    /* L2 scaling factor; MRTK sigcfg can place E5/L5 at slot 1. */
+                    if (f > 0 && (freq_idx2freq_num(sysi, f) == 2 || freq_idx2freq_num(sysj, f) == 2)) {
                         Ri[nv] *= SQR(2.55 / 1.55);
                         Rj[nv] *= SQR(2.55 / 1.55);
                     }

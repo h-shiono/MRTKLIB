@@ -50,7 +50,7 @@ static char signals_[1024];
 #define MODOPT                                                                                                    \
     "0:single,1:dgps,2:kinematic,3:static,4:movingbase,5:fixed,6:ppp-kine,7:ppp-static,8:ppp-fixed,9:ppp-rtk,10:" \
     "ssr2osr,11:ssr2osr-fixed,12:vrs-rtk"
-#define FRQOPT "1:l1,2:l1+2,3:l1+2+3,4:l1+2+3+4,5:l1+2+3+4+5"
+#define FRQOPT "1:l1,2:l1+2,2:l1+l2,3:l1+2+3,3:l1+l2+l5,4:l1+2+3+4,4:l1+l2+l5+l6,5:l1+2+3+4+5,5:l1+l2+l5+l6+l7"
 #define FRQOPT2 "1:l1,2:l1+l2,3:l1+l5,4:l1+l2+l5,5:l1+l5(l2)"
 #define TYPOPT "0:forward,1:backward,2:combined"
 #define IONOPT "0:off,1:brdc,2:sbas,3:dual-freq,4:est-stec,5:ionex-tec,6:qzs-brdc,9:est-adaptive"
