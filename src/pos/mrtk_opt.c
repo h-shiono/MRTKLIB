@@ -86,6 +86,8 @@ const prcopt_t prcopt_default = {
     0, /* pppsatcb,pppsatpb,unbias,maxbiasdt */
     .correction = CORR_AUTO,
     .enhanced_spp_seed = SEEDENH_BASE, /* default on: C/N0 + TDCP a-priori seed (PPP-RTK/VRS) */
+    .rejethres = 0.0,                  /* standalone SPP off; CLAS seed applies upstream auto-default */
+    .rejeminsat = 7,
 };
 const solopt_t solopt_default = {
     /* defaults solution output options */

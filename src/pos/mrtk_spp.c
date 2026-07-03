@@ -252,7 +252,7 @@ static double prange(const obsd_t* obs, const nav_t* nav, const prcopt_t* opt, d
 /* pseudorange residuals -----------------------------------------------------*/
 static int rescode(int iter, const obsd_t* obs, int n, const double* rs, const double* dts, const double* vare,
                    const int* svh, const nav_t* nav, const double* x, const prcopt_t* opt, double* v, double* H,
-                   double* var, double* azel, int* vsat, double* resp, int* ns) {
+                   double* var, double* azel, int* vsat, double* resp, int* ns, const int* outp) {
     gtime_t time;
     double r, freq, dion = 0.0, dtrp = 0.0, vmeas, vion = 0.0, vtrp = 0.0, rr[3], pos[3], dtr;
     double e[3], P, fact_ion;
@@ -283,6 +283,9 @@ static int rescode(int iter, const obsd_t* obs, int n, const double* rs, const d
             continue;
         }
         /* excluded satellite? */
+        if (sat >= 1 && sat <= MAXSAT && outp && outp[sat - 1]) {
+            continue;
+        }
         if (satexclude(sat, vare[i], svh[i], opt)) {
             continue;
         }
@@ -420,6 +423,31 @@ static int valsol(const double* azel, const int* vsat, int n, const prcopt_t* op
     }
     return 1;
 }
+/* exclude satellites with large SPP pseudorange residuals ---------------------*/
+static void exclsat(const obsd_t* obs, const double* resp, const prcopt_t* opt, int n, const int* vsat, int* outp) {
+    double v2 = 0.0, thres = opt->rejethres * opt->rejethres;
+    int i, j;
+
+    for (i = j = 0; i < n && i < MAXOBS; i++) {
+        if (!vsat[i]) {
+            continue;
+        }
+        v2 += resp[i] * resp[i];
+        j++;
+    }
+    if (j == 0 || v2 / j > thres) {
+        return;
+    }
+    for (i = 0; i < n && i < MAXOBS; i++) {
+        int sat = obs[i].sat;
+        if (!vsat[i] || sat < 1 || sat > MAXSAT || resp[i] * resp[i] <= thres) {
+            continue;
+        }
+        outp[sat - 1] = 1;
+        trace(NULL, 2, "pntpos : excluded obs due to large residuals :sat=%2d res=%.2f avg=%f\n", sat, resp[i],
+              sqrt(v2 / j));
+    }
+}
 /* IGG-III three-segment equivalent-weight factor (#116 P2) ------------------
  * rt = standardized residual; returns a multiplicative weight in [0,1].
  * |rt|<=k0: full weight; k0<|rt|<=k1: smooth down-weight; |rt|>k1: reject. */
@@ -455,7 +483,8 @@ static double median_abs(const double* x, int n, double* work) {
 static int estpos(const obsd_t* obs, int n, const double* rs, const double* dts, const double* vare, const int* svh,
                   const nav_t* nav, const prcopt_t* opt, sol_t* sol, double* azel, int* vsat, double* resp, char* msg) {
     double x[NX] = {0}, dx[NX], Q[NX * NX], *v, *H, *var, *vpre, sig;
-    int i, j, k, info, stat = 1, nv, ns;
+    int i, j, k, info, stat = 1, nv = 0, ns;
+    int outp[MAXSAT] = {0};
 
     trace(NULL, 3, "estpos  : n=%d\n", n);
 
@@ -469,8 +498,11 @@ static int estpos(const obsd_t* obs, int n, const double* rs, const double* dts,
     }
 
     for (i = 0; i < MAXITR; i++) {
+        if (i > 0 && nv > opt->rejeminsat && opt->rejethres > 0.0) {
+            exclsat(obs, resp, opt, n, vsat, outp);
+        }
         /* pseudorange residuals (m) */
-        nv = rescode(i, obs, n, rs, dts, vare, svh, nav, x, opt, v, H, var, azel, vsat, resp, &ns);
+        nv = rescode(i, obs, n, rs, dts, vare, svh, nav, x, opt, v, H, var, azel, vsat, resp, &ns, outp);
 
         if (nv < NX) {
             sprintf(msg, "lack of valid sats ns=%d", nv);

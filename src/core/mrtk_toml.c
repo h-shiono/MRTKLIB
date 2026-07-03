@@ -127,6 +127,8 @@ static const toml_map_t toml_mapping[] = {
     {"rejection", "non_dispersive", "pos2-rejionno3"},
     {"rejection", "hold_chi_square", "pos2-rejionno4"},
     {"rejection", "fix_chi_square", "pos2-rejionno5"},
+    {"rejection", "spp_residual", "pos2-rejethres"},
+    {"rejection", "spp_min_sats", "pos2-rejeminsat"},
     {"rejection", "gdop", "pos2-rejgdop"},
     {"rejection", "pseudorange_diff", "pos2-rejdiffpse"},
     {"rejection", "position_error_count", "pos2-poserrcnt"},

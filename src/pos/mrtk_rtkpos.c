@@ -2717,6 +2717,16 @@ extern int rtkpos(mrtk_ctx_t* ctx, rtk_t* rtk, const obsd_t* obs, int n, nav_t* 
         /* PPP-RTK/VRS: force broadcast ephemeris for SPP initial position */
         if (sppopt.mode == PMODE_PPP_RTK || sppopt.mode == PMODE_VRS_RTK) {
             sppopt.sateph = EPHOPT_BRDC;
+            /* Upstream CLAS applies SPP pseudorange large-residual exclusion with
+             * defaults of 20 m and 7 satellites. Keep standalone SPP bit-compatible
+             * by applying the auto-default only to this private CLAS seed copy.
+             * Set pos2-rejethres < 0 to force it off for CLAS diagnostics. */
+            if (sppopt.rejethres == 0.0) {
+                sppopt.rejethres = 20.0;
+            }
+            if (sppopt.rejeminsat <= 0) {
+                sppopt.rejeminsat = 7;
+            }
             /* Enhanced seed (default SEEDENH_BASE = cn0+tdcp; set OFF to disable):
              * apply the proven v0.6.10 SPP error model to this PRIVATE copy only.
              * err[5]/err[6] are the C/N0 snr_max/snr_error coefficients here (varerr
