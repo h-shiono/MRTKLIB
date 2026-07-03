@@ -752,6 +752,7 @@ int clas_read_grid_def(clas_ctx_t* ctx, const char* file);
  * @param[in]     ch    L6 channel index (0..CLAS_CH_NUM-1)
  */
 void clas_check_grid_status(clas_ctx_t* ctx, const clas_corr_t* corr, int ch);
+void clas_check_grid_status_time(clas_ctx_t* ctx, gtime_t time, int ch);
 
 /**
  * @brief Get L6 facility ID from message ID byte.
