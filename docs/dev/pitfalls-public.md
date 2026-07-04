@@ -49,6 +49,20 @@ documentation and code comments, not as enforcement. Wording like
 If a user reports a crash with `BLA_SIZEOF_INTEGER=4` set, the remediation is
 to pass an explicit LP64 provider via `CMAKE_PREFIX_PATH` or `BLAS_LIBRARIES`.
 
+**Reproducible numerics (`-DMRTK_DETERMINISTIC_BLAS=ON`).** The default build
+links whatever LAPACK CMake finds (Accelerate on macOS, system LAPACK on
+Linux). Threaded BLAS reductions accumulate in a non-deterministic order, so
+results vary at the last ULP run to run; on storm-day PPP-RTK that ULP noise
+can cross the AR ratio threshold and flip fix/float decisions, making
+benchmarks irreproducible. For stable benchmarking/regression, configure with
+`-DMRTK_DETERMINISTIC_BLAS=ON` (needs OpenBLAS, e.g. `brew install openblas`,
+plus `-DCMAKE_PREFIX_PATH=<openblas-prefix>` if not auto-found). It pins the
+provider to OpenBLAS and forces a single thread at load time, so every run is
+bit-identical with no `OPENBLAS_NUM_THREADS` env var required. It is slower
+than the threaded default and does **not** change the algorithm — only
+reduction determinism — so reference tolerances may need re-baselining when
+switching providers.
+
 ### P-03 — `trace()` is compiled out unless `-DTRACE` is defined
 
 The build does not define `TRACE`, so `trace(level, ...)` calls are no-op
