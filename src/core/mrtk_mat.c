@@ -233,7 +233,7 @@ extern void dgetrs_(const char* trans, const int* n, const int* nrhs, const doub
 extern void openblas_set_num_threads(int num_threads);
 __attribute__((constructor)) static void mrtk_force_single_thread_blas(void) { openblas_set_num_threads(1); }
 #else
-#error "MRTK_DETERMINISTIC_BLAS needs a constructor attribute (GCC/Clang). Set OPENBLAS_NUM_THREADS=1 at runtime instead."
+#error "MRTK_DETERMINISTIC_BLAS needs GCC/Clang; use OPENBLAS_NUM_THREADS=1 at runtime instead."
 #endif
 #endif
 
