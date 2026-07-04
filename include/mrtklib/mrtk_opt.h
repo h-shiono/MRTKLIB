@@ -316,6 +316,10 @@ typedef struct prcopt_t {         /* processing options type */
      * SEEDENH_BASE (C/N0 + TDCP): a net win on kinematic data and inert on the
      * static regression suite. Set SEEDENH_OFF to restore prior seed behaviour. */
     int enhanced_spp_seed; /* a-priori SPP seed profile (SEEDENH_???) */
+
+    /* SPP large-residual exclusion (upstream CLAS sync, appended for ABI stability) */
+    double rejethres; /* pseudorange residual rejection threshold (m, <0:off, 0:CLAS seed auto) */
+    int rejeminsat;   /* SPP residual rejection runs only when valid sats exceed this (nv > rejeminsat, as upstream) */
 } prcopt_t;
 
 /* enhanced_spp_seed profiles (applied to the PPP-RTK/VRS a-priori SPP seed only).
