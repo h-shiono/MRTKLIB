@@ -546,6 +546,29 @@ static void udion(rtk_t* rtk, double tt, double bl, const obsd_t* obs, int ns) {
             }
         }
     }
+    /* ionosphere Gauss-Markov (AR1) decay toward zero: x_I*=ki and scale the
+     * iono rows/cols of P by ki (diagonal by ki^2). Upstream applies this as
+     * part of udpos_ppp's joint state transition with ki=exp(-tt/beta); MRTK's
+     * split udpos/udion path had dropped it (the time-constant value was parsed
+     * into stats_tconstiono but read by no positioning engine). Applying it as
+     * a scalar scale here is equivalent. */
+    {
+        double tconst = rtk->opt.stats_tconstiono;
+        if (tconst > 0.0) {
+            double ki = exp(-tt / tconst);
+            for (i = 1; i <= MAXSAT; i++) {
+                j = II_RTK(i, &rtk->opt);
+                if (rtk->x[j] == 0.0) {
+                    continue;
+                }
+                rtk->x[j] *= ki;
+                for (k = 0; k < rtk->nx; k++) {
+                    rtk->P[j + k * rtk->nx] *= ki;
+                    rtk->P[k + j * rtk->nx] *= ki;
+                }
+            }
+        }
+    }
     for (i = 0; i < ns; i++) {
         j = II_RTK(obs[i].sat, &rtk->opt);
         if (rtk->x[j] == 0.0) {
