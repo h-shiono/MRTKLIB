@@ -319,7 +319,7 @@ typedef struct prcopt_t {         /* processing options type */
 
     /* SPP large-residual exclusion (upstream CLAS sync, appended for ABI stability) */
     double rejethres; /* pseudorange residual rejection threshold (m, <0:off, 0:CLAS seed auto) */
-    int rejeminsat;   /* minimum valid satellites before residual rejection */
+    int rejeminsat;   /* SPP residual rejection runs only when valid sats exceed this (nv > rejeminsat, as upstream) */
 } prcopt_t;
 
 /* enhanced_spp_seed profiles (applied to the PPP-RTK/VRS a-priori SPP seed only).

@@ -123,14 +123,18 @@ static double gettgd(int sat, const nav_t* nav, int type) {
     }
 }
 /* index of the 2nd frequency for the iono-free combination -------------------
- * Upstream CLAS SPP uses L1-L5 for GAL/SBS and L1-L2 otherwise. Preserve the
- * #135 IGS-product fallback for receivers whose conventional slot 1 is absent.
+ * Upstream claslib SPP uses L1-L5 for GAL/SBS and L1-L2 otherwise; apply that
+ * choice only while CLAS processing is active (the upstream profiles disagree
+ * here, and GAL/SBS rows without an E5a/L5 observation would otherwise drop
+ * out of non-CLAS SPP). Preserve the #135 IGS-product fallback for receivers
+ * whose conventional slot 1 is absent.
  * nav may be NULL to skip the carrier-frequency validity check (e.g. for SNR
  * masking, which only needs the observation slot). */
 static int iflc_freq2_idx(const obsd_t* obs, const nav_t* nav, const prcopt_t* opt) {
     int sys = satsys(obs->sat, NULL);
     int j;
-    if (opt->ionoopt == IONOOPT_IFLC && opt->correction != CORR_IGS && NFREQ >= 3 && (sys & (SYS_GAL | SYS_SBS))) {
+    if (opt->ionoopt == IONOOPT_IFLC && opt->correction == CORR_QZS_CLAS && NFREQ >= 3 &&
+        (sys & (SYS_GAL | SYS_SBS))) {
         return 2;
     }
     if (opt->ionoopt == IONOOPT_IFLC && opt->correction == CORR_IGS && obs->P[1] == 0.0) {
@@ -444,7 +448,7 @@ static void exclsat(const obsd_t* obs, const double* resp, const prcopt_t* opt, 
             continue;
         }
         outp[sat - 1] = 1;
-        trace(NULL, 2, "pntpos : excluded obs due to large residuals :sat=%2d res=%.2f avg=%f\n", sat, resp[i],
+        trace(NULL, 2, "pntpos : excluded obs due to large residuals :sat=%2d res=%.2f rms=%.2f\n", sat, resp[i],
               sqrt(v2 / j));
     }
 }
