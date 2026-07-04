@@ -133,8 +133,7 @@ static double gettgd(int sat, const nav_t* nav, int type) {
 static int iflc_freq2_idx(const obsd_t* obs, const nav_t* nav, const prcopt_t* opt) {
     int sys = satsys(obs->sat, NULL);
     int j;
-    if (opt->ionoopt == IONOOPT_IFLC && opt->correction == CORR_QZS_CLAS && NFREQ >= 3 &&
-        (sys & (SYS_GAL | SYS_SBS))) {
+    if (opt->ionoopt == IONOOPT_IFLC && opt->correction == CORR_QZS_CLAS && NFREQ >= 3 && (sys & (SYS_GAL | SYS_SBS))) {
         return 2;
     }
     if (opt->ionoopt == IONOOPT_IFLC && opt->correction == CORR_IGS && obs->P[1] == 0.0) {
