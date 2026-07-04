@@ -317,6 +317,7 @@ int mrtk_post(int argc, char** argv) {
             apply_claslib_ppprtk_obsdef();
         }
     }
+    mrtk_use_claslib_qzs_l1_priority(prcopt.correction == CORR_QZS_CLAS);
     ret = postpos(ctx, ts, te, tint, 0.0, &prcopt, &solopt, &filopt, infile, n, outfile, "", "");
 
     if (!ret) {
