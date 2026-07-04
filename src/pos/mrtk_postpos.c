@@ -522,6 +522,21 @@ static void update_stat(gtime_t time) {
     }
     trace(NULL, 3, "update_stat: %s %s\n", time_str(time, 3), tstr);
 }
+
+static int clas_has_orbit_bank(const clas_ctx_t* ctx, int ch) {
+    int i;
+
+    if (!ctx || ch < 0 || ch >= CLAS_CH_NUM || !ctx->bank[ch]) {
+        return 0;
+    }
+    for (i = 0; i < CLAS_BANK_NUM; i++) {
+        if (ctx->bank[ch]->OrbitBank[i].use) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
 /* update CLAS L6 corrections -----------------------------------------------*/
 static void update_clas(gtime_t time) {
     int ch, ret;
@@ -560,23 +575,19 @@ static void update_clas(gtime_t time) {
             continue;
         }
 
-        /* read CSSR until current observation time */
-        while (timediff(clas_ctx->l6buf[ch].time, time) < 1E-3) {
+        /* Read CSSR through the correction set whose mask time is at the
+         * observation epoch, then stop at the next future mask boundary. */
+        for (;;) {
+            if (clas_ctx->l6buf[ch].subtype == CSSR_TYPE_MASK && timediff(clas_ctx->l6buf[ch].time, time) > 0.0 &&
+                clas_has_orbit_bank(clas_ctx, ch)) {
+                break;
+            }
             ret = clas_input_cssrf(clas_ctx, fp_clas[ch], ch);
             if (ret < -1) {
                 break; /* EOF */
             }
-            if (ret == 10) {
-                int net = clas_ctx->grid[ch].network;
-                if (net > 0) {
-                    /* normal: merge bank for known network */
-                    if (clas_bank_get_close(clas_ctx, clas_ctx->l6buf[ch].time, net, ch, &clas_ctx->current[ch]) == 0) {
-                        clas_update_global(&navs, &clas_ctx->current[ch], ch);
-                        clas_check_grid_status(clas_ctx, &clas_ctx->current[ch], ch);
-                    }
-                }
-            }
         }
+        clas_check_grid_status_time(clas_ctx, time, ch);
         /* bootstrap: when network is unknown, scan all networks to
          * populate grid_stat so clas_get_grid_index() can determine
          * the correct network from the rover position.
@@ -587,7 +598,7 @@ static void update_clas(gtime_t time) {
             int net;
             if (tmp_corr) {
                 for (net = 1; net < CLAS_MAX_NETWORK; net++) {
-                    if (clas_bank_get_close(clas_ctx, clas_ctx->l6buf[ch].time, net, ch, tmp_corr) == 0) {
+                    if (clas_bank_get_close(clas_ctx, time, net, ch, tmp_corr) == 0) {
                         clas_check_grid_status(clas_ctx, tmp_corr, ch);
                         /* apply global corrections (orbit/clock/bias) from any
                          * successful network — these are shared across networks */

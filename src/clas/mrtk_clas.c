@@ -616,7 +616,8 @@ static int get_bias_save_point(clas_bias_bank_t* bias, int prn, int mode) {
  * Read from ctx->dec_ssr[] (intermediate decoder buffer) instead of nav->ssr_ch[][]
  *===========================================================================*/
 
-static void check_cssr_changed_facility(clas_bank_ctrl_t* bank, int facility) {
+static void check_cssr_changed_facility(clas_ctx_t* ctx, int ch, int facility) {
+    clas_bank_ctrl_t* bank = ctx->bank[ch];
     if (bank->Facility != facility) {
         trace(NULL, 4, "bank clear: facility changed %d->%d\n", bank->Facility + 1, facility + 1);
         memset(&bank->LatestTrop, 0, sizeof(clas_latest_trop_t));
@@ -1183,6 +1184,93 @@ extern int clas_bank_get_close(const clas_ctx_t* ctx, gtime_t time, int network,
     return 0;
 }
 
+static gtime_t backup_cssr_time(const clas_corr_t* corr) {
+    gtime_t time = corr->clock_time;
+
+    if (timediff(corr->orbit_time, time) > 0.0) {
+        time = corr->orbit_time;
+    }
+    if (timediff(corr->bias_time, time) > 0.0) {
+        time = corr->bias_time;
+    }
+    return time;
+}
+
+extern int clas_backup_valid(const clas_ctx_t* ctx, gtime_t obstime, int l6mrg) {
+    int ch, nch = l6mrg ? SSR_CH_NUM : 1;
+
+    if (!ctx) {
+        return 0;
+    }
+    if (nch > CLAS_CH_NUM) {
+        nch = CLAS_CH_NUM;
+    }
+    for (ch = 0; ch < nch; ch++) {
+        if (ctx->backup[ch].use && timediff(obstime, backup_cssr_time(&ctx->backup[ch])) <= 180.0) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+extern void clas_backup_current(clas_ctx_t* ctx, const clas_grid_t* grid, int l6mrg) {
+    int ch, nch = l6mrg ? SSR_CH_NUM : 1;
+
+    if (!ctx || !grid) {
+        return;
+    }
+    if (nch > CLAS_CH_NUM) {
+        nch = CLAS_CH_NUM;
+    }
+    for (ch = 0; ch < nch; ch++) {
+        memcpy(&ctx->backup[ch], &ctx->current[ch], sizeof(clas_corr_t));
+        memcpy(&ctx->backup_grid[ch], grid, sizeof(clas_grid_t));
+        init_grid_index(&ctx->backup[ch]);
+    }
+}
+
+extern void clas_restore_backup(clas_ctx_t* ctx, gtime_t time, clas_grid_t* grid, int l6mrg) {
+    clas_clock_bank_t* clock;
+    int i, ch, nch = l6mrg ? SSR_CH_NUM : 1;
+
+    if (!ctx || !grid) {
+        return;
+    }
+    if (nch > CLAS_CH_NUM) {
+        nch = CLAS_CH_NUM;
+    }
+    for (ch = 0; ch < nch; ch++) {
+        clas_bank_ctrl_t* bank = ctx->bank[ch];
+        if (!bank || !bank->use || !ctx->backup[ch].use) {
+            continue;
+        }
+        if (timediff(time, backup_cssr_time(&ctx->backup[ch])) > 180.0) {
+            continue;
+        }
+        memcpy(&ctx->current[ch], &ctx->backup[ch], sizeof(clas_corr_t));
+        memcpy(grid, &ctx->backup_grid[ch], sizeof(clas_grid_t));
+        init_grid_index(&ctx->current[ch]);
+
+        if ((clock = get_close_clock(bank, time, ctx->current[ch].orbit_time, grid->network, 30.0)) &&
+            timediff(ctx->current[ch].clock_time, clock->time) != 0.0) {
+            ctx->current[ch].clock_time = clock->time;
+            for (i = 0; i < MAXSAT; i++) {
+                if (clock->prn[i] != 0) {
+                    ctx->current[ch].time[i][1] = clock->time;
+                    ctx->current[ch].prn[i][1] = clock->prn[i];
+                    ctx->current[ch].udi[i][1] = clock->udi[i];
+                    ctx->current[ch].iod[i][1] = clock->iod[i];
+                    ctx->current[ch].c0[i] = clock->c0[i];
+                    ctx->current[ch].flag[i] |= 0x02;
+                } else {
+                    ctx->current[ch].flag[i] &= ~0x02;
+                    ctx->current[ch].prn[i][1] = 0;
+                }
+            }
+        }
+    }
+}
+
 /*============================================================================
  * Grid Status Check (from upstream cssr.c:check_cssr_grid_status)
  *===========================================================================*/
@@ -1190,7 +1278,7 @@ extern int clas_bank_get_close(const clas_ctx_t* ctx, gtime_t time, int network,
 extern void clas_check_grid_status(clas_ctx_t* ctx, const clas_corr_t* corr, int ch) {
     int i, valid, network, nvalid = 0;
 
-    if (!corr->use) {
+    if (!ctx || ch < 0 || ch >= CLAS_CH_NUM || !corr || !corr->use) {
         return;
     }
 
@@ -1205,6 +1293,10 @@ extern void clas_check_grid_status(clas_ctx_t* ctx, const clas_corr_t* corr, int
             ctx->grid_stat[ch][network][i] = 0;
         }
         return;
+    }
+
+    if (ctx->bank[ch] && ctx->bank[ch]->fastfix[network] && timediff(corr->update_time, corr->trop_time) >= 0.0) {
+        ctx->bank[ch]->fastfix[network] = 0;
     }
 
     for (i = 0; i < corr->gridnum && i < CLAS_MAX_GP; i++) {
@@ -1225,6 +1317,67 @@ extern void clas_check_grid_status(clas_ctx_t* ctx, const clas_corr_t* corr, int
     /* clear remaining grid points */
     for (i = corr->gridnum; i < CLAS_MAX_GP; i++) {
         ctx->grid_stat[ch][network][i] = 0;
+    }
+}
+
+extern void clas_check_grid_status_time(clas_ctx_t* ctx, gtime_t time, int ch) {
+    clas_bank_ctrl_t* bank;
+    clas_orbit_bank_t* orbit;
+    clas_trop_bank_t* trop;
+    int i, j, k, valid, network, preliminary, nvalid;
+
+    if (!ctx || ch < 0 || ch >= CLAS_CH_NUM || !(bank = ctx->bank[ch]) || !bank->use) {
+        return;
+    }
+
+    for (i = 0; i < CLAS_MAX_NETWORK - 1; i++) {
+        preliminary = i + 1;
+        network = preliminary;
+        orbit = NULL;
+        trop = NULL;
+
+        for (j = 0; j < 2; j++) {
+            orbit = get_close_orbit(bank, time, (j == 0) ? preliminary : 0, 180.0);
+            if (orbit) {
+                network = orbit->network ? orbit->network : preliminary;
+                break;
+            }
+        }
+        if (orbit && !(trop = get_close_trop(bank, time, orbit->time, network, 30.0, 1)) && bank->fastfix[network]) {
+            trop = get_close_trop(bank, time, orbit->time, network, 30.0, 0);
+        }
+
+        if (!orbit || !trop) {
+            for (j = 0; j < CLAS_MAX_GP; j++) {
+                ctx->grid_stat[ch][preliminary][j] = 0;
+            }
+            continue;
+        }
+        if (bank->fastfix[network] && timediff(time, trop->time) >= 0.0) {
+            bank->fastfix[network] = 0;
+        }
+
+        nvalid = 0;
+        for (j = 0; j < trop->gridnum[i] && j < CLAS_MAX_GP; j++) {
+            if (trop->total[i][j] == CSSR_INVALID_VALUE || trop->wet[i][j] == CSSR_INVALID_VALUE) {
+                ctx->grid_stat[ch][network][j] = 0;
+                continue;
+            }
+            for (k = 0, valid = trop->satnum[i][j]; k < trop->satnum[i][j]; k++) {
+                if (trop->iono[i][j][k] == CSSR_INVALID_VALUE) {
+                    valid--;
+                }
+            }
+            ctx->grid_stat[ch][network][j] = (valid >= 8) ? 1 : 0;
+            if (valid >= 8) {
+                nvalid++;
+            }
+        }
+        for (; j < CLAS_MAX_GP; j++) {
+            ctx->grid_stat[ch][network][j] = 0;
+        }
+        trace(NULL, 4, "grid_status_time: ch=%d net=%d fastfix=%d gridnum=%d nvalid=%d\n", ch, network,
+              bank->fastfix[network], trop->gridnum[i], nvalid);
     }
 }
 
@@ -1780,7 +1933,7 @@ static int decode_cssr_oc(clas_ctx_t* ctx, int ch, clas_l6buf_t* l6, int i0) {
         ssr->update = 1;
     }
 
-    check_cssr_changed_facility(ctx->bank[ch], cssr->l6facility);
+    check_cssr_changed_facility(ctx, ch, cssr->l6facility);
     set_cssr_bank_orbit(ctx, ch, l6->time, 0);
     l6->nbit = i;
     return sync ? 0 : 10;
@@ -1832,7 +1985,7 @@ static int decode_cssr_cc(clas_ctx_t* ctx, int ch, clas_l6buf_t* l6, int i0) {
         ssr->update = 1;
     }
 
-    check_cssr_changed_facility(ctx->bank[ch], cssr->l6facility);
+    check_cssr_changed_facility(ctx, ch, cssr->l6facility);
     set_cssr_bank_clock(ctx, ch, l6->time, 0);
     l6->nbit = i;
     return sync ? 0 : 10;
@@ -1894,7 +2047,7 @@ static int decode_cssr_cb(clas_ctx_t* ctx, int ch, clas_l6buf_t* l6, int i0) {
         ssr->nsig = nsig[k];
     }
 
-    check_cssr_changed_facility(ctx->bank[ch], cssr->l6facility);
+    check_cssr_changed_facility(ctx, ch, cssr->l6facility);
     set_cssr_bank_cbias(ctx, ch, l6->time, 0, 0);
     l6->nbit = i;
     return sync ? 0 : 10;
@@ -1958,7 +2111,7 @@ static int decode_cssr_pb(clas_ctx_t* ctx, int ch, clas_l6buf_t* l6, int i0) {
         ssr->nsig = nsig[k];
     }
 
-    check_cssr_changed_facility(ctx->bank[ch], cssr->l6facility);
+    check_cssr_changed_facility(ctx, ch, cssr->l6facility);
     set_cssr_bank_pbias(ctx, ch, l6->time, 0, 0);
     l6->nbit = i;
     return sync ? 0 : 10;
@@ -2072,11 +2225,11 @@ static int decode_cssr_bias(clas_ctx_t* ctx, int ch, clas_l6buf_t* l6, int i0) {
     }
 
     if (cbflag) {
-        check_cssr_changed_facility(ctx->bank[ch], cssr->l6facility);
+        check_cssr_changed_facility(ctx, ch, cssr->l6facility);
         set_cssr_bank_cbias(ctx, ch, l6->time, netflag ? network : 0, cssr->iod);
     }
     if (pbflag) {
-        check_cssr_changed_facility(ctx->bank[ch], cssr->l6facility);
+        check_cssr_changed_facility(ctx, ch, cssr->l6facility);
         set_cssr_bank_pbias(ctx, ch, l6->time, netflag ? network : 0, cssr->iod);
     }
     l6->nbit = i;
@@ -2305,7 +2458,7 @@ static int decode_cssr_grid(clas_ctx_t* ctx, int ch, clas_l6buf_t* l6, int i0) {
     ssrn->update[0] = 1;
     ctx->updateac = 1;
 
-    check_cssr_changed_facility(ctx->bank[ch], cssr->l6facility);
+    check_cssr_changed_facility(ctx, ch, cssr->l6facility);
     set_cssr_latest_trop(ctx->bank[ch], ssrn->t0[0], ssrn, inet);
     set_cssr_bank_trop(ctx, ch, ssrn->t0[0], ssrn, inet);
 
@@ -2440,7 +2593,7 @@ static int decode_cssr_combo(clas_ctx_t* ctx, int ch, clas_l6buf_t* l6, int i0) 
         }
     }
 
-    check_cssr_changed_facility(ctx->bank[ch], cssr->l6facility);
+    check_cssr_changed_facility(ctx, ch, cssr->l6facility);
     if (flg_net) {
         ctx->bank[ch]->separation |= (1 << (netid - 1));
     }
@@ -2654,7 +2807,7 @@ static int decode_cssr_atmos(clas_ctx_t* ctx, int ch, clas_l6buf_t* l6, int i0) 
     ssrn->update[0] = 1;
     ctx->updateac = 1;
 
-    check_cssr_changed_facility(ctx->bank[ch], cssr->l6facility);
+    check_cssr_changed_facility(ctx, ch, cssr->l6facility);
     set_cssr_latest_trop(ctx->bank[ch], ssrn->t0[0], ssrn, inet);
     set_cssr_bank_trop(ctx, ch, ssrn->t0[0], ssrn, inet);
 
