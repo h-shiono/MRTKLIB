@@ -224,10 +224,17 @@ extern void dgetrs_(const char* trans, const int* n, const int* nrhs, const doub
  * flips fix/float decisions, making benchmarks irreproducible. Forcing a
  * single thread makes every BLAS/LAPACK call bit-reproducible. This runs once
  * at load time for any binary that links mrtklib (CLI and unit tests alike).
- * Opt-in via the MRTK_DETERMINISTIC_BLAS CMake option, which guarantees the
- * linked provider is OpenBLAS (the source of this symbol). */
+ * Opt-in via the MRTK_DETERMINISTIC_BLAS CMake option, whose configure-time
+ * check guarantees the linked provider is OpenBLAS (the source of this
+ * symbol). Silent fallback is not acceptable here — an unpinned thread count
+ * would defeat the option's whole purpose — so unsupported toolchains fail
+ * the build instead. */
+#if defined(__GNUC__) || defined(__clang__)
 extern void openblas_set_num_threads(int num_threads);
 __attribute__((constructor)) static void mrtk_force_single_thread_blas(void) { openblas_set_num_threads(1); }
+#else
+#error "MRTK_DETERMINISTIC_BLAS needs a constructor attribute (GCC/Clang). Set OPENBLAS_NUM_THREADS=1 at runtime instead."
+#endif
 #endif
 
 /* multiply matrix (wrapper of blas dgemm) -------------------------------------

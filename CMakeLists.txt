@@ -176,6 +176,20 @@ if(LAPACK_FOUND)
     target_compile_definitions(mrtklib PRIVATE LAPACK)
     target_link_libraries(mrtklib PRIVATE LAPACK::LAPACK)
     if(MRTK_DETERMINISTIC_BLAS)
+        # BLA_VENDOR is only a hint to FindLAPACK: an explicit LAPACK_LIBRARIES/
+        # BLAS_LIBRARIES override can still resolve a non-OpenBLAS provider, and
+        # mrtk_mat.c references openblas_set_num_threads(), which would then
+        # fail at link time with a confusing error. Verify the resolved
+        # libraries actually are OpenBLAS before enabling the pin.
+        string(TOLOWER "${LAPACK_LIBRARIES}" _mrtk_lapack_lower)
+        if(NOT _mrtk_lapack_lower MATCHES "openblas")
+            message(FATAL_ERROR
+                "MRTK_DETERMINISTIC_BLAS=ON requires OpenBLAS, but the resolved "
+                "LAPACK is: ${LAPACK_LIBRARIES}. Remove LAPACK_LIBRARIES/"
+                "BLAS_LIBRARIES overrides or point CMAKE_PREFIX_PATH at an "
+                "OpenBLAS install.")
+        endif()
+        unset(_mrtk_lapack_lower)
         # Force a single thread at load time (mrtk_mat.c constructor) so the
         # reduction order is deterministic; OpenBLAS otherwise threads by default.
         target_compile_definitions(mrtklib PRIVATE MRTK_DETERMINISTIC_BLAS)
