@@ -627,6 +627,7 @@ typedef struct {
 
     /* nav_t update flag (signals positioning engine to refresh) */
     int updateac;
+    int filreset;
 
     /* Current channel index for decoding */
     int chidx;

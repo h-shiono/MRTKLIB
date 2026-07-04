@@ -564,6 +564,11 @@ void reset_obsdef(void);
  */
 void apply_pppsig(const int* pppsig);
 
+/**
+ * @brief Apply the upstream claslib PPP-RTK observation slot layout.
+ */
+void apply_claslib_ppprtk_obsdef(void);
+
 /*============================================================================
  * Navigation Data I/O Functions
  *===========================================================================*/

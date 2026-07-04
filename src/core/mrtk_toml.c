@@ -98,6 +98,9 @@ static const toml_map_t toml_mapping[] = {
     {"ambiguity_resolution.thresholds", "alpha", "pos2-aralpha"},
     {"ambiguity_resolution.thresholds", "elevation_mask", "pos2-arelmask"},
     {"ambiguity_resolution.thresholds", "hold_elevation", "pos2-elmaskhold"},
+    {"ambiguity_resolution.thresholds", "max_pdop_ar", "pos2-maxpdopar"},
+    {"ambiguity_resolution.thresholds", "max_pdop_hold", "pos2-maxpdophold"},
+    {"ambiguity_resolution.thresholds", "reference_dop", "pos2-refdop"},
 
     /* ── ambiguity_resolution.counters ─────────────────────────────────────── */
     {"ambiguity_resolution.counters", "lock_count", "pos2-arlockcnt"},

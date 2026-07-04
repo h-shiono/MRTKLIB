@@ -313,7 +313,11 @@ int mrtk_post(int argc, char** argv) {
      * and all other correction sources keep the legacy behaviour unchanged. */
     if (prcopt.correction != CORR_IGS) {
         apply_pppsig(prcopt.pppsig);
+        if (prcopt.correction == CORR_QZS_CLAS) {
+            apply_claslib_ppprtk_obsdef();
+        }
     }
+    mrtk_use_claslib_qzs_l1_priority(prcopt.correction == CORR_QZS_CLAS);
     ret = postpos(ctx, ts, te, tint, 0.0, &prcopt, &solopt, &filopt, infile, n, outfile, "", "");
 
     if (!ret) {

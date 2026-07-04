@@ -35,6 +35,7 @@ static int fails = 0;
 
 /* frequency index for a (system, RINEX obs-code string) pair */
 static int idx(int sys, const char* obs) { return code2freq_idx(sys, obs2code(obs)); }
+static int pri(int sys, const char* obs, const char* opt) { return getcodepri(sys, obs2code(obs), opt); }
 
 int main(void) {
     reset_obsdef(); /* pristine multi-band defaults */
@@ -53,6 +54,17 @@ int main(void) {
     CHECK(idx(SYS_QZS, "5Q") == 1, "QZS L5 -> 1 (was 2 under fixed band order)");
     CHECK(idx(SYS_QZS, "2L") == 2, "QZS L2 -> 2 (was 1 under fixed band order)");
     CHECK(idx(SYS_QZS, "6L") == 3, "QZS L6 -> 3");
+    CHECK(pri(SYS_QZS, "1L", "") > pri(SYS_QZS, "1X", "") && pri(SYS_QZS, "1X", "") > pri(SYS_QZS, "1S", "") &&
+              pri(SYS_QZS, "1S", "") > pri(SYS_QZS, "1C", ""),
+          "QZS L1 default priority keeps MRTK order L>X>S>C");
+    mrtk_use_claslib_qzs_l1_priority(1);
+    CHECK(pri(SYS_QZS, "1C", "") > pri(SYS_QZS, "1S", "") && pri(SYS_QZS, "1S", "") > pri(SYS_QZS, "1L", "") &&
+              pri(SYS_QZS, "1L", "") > pri(SYS_QZS, "1X", "") && pri(SYS_QZS, "1X", "") > pri(SYS_QZS, "1Z", ""),
+          "QZS L1 claslib override follows C>S>L>X>Z");
+    CHECK(pri(SYS_QZS, "1X", "-JL1X") == 15 && pri(SYS_QZS, "1C", "-JL1X") == 0,
+          "QZS L1 priority option -JL1X overrides claslib order");
+    mrtk_use_claslib_qzs_l1_priority(0);
+    CHECK(pri(SYS_QZS, "1L", "") > pri(SYS_QZS, "1C", ""), "QZS L1 priority restored after claslib override off");
 
     /* BDS: B1I=0, B3=1, B2b=2, B1C=3, B2a=4 — obsdef order */
     CHECK(idx(SYS_CMP, "2I") == 0, "BDS B1I -> 0");
