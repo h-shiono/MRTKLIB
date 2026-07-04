@@ -2084,8 +2084,7 @@ static int resamb_LAMBDA(rtk_t* rtk, double* bias, double* xa) {
                 matmul("NN", na, nb, nb, 1.0, Qab, Qb, 0.0, QQ);
                 matmul("NT", na, na, nb, -1.0, QQ, Qab, 1.0, rtk->Pa);
 
-                trace(NULL, 3, "resamb : validation ok (nb=%d ratio=%.2f s=%.2f/%.2f)\n", nb,
-                      ratio, s[1], s[0]);
+                trace(NULL, 3, "resamb : validation ok (nb=%d ratio=%.2f s=%.2f/%.2f)\n", nb, ratio, s[1], s[0]);
 
                 /* restore SD ambiguities */
                 restamb(rtk, bias, nb, xa);
@@ -2434,8 +2433,7 @@ extern void ppp_rtk_pos(rtk_t* rtk, const obsd_t* obs, int n, nav_t* nav) {
 
     matcpy(xp, rtk->x, rtk->nx, 1);
 
-    if ((rtk->opt.ionoopt == IONOOPT_EST_ADPT || rtk->opt.prnadpt) && prtk_ctx.Qp &&
-        prtk_ctx.Qp_nx == rtk->nx) {
+    if ((rtk->opt.ionoopt == IONOOPT_EST_ADPT || rtk->opt.prnadpt) && prtk_ctx.Qp && prtk_ctx.Qp_nx == rtk->nx) {
         for (i = 0; i < rtk->nx * rtk->nx; i++) {
             prtk_ctx.Qp[i] = 0.0;
         }
