@@ -7,6 +7,101 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.7.4] - 2026-07-04
+
+**CLAS PPP-RTK accuracy — claslib parity.** A five-part sync series aligns the
+CLAS PPP-RTK engine with upstream claslib across the correction-stream timing,
+measurement-model, and SPP-seed layers, closing the storm-day fix-rate gap
+tracked in [#225](https://github.com/h-shiono/MRTKLIB/issues/225). On the
+deterministic-BLAS storm benchmark the kinematic fix rate rises **89.44 % →
+93.54 %**, now **exceeding upstream claslib's 92.88 %** on the same data. The
+single largest contributor is the BackupCSSR/BackupGrid port that bridges short
+correction gaps (+118 fixed epochs, 5-cell ablation). A new opt-in
+`MRTK_DETERMINISTIC_BLAS` build links single-thread OpenBLAS so these ±0.1 pp
+comparisons are bit-reproducible run-to-run. The release also carries several
+independent bug fixes (l6extract overflow, all-GNSS solution status, `traceopen`
+path handling).
+
+### Added
+
+- **Opt-in `MRTK_DETERMINISTIC_BLAS` build** — CMake option that links a
+  deterministic LP64 single-thread OpenBLAS instead of Apple Accelerate, whose
+  non-deterministic FP reductions scatter storm-day fix rates run-to-run (the AR
+  ratio test amplifies ULP noise into fix/float flips). Intended for
+  benchmarking / CI reproducibility; **no positioning-code change and the
+  default build is unaffected**. A configure-time check verifies OpenBLAS is the
+  resolved LAPACK provider ([PR #244](https://github.com/h-shiono/MRTKLIB/pull/244)).
+- **BackupCSSR / BackupGrid gap bridging** — CLAS bridges correction gaps
+  (≤ 180 s) with the last usable CSSR/grid snapshot instead of dropping epochs to
+  single, ported from claslib. Largest single contributor on the #225 storm
+  benchmark (+118 fixed epochs) ([PR #246](https://github.com/h-shiono/MRTKLIB/pull/246)).
+- **`pos2-rejethres` / `pos2-rejeminsat`** — upstream SPP large-residual
+  exclusion. Default `0` keeps standalone SPP bit-compatible; the CLAS
+  PPP-RTK/VRS private seed maps `0` to upstream's 20 m / 7-sat defaults
+  ([PR #248](https://github.com/h-shiono/MRTKLIB/pull/248)).
+- **`pos1-frequency = l1+l2+l5`** config alias for the CLAS three-frequency
+  observation slot layout ([PR #247](https://github.com/h-shiono/MRTKLIB/pull/247)).
+- **ICD & academic-paper reference catalogs** — `docs/reference/icd/` and
+  `docs/reference/papers/` index pages added to the MkDocs Reference nav
+  (link-only rows; collected PDFs held locally)
+  ([PR #238](https://github.com/h-shiono/MRTKLIB/pull/238)).
+
+### Changed
+
+- **CLAS PPP-RTK correction-stream timing** — read CSSR through the correction
+  set whose mask time equals the observation epoch and stop at the first future
+  mask (fixes one-epoch-stale correction selection and a startup epoch lost to an
+  empty grid); bootstrap grid status by network scan on the first epoch. `mrtk
+  ssr2osr` now refreshes the bank snapshot every epoch instead of only on network
+  change (it previously served the first correction set until it aged out ~60 s
+  and stopped) ([PR #246](https://github.com/h-shiono/MRTKLIB/pull/246)).
+- **CLAS PPP-RTK measurement model** — claslib observation slot layout
+  (GPS {L1,L2,L5} / GAL {E1,–,E5a,E6,E5b,E5ab} / QZS {L1,L2,L5,L6}), OSR
+  ambiguity index for est-adaptive ionosphere, facility-change filter-reset
+  guard, residual wavelength-ratio parity, and CPC freq-major persistence across
+  `zdres` passes — all applied for CLAS only. QZSS L1 signal priority
+  (C > S > L > X > Z) is a **CLAS-scoped runtime override**: claslib and MADOCALIB
+  genuinely disagree on the order, so it is enabled only from `mrtk post` while
+  `correction = CLAS`, leaving MADOCA-PPP references unaffected
+  ([PR #247](https://github.com/h-shiono/MRTKLIB/pull/247)).
+- **Ionosphere Gauss-Markov decay** — the est-adaptive ionosphere time constant
+  was parsed but never wired into `udion()` state propagation; the AR(1) decay
+  now matches claslib ([PR #245](https://github.com/h-shiono/MRTKLIB/pull/245)).
+- **CLAS SPP velocity seed** — GAL/SBS iono-free second frequency taken from
+  slot 2 (E5a), restoring Galileo rows to the seed like upstream
+  ([PR #248](https://github.com/h-shiono/MRTKLIB/pull/248)).
+- **Solution-status (`.stat`) output** now emits all GNSS, not just GPS
+  ([PR #240](https://github.com/h-shiono/MRTKLIB/pull/240)).
+
+### Fixed
+
+- **Galileo E5a antenna PCV error (~0.10 m)** — receiver PCV slot mapping now
+  uses claslib-compatible ANTEX compaction. The stale offset had been cascading
+  into ambiguity resets (the E34 case in the #225 ledger)
+  ([PR #247](https://github.com/h-shiono/MRTKLIB/pull/247)).
+- **`mrtk l6extract` 2-byte stack overflow** in `sbf_extract_l6_payload`
+  ([PR #237](https://github.com/h-shiono/MRTKLIB/pull/237)).
+- **`traceopen` filename handling** — guard path length before `reppath` and
+  expand time keywords in the trace filename
+  ([#83](https://github.com/h-shiono/MRTKLIB/issues/83),
+  [PR #239](https://github.com/h-shiono/MRTKLIB/pull/239)).
+- **Test harness** — BSD `mktemp` suffix collision in `run_rtkrcv_test.sh`
+  ([#194](https://github.com/h-shiono/MRTKLIB/issues/194),
+  [PR #241](https://github.com/h-shiono/MRTKLIB/pull/241)).
+
+### Validation
+
+- **Storm-day CLAS kinematic PPP-RTK (deterministic OpenBLAS):** fix rate
+  **89.44 % → 93.54 %**, above upstream claslib's **92.88 %** on the same data.
+  The BackupCSSR contribution (+118 epochs) is confirmed by a 5-cell ablation.
+- **claslib label 34/34** (including RT replay and F5 absolute-accuracy checks);
+  MADOCA-PPP references unaffected (the QZSS L1 priority change is CLAS-scoped).
+- Full `ctest` suite green apart from the two perennial environment failures on
+  the maintainer's machine (`rtkrcv_rt` headless RT replay,
+  `madocalib_pppar_ion_check` LAPACK-vs-reference tolerance), both of which
+  reproduce identically on a clean `develop`.
+- All five #225 PRs (#244–#248) passed CI and Copilot review.
+
 ## [v0.7.3] - 2026-06-29
 
 **Real-time MADOCA-PPP PPP-AR/IONO.** The MADOCA-PPP L6D wide-area ionospheric
