@@ -107,6 +107,8 @@ nav:
     - Benchmark (GSDC smartphone): reference/benchmark-gsdc.md
     - Real-Time CLAS: reference/rtkrcv-clas-realtime.md
     - Test Methodology: reference/test-accuracy-methodology.md
+    - Specifications (ICDs): reference/icd/index.md
+    - Reference Papers: reference/papers/index.md
   - Design:
     - Positioning Configuration Model: design/configuration.md
   - Releases:

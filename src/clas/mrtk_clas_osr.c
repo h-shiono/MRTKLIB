@@ -63,7 +63,7 @@
 /* PPP-RTK state index macros (duplicated from mrtk_ppp_rtk.c) */
 #define NF_RTK(opt) ((opt)->nf)
 #define NP_RTK(opt) ((opt)->dynamics == 0 ? 3 : 9)
-#define NI_RTK(opt) ((opt)->ionoopt != IONOOPT_EST ? 0 : MAXSAT)
+#define NI_RTK(opt) (((opt)->ionoopt == IONOOPT_EST || (opt)->ionoopt == IONOOPT_EST_ADPT) ? MAXSAT : 0)
 static inline int NT_RTK(const prcopt_t* opt) {
     if (opt->tropopt < TROPOPT_EST) return 0;
     if (opt->tropopt < TROPOPT_ESTG) return 1;
@@ -95,6 +95,18 @@ static int code_on_same_freq(int sys, uint8_t code1, uint8_t code2) {
     f1 = code2freq_idx(sys, code1);
     f2 = code2freq_idx(sys, code2);
     return (f1 >= 0 && f1 == f2);
+}
+
+static int pcv_slot_has_data(const pcv_t* pcv, int slot) {
+    return pcv && 0 <= slot && slot < NFREQPCV && (norm(pcv->off[slot], 3) > 0.0 || norm(pcv->var[slot], 19) > 0.0);
+}
+
+static int claslib_pcv_slot(const pcv_t* pcv, int f) {
+    /* claslib compacts ANTEX frequency numbers {1,2,5} into OSR slots {0,1,2}.
+     * Its reader ignores the constellation prefix, so C02 can overwrite the
+     * compact L2 slot after G02/J02 in multi-GNSS receiver ANTEX entries. */
+    if (f == 1 && pcv_slot_has_data(pcv, 4)) return 4;
+    return f;
 }
 
 /** Frequency pair selection modes (upstream claslib rtklib.h) */
@@ -689,8 +701,9 @@ int clas_osr_corrmeas(const obsd_t* obs, nav_t* nav, const double* pos, const do
     }
 
     for (i = 0; i < nf; i++) {
+        int ant_idx = claslib_pcv_slot(&opt->pcvr[0], i);
         osr->wupL[i] = lam[i] * ssat.phw;
-        osr->antr[i] = dant[i];
+        osr->antr[i] = (0 <= ant_idx && ant_idx < NFREQPCV) ? dant[ant_idx] : 0.0;
     }
     osr->iono = stec;
 
@@ -883,24 +896,22 @@ int clas_osr_satcorr_update(gtime_t time, gtime_t teph, int sat, const prcopt_t*
               tow, sc->prevtow, orb_tow, sat, sc->previode, sc->prevsis, -dclk, orbit);
     }
 
-    /* detect orbit-update boundary: orbit epoch has advanced since prevsis was saved.
-     *
-     * In canonical CLAS data the orbit and clock update simultaneously (orb==clk).
-     * In some datasets (e.g. ST12) the orbit epoch always leads the clock by 5s, so
-     * orb==clk never happens.  We therefore trigger on orbit-epoch advancement rather
-     * than requiring orb_tow == clk_tow.  prev_orb_tow tracks the last seen orbit
-     * epoch; when it changes we have crossed a 30s correction boundary.
-     */
-    if (sc->prevtow != -1 && sc->prev_orb_tow != -1 && orb_tow != sc->prev_orb_tow && /* orbit epoch just advanced */
-        sc->currtow != orb_tow) { /* not yet computed for this orbit epoch */
+    if (sc->prevtow != -1 && timediff(ssr->t0[0], ssr->t0[1]) == 0.0 && sc->currtow != time2gpst(ssr->t0[1], NULL)) {
+        if (time2gpst(ssr->t0[1], NULL) < sc->prevtow &&
+            (time2gpst(ssr->t0[1], NULL) + 3600 * 24 * 7) - sc->prevtow != 5.0) {
+            sc->prev_orb_tow = orb_tow;
+            return 1;
+        }
+        if (time2gpst(ssr->t0[1], NULL) - sc->prevtow != 5.0) {
+            sc->prev_orb_tow = orb_tow;
+            return 1;
+        }
         sc->currsis = (-dclk + orbit) - sc->prevsis;
-        sc->currtow = orb_tow;
+        sc->currtow = time2gpst(ssr->t0[1], NULL);
         trace(NULL, 4,
-              "currsis: tow=%.1f orb_tow=%.1f clk_tow=%.1f sat=%2d "
+              "currsis: tow=%.1f clk_tow=%.1f orb_tow=%.1f sat=%2d "
               "currsis=%f clk=%f orb=%f\n",
-              tow, orb_tow, time2gpst(ssr->t0[1], NULL), sat, sc->currsis, -dclk, orbit);
-        /* reset prevtow so the 25s boundary can fire fresh next cycle */
-        sc->prevtow = -1;
+              tow, sc->currtow, orb_tow, sat, sc->currsis, -dclk, orbit);
     }
     sc->prev_orb_tow = orb_tow;
     return 1;
@@ -1000,22 +1011,25 @@ static void clas_osr_adjust_r_dts(double* retr, double* retdts, gtime_t teph, in
         }
     }
 
-    if (ephpos(dts_time, teph, sat, nav, sc->previode, rs, dts, &var, &svh0)) {
-        if (!normv3(rs + 3, ea)) {
-            return;
-        }
-        cross3(rs, rs + 3, rc);
-        if (!normv3(rc, ec)) {
-            return;
-        }
-        cross3(ea, ec, er);
-
-        /* satellite antenna offset correction */
-        for (i = 0; i < 3; i++) {
-            rs[i] += -(er[i] * ssr->deph[0] + ea[i] * ssr->deph[1] + ec[i] * ssr->deph[2]);
-        }
-        *retr = geodist(rs, rr, e);
+    if (!ephpos(dts_time, teph, sat, nav, sc->previode, rs, dts, &var, &svh0)) {
+        trace(NULL, 2, "adjust_r_dts: old ephemeris unavailable tow=%.1f sat=%d iode=%d\n", time2gpst(teph, NULL), sat,
+              sc->previode);
+        return;
     }
+    if (!normv3(rs + 3, ea)) {
+        return;
+    }
+    cross3(rs, rs + 3, rc);
+    if (!normv3(rc, ec)) {
+        return;
+    }
+    cross3(ea, ec, er);
+
+    /* satellite antenna offset correction */
+    for (i = 0; i < 3; i++) {
+        rs[i] += -(er[i] * ssr->deph[0] + ea[i] * ssr->deph[1] + ec[i] * ssr->deph[2]);
+    }
+    *retr = geodist(rs, rr, e);
     *retdts = dts[0] + ssr->dclk[0] / CLIGHT;
     trace(NULL, 2, "adjust_r_dts: tow=%.1f sat=%d r=%.8f dts=%.8f\n", time2gpst(teph, NULL), sat, *retr, *retdts);
 }
@@ -1261,136 +1275,96 @@ int clas_osr_zdres(const obsd_t* obs, int n, const double* rs, const double* dts
         tmp_r = -1.0;
         tmp_dts = 0.0;
 
-        /* δBIAS discontinuity compensation (IS-QZSS-L6-005 5.5.3.2).
-         * Compute SSR range correction (-dclk + orbit·LOS) and detect
-         * orbit correction epoch transitions.  The delta is applied to
-         * CPC/PRC in the frequency loop below. */
-        {
-            const ssr_t* ssr_sat = &nav->ssr_ch[ch][sat - 1];
-            double orb_tow_cur = time2gpst(ssr_sat->t0[0], NULL);
-            double ssr_range_cur = 0.0, delta_ssr = 0.0;
-            double er_v[3], ea_v[3], ec_v[3], rc_v[3], deph_ecef[3];
-            int kk;
+        for (j = 0; j < nf; j++) {
+            f = j;
 
-            /* RAC basis vectors from satellite position & velocity */
-            if (normv3(rs + i * 6 + 3, ea_v)) {
-                cross3(rs + i * 6, rs + i * 6 + 3, rc_v);
-                if (normv3(rc_v, ec_v)) {
-                    cross3(ea_v, ec_v, er_v);
+            fi = (lam[0] > 0.0) ? lam[f] / lam[0] : 0.0;
 
-                    /* orbit correction in ECEF */
-                    for (kk = 0; kk < 3; kk++) {
-                        deph_ecef[kk] =
-                            er_v[kk] * ssr_sat->deph[0] + ea_v[kk] * ssr_sat->deph[1] + ec_v[kk] * ssr_sat->deph[2];
-                    }
-                    /* range correction: -dclk + orbit_ecef · LOS */
-                    ssr_range_cur = -ssr_sat->dclk[0] + dot(deph_ecef, e + i * 3, 3);
-
-                    /* detect orbit epoch change and compute delta */
-                    if (osr_ctx->prev_ssr_orb_tow[sat - 1] > 0.0 && orb_tow_cur != osr_ctx->prev_ssr_orb_tow[sat - 1]) {
-                        delta_ssr = ssr_range_cur - osr_ctx->prev_ssr_range[sat - 1];
-                    }
-                    osr_ctx->prev_ssr_range[sat - 1] = ssr_range_cur;
-                    osr_ctx->prev_ssr_orb_tow[sat - 1] = orb_tow_cur;
-                }
+            if (osr[i].pbias[j] == CLAS_CSSRINVALID || osr[i].cbias[j] == CLAS_CSSRINVALID) {
+                /* ENA_PPP_RTK path: skip invalid biases */
+                continue;
             }
 
-            for (j = 0; j < nf; j++) {
-                f = j;
+            /* pseudorange correction */
+            osr[i].PRC[j] =
+                osr[i].trop + osr[i].relatv + osr[i].antr[f] + fi * fi * FREQ2 / FREQ1 * osr[i].iono + osr[i].cbias[j];
 
-                fi = (lam[0] > 0.0) ? lam[f] / lam[0] : 0.0;
+            /* carrier-phase correction */
+            osr[i].CPC[j] = osr[i].trop + osr[i].relatv + osr[i].antr[f] - fi * fi * FREQ2 / FREQ1 * osr[i].iono +
+                            osr[i].pbias[j] + osr[i].wupL[f] + osr[i].compL[j];
 
-                if (osr[i].pbias[j] == CLAS_CSSRINVALID || osr[i].cbias[j] == CLAS_CSSRINVALID) {
-                    /* ENA_PPP_RTK path: skip invalid biases */
-                    continue;
-                }
-
-                /* pseudorange correction */
-                osr[i].PRC[j] = osr[i].trop + osr[i].relatv + osr[i].antr[f] + fi * fi * FREQ2 / FREQ1 * osr[i].iono +
-                                osr[i].cbias[j];
-
-                /* carrier-phase correction */
-                osr[i].CPC[j] = osr[i].trop + osr[i].relatv + osr[i].antr[f] - fi * fi * FREQ2 / FREQ1 * osr[i].iono +
-                                osr[i].pbias[j] + osr[i].wupL[f] + osr[i].compL[j];
-
-                /* apply δBIAS compensation for orbit correction transition */
-                if (delta_ssr != 0.0) {
-                    osr[i].CPC[j] -= delta_ssr;
-                    osr[i].PRC[j] -= delta_ssr;
-                }
-
-                /* SIS/IODE adjustment */
-                iodeflag = 0;
-                if (!opt->posopt[9]) {
-                    osr[i].CPC[j] = clas_osr_adjust_cpc(obs_copy[i].time, sat, &nav->ssr_ch[ch][sat - 1], f,
-                                                        osr[i].CPC[j], &osr[i].sis, &iodeflag, ch, osr_ctx);
-                    osr[i].PRC[j] = clas_osr_adjust_prc(obs_copy[i].time, sat, &nav->ssr_ch[ch][sat - 1], f,
-                                                        osr[i].PRC[j], &osr[i].sis, &iodeflag, ch, osr_ctx);
-                }
-
-                /* compute model values, adjusting r/dts on IODE change */
-                if (iodeflag) {
-                    if (tmp_r < 0.0) {
-                        gtime_t dtsat = timeadd(obs_copy[i].time, -obs_copy[i].P[0] / CLIGHT);
-                        tmp_r = r;
-                        clas_osr_adjust_r_dts(&tmp_r, &tmp_dts, obs_copy[i].time, sat, nav, rr, dtsat, ch, osr_ctx);
-                    }
-                    modl[j] = tmp_r - CLIGHT * tmp_dts + osr[i].CPC[j];
-                    modl[nftmp + j] = tmp_r - CLIGHT * tmp_dts + osr[i].PRC[j];
-                    osr[i].CPC[j] += tmp_r - CLIGHT * tmp_dts - (r - CLIGHT * dts[i * 2]);
-                    osr[i].PRC[j] += tmp_r - CLIGHT * tmp_dts - (r - CLIGHT * dts[i * 2]);
-                } else {
-                    modl[j] = r - CLIGHT * dts[i * 2] + osr[i].CPC[j];
-                    modl[nftmp + j] = r - CLIGHT * dts[i * 2] + osr[i].PRC[j];
-                }
-
-                osr[i].p[j] = modl[nftmp + j];
-                osr[i].c[j] = modl[j];
-
-                /* repair cycle slip of pbias */
-                tow = time2gpst(obs_copy[i].time, NULL);
-                /* getorbitclock from satcorr state */
-                if (tow == osr_ctx->satcorr[ch][sat - 1].tow) {
-                    osr[i].orb = osr_ctx->satcorr[ch][sat - 1].orb;
-                    osr[i].clk = osr_ctx->satcorr[ch][sat - 1].clk;
-                } else {
-                    osr[i].orb = 0.0;
-                    osr[i].clk = 0.0;
-                }
-
-                /* cycle slip detection on phase bias update */
-                if (fabs(timediff(nav->ssr_ch[ch][sat - 1].t0[5], osr_ctx->pt0tmp[sat - 1])) > 0.0 &&
-                    fabs(timediff(nav->ssr_ch[ch][sat - 1].t0[5], osr_ctx->pt0tmp[sat - 1])) < 120.0) {
-                    dcpc = osr[i].orb - osr[i].clk + osr[i].CPC[j] - osr_ctx->cpctmp[j * MAXSAT + sat - 1];
-                    if (dcpc >= 95.0 * lam[f] && dcpc < 105.0 * lam[f]) {
-                        osr_ctx->pbias_ofst[j * MAXSAT + sat - 1] -= 100.0;
-                        /* PPP-RTK (y != NULL): correct the ambiguity filter state.
-                         * VRS/OSR (y == NULL): rtk->x has no ambiguity slots, so
-                         * the offset is instead applied to the emitted carrier
-                         * phase in clas_ssr2osr() — see upstream cssr2osr.c L342. */
-                        if (y) {
-                            x[IB_RTK(sat, f, opt)] -= 100.0;
-                        }
-                        trace(NULL, 2,
-                              "pbias slip detected t=%s sat=%2d f=%1d "
-                              "dcpc[cycle]=%.1f\n",
-                              time_str(obs_copy[i].time, 0), sat, f, lam[f] > 0.0 ? dcpc / lam[f] : 0.0);
-                    } else if (dcpc <= -95.0 * lam[f] && dcpc > -105.0 * lam[f]) {
-                        osr_ctx->pbias_ofst[j * MAXSAT + sat - 1] += 100.0;
-                        if (y) {
-                            x[IB_RTK(sat, f, opt)] += 100.0;
-                        }
-                        trace(NULL, 2,
-                              "pbias slip detected t=%s sat=%2d f=%1d "
-                              "dcpc[cycle]=%.1f\n",
-                              time_str(obs_copy[i].time, 0), sat, f, lam[f] > 0.0 ? dcpc / lam[f] : 0.0);
-                    }
-                } else {
-                    osr_ctx->pbias_ofst[j * MAXSAT + sat - 1] = 0.0;
-                }
-                osr_ctx->cpctmp[j * MAXSAT + sat - 1] = osr[i].orb - osr[i].clk + osr[i].CPC[j];
+            /* SIS/IODE adjustment */
+            iodeflag = 0;
+            if (!opt->posopt[9]) {
+                osr[i].CPC[j] = clas_osr_adjust_cpc(obs_copy[i].time, sat, &nav->ssr_ch[ch][sat - 1], f, osr[i].CPC[j],
+                                                    &osr[i].sis, &iodeflag, ch, osr_ctx);
+                osr[i].PRC[j] = clas_osr_adjust_prc(obs_copy[i].time, sat, &nav->ssr_ch[ch][sat - 1], f, osr[i].PRC[j],
+                                                    &osr[i].sis, &iodeflag, ch, osr_ctx);
             }
-        } /* end δBIAS compensation block */
+
+            /* compute model values, adjusting r/dts on IODE change */
+            if (iodeflag) {
+                if (tmp_r < 0.0) {
+                    gtime_t dtsat = timeadd(obs_copy[i].time, -obs_copy[i].P[0] / CLIGHT);
+                    tmp_r = r;
+                    tmp_dts = dts[i * 2];
+                    clas_osr_adjust_r_dts(&tmp_r, &tmp_dts, obs_copy[i].time, sat, nav, rr, dtsat, ch, osr_ctx);
+                }
+                modl[j] = tmp_r - CLIGHT * tmp_dts + osr[i].CPC[j];
+                modl[nftmp + j] = tmp_r - CLIGHT * tmp_dts + osr[i].PRC[j];
+                osr[i].CPC[j] += tmp_r - CLIGHT * tmp_dts - (r - CLIGHT * dts[i * 2]);
+                osr[i].PRC[j] += tmp_r - CLIGHT * tmp_dts - (r - CLIGHT * dts[i * 2]);
+            } else {
+                modl[j] = r - CLIGHT * dts[i * 2] + osr[i].CPC[j];
+                modl[nftmp + j] = r - CLIGHT * dts[i * 2] + osr[i].PRC[j];
+            }
+
+            osr[i].p[j] = modl[nftmp + j];
+            osr[i].c[j] = modl[j];
+
+            /* repair cycle slip of pbias */
+            tow = time2gpst(obs_copy[i].time, NULL);
+            /* getorbitclock from satcorr state */
+            if (tow == osr_ctx->satcorr[ch][sat - 1].tow) {
+                osr[i].orb = osr_ctx->satcorr[ch][sat - 1].orb;
+                osr[i].clk = osr_ctx->satcorr[ch][sat - 1].clk;
+            } else {
+                osr[i].orb = 0.0;
+                osr[i].clk = 0.0;
+            }
+
+            /* cycle slip detection on phase bias update */
+            if (!nav->filreset && fabs(timediff(nav->ssr_ch[ch][sat - 1].t0[5], osr_ctx->pt0tmp[sat - 1])) > 0.0 &&
+                fabs(timediff(nav->ssr_ch[ch][sat - 1].t0[5], osr_ctx->pt0tmp[sat - 1])) < 120.0) {
+                dcpc = osr[i].orb - osr[i].clk + osr[i].CPC[j] - osr_ctx->cpctmp[j * MAXSAT + sat - 1];
+                if (dcpc >= 95.0 * lam[f] && dcpc < 105.0 * lam[f]) {
+                    osr_ctx->pbias_ofst[j * MAXSAT + sat - 1] -= 100.0;
+                    /* PPP-RTK (y != NULL): correct the ambiguity filter state.
+                     * VRS/OSR (y == NULL): rtk->x has no ambiguity slots, so
+                     * the offset is instead applied to the emitted carrier
+                     * phase in clas_ssr2osr() — see upstream cssr2osr.c L342. */
+                    if (y) {
+                        x[IB_RTK(sat, f, opt)] -= 100.0;
+                    }
+                    trace(NULL, 2,
+                          "pbias slip detected t=%s sat=%2d f=%1d "
+                          "dcpc[cycle]=%.1f\n",
+                          time_str(obs_copy[i].time, 0), sat, f, lam[f] > 0.0 ? dcpc / lam[f] : 0.0);
+                } else if (dcpc <= -95.0 * lam[f] && dcpc > -105.0 * lam[f]) {
+                    osr_ctx->pbias_ofst[j * MAXSAT + sat - 1] += 100.0;
+                    if (y) {
+                        x[IB_RTK(sat, f, opt)] += 100.0;
+                    }
+                    trace(NULL, 2,
+                          "pbias slip detected t=%s sat=%2d f=%1d "
+                          "dcpc[cycle]=%.1f\n",
+                          time_str(obs_copy[i].time, 0), sat, f, lam[f] > 0.0 ? dcpc / lam[f] : 0.0);
+                }
+            } else {
+                osr_ctx->pbias_ofst[j * MAXSAT + sat - 1] = 0.0;
+            }
+            osr_ctx->cpctmp[j * MAXSAT + sat - 1] = osr[i].orb - osr[i].clk + osr[i].CPC[j];
+        }
 
         /* ISB correction */
         if (opt->isb == ISBOPT_TABLE) {
@@ -1443,10 +1417,8 @@ int clas_osr_zdres(const obsd_t* obs, int n, const double* rs, const double* dts
                     if (f > 0 && !(f & qj)) {
                         continue;
                     }
-                    /* GAL has no L2 band — skip only if slot f is
-                     * actually L2 (freq_num==2). When obsdef places E5a
-                     * at slot 1 (e.g. signals=["E1C","E5Q"]), do NOT skip. */
-                    if (satsys(sat, NULL) == SYS_GAL && code2freq_num(obs_copy[i].code[f]) == 2) {
+                    /* Keep CLAS PPP-RTK Galileo slots aligned with upstream: slot 1 is not used. */
+                    if (f == 1 && (satsys(sat, NULL) == SYS_GAL)) {
                         continue;
                     }
                     if (j == 0 && (osr[i].pbias[f] == CLAS_CSSRINVALID)) {
@@ -1604,9 +1576,13 @@ int clas_ssr2osr(rtk_t* rtk, obsd_t* obs, int n, nav_t* nav, clas_osrd_t* osr, i
         return 0;
     }
 
-    /* fetch corrections from bank */
-    if (grid->network > 0 && grid->network != corr->network) {
-        if (clas_bank_get_close(clas, obs[0].time, grid->network, ch, corr) != 0) {
+    /* re-fetch corrections closest to observation time each epoch,
+     * falling back to L6 buffer time if obs lookup fails. current[ch] is a
+     * bank snapshot, not a live decode target, so a fetch gated on network
+     * change would keep serving the first correction set until it ages out. */
+    if (grid->network > 0) {
+        if (clas_bank_get_close(clas, obs[0].time, grid->network, ch, corr) != 0 &&
+            clas_bank_get_close(clas, clas->l6buf[ch].time, grid->network, ch, corr) != 0) {
             trace(NULL, 2, "clas_ssr2osr: bank lookup failed\n");
             free(rs);
             free(dts);

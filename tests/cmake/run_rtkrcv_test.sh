@@ -26,7 +26,12 @@ IDLE_TIMEOUT=10
 
 cd "$PROJECT_ROOT"
 
-OUTPUT=$(mktemp /tmp/rtkrcv_ctest_XXXXXX.pos)
+# NB: keep XXXXXX at the END of the template. BSD mktemp (macOS) only substitutes
+# a trailing run of X's; a suffix after XXXXXX yields a literal, fixed path that
+# collides across runs (issue #194). Append the extension by renaming afterwards.
+OUTPUT=$(mktemp /tmp/rtkrcv_ctest_XXXXXX)
+mv "$OUTPUT" "$OUTPUT.pos"
+OUTPUT="$OUTPUT.pos"
 
 # Determine file extension for temp conf (fallback to .conf if no '.')
 CONF_BASENAME=$(basename "$CONF_FILE")
@@ -35,7 +40,11 @@ if [[ "$CONF_BASENAME" == *.* ]]; then
 else
     CONF_EXT="conf"
 fi
-CONF=$(mktemp /tmp/rtkrcv_conf_XXXXXX."${CONF_EXT}")
+# Same trailing-XXXXXX requirement as OUTPUT above (issue #194). The extension
+# matters here: mrtk picks the TOML vs legacy parser from the conf suffix.
+CONF=$(mktemp /tmp/rtkrcv_conf_XXXXXX)
+mv "$CONF" "$CONF.${CONF_EXT}"
+CONF="$CONF.${CONF_EXT}"
 RTKRCV_PID=""
 
 cleanup() {

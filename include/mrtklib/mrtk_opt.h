@@ -279,7 +279,11 @@ typedef struct prcopt_t {         /* processing options type */
     double maxpdopar;   /* maximum PDOP for AR (0:no limit) */
     double maxpdophold; /* maximum PDOP to hold ambiguity (0:no limit) */
     int refdop;         /* reference DOP (0:conventional, 1:single-diff) */
-    double beta;        /* ionosphere time constant for Gauss-Markov (s) */
+    double beta;        /* VRS iono Gauss-Markov time constant (s). NOTE: not
+                           wired to any config key, so it stays 0 (decay off)
+                           unless set programmatically. The PPP-RTK iono decay
+                           uses stats_tconstiono (parsed from stats-tconstiono)
+                           instead; see udion(). */
 
     /* Partial AR and AR filter options (demo5) */
     int minfixsats;     /* min sats for valid AR fix; nb >= minfixsats-1 DD pairs required (0=no minimum) */
@@ -312,6 +316,10 @@ typedef struct prcopt_t {         /* processing options type */
      * SEEDENH_BASE (C/N0 + TDCP): a net win on kinematic data and inert on the
      * static regression suite. Set SEEDENH_OFF to restore prior seed behaviour. */
     int enhanced_spp_seed; /* a-priori SPP seed profile (SEEDENH_???) */
+
+    /* SPP large-residual exclusion (upstream CLAS sync, appended for ABI stability) */
+    double rejethres; /* pseudorange residual rejection threshold (m, <0:off, 0:CLAS seed auto) */
+    int rejeminsat;   /* SPP residual rejection runs only when valid sats exceed this (nv > rejeminsat, as upstream) */
 } prcopt_t;
 
 /* enhanced_spp_seed profiles (applied to the PPP-RTK/VRS a-priori SPP seed only).
