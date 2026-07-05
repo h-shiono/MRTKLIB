@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Regression coverage for single-band CLAS PPP-RTK configurations.** Two new
+  claslib test triples lock in behavior the v0.7.4 engine already provides
+  without dedicated machinery (the ionosphere Gauss-Markov decay bounds the
+  unobservable per-satellite iono residual): **single-frequency (nf=1)
+  configs** (new `conf/claslib/rnx2rtkp_sf.toml`; 2019/239 dataset, vs GSI F5
+  truth 2D 1σ 2.5 cm / 95 % 3.9 cm) and the **Galileo E1/E5b band mismatch**
+  (u-blox ZED-F9P-class receivers tracking E1+E5b under CLAS E5a-only biases;
+  self-collected ECJ02 dataset, vs an independent IGS-products coordinate 3D
+  1σ 18.5 cm / 95 % 20.6 cm — the mismatched satellites run E1-only, so the
+  solution is bounded at dm-level, not DF-equivalent). Each triple pairs a consistency reference with
+  an absolute check against independent truth. `compare_nmea_abs.py` gains a
+  `--llh` fixed-coordinate option. Behavior record and the not-shipped SF
+  iono-constraint post-mortem: `docs/design/sf-ppp-rtk.md`. No positioning
+  code is changed.
+
 ## [v0.7.4] - 2026-07-04
 
 **CLAS PPP-RTK accuracy — claslib parity.** A five-part sync series aligns the
