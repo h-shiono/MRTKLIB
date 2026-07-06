@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.7.5] - 2026-07-06
+
+**Single-band CLAS PPP-RTK — regression coverage and capability record.** Not a
+feature release: no positioning code changes. Two configurations the v0.7.4
+engine already handles are locked in by tests anchored to independent truth,
+and `docs/design/sf-ppp-rtk.md` records the mechanics — including that the
+capability is conditional on the ionosphere Gauss-Markov decay, and the
+post-mortem of the explicit SF iono constraint that was prototyped, subsumed by
+v0.7.4, and deliberately not shipped ([PR #253](https://github.com/h-shiono/MRTKLIB/pull/253)).
+
 ### Added
 
 - **Regression coverage for single-band CLAS PPP-RTK configurations.** Two new
