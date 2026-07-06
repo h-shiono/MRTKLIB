@@ -51,6 +51,7 @@ See [`docs/releases/changelog.md`](docs/releases/changelog.md) for the full hist
 | v0.7.2 | CLAS PPP-RTK accuracy/robustness fixes + `mrtk dump --parse` (upstream-identical parse_cssr_*.csv) |
 | v0.7.3 | Real-time MADOCA-PPP PPP-AR/IONO — L6D wide-area ionospheric augmentation (QZS PRN 200/201) wired into `mrtk run` |
 | v0.7.4 | CLAS PPP-RTK claslib parity (#225) — storm-day fix 89.44%→93.54% (> upstream 92.88%); BackupCSSR gap-bridge, GAL E5a PCV fix; opt-in `MRTK_DETERMINISTIC_BLAS` |
+| v0.7.5 | Single-band CLAS PPP-RTK regression coverage (SF nf=1 + Galileo E1/E5b mismatch, independent-truth anchors) + capability record `docs/design/sf-ppp-rtk.md`; no positioning change |
 
 ### Test Status
 

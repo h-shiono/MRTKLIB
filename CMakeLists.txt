@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.15)
-project(MRTKLIB VERSION 0.7.4 LANGUAGES C)
+project(MRTKLIB VERSION 0.7.5 LANGUAGES C)
 
 # ── Version header generation ─────────────────────────────────────────────────
 set(MRTKLIB_VERSION_MAJOR ${PROJECT_VERSION_MAJOR})
@@ -854,6 +854,136 @@ add_test(NAME claslib_ppp_rtk_bnx_abs_check
 set_tests_properties(claslib_ppp_rtk_bnx_abs_check PROPERTIES
     DEPENDS           claslib_ppp_rtk_bnx
     FIXTURES_REQUIRED claslib_data
+    LABELS            "absolute;claslib;ppp-rtk"
+)
+
+# ── rnx2rtkp CLAS PPP-RTK single-frequency (nf=1) capability regression ───────
+# Same 2019/239 dataset processed with an L1-only signal set
+# (conf/claslib/rnx2rtkp_sf.toml, signals=["G1C","E1C","J1C"] -> nf=1). Locks in
+# that the v0.7.4+ engine handles single-frequency CLAS PPP-RTK without any
+# dedicated SF machinery (the per-satellite iono states are bounded by the
+# ionosphere Gauss-Markov decay). See docs/design/sf-ppp-rtk.md.
+add_test(NAME claslib_ppp_rtk_sf
+    COMMAND $<TARGET_FILE:mrtk> post
+        -k ${CMAKE_SOURCE_DIR}/conf/claslib/rnx2rtkp_sf.toml
+        -ts 2019/08/27 16:00:00 -te 2019/08/27 16:59:59 -ti 1
+        -o ${CMAKE_BINARY_DIR}/out_claslib_ppp_rtk_sf.nmea
+        ${_CLSDATA}/0627239Q.bnx
+        ${_CLSDATA}/sept_2019239.nav
+        ${_CLSDATA}/2019239Q.l6
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+set_tests_properties(claslib_ppp_rtk_sf PROPERTIES
+    FIXTURES_REQUIRED claslib_data
+    TIMEOUT           300
+    LABELS            "regression;claslib;ppp-rtk"
+)
+
+add_test(NAME claslib_ppp_rtk_sf_check
+    COMMAND ${Python3_EXECUTABLE} ${_COMPARE_NMEA}
+        ${_CLSDATA}/ref_L6_SF.nmea
+        ${CMAKE_BINARY_DIR}/out_claslib_ppp_rtk_sf.nmea
+        --tolerance 0.10
+)
+set_tests_properties(claslib_ppp_rtk_sf_check PROPERTIES
+    DEPENDS           claslib_ppp_rtk_sf
+    FIXTURES_REQUIRED claslib_data
+    LABELS            "regression;claslib;ppp-rtk"
+)
+
+# Absolute accuracy vs GSI F5 (TSUKUBA3, 2019/08/27) — independent truth.
+# Measured (v0.7.4 engine): 2D 1σ 2.5 cm / 95% 3.9 cm; tolerance 0.08 m
+# (measured + ~4 cm cross-platform headroom).
+add_test(NAME claslib_ppp_rtk_sf_abs_check
+    COMMAND ${Python3_EXECUTABLE} ${_COMPARE_NMEA_ABS}
+        --f5 ${_F5_0627_2019}
+        --date 2019/08/27
+        --tolerance 0.080
+        ${CMAKE_BINARY_DIR}/out_claslib_ppp_rtk_sf.nmea
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+set_tests_properties(claslib_ppp_rtk_sf_abs_check PROPERTIES
+    DEPENDS           claslib_ppp_rtk_sf
+    FIXTURES_REQUIRED claslib_data
+    LABELS            "absolute;claslib;ppp-rtk"
+)
+
+# ── Fixture: extract / clean F9P band-mismatch test data ──────────────────────
+# Separate small archive (rover obs/nav + L6); the CLAS aux files (grid/blq/erp/
+# atx/isb/l2csft) are reused from the main claslib_data fixture.
+add_test(NAME claslib_f9p_setup
+    COMMAND bash -c "tar xzf ${_CLSDATA}/claslib_f9p_testdata.tar.gz -C ${_CLSDATA}"
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+set_tests_properties(claslib_f9p_setup PROPERTIES
+    FIXTURES_SETUP  claslib_f9p_data
+    TIMEOUT         60
+    LABELS          "regression;claslib"
+)
+
+add_test(NAME claslib_f9p_cleanup
+    COMMAND bash -c "rm -f \
+        ${_CLSDATA}/F9P0121a.obs \
+        ${_CLSDATA}/F9P0121a.nav \
+        ${_CLSDATA}/2026121A.l6"
+)
+set_tests_properties(claslib_f9p_cleanup PROPERTIES
+    FIXTURES_CLEANUP claslib_f9p_data
+    LABELS           "regression;claslib"
+)
+
+# ── rnx2rtkp CLAS PPP-RTK regression: Galileo E1/E5b band mismatch ────────────
+# u-blox ZED-F9P (ECJ02), 2026/05/01, 1 h. The receiver tracks Galileo E1+E5b
+# (E7Q) while CLAS corrects only E5a (E5Q): the E5b band has no matching bias,
+# is dropped per-frequency in clas_osr_zdres, and the affected Galileo
+# satellites run E1-only. Locks in that the v0.7.4+ engine handles this
+# mismatch without any dedicated machinery. See docs/design/sf-ppp-rtk.md.
+add_test(NAME claslib_ppp_rtk_f9p
+    COMMAND $<TARGET_FILE:mrtk> post
+        -k ${CMAKE_SOURCE_DIR}/conf/claslib/rnx2rtkp_f9p.toml
+        -o ${CMAKE_BINARY_DIR}/out_claslib_ppp_rtk_f9p.nmea
+        ${_CLSDATA}/F9P0121a.obs
+        ${_CLSDATA}/F9P0121a.nav
+        ${_CLSDATA}/2026121A.l6
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+set_tests_properties(claslib_ppp_rtk_f9p PROPERTIES
+    FIXTURES_REQUIRED "claslib_data;claslib_f9p_data"
+    TIMEOUT           300
+    LABELS            "regression;claslib;ppp-rtk"
+)
+
+add_test(NAME claslib_ppp_rtk_f9p_check
+    COMMAND ${Python3_EXECUTABLE} ${_COMPARE_NMEA}
+        ${_CLSDATA}/ref_F9P0121a.nmea
+        ${CMAKE_BINARY_DIR}/out_claslib_ppp_rtk_f9p.nmea
+        --tolerance 0.10
+)
+set_tests_properties(claslib_ppp_rtk_f9p_check PROPERTIES
+    DEPENDS           claslib_ppp_rtk_f9p
+    FIXTURES_REQUIRED "claslib_data;claslib_f9p_data"
+    LABELS            "regression;claslib;ppp-rtk"
+)
+
+# Absolute accuracy vs the ECJ02 IGS-products coordinate — independent truth.
+# Same fixed LLH as igs_iflc_ppp_check (derived from IGS/MGEX final products,
+# #142), cross-checked against a 3-hour MADOCA-PPP float solution (agreement
+# within the float scatter). Measured (v0.7.4 engine, after 150-epoch
+# convergence skip): 3D 1σ 18.5 cm / 95% 20.6 cm — the offset is E/Up-loaded
+# (CLAS-vs-products inter-technique difference on this receiver); tolerance
+# 0.30 m (measured + ~9 cm headroom).
+add_test(NAME claslib_ppp_rtk_f9p_abs_check
+    COMMAND ${Python3_EXECUTABLE} ${_COMPARE_NMEA_ABS}
+        --llh 35.666334193,139.792201653,59.8539
+        --use-3d
+        --skip-epochs 150
+        --tolerance 0.30
+        ${CMAKE_BINARY_DIR}/out_claslib_ppp_rtk_f9p.nmea
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+set_tests_properties(claslib_ppp_rtk_f9p_abs_check PROPERTIES
+    DEPENDS           claslib_ppp_rtk_f9p
+    FIXTURES_REQUIRED "claslib_data;claslib_f9p_data"
     LABELS            "absolute;claslib;ppp-rtk"
 )
 

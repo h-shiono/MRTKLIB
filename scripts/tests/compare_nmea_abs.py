@@ -26,10 +26,9 @@ emits a warning.  In that case 2D horizontal comparison is more reliable.
 
 Usage
 -----
-    compare_nmea_abs.py --sinex FILE.SNX[.gz] --station CODE [--epoch YYYY/MM/DD]
-                        [options] test.nmea
-    compare_nmea_abs.py --f5 FILE --date YYYY/MM/DD
-                        [options] test.nmea
+    compare_nmea_abs.py --sinex FILE.SNX[.gz] --station CODE [--epoch YYYY/MM/DD] [options] test.nmea
+    compare_nmea_abs.py --f5 FILE --date YYYY/MM/DD [options] test.nmea
+    compare_nmea_abs.py --llh LAT,LON,H [--ref-precision FLOAT] [options] test.nmea
 
 Options
 -------
@@ -48,7 +47,13 @@ import numpy as np
 from _geo import blh2xyz, nmea_to_deg, xyz2blh, xyz2enu  # noqa: E402
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from compare_pos_abs import _criterion, parse_f5, parse_sinex, sinex_propagate  # noqa: E402
+from compare_pos_abs import (  # noqa: E402
+    _criterion,
+    _parse_triplet,
+    parse_f5,
+    parse_sinex,
+    sinex_propagate,
+)
 
 
 def parse_nmea(filepath):
@@ -221,7 +226,14 @@ def main():  # noqa: D103
     ref = p.add_mutually_exclusive_group(required=True)
     ref.add_argument("--sinex", metavar="FILE", help="IGS SINEX file (.SNX or .SNX.gz)")
     ref.add_argument("--f5", metavar="FILE", help="GSI F5 daily coordinate file")
+    ref.add_argument("--llh", metavar="LAT,LON,H", help="Fixed reference lat/lon/h (deg, deg, m)")
     p.add_argument("--station", metavar="CODE", help="4-char station code (required with --sinex)")
+    p.add_argument(
+        "--ref-precision",
+        type=float,
+        default=0.0,
+        help="Reference precision in metres for --llh (default 0)",
+    )
     p.add_argument(
         "--date",
         metavar="YYYY/MM/DD",
@@ -267,6 +279,18 @@ def main():  # noqa: D103
         print(f"Reference : {args.sinex}")
         print(f"Station   : {args.station.upper()} ({epoch_note})")
         print(f"Ref prec  : {ref_precision * 1000:.2f} mm (SINEX formal 3D σ)")
+    elif args.llh:
+        try:
+            lat, lon, h = _parse_triplet(args.llh, "--llh")
+        except ValueError as exc:
+            print(f"FAIL: {exc}", file=sys.stderr)
+            return 1
+        true_xyz = blh2xyz(lat, lon, h)
+        ref_precision = args.ref_precision
+        ref_label = "fixed LLH"
+        print("Reference : fixed LLH")
+        print(f"Ref coord : {lat:.8f}°N  {lon:.8f}°E  {h:.4f} m")
+        print(f"Ref prec  : {ref_precision * 1000:.2f} mm")
     else:
         if not args.date:
             print("FAIL: --date is required with --f5", file=sys.stderr)
