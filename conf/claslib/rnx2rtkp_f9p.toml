@@ -1,5 +1,9 @@
 # MRTKLIB Configuration (TOML v1.0.0)
-# Converted from: rnx2rtkp.conf
+# Galileo E1/E5b band-mismatch regression (u-blox ZED-F9P class).
+#
+# The receiver tracks Galileo E1+E5b (E7Q) while CLAS carries biases only for
+# E5a (E5Q); the E5b band has no matching correction and is dropped
+# per-frequency, so those satellites run E1-only. See docs/design/sf-ppp-rtk.md.
 
 [positioning]
 mode = "ppp-rtk"                                     # (9:ppp-rtk)

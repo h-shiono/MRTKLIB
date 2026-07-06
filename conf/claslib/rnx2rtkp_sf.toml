@@ -3,8 +3,9 @@
 #
 # Derived from rnx2rtkp.toml. The only functional difference is the `signals`
 # list: one L1-band signal per constellation, which makes mrtk_sigcfg_from_signals
-# derive nf=1. The unobservable per-satellite iono residual is pinned toward zero
-# by clas_osr_iono_constraint(); see docs/design/sf-ppp-rtk.md.
+# derive nf=1. The unobservable per-satellite iono residual stays bounded via the
+# ionosphere Gauss-Markov decay (no dedicated SF machinery); see
+# docs/design/sf-ppp-rtk.md.
 
 [positioning]
 mode = "ppp-rtk"                     # (9:ppp-rtk)

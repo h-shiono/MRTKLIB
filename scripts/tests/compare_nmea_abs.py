@@ -26,11 +26,9 @@ emits a warning.  In that case 2D horizontal comparison is more reliable.
 
 Usage
 -----
-    compare_nmea_abs.py --sinex FILE.SNX[.gz] --station CODE [--epoch YYYY/MM/DD]
-                        [options] test.nmea
-    compare_nmea_abs.py --f5 FILE --date YYYY/MM/DD
-    compare_nmea_abs.py --llh LAT,LON,H [--ref-precision FLOAT]
-                        [options] test.nmea
+    compare_nmea_abs.py --sinex FILE.SNX[.gz] --station CODE [--epoch YYYY/MM/DD] [options] test.nmea
+    compare_nmea_abs.py --f5 FILE --date YYYY/MM/DD [options] test.nmea
+    compare_nmea_abs.py --llh LAT,LON,H [--ref-precision FLOAT] [options] test.nmea
 
 Options
 -------
