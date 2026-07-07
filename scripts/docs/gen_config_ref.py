@@ -41,7 +41,10 @@ from conf2toml import MAPPING, _KEY_ENUM, _ENUM_STRINGS  # noqa: E402
 
 # {legacy_key: (modes, description)}
 # Description for enum types should NOT include the values — they are appended
-# automatically from _ENUM_STRINGS.
+# automatically from _ENUM_STRINGS (via _KEY_ENUM).
+# Exception: a key deliberately omitted from _KEY_ENUM (e.g. `pos1-correction`,
+# whose values carry inline annotations the plain append cannot express) gets no
+# automatic append, so its description embeds the value list itself.
 _OPTION_META: dict[str, tuple[str, str]] = {
     # ── positioning ──────────────────────────────────────────────────────────
     "pos1-posmode": ("All", "Positioning mode selector."),
