@@ -35,9 +35,14 @@ TOML section: `[positioning]`
 | `elevation_mask` | float | All | Minimum satellite elevation angle (degrees). Satellites below this are excluded. |
 | `dynamics` | boolean | All | Enable receiver dynamics model (velocity/acceleration state estimation). |
 | `satellite_ephemeris` | enum | All | Satellite ephemeris source. SSR modes (`brdc+ssrapc`, `brdc+ssrcom`) are used for PPP and PPP-RTK. `brdc` · `precise` · `brdc+sbas` · `brdc+ssrapc` · `brdc+ssrcom` |
-| `systems` | string[] | All | GNSS constellations to use. Accepts a human-readable string list like `["GPS", "Galileo"]`. |
+| `systems` | string[] | All | GNSS constellations to use. Accepts a human-readable string list like `["GPS", "Galileo"]`. The low-level `constellations` key (integer/string bitmask, legacy `pos1-navsys` form) is also accepted for backward compatibility; `systems` supersedes it when both are present. |
 | `excluded_sats` | string | All | Satellites to exclude. Space-separated PRN list (e.g., `G01 G02`). Prefix `+` to include only. |
 | `signals` | string[] | All | Explicit RINEX3-style signal code list (`{sys}{freq}{attr}`, e.g. `["G1C", "G2W", "R1C", "R2C", "E1C", "E7Q", "J1C", "J2L"]`). When set it is the **authoritative** signal selection: it overrides `frequency` / the `[signals]` presets, derives the number of frequencies, **and** selects which observation code occupies each band's slot during real-time raw decoding (so e.g. GLONASS L2C/A can be used as the iono-free 2nd frequency without the legacy `-RL2C` receiver option — see [#189](https://github.com/h-shiono/MRTKLIB/issues/189)). List **every** band you want, for every constellation you want to constrain — `signals = ["R2C"]` alone derives nf=1 (single-frequency). A constellation you omit entirely keeps its default signal selection. |
+| `robust` | enum | SPP | Robust estimation strategy for single-point positioning (down-weights outliers via M-estimation). `off` · `igg3` |
+| `robust_k0` | float | SPP | IGG-III robust weighting lower threshold k0 (standardized residual). Residuals below k0 keep full weight. |
+| `robust_k1` | float | SPP | IGG-III robust weighting upper threshold k1 (standardized residual). Residuals above k1 are rejected; between k0 and k1 the weight is tapered. |
+| `tdcp` | enum | SPP | Time-differenced carrier phase (TDCP) velocity estimation and carrier-phase-based cycle-slip / jump QC. `off` · `on` |
+| `tdcp_jump` | float | SPP | TDCP position-jump rejection threshold (m). Epoch-to-epoch jumps exceeding this are rejected as outliers. |
 
 > **Recommended surface.** `[positioning].signals` is the preferred way to select signals. The `[signals]` section (`gps`/`qzs`/`galileo`/`bds2`/`bds3` presets) and `frequency` are the older, coarser mechanism (no per-code control, and **no GLONASS entry**, which is why GLONASS L2 code selection requires `signals`). When `signals` is set it takes precedence.
 
@@ -70,6 +75,7 @@ TOML section: `[positioning.clas]`
 |:---------|:-----|:------|:------------|
 | `grid_selection_radius` | integer | PPP-RTK, VRS | CLAS grid search radius (m). Controls how far from the rover to search for grid-based tropospheric/ionospheric corrections. |
 | `receiver_type` | string | PPP-RTK, VRS | Rover receiver type identifier. Used for ISB (inter-system bias) table lookup. |
+| `enhanced_spp_seed` | enum | PPP-RTK | Enhanced SPP seed for CLAS PPP-RTK reconvergence. Selects the code / Doppler QC stack used to seed the float filter after outages (opt-in; the default base seed uses C/N0 + TDCP). `off` · `cn0+tdcp` · `cn0+tdcp+robust` |
 | `position_uncertainty_x` | float | PPP-RTK, VRS | Rover approximate position X in ECEF (m). Used for initial CLAS grid search before first fix. |
 | `position_uncertainty_y` | float | PPP-RTK, VRS | Rover approximate position Y in ECEF (m). |
 | `position_uncertainty_z` | float | PPP-RTK, VRS | Rover approximate position Z in ECEF (m). |
@@ -145,6 +151,9 @@ TOML section: `[ambiguity_resolution.thresholds]`
 | `alpha` | enum | PPP-RTK, VRS | AR significance level (ILS success rate). `0.1%` · `0.5%` · `1%` · `5%` · `10%` · `20%` |
 | `elevation_mask` | float | RTK, PPP-RTK, VRS | Minimum satellite elevation for AR participation (degrees). |
 | `hold_elevation` | float | RTK, PPP-RTK, VRS | Minimum satellite elevation for fix-and-hold constraint application (degrees). |
+| `max_pdop_ar` | float | RTK, PPP-RTK | Maximum PDOP for attempting ambiguity resolution. 0 = no limit. |
+| `max_pdop_hold` | float | RTK, PPP-RTK | Maximum PDOP for applying the fix-and-hold constraint. 0 = no limit. |
+| `reference_dop` | enum | RTK, PPP-RTK | Reference DOP formulation used for AR validation. `zd` · `sd` |
 
 ## Ambiguity Resolution — Counters
 
@@ -191,6 +200,8 @@ TOML section: `[rejection]`
 | `non_dispersive` | float | PPP-RTK, VRS | Non-dispersive (geometric) residual rejection threshold (σ). |
 | `hold_chi_square` | float | PPP-RTK, VRS | Chi-square threshold for hold-mode outlier detection. |
 | `fix_chi_square` | float | PPP-RTK, VRS | Chi-square threshold for fix-mode outlier detection. |
+| `spp_residual` | float | SPP | SPP pseudorange residual rejection threshold (m) used by RAIM FDE. |
+| `spp_min_sats` | integer | SPP | Minimum number of satellites SPP RAIM FDE retains before it stops excluding outliers. |
 | `gdop` | float | All | Maximum GDOP for valid solution output. |
 | `pseudorange_diff` | float | VRS | Pseudorange consistency check threshold (m). Rejects satellites with large code-phase disagreement. |
 | `position_error_count` | integer | VRS | Number of consecutive position error epochs before filter reset. |
@@ -226,6 +237,8 @@ TOML section: `[kalman_filter.measurement_error]`
 | `phase_elevation` | float | All | Elevation-dependent carrier phase error coefficient (m). |
 | `phase_baseline` | float | RTK | Baseline-length-dependent phase error (m/10km). Proportional to rover–base distance. |
 | `doppler` | float | All | Doppler measurement error (Hz). |
+| `snr_max` | float | All | C/N0 at which the SNR-based measurement weighting model saturates (dBHz). Used when C/N0 weighting is enabled. |
+| `snr_error` | float | All | Carrier phase measurement error at the SNR-weighting reference level (m). |
 | `ura_ratio` | float | PPP | User Range Accuracy scaling ratio. Adjusts satellite-specific weighting based on broadcast URA. |
 
 ## Kalman Filter — Initial Std. Deviation
@@ -449,4 +462,18 @@ path = "rover.log"
 | `nmeareq` | boolean | Send NMEA position request to stream |
 | `nmealat` | float | NMEA request latitude (degrees) |
 | `nmealon` | float | NMEA request longitude (degrees) |
+| `nmeahgt` | float | NMEA request height (m) |
+
+## Console (rtkrcv)
+
+TOML section: `[console]` — **Real-time only** (`mrtk run` / `rtkrcv`)
+
+Interactive rtkrcv console (telnet) settings.
+
+| TOML Key | Type | Modes | Description |
+|:---------|:-----|:------|:------------|
+| `passwd` | string | RT | Console login password. |
+| `timetype` | enum | RT | Console time display. `gpst` · `utc` · `jst` · `tow` |
+| `soltype` | enum | RT | Console solution display format. `dms` · `deg` · `xyz` · `enu` · `pyl` |
+| `solflag` | flag | RT | Console solution status flags (std / age / ratio / ns). |
 

@@ -34,6 +34,10 @@ MAPPING: list[tuple[str, str, str, str]] = [
     # (legacy_key, toml_section, toml_key, value_type)
     # ── positioning ──────────────────────────────────────────────────────────
     ("pos1-posmode", "positioning", "mode", "enum"),
+    # correction has an annotated enum value list embedded in its description
+    # (see gen_config_ref.py _OPTION_META); intentionally omitted from _KEY_ENUM
+    # so the generator does not append a second, unannotated value list.
+    ("pos1-correction", "positioning", "correction", "enum"),
     ("pos1-frequency", "positioning", "frequency", "enum"),
     ("pos1-soltype", "positioning", "solution_type", "enum"),
     ("pos1-elmask", "positioning", "elevation_mask", "float"),
@@ -42,8 +46,14 @@ MAPPING: list[tuple[str, str, str, str]] = [
     ("pos1-navsys", "positioning", "systems", "navsys"),
     ("pos1-exclsats", "positioning", "excluded_sats", "str"),
     ("pos1-signals", "positioning", "signals", "siglist"),
+    ("pos1-robust", "positioning", "robust", "enum"),
+    ("pos1-robustk0", "positioning", "robust_k0", "float"),
+    ("pos1-robustk1", "positioning", "robust_k1", "float"),
+    ("pos1-tdcp", "positioning", "tdcp", "enum"),
+    ("pos1-tdcpjump", "positioning", "tdcp_jump", "float"),
     ("pos1-gridsel", "positioning.clas", "grid_selection_radius", "int"),
     ("pos1-rectype", "positioning.clas", "receiver_type", "str"),
+    ("pos1-seedenh", "positioning.clas", "enhanced_spp_seed", "enum"),
     ("pos1-rux", "positioning.clas", "position_uncertainty_x", "float"),
     ("pos1-ruy", "positioning.clas", "position_uncertainty_y", "float"),
     ("pos1-ruz", "positioning.clas", "position_uncertainty_z", "float"),
@@ -89,6 +99,9 @@ MAPPING: list[tuple[str, str, str, str]] = [
     ("pos2-aralpha", "ambiguity_resolution.thresholds", "alpha", "enum"),
     ("pos2-arelmask", "ambiguity_resolution.thresholds", "elevation_mask", "float"),
     ("pos2-elmaskhold", "ambiguity_resolution.thresholds", "hold_elevation", "float"),
+    ("pos2-maxpdopar", "ambiguity_resolution.thresholds", "max_pdop_ar", "float"),
+    ("pos2-maxpdophold", "ambiguity_resolution.thresholds", "max_pdop_hold", "float"),
+    ("pos2-refdop", "ambiguity_resolution.thresholds", "reference_dop", "enum"),
     # ── ambiguity_resolution.counters ────────────────────────────────────────
     ("pos2-arlockcnt", "ambiguity_resolution.counters", "lock_count", "int"),
     ("pos2-arminfix", "ambiguity_resolution.counters", "min_fix", "int"),
@@ -111,6 +124,8 @@ MAPPING: list[tuple[str, str, str, str]] = [
     ("pos2-rejionno3", "rejection", "non_dispersive", "float"),
     ("pos2-rejionno4", "rejection", "hold_chi_square", "float"),
     ("pos2-rejionno5", "rejection", "fix_chi_square", "float"),
+    ("pos2-rejethres", "rejection", "spp_residual", "float"),
+    ("pos2-rejeminsat", "rejection", "spp_min_sats", "int"),
     ("pos2-rejgdop", "rejection", "gdop", "float"),
     ("pos2-rejdiffpse", "rejection", "pseudorange_diff", "float"),
     ("pos2-poserrcnt", "rejection", "position_error_count", "int"),
@@ -128,6 +143,8 @@ MAPPING: list[tuple[str, str, str, str]] = [
     ("stats-errphaseel", "kalman_filter.measurement_error", "phase_elevation", "float"),
     ("stats-errphasebl", "kalman_filter.measurement_error", "phase_baseline", "float"),
     ("stats-errdoppler", "kalman_filter.measurement_error", "doppler", "float"),
+    ("stats-snrmax", "kalman_filter.measurement_error", "snr_max", "float"),
+    ("stats-errsnr", "kalman_filter.measurement_error", "snr_error", "float"),
     ("stats-uraratio", "kalman_filter.measurement_error", "ura_ratio", "float"),
     # ── kalman_filter.initial_std ────────────────────────────────────────────
     ("stats-stdbias", "kalman_filter.initial_std", "bias", "float"),
@@ -308,6 +325,9 @@ _ENUM_STRINGS = {
     "SIGOPT4": "0:B1I/B3I,1:B1I/B2I,2:B1I/B3I/B2I",
     "SIGOPT5": "0:B1I/B3I,1:B1I/B2a,2:B1I/B3I/B2a",
     "ARALPHAOPT": "0:0.1%,1:0.5%,2:1%,3:5%,4:10%,5:20%",
+    "ROBOPT": "0:off,1:igg3",
+    "SEEDOPT": "0:off,1:cn0+tdcp,2:cn0+tdcp+robust",
+    "DOPOPT": "0:zd,1:sd",
 }
 
 for _name, _defstr in _ENUM_STRINGS.items():
@@ -353,6 +373,10 @@ _KEY_ENUM: dict[str, str] = {
     "pos2-aralpha": "ARALPHAOPT",
     "pos2-syncsol": "SWTOPT",
     "pos2-arfilter": "SWTOPT",
+    "pos1-robust": "ROBOPT",
+    "pos1-tdcp": "SWTOPT",
+    "pos1-seedenh": "SEEDOPT",
+    "pos2-refdop": "DOPOPT",
     "pos2-ionocorr": "SWTOPT",
     "pos2-ign_chierr": "SWTOPT",
     "pos2-bds2bias": "SWTOPT",
