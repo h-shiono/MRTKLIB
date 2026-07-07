@@ -69,3 +69,30 @@ jobs:
       - name: ruff format (Python)
         if: ${{ !cancelled() }}
         run: ruff format --check .
+
+  # Guards against the config reference drifting from its generator. The loader's
+  # option table (src/core/mrtk_toml.c) and the generator sources
+  # (scripts/tools/conf2toml.py MAPPING + scripts/docs/gen_config_ref.py) must be
+  # kept in sync so every TOML key the loader accepts is documented. This job
+  # fails when the committed docs/reference/config-options.md no longer matches a
+  # fresh generator run — regenerate and commit the result to fix it.
+  config-ref:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Regenerate config reference
+        run: python scripts/docs/gen_config_ref.py > docs/reference/config-options.md
+
+      - name: Fail if the committed reference is stale
+        run: |
+          if ! git diff --exit-code -- docs/reference/config-options.md; then
+            echo "::error::docs/reference/config-options.md is out of date."
+            echo "Run: python scripts/docs/gen_config_ref.py > docs/reference/config-options.md"
+            exit 1
+          fi

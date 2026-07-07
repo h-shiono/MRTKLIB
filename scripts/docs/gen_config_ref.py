@@ -45,6 +45,20 @@ from conf2toml import MAPPING, _KEY_ENUM, _ENUM_STRINGS  # noqa: E402
 _OPTION_META: dict[str, tuple[str, str]] = {
     # ── positioning ──────────────────────────────────────────────────────────
     "pos1-posmode": ("All", "Positioning mode selector."),
+    "pos1-correction": (
+        "PPP, PPP-RTK, VRS",
+        "Correction source (lowercase; parsing is case-sensitive). Decouples the augmentation source from `mode`. "
+        "`none` · `igs` (precise SP3/CLK files) · `igs-rts` (real-time RTCM-SSR / IGS-SSR MT4076; float PPP) · "
+        "`qzs-madoca` · `qzs-clas` · `gal-has`† · `bds-b2b`† (†reserved/not yet implemented). "
+        "Optional: when omitted it is inferred from `mode` + `satellite_ephemeris` for backward compatibility. "
+        '**`igs-rts` is never inferred and must be set explicitly** (it shares `satellite_ephemeris = "brdc+ssrapc"` '
+        'with `qzs-madoca`); it requires `satellite_ephemeris = "brdc+ssrapc"` or `"brdc+ssrcom"`. '
+        "See [Positioning Configuration Model](../design/configuration.md). "
+        "**Note:** `igs` enables conventional IGS-products float PPP for both geodetic receivers "
+        "(e.g. GPS L1+L2, Galileo E1+E5a) and receivers that provide the 2nd frequency only as Galileo **E5b** / "
+        "BeiDou **B2I** (no E5a/B3I, e.g. u-blox F9P) — the iono-free pair is selected from the available "
+        "observations (fixed in v0.6.7, see [#135](https://github.com/h-shiono/MRTKLIB/issues/135)).",
+    ),
     "pos1-frequency": (
         "All",
         "Number of carrier frequencies to use. CLAS PPP-RTK requires `l1+2` (nf=2).",
@@ -64,7 +78,9 @@ _OPTION_META: dict[str, tuple[str, str]] = {
     ),
     "pos1-navsys": (
         "All",
-        'GNSS constellations to use. Accepts a human-readable string list like `["GPS", "Galileo"]`.',
+        'GNSS constellations to use. Accepts a human-readable string list like `["GPS", "Galileo"]`. '
+        "The low-level `constellations` key (integer/string bitmask, legacy `pos1-navsys` form) is also "
+        "accepted for backward compatibility; `systems` supersedes it when both are present.",
     ),
     "pos1-exclsats": (
         "All",
@@ -72,7 +88,35 @@ _OPTION_META: dict[str, tuple[str, str]] = {
     ),
     "pos1-signals": (
         "All",
-        "Explicit signal code list. Overrides default observation definition when set.",
+        "Explicit RINEX3-style signal code list (`{sys}{freq}{attr}`, e.g. "
+        '`["G1C", "G2W", "R1C", "R2C", "E1C", "E7Q", "J1C", "J2L"]`). When set it is the **authoritative** '
+        "signal selection: it overrides `frequency` / the `[signals]` presets, derives the number of "
+        "frequencies, **and** selects which observation code occupies each band's slot during real-time raw "
+        "decoding (so e.g. GLONASS L2C/A can be used as the iono-free 2nd frequency without the legacy `-RL2C` "
+        "receiver option — see [#189](https://github.com/h-shiono/MRTKLIB/issues/189)). List **every** band you "
+        'want, for every constellation you want to constrain — `signals = ["R2C"]` alone derives nf=1 '
+        "(single-frequency). A constellation you omit entirely keeps its default signal selection.",
+    ),
+    "pos1-robust": (
+        "SPP",
+        "Robust estimation strategy for single-point positioning (down-weights outliers via M-estimation).",
+    ),
+    "pos1-robustk0": (
+        "SPP",
+        "IGG-III robust weighting lower threshold k0 (standardized residual). Residuals below k0 keep full weight.",
+    ),
+    "pos1-robustk1": (
+        "SPP",
+        "IGG-III robust weighting upper threshold k1 (standardized residual). Residuals above k1 are rejected; "
+        "between k0 and k1 the weight is tapered.",
+    ),
+    "pos1-tdcp": (
+        "SPP",
+        "Time-differenced carrier phase (TDCP) velocity estimation and carrier-phase-based cycle-slip / jump QC.",
+    ),
+    "pos1-tdcpjump": (
+        "SPP",
+        "TDCP position-jump rejection threshold (m). Epoch-to-epoch jumps exceeding this are rejected as outliers.",
     ),
     # ── positioning.clas ─────────────────────────────────────────────────────
     "pos1-gridsel": (
@@ -82,6 +126,11 @@ _OPTION_META: dict[str, tuple[str, str]] = {
     "pos1-rectype": (
         "PPP-RTK, VRS",
         "Rover receiver type identifier. Used for ISB (inter-system bias) table lookup.",
+    ),
+    "pos1-seedenh": (
+        "PPP-RTK",
+        "Enhanced SPP seed for CLAS PPP-RTK reconvergence. Selects the code / Doppler QC stack used to seed the "
+        "float filter after outages (opt-in; the default base seed uses C/N0 + TDCP).",
     ),
     "pos1-rux": (
         "PPP-RTK, VRS",
@@ -173,6 +222,18 @@ _OPTION_META: dict[str, tuple[str, str]] = {
         "RTK, PPP-RTK, VRS",
         "Minimum satellite elevation for fix-and-hold constraint application (degrees).",
     ),
+    "pos2-maxpdopar": (
+        "RTK, PPP-RTK",
+        "Maximum PDOP for attempting ambiguity resolution. 0 = no limit.",
+    ),
+    "pos2-maxpdophold": (
+        "RTK, PPP-RTK",
+        "Maximum PDOP for applying the fix-and-hold constraint. 0 = no limit.",
+    ),
+    "pos2-refdop": (
+        "RTK, PPP-RTK",
+        "Reference DOP formulation used for AR validation.",
+    ),
     # ── ambiguity_resolution.counters ────────────────────────────────────────
     "pos2-arlockcnt": (
         "RTK, PPP-RTK, VRS",
@@ -234,6 +295,11 @@ _OPTION_META: dict[str, tuple[str, str]] = {
     ),
     "pos2-rejionno4": ("PPP-RTK, VRS", "Chi-square threshold for hold-mode outlier detection."),
     "pos2-rejionno5": ("PPP-RTK, VRS", "Chi-square threshold for fix-mode outlier detection."),
+    "pos2-rejethres": ("SPP", "SPP pseudorange residual rejection threshold (m) used by RAIM FDE."),
+    "pos2-rejeminsat": (
+        "SPP",
+        "Minimum number of satellites SPP RAIM FDE retains before it stops excluding outliers.",
+    ),
     "pos2-rejgdop": ("All", "Maximum GDOP for valid solution output."),
     "pos2-rejdiffpse": (
         "VRS",
@@ -272,6 +338,14 @@ _OPTION_META: dict[str, tuple[str, str]] = {
         "Baseline-length-dependent phase error (m/10km). Proportional to rover\u2013base distance.",
     ),
     "stats-errdoppler": ("All", "Doppler measurement error (Hz)."),
+    "stats-snrmax": (
+        "All",
+        "C/N0 at which the SNR-based measurement weighting model saturates (dBHz). Used when C/N0 weighting is enabled.",
+    ),
+    "stats-errsnr": (
+        "All",
+        "Carrier phase measurement error at the SNR-weighting reference level (m).",
+    ),
     "stats-uraratio": (
         "PPP",
         "User Range Accuracy scaling ratio. Adjusts satellite-specific weighting based on broadcast URA.",
@@ -595,6 +669,15 @@ def main() -> int:
         lines.append("")
         lines.append(f"TOML section: `[{section}]`")
         lines.append("")
+        if section == "signals":
+            lines.append(
+                "> **Legacy preset form.** These per-constellation presets are the older, coarser "
+                "signal-selection surface (no per-code control, no GLONASS entry). Prefer "
+                "[`[positioning].signals`](#positioning) for new configurations; when `signals` is set it "
+                "overrides this section. GLONASS L2 code selection (e.g. L2C/A vs L2P) can only be expressed "
+                "via `[positioning].signals`."
+            )
+            lines.append("")
         lines.append("| TOML Key | Type | Modes | Description |")
         lines.append("|:---------|:-----|:------|:------------|")
 
@@ -634,6 +717,13 @@ def main() -> int:
 
         # Section-specific supplementary notes
         if section == "positioning":
+            lines.append(
+                "> **Recommended surface.** `[positioning].signals` is the preferred way to select signals. "
+                "The `[signals]` section (`gps`/`qzs`/`galileo`/`bds2`/`bds3` presets) and `frequency` are the "
+                "older, coarser mechanism (no per-code control, and **no GLONASS entry**, which is why GLONASS "
+                "L2 code selection requires `signals`). When `signals` is set it takes precedence."
+            )
+            lines.append("")
             lines.append("### Frequency Index Mapping")
             lines.append("")
             lines.append(
@@ -697,6 +787,28 @@ def main() -> int:
     lines.append("| `nmeareq` | boolean | Send NMEA position request to stream |")
     lines.append("| `nmealat` | float | NMEA request latitude (degrees) |")
     lines.append("| `nmealon` | float | NMEA request longitude (degrees) |")
+    lines.append("| `nmeahgt` | float | NMEA request height (m) |")
+    lines.append("")
+
+    # Console configuration (rtkrcv rcvopts, not in MAPPING)
+    lines.append("## Console (rtkrcv)")
+    lines.append("")
+    lines.append("TOML section: `[console]` — **Real-time only** (`mrtk run` / `rtkrcv`)")
+    lines.append("")
+    lines.append("Interactive rtkrcv console (telnet) settings.")
+    lines.append("")
+    lines.append("| TOML Key | Type | Modes | Description |")
+    lines.append("|:---------|:-----|:------|:------------|")
+    lines.append("| `passwd` | string | RT | Console login password. |")
+    lines.append(
+        "| `timetype` | enum | RT | Console time display. `gpst` · `utc` · `jst` · `tow` |"
+    )
+    lines.append(
+        "| `soltype` | enum | RT | Console solution display format. `dms` · `deg` · `xyz` · `enu` · `pyl` |"
+    )
+    lines.append(
+        "| `solflag` | flag | RT | Console solution status flags (std / age / ratio / ns). |"
+    )
     lines.append("")
 
     print("\n".join(lines))
