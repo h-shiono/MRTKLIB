@@ -42,8 +42,8 @@ format = "llh"
 | `[positioning.atmosphere]` | Ionosphere and troposphere models |
 | `[positioning.snr_mask]` | SNR mask thresholds per frequency |
 | `[positioning.clas]` | CLAS-specific settings (grid, receiver type) |
-| `[positioning.madoca]` / `[positioning.ppp]` | MADOCA and PPP bias-product settings |
 | `[positioning.clas.ambiguities]` / `[positioning.relative]` | CLAS ambiguity and relative-positioning settings |
+| `[positioning.madoca]` / `[positioning.ppp]` | MADOCA and PPP bias-product settings |
 | `[input.*]` | RINEX, RTCM, and SBAS decoder options |
 | `[ambiguity_resolution]` | AR mode, thresholds, GLONASS/BDS AR |
 | `[kalman_filter]` | Process noise, measurement noise |
