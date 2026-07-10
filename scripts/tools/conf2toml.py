@@ -25,8 +25,10 @@ from typing import Any
 #   "int"    — integer
 #   "float"  — floating-point
 #   "str"    — string
+#   "strlist" — space-separated token list → array of strings
 #   "bool"   — on/off → true/false
 #   "snr"    — comma-separated SNR mask values → array
+#   "siglist" — comma-separated signal codes → array of strings
 #   "navsys" — integer bitmask (kept as int, comment added)
 # ═══════════════════════════════════════════════════════════════════════════════
 
@@ -44,7 +46,7 @@ MAPPING: list[tuple[str, str, str, str]] = [
     ("pos1-dynamics", "positioning", "dynamics", "bool"),
     ("pos1-sateph", "positioning", "satellite_ephemeris", "enum"),
     ("pos1-navsys", "positioning", "systems", "navsys"),
-    ("pos1-exclsats", "positioning", "excluded_sats", "str"),
+    ("pos1-exclsats", "positioning", "excluded_sats", "strlist"),
     ("pos1-signals", "positioning", "signals", "siglist"),
     ("pos1-robust", "positioning", "robust", "enum"),
     ("pos1-robustk0", "positioning", "robust_k0", "float"),
@@ -446,6 +448,9 @@ def convert_value(raw: str, vtype: str, legacy_key: str = "") -> Any:
         # Comma-separated signal codes → list of strings
         parts = [s.strip() for s in raw.split(",") if s.strip()]
         return parts if parts else []
+    if vtype == "strlist":
+        # Space-separated tokens (e.g. "G01 G02 +E05") → list of strings
+        return raw.split()
     if vtype == "snr":
         parts = [s.strip() for s in raw.split(",") if s.strip()]
         return [float(x) if "." in x else int(x) for x in parts]

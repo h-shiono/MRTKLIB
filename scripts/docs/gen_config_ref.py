@@ -87,7 +87,9 @@ _OPTION_META: dict[str, tuple[str, str]] = {
     ),
     "pos1-exclsats": (
         "All",
-        "Satellites to exclude. Space-separated PRN list (e.g., `G01 G02`). Prefix `+` to include only.",
+        'Satellites to exclude, as a PRN list (e.g. `["G01", "G02"]`). Prefix a PRN with `+` to force '
+        "inclusion instead, overriding the health and URA checks (a satellite with no ephemeris is still "
+        'dropped). The legacy space-separated string form (`"G01 G02"`) is also accepted.',
     ),
     "pos1-signals": (
         "All",
@@ -594,6 +596,7 @@ def type_label(vtype: str) -> str:
         "snr": "array[int]",
         "navsys": "string[]",
         "siglist": "string[]",
+        "strlist": "string[]",
     }
     return labels.get(vtype, vtype)
 
@@ -705,6 +708,9 @@ def main() -> int:
             elif vtype == "siglist":
                 if '["' not in desc:
                     desc += ' e.g. `["G1C", "G2W", "E1C"]`'
+            elif vtype == "strlist":
+                if '["' not in desc:
+                    desc += ' e.g. `["G01", "G02"]`'
             elif vtype == "snr":
                 if "9-element" not in desc:
                     desc += " 9-element array (0–45 dBHz per 5° elevation bin)."

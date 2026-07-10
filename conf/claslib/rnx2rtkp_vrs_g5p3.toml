@@ -8,7 +8,7 @@ solution_type = "forward"                                          # (0:forward)
 elevation_mask = 15.0                                              # (deg)
 dynamics = true                                                    # (0:off for static,1:on for kinematic)
 satellite_ephemeris = "brdc"                                       # (0:brdc)
-excluded_sats = ""                                                 # (prn ...)
+excluded_sats = []                                                 # (prn ...)
 systems = ["GPS", "Galileo", "QZSS"]
 
 [positioning.clas]
