@@ -194,11 +194,11 @@ static const toml_map_t toml_mapping[] = {
     {"positioning.clas.resilience", "max_obs_loss", "misc-maxobsloss"},
     {"positioning.clas.resilience", "float_count", "misc-floatcnt"},
     {"positioning.clas.resilience", "l6_merge", "misc-l6mrg"},
+    {"positioning.clas.resilience", "reset_interval", "misc-regularly"},
     {"positioning.relative", "max_age", "pos2-maxage"},
     {"positioning.relative", "baseline_length", "pos2-baselen"},
     {"positioning.relative", "baseline_sigma", "pos2-basesig"},
     {"positioning.relative", "time_interpolation", "misc-timeinterp"},
-    {"positioning.vrs", "reset_interval", "misc-regularly"},
 
     /* ── input decoding ───────────────────────────────────────────────────── */
     {"input.rinex", "option_1", "misc-rnxopt1"},

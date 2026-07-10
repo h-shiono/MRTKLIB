@@ -608,7 +608,6 @@ def main() -> int:
         "positioning.clas.ambiguities": "Positioning — CLAS Ambiguities",
         "positioning.clas.resilience": "Positioning — CLAS Resilience",
         "positioning.relative": "Positioning — Relative",
-        "positioning.vrs": "Positioning — VRS",
         "positioning.snr_mask": "Positioning — SNR Mask",
         "positioning.corrections": "Positioning — Corrections",
         "positioning.atmosphere": "Positioning — Atmosphere",

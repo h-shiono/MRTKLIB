@@ -186,11 +186,11 @@ MAPPING: list[tuple[str, str, str, str]] = [
     ("misc-maxobsloss", "positioning.clas.resilience", "max_obs_loss", "float"),
     ("misc-floatcnt", "positioning.clas.resilience", "float_count", "int"),
     ("misc-l6mrg", "positioning.clas.resilience", "l6_merge", "int"),
+    ("misc-regularly", "positioning.clas.resilience", "reset_interval", "int"),
     ("pos2-maxage", "positioning.relative", "max_age", "float"),
     ("pos2-baselen", "positioning.relative", "baseline_length", "float"),
     ("pos2-basesig", "positioning.relative", "baseline_sigma", "float"),
     ("misc-timeinterp", "positioning.relative", "time_interpolation", "bool"),
-    ("misc-regularly", "positioning.vrs", "reset_interval", "int"),
     # ── input decoding ───────────────────────────────────────────────────────
     ("misc-rnxopt1", "input.rinex", "option_1", "str"),
     ("misc-rnxopt2", "input.rinex", "option_2", "str"),

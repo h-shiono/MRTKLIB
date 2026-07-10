@@ -337,6 +337,7 @@ TOML section: `[positioning.clas.resilience]`
 | `max_obs_loss` | float | PPP-RTK | Maximum observation gap duration before filter reset (s). |
 | `float_count` | integer | PPP-RTK, VRS | Number of float epochs before triggering filter reset. |
 | `l6_merge` | integer | PPP-RTK, VRS | L6 message merge mode for CLAS corrections. |
+| `reset_interval` | integer | VRS | Regular filter reset interval (s). 0 = disabled. |
 
 ## Positioning — Relative
 
@@ -348,14 +349,6 @@ TOML section: `[positioning.relative]`
 | `baseline_length` | float | RTK | Baseline length constraint (m). 0 = no constraint. |
 | `baseline_sigma` | float | RTK | Standard deviation of baseline length constraint (m). |
 | `time_interpolation` | boolean | RTK, VRS, PP | Enable time interpolation between observation epochs. |
-
-## Positioning — VRS
-
-TOML section: `[positioning.vrs]`
-
-| TOML Key | Type | Modes | Description |
-|:---------|:-----|:------|:------------|
-| `reset_interval` | integer | VRS | Regular filter reset interval (s). 0 = disabled. |
 
 ## Input — RINEX
 
