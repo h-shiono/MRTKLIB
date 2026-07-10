@@ -118,9 +118,6 @@ temp_dir = ""
 trace = ""
 
 
-[positioning.madoca]
-iono_correction = false # (0:off,1:on)
-
 [positioning.ppp]
 ppp_option = ""
 
@@ -135,4 +132,4 @@ rinex_option_2 = ""
 rtcm_option = ""
 
 [input.sbas]
-sbas_satellite = "0"       # (0:all)
+sbas_satellite = "0" # (0:all)

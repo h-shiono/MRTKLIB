@@ -183,9 +183,6 @@ timetype = "gpst"
 soltype = "deg"
 solflag = "off"
 
-[positioning.madoca]
-iono_correction = false # (0:off,1:on)
-
 [positioning.ppp]
 ppp_option = ""
 
