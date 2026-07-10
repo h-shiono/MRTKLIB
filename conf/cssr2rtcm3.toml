@@ -10,6 +10,7 @@ systems = ["GPS", "Galileo", "QZSS"]
 [positioning.corrections]
 tidal_correction = "solid+otl-clasgrid+pole"
 phase_windup = "on"
+shapiro_delay = true
 exclude_eclipse = true
 receiver_antenna = false
 

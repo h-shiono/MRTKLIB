@@ -1235,9 +1235,7 @@ int clas_osr_zdres(const obsd_t* obs, int n, const double* rs, const double* dts
         }
 
         /* shapiro time delay correction */
-        if (opt->posopt[2]) {
-            /* upstream uses posopt[7]; map to posopt[2] for MRTKLIB.
-             * If posopt[2] is used for another purpose, set it appropriately. */
+        if (opt->posopt[7]) {
             osr[i].relatv = shapiro(rs + i * 6, rr);
         }
 
