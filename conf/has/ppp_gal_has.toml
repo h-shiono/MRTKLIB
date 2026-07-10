@@ -132,4 +132,4 @@ option_2 = ""
 options = ""
 
 [input.sbas]
-satellite = "0" # (0:all)
+satellite = 0 # (0:all)

@@ -174,4 +174,4 @@ time_interpolation = true
 option_1 = ""
 
 [input.sbas]
-satellite = "all"
+satellite = 0

@@ -195,7 +195,7 @@ MAPPING: list[tuple[str, str, str, str]] = [
     ("misc-rnxopt1", "input.rinex", "option_1", "str"),
     ("misc-rnxopt2", "input.rinex", "option_2", "str"),
     ("misc-rtcmopt", "input.rtcm", "options", "str"),
-    ("misc-sbasatsel", "input.sbas", "satellite", "str"),
+    ("misc-sbasatsel", "input.sbas", "satellite", "int"),
     # ── antenna.rover ────────────────────────────────────────────────────────
     ("ant1-postype", "antenna.rover", "position_type", "enum"),
     ("ant1-pos1", "antenna.rover", "position_1", "float"),

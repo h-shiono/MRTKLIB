@@ -373,7 +373,7 @@ TOML section: `[input.sbas]`
 
 | TOML Key | Type | Modes | Description |
 |:---------|:-----|:------|:------------|
-| `satellite` | string | RT, PP | SBAS satellite selection. |
+| `satellite` | integer | RT, PP | SBAS satellite selection. |
 
 ## Antenna — Rover
 
