@@ -87,10 +87,6 @@ troposphere = 1.00e-04
 position = 0.0
 clock_stability = 5.00e-12
 
-[receiver]
-max_age = 30.0
-ignore_chi_error = false
-
 [antenna.rover]
 position_type = "single" # PPP seeds position from single-point; rover is estimated
 position_1 = 0.0
@@ -147,12 +143,6 @@ temp_dir = ""
 trace = ""
 
 [server]
-time_interpolation = false
-sbas_satellite = "0"
-rinex_option_1 = ""
-rinex_option_2 = ""
-ppp_option = ""
-rtcm_option = ""
 cycle_ms = 10
 timeout_ms = 10000
 reconnect_ms = 10000
@@ -212,3 +202,23 @@ path = ""
 [streams.log.stream3]
 type = "off"
 path = ""
+
+[positioning.spp]
+ignore_chi_error = false
+
+[positioning.ppp]
+ppp_option = ""
+
+[positioning.relative]
+max_age = 30.0
+time_interpolation = false
+
+[input.rinex]
+rinex_option_1 = ""
+rinex_option_2 = ""
+
+[input.rtcm]
+rtcm_option = ""
+
+[input.sbas]
+sbas_satellite = "0"

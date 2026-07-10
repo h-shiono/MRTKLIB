@@ -107,14 +107,6 @@ enabled = false
 pva_forgetting = 0.3
 pva_gain = 1.0
 
-[receiver]
-baseline_length = 0.0
-baseline_sigma = 0.0
-max_age = 30.0
-isb = false             # no ISB table entry for Septentrio mosaic-X5
-reference_type = "CLAS"
-phase_shift = "table"
-
 [antenna.rover]
 type = "*"
 position_type = "single"
@@ -162,9 +154,24 @@ dcb = ""
 temp_dir = ""
 trace = ""
 
-[server]
-rinex_option_1 = ""
-time_interpolation = true
-sbas_satellite = "all"
+
+[positioning.clas.ambiguities]
+isb = false             # no ISB table entry for Septentrio mosaic-X5
+reference_type = "CLAS"
+phase_shift = "table"
+
+[positioning.clas.resilience]
 max_obs_loss = 90.0
 float_count = 15
+
+[positioning.relative]
+baseline_length = 0.0
+baseline_sigma = 0.0
+max_age = 30.0
+time_interpolation = true
+
+[input.rinex]
+rinex_option_1 = ""
+
+[input.sbas]
+sbas_satellite = "all"

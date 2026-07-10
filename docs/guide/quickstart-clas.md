@@ -148,7 +148,7 @@ rather than the station-specific BLQ method.
 ### ISB and Phase Shift: Enabled with Tables
 
 ```toml
-[receiver]
+[positioning.clas.ambiguities]
 isb = true
 phase_shift = "table"
 reference_type = "CLAS"

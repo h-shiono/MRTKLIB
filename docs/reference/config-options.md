@@ -291,23 +291,89 @@ TOML section: `[signals]`
 | `bds2` | enum | PPP, PPP-RTK | BDS-2 frequency pair selection. `B1I/B3I` · `B1I/B2I` · `B1I/B3I/B2I` |
 | `bds3` | enum | PPP, PPP-RTK | BDS-3 frequency pair selection. `B1I/B3I` · `B1I/B2a` · `B1I/B3I/B2a` |
 
-## Receiver
+## Positioning — SPP
 
-TOML section: `[receiver]`
+TOML section: `[positioning.spp]`
+
+| TOML Key | Type | Modes | Description |
+|:---------|:-----|:------|:------------|
+| `ignore_chi_error` | boolean | SPP | Ignore chi-square test errors in SPP solution validation. |
+
+## Positioning — MADOCA
+
+TOML section: `[positioning.madoca]`
 
 | TOML Key | Type | Modes | Description |
 |:---------|:-----|:------|:------------|
 | `iono_correction` | boolean | PPP | Enable ionospheric correction in MADOCA-PPP processing. |
-| `ignore_chi_error` | boolean | SPP | Ignore chi-square test errors in SPP solution validation. |
-| `ppp_sat_clock_bias` | integer | PPP | PPP satellite code bias source selection. |
-| `ppp_sat_phase_bias` | integer | PPP | PPP satellite phase bias source selection. |
+
+## Positioning — PPP
+
+TOML section: `[positioning.ppp]`
+
+| TOML Key | Type | Modes | Description |
+|:---------|:-----|:------|:------------|
+| `satellite_clock_bias` | integer | PPP | PPP satellite code bias source selection. |
+| `satellite_phase_bias` | integer | PPP | PPP satellite phase bias source selection. |
 | `max_bias_dt` | integer | PPP | Maximum age of bias correction data (s) before invalidation. |
+| `options` | string | PPP | PPP processing option string (passed to PPP engine). |
+
+## Positioning — CLAS Ambiguities
+
+TOML section: `[positioning.clas.ambiguities]`
+
+| TOML Key | Type | Modes | Description |
+|:---------|:-----|:------|:------------|
 | `phase_shift` | enum | PPP-RTK, VRS | Phase cycle shift correction. Corrects quarter-cycle shifts between systems. `off` · `table` |
 | `isb` | boolean | PPP-RTK, VRS | Inter-system bias estimation mode. |
 | `reference_type` | string | PPP-RTK, VRS | Reference station receiver type for ISB table lookup. |
+
+## Positioning — CLAS Resilience
+
+TOML section: `[positioning.clas.resilience]`
+
+| TOML Key | Type | Modes | Description |
+|:---------|:-----|:------|:------------|
+| `max_obs_loss` | float | PPP-RTK | Maximum observation gap duration before filter reset (s). |
+| `float_count` | integer | PPP-RTK, VRS | Number of float epochs before triggering filter reset. |
+| `l6_merge` | integer | PPP-RTK, VRS | L6 message merge mode for CLAS corrections. |
+| `reset_interval` | integer | VRS | Regular filter reset interval (s). 0 = disabled. |
+
+## Positioning — Relative
+
+TOML section: `[positioning.relative]`
+
+| TOML Key | Type | Modes | Description |
+|:---------|:-----|:------|:------------|
 | `max_age` | float | RTK, VRS | Maximum age of differential correction (s). |
 | `baseline_length` | float | RTK | Baseline length constraint (m). 0 = no constraint. |
 | `baseline_sigma` | float | RTK | Standard deviation of baseline length constraint (m). |
+| `time_interpolation` | boolean | RTK, VRS, PP | Enable time interpolation between observation epochs. |
+
+## Input — RINEX
+
+TOML section: `[input.rinex]`
+
+| TOML Key | Type | Modes | Description |
+|:---------|:-----|:------|:------------|
+| `option_1` | string | All | RINEX conversion option string for rover stream. |
+| `option_2` | string | All | RINEX conversion option string for base stream. |
+
+## Input — RTCM
+
+TOML section: `[input.rtcm]`
+
+| TOML Key | Type | Modes | Description |
+|:---------|:-----|:------|:------------|
+| `options` | string | RT, PP | RTCM decoder option string. |
+
+## Input — SBAS
+
+TOML section: `[input.sbas]`
+
+| TOML Key | Type | Modes | Description |
+|:---------|:-----|:------|:------------|
+| `satellite` | string | RT, PP | SBAS satellite selection. |
 
 ## Antenna — Rover
 
@@ -390,7 +456,7 @@ TOML section: `[files]`
 | `cmd_file_2` | string | RT | Receiver command file for input stream 2. |
 | `cmd_file_3` | string | RT | Receiver command file for input stream 3. |
 
-## Server (rtkrcv)
+## Server Runtime (rtkrcv)
 
 TOML section: `[server]`
 
@@ -404,16 +470,6 @@ TOML section: `[server]`
 | `nav_msg_select` | string | RT | Navigation message type selection for multi-source environments. |
 | `proxy` | string | RT | HTTP proxy address for NTRIP connections. |
 | `swap_margin` | integer | RT | File swap margin (s) for continuous logging across file boundaries. |
-| `time_interpolation` | boolean | RTK, VRS, PP | Enable time interpolation between observation epochs. |
-| `sbas_satellite` | string | RT, PP | SBAS satellite selection. |
-| `max_obs_loss` | float | PPP-RTK | Maximum observation gap duration before filter reset (s). |
-| `float_count` | integer | PPP-RTK, VRS | Number of float epochs before triggering filter reset. |
-| `rinex_option_1` | string | All | RINEX conversion option string for rover stream. |
-| `rinex_option_2` | string | All | RINEX conversion option string for base stream. |
-| `ppp_option` | string | PPP | PPP processing option string (passed to PPP engine). |
-| `rtcm_option` | string | RT, PP | RTCM decoder option string. |
-| `l6_margin` | integer | PPP-RTK, VRS | L6 message merge mode for CLAS corrections. |
-| `regularly` | integer | VRS | Regular filter reset interval (s). 0 = disabled. |
 | `start_cmd` | string | RT | Shell command executed on server start. |
 | `stop_cmd` | string | RT | Shell command executed on server stop. |
 

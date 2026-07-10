@@ -113,14 +113,6 @@ enabled = false       # adjust adaptively pos/vel/acc process noise (0:off,1:on)
 pva_forgetting = 0.3  # forgetting factor of pos/vel/acc (0.0~1.0)
 pva_gain = 1.0        # adaptive Filter gain in pos/vel/acc
 
-[receiver]
-isb = false             # isb correction method (0:off,1:table)
-phase_shift = "off"     # 1/4 cycle phase shift correction method in case of L2C (0:off,1:table)
-reference_type = "CLAS" # Reference receiver type (always fixed as CLAS)
-baseline_length = 0.0   # (m)
-baseline_sigma = 0.0    # (m)
-max_age = 30.0          # (s)
-
 [antenna.rover]
 type = "TRM55971.00     NONE" # User antenna type (PCV from receiver_atx)
 position_type = "single"      # (0:llh,1:xyz,2:single,3:posfile,4:rinexhead,5:rtcm)
@@ -168,9 +160,24 @@ dcb = ""
 temp_dir = ""
 trace = ""
 
-[server]
-rinex_option_1 = ""       # signal priority (Default:L2P(GPS) L1C/A(QZS),-GL2X:L2C(GPS),-JL1X:L1C(QZS))
-time_interpolation = true # (0:off,1:on)
-sbas_satellite = "all"    # (0:all)
+
+[positioning.clas.ambiguities]
+isb = false             # isb correction method (0:off,1:table)
+phase_shift = "off"     # 1/4 cycle phase shift correction method in case of L2C (0:off,1:table)
+reference_type = "CLAS" # Reference receiver type (always fixed as CLAS)
+
+[positioning.clas.resilience]
 max_obs_loss = 90.0
-float_count = 15          # (epoch)
+float_count = 15    # (epoch)
+
+[positioning.relative]
+baseline_length = 0.0     # (m)
+baseline_sigma = 0.0      # (m)
+max_age = 30.0            # (s)
+time_interpolation = true # (0:off,1:on)
+
+[input.rinex]
+rinex_option_1 = "" # signal priority (Default:L2P(GPS) L1C/A(QZS),-GL2X:L2C(GPS),-JL1X:L1C(QZS))
+
+[input.sbas]
+sbas_satellite = "all" # (0:all)

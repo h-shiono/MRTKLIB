@@ -83,15 +83,6 @@ clock_stability = 5.00e-12 # (s/s)
 galileo = "E1/E5b" # (0:E1C-E5a,1:E1C-E5b)
 bds3 = "B1I/B3I"   # (0:B1-B3,1:B1C-B2a)
 
-[receiver]
-max_age = 30.0           # (s)
-baseline_length = 0.0    # (m)
-baseline_sigma = 0.0     # (m)
-ignore_chi_error = false # (0:off,1:on)
-ppp_sat_clock_bias = 0   # (0:auto,1:ssr,2:bia,3:dcb)
-ppp_sat_phase_bias = 0   # (0:auto,1:ssr,3:fcb)
-max_bias_dt = 0          # (bia and fcb product code/phase bias timeout(s))
-
 [antenna.rover]
 position_type = "llh"      # (0:llh,1:xyz,2:single,3:posfile,4:rinexhead,5:rtcm,6:raw)
 position_1 = 90.0          # (deg|m)
@@ -148,20 +139,14 @@ temp_dir = ""
 trace = ""
 
 [server]
-time_interpolation = false # (0:off,1:on)
-sbas_satellite = "0"       # (0:all)
-rinex_option_1 = ""
-rinex_option_2 = ""
-ppp_option = ""
-rtcm_option = ""
-cycle_ms = 10              # (ms)
-timeout_ms = 10000         # (ms)
-reconnect_ms = 10000       # (ms)
-nmea_cycle_ms = 5000       # (ms)
-buffer_size = 32768        # (bytes)
-nav_msg_select = "all"     # (0:all,1:rover,2:base,3:corr)
+cycle_ms = 10          # (ms)
+timeout_ms = 10000     # (ms)
+reconnect_ms = 10000   # (ms)
+nmea_cycle_ms = 5000   # (ms)
+buffer_size = 32768    # (bytes)
+nav_msg_select = "all" # (0:all,1:rover,2:base,3:corr)
 proxy = ""
-swap_margin = 30           # (s)
+swap_margin = 30
 
 [console]
 passwd = ""
@@ -208,3 +193,28 @@ path = ""
 [streams.log.stream3]
 type = "off" # (0:off,1:serial,2:file,3:tcpsvr,4:tcpcli,5:ntripsvr,9:ntripcas,10:udpsvr,11:udpcli)
 path = ""
+
+[positioning.spp]
+ignore_chi_error = false # (0:off,1:on)
+
+[positioning.ppp]
+ppp_sat_clock_bias = 0 # (0:auto,1:ssr,2:bia,3:dcb)
+ppp_sat_phase_bias = 0 # (0:auto,1:ssr,3:fcb)
+max_bias_dt = 0        # (bia and fcb product code/phase bias timeout(s))
+ppp_option = ""
+
+[positioning.relative]
+max_age = 30.0             # (s)
+baseline_length = 0.0      # (m)
+baseline_sigma = 0.0       # (m)
+time_interpolation = false # (0:off,1:on)
+
+[input.rinex]
+rinex_option_1 = ""
+rinex_option_2 = ""
+
+[input.rtcm]
+rtcm_option = ""
+
+[input.sbas]
+sbas_satellite = "0" # (0:all)

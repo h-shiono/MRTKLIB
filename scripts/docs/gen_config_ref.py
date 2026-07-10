@@ -602,6 +602,12 @@ def main() -> int:
     section_names = {
         "positioning": "Positioning",
         "positioning.clas": "Positioning — CLAS",
+        "positioning.spp": "Positioning — SPP",
+        "positioning.madoca": "Positioning — MADOCA",
+        "positioning.ppp": "Positioning — PPP",
+        "positioning.clas.ambiguities": "Positioning — CLAS Ambiguities",
+        "positioning.clas.resilience": "Positioning — CLAS Resilience",
+        "positioning.relative": "Positioning — Relative",
         "positioning.snr_mask": "Positioning — SNR Mask",
         "positioning.corrections": "Positioning — Corrections",
         "positioning.atmosphere": "Positioning — Atmosphere",
@@ -618,12 +624,14 @@ def main() -> int:
         "kalman_filter.process_noise": "Kalman Filter — Process Noise",
         "adaptive_filter": "Adaptive Filter",
         "signals": "Signal Selection",
-        "receiver": "Receiver",
+        "input.rinex": "Input — RINEX",
+        "input.rtcm": "Input — RTCM",
+        "input.sbas": "Input — SBAS",
         "antenna.rover": "Antenna — Rover",
         "antenna.base": "Antenna — Base",
         "output": "Output",
         "files": "Files",
-        "server": "Server (rtkrcv)",
+        "server": "Server Runtime (rtkrcv)",
     }
 
     lines: list[str] = []

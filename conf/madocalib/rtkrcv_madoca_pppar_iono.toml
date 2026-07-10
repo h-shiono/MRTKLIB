@@ -88,10 +88,6 @@ galileo = "E1/E5a/E5b/E6"
 bds2 = "B1I/B3I/B2I"
 bds3 = "B1I/B3I/B2a"
 
-[receiver]
-iono_correction = true # enable L6D wide-area ionospheric augmentation (PPP-AR/IONO)
-max_age = 30.0
-
 [antenna.rover]
 position_type = "single" # PPP seeds position from single-point; rover is estimated
 position_1 = 0.0
@@ -146,12 +142,6 @@ temp_dir = ""
 trace = ""
 
 [server]
-time_interpolation = false
-sbas_satellite = "0"
-rinex_option_1 = ""
-rinex_option_2 = ""
-ppp_option = ""
-rtcm_option = ""
 cycle_ms = 10
 timeout_ms = 10000
 reconnect_ms = 10000
@@ -208,3 +198,23 @@ path = ""
 [streams.log.stream3]
 type = "off"
 path = ""
+
+[positioning.madoca]
+iono_correction = true # enable L6D wide-area ionospheric augmentation (PPP-AR/IONO)
+
+[positioning.ppp]
+ppp_option = ""
+
+[positioning.relative]
+max_age = 30.0
+time_interpolation = false
+
+[input.rinex]
+rinex_option_1 = ""
+rinex_option_2 = ""
+
+[input.rtcm]
+rtcm_option = ""
+
+[input.sbas]
+sbas_satellite = "0"
