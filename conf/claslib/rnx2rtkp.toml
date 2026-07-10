@@ -164,16 +164,16 @@ reference_type = "CLAS" # Reference receiver type (always fixed as CLAS)
 
 [positioning.clas.resilience]
 max_obs_loss = 90.0
-float_count = 15          # (epoch)
+float_count = 15    # (epoch)
 
 [positioning.relative]
-baseline_length = 0.0   # (m)
-baseline_sigma = 0.0    # (m)
-max_age = 30.0          # (s)
+baseline_length = 0.0     # (m)
+baseline_sigma = 0.0      # (m)
+max_age = 30.0            # (s)
 time_interpolation = true # (0:off,1:on)
 
 [input.rinex]
-rinex_option_1 = ""       # signal priority (Default:L2P(GPS) L1C/A(QZS),-GL2X:L2C(GPS),-JL1X:L1C(QZS))
+rinex_option_1 = "" # signal priority (Default:L2P(GPS) L1C/A(QZS),-GL2X:L2C(GPS),-JL1X:L1C(QZS))
 
 [input.sbas]
-sbas_satellite = "all"    # (0:all)
+sbas_satellite = "all" # (0:all)

@@ -163,11 +163,11 @@ temp_dir = ""
 trace = ""
 
 [server]
-cycle_ms = 10             # (ms)
-timeout_ms = 10000        # (ms)
-reconnect_ms = 10000      # (ms)
-nmea_cycle_ms = 5000      # (ms)
-buffer_size = 32768       # (bytes)
+cycle_ms = 10          # (ms)
+timeout_ms = 10000     # (ms)
+reconnect_ms = 10000   # (ms)
+nmea_cycle_ms = 5000   # (ms)
+buffer_size = 32768    # (bytes)
 nav_msg_select = "all"
 proxy = ""
 swap_margin = 30
@@ -224,11 +224,11 @@ phase_shift = "table"   # 1/4 cycle phase shift correction
 reference_type = "CLAS" # reference receiver type (always CLAS)
 
 [positioning.clas.resilience]
-max_obs_loss = 90.0       # max epochs without observation before reset
-float_count = 15          # float epochs before fix attempt
+max_obs_loss = 90.0 # max epochs without observation before reset
+float_count = 15    # float epochs before fix attempt
 
 [positioning.relative]
-baseline_length = 0.0   # (m)
-baseline_sigma = 0.0    # (m)
-max_age = 30.0          # (s)
+baseline_length = 0.0     # (m)
+baseline_sigma = 0.0      # (m)
+max_age = 30.0            # (s)
 time_interpolation = true # interpolate corrections between epochs

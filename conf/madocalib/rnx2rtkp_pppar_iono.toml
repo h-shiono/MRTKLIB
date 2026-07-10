@@ -144,4 +144,4 @@ rinex_option_2 = ""
 rtcm_option = ""
 
 [input.sbas]
-sbas_satellite = "0"       # (0:all)
+sbas_satellite = "0" # (0:all)
