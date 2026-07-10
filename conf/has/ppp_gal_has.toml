@@ -119,17 +119,17 @@ trace = ""
 
 
 [positioning.ppp]
-ppp_option = ""
+options = ""
 
 [positioning.relative]
 time_interpolation = false # (0:off,1:on)
 
 [input.rinex]
-rinex_option_1 = ""
-rinex_option_2 = ""
+option_1 = ""
+option_2 = ""
 
 [input.rtcm]
-rtcm_option = ""
+options = ""
 
 [input.sbas]
-sbas_satellite = "0" # (0:all)
+satellite = "0" # (0:all)

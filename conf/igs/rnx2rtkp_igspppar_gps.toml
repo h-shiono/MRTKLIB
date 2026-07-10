@@ -74,7 +74,7 @@ receiver_atx = "./tests/data/igs/igs20_trim.atx"
 bias_sinex = "./tests/data/igs/COD0MGXFIN_2026021_01D_OSB.BIA"
 
 [positioning.ppp]
-max_bias_dt = 86400.0
+max_bias_dt = 86400
 
 [positioning.relative]
 max_age = 30.0

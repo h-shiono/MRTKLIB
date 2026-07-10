@@ -173,7 +173,7 @@ max_age = 30.0            # (s)
 time_interpolation = true # (0:off,1:on)
 
 [input.rinex]
-rinex_option_1 = "" # signal priority (Default:L2P(GPS) L1C/A(QZS),-GL2X:L2C(GPS),-JL1X:L1C(QZS))
+option_1 = "" # signal priority (Default:L2P(GPS) L1C/A(QZS),-GL2X:L2C(GPS),-JL1X:L1C(QZS))
 
 [input.sbas]
-sbas_satellite = "all" # (0:all)
+satellite = "all" # (0:all)
