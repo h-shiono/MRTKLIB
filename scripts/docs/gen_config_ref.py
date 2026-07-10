@@ -88,7 +88,8 @@ _OPTION_META: dict[str, tuple[str, str]] = {
     "pos1-exclsats": (
         "All",
         'Satellites to exclude, as a PRN list (e.g. `["G01", "G02"]`). Prefix a PRN with `+` to force '
-        'inclusion instead. The legacy space-separated string form (`"G01 G02"`) is also accepted.',
+        "inclusion instead, overriding the health and URA checks (a satellite with no ephemeris is still "
+        'dropped). The legacy space-separated string form (`"G01 G02"`) is also accepted.',
     ),
     "pos1-signals": (
         "All",
