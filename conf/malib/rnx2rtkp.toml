@@ -38,9 +38,6 @@ systems = 1         # (1:gps+8:gal+16:qzs)
 [ambiguity_resolution.thresholds]
 ratio = 3.0
 ratio1 = 0.9999
-ratio2 = 0.25
-ratio3 = 0.1
-ratio4 = 0.05
 elevation_mask = 15.0 # (deg)
 hold_elevation = 0.0  # (deg)
 
@@ -58,7 +55,6 @@ gdop = 30.0
 threshold = 0.15 # (m)
 
 [kalman_filter]
-sync_solution = false # (0:off,1:on)
 iterations = 1
 
 [kalman_filter.measurement_error]
@@ -91,10 +87,8 @@ max_age = 30.0           # (s)
 baseline_length = 0.0    # (m)
 baseline_sigma = 0.0     # (m)
 ignore_chi_error = false # (0:off,1:on)
-bds2_bias = false        # (0:off,1:on)
 ppp_sat_clock_bias = 0   # (0:auto,1:ssr,2:bia,3:dcb)
 ppp_sat_phase_bias = 0   # (0:auto,1:ssr,3:fcb)
-uncorr_bias = 0          # (0:use uncorrected code bias,1: do not use uncorrected code bias)
 max_bias_dt = 0          # (bia and fcb product code/phase bias timeout(s))
 
 [antenna.rover]
@@ -150,8 +144,6 @@ ocean_loading = ""
 fcb = ""
 bias_sinex = ""
 temp_dir = ""
-geexe = ""
-solution_stat = ""
 trace = ""
 
 [server]

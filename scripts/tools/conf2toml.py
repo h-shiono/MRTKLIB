@@ -77,7 +77,7 @@ MAPPING: list[tuple[str, str, str, str]] = [
     ("pos1-posopt9", "positioning.corrections", "exclude_qzs_ref", "bool"),
     ("pos1-posopt10", "positioning.corrections", "no_phase_bias_adj", "bool"),
     ("pos1-posopt11", "positioning.corrections", "gps_frequency", "enum"),
-    ("pos1-posopt12", "positioning.corrections", "reserved", "bool"),
+    ("pos1-posopt12", "positioning.corrections", "snr_fixed", "float"),
     ("pos1-posopt13", "positioning.corrections", "qzs_frequency", "enum"),
     # ── positioning.atmosphere ───────────────────────────────────────────────
     ("pos1-ionoopt", "positioning.atmosphere", "ionosphere", "enum"),
@@ -93,9 +93,6 @@ MAPPING: list[tuple[str, str, str, str]] = [
     # ── ambiguity_resolution.thresholds ──────────────────────────────────────
     ("pos2-arthres", "ambiguity_resolution.thresholds", "ratio", "float"),
     ("pos2-arthres1", "ambiguity_resolution.thresholds", "ratio1", "float"),
-    ("pos2-arthres2", "ambiguity_resolution.thresholds", "ratio2", "float"),
-    ("pos2-arthres3", "ambiguity_resolution.thresholds", "ratio3", "float"),
-    ("pos2-arthres4", "ambiguity_resolution.thresholds", "ratio4", "float"),
     ("pos2-arthres5", "ambiguity_resolution.thresholds", "ratio5", "float"),
     ("pos2-arthres6", "ambiguity_resolution.thresholds", "ratio6", "float"),
     ("pos2-aralpha", "ambiguity_resolution.thresholds", "alpha", "enum"),
@@ -118,7 +115,6 @@ MAPPING: list[tuple[str, str, str, str]] = [
     ("pos2-arfilter", "ambiguity_resolution.partial_ar", "ar_filter", "bool"),
     # ── ambiguity_resolution.hold ────────────────────────────────────────────
     ("pos2-varholdamb", "ambiguity_resolution.hold", "variance", "float"),
-    ("pos2-gainholdamb", "ambiguity_resolution.hold", "gain", "float"),
     # ── rejection ────────────────────────────────────────────────────────────
     ("pos2-rejionno", "rejection", "innovation", "float"),
     ("pos2-rejionno1", "rejection", "l1_l2_residual", "float"),
@@ -136,7 +132,6 @@ MAPPING: list[tuple[str, str, str, str]] = [
     ("pos2-thresdop", "slip_detection", "doppler", "float"),
     # ── kalman_filter ────────────────────────────────────────────────────────
     ("pos2-niter", "kalman_filter", "iterations", "int"),
-    ("pos2-syncsol", "kalman_filter", "sync_solution", "bool"),
     # ── kalman_filter.measurement_error ──────────────────────────────────────
     ("stats-eratio1", "kalman_filter.measurement_error", "code_phase_ratio_L1", "float"),
     ("stats-eratio2", "kalman_filter.measurement_error", "code_phase_ratio_L2", "float"),
@@ -181,12 +176,9 @@ MAPPING: list[tuple[str, str, str, str]] = [
     # ── receiver ─────────────────────────────────────────────────────────────
     ("pos2-ionocorr", "receiver", "iono_correction", "bool"),
     ("pos2-ign_chierr", "receiver", "ignore_chi_error", "bool"),
-    ("pos2-bds2bias", "receiver", "bds2_bias", "bool"),
     ("pos2-pppsatcb", "receiver", "ppp_sat_clock_bias", "int"),
     ("pos2-pppsatpb", "receiver", "ppp_sat_phase_bias", "int"),
-    ("pos2-uncorrbias", "receiver", "uncorr_bias", "int"),
     ("pos2-maxbiasdt", "receiver", "max_bias_dt", "int"),
-    ("pos2-sattmode", "receiver", "satellite_mode", "int"),
     ("pos2-phasshft", "receiver", "phase_shift", "enum"),
     ("pos2-isb", "receiver", "isb", "bool"),
     ("pos2-rectype", "receiver", "reference_type", "str"),
@@ -240,10 +232,7 @@ MAPPING: list[tuple[str, str, str, str]] = [
     ("file-dcbfile", "files", "dcb", "str"),
     ("file-eopfile", "files", "eop", "str"),
     ("file-blqfile", "files", "ocean_loading", "str"),
-    ("file-elmaskfile", "files", "elevation_mask_file", "str"),
     ("file-tempdir", "files", "temp_dir", "str"),
-    ("file-geexefile", "files", "geexe", "str"),
-    ("file-solstatfile", "files", "solution_stat", "str"),
     ("file-tracefile", "files", "trace", "str"),
     ("file-fcbfile", "files", "fcb", "str"),
     ("file-biafile", "files", "bias_sinex", "str"),
@@ -365,7 +354,6 @@ _KEY_ENUM: dict[str, str] = {
     "pos1-posopt9": "SWTOPT",
     "pos1-posopt10": "SWTOPT",
     "pos1-posopt11": "FRQOPT2",
-    "pos1-posopt12": "SWTOPT",
     "pos1-posopt13": "FRQOPT2",
     "pos2-armode": "ARMOPT",
     "pos2-gloarmode": "GAROPT",

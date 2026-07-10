@@ -71,7 +71,7 @@ static const toml_map_t toml_mapping[] = {
     {"positioning.corrections", "exclude_qzs_ref", "pos1-posopt9"},
     {"positioning.corrections", "no_phase_bias_adj", "pos1-posopt10"},
     {"positioning.corrections", "gps_frequency", "pos1-posopt11"},
-    {"positioning.corrections", "reserved", "pos1-posopt12"},
+    {"positioning.corrections", "snr_fixed", "pos1-posopt12"},
     {"positioning.corrections", "qzs_frequency", "pos1-posopt13"},
     {"positioning.corrections", "tidal_correction", "pos1-tidecorr"},
 
@@ -90,9 +90,6 @@ static const toml_map_t toml_mapping[] = {
     /* ── ambiguity_resolution.thresholds ───────────────────────────────────── */
     {"ambiguity_resolution.thresholds", "ratio", "pos2-arthres"},
     {"ambiguity_resolution.thresholds", "ratio1", "pos2-arthres1"},
-    {"ambiguity_resolution.thresholds", "ratio2", "pos2-arthres2"},
-    {"ambiguity_resolution.thresholds", "ratio3", "pos2-arthres3"},
-    {"ambiguity_resolution.thresholds", "ratio4", "pos2-arthres4"},
     {"ambiguity_resolution.thresholds", "ratio5", "pos2-arthres5"},
     {"ambiguity_resolution.thresholds", "ratio6", "pos2-arthres6"},
     {"ambiguity_resolution.thresholds", "alpha", "pos2-aralpha"},
@@ -118,7 +115,6 @@ static const toml_map_t toml_mapping[] = {
 
     /* ── ambiguity_resolution.hold ─────────────────────────────────────────── */
     {"ambiguity_resolution.hold", "variance", "pos2-varholdamb"},
-    {"ambiguity_resolution.hold", "gain", "pos2-gainholdamb"},
 
     /* ── rejection ─────────────────────────────────────────────────────────── */
     {"rejection", "innovation", "pos2-rejionno"},
@@ -139,7 +135,6 @@ static const toml_map_t toml_mapping[] = {
 
     /* ── kalman_filter ─────────────────────────────────────────────────────── */
     {"kalman_filter", "iterations", "pos2-niter"},
-    {"kalman_filter", "sync_solution", "pos2-syncsol"},
 
     /* ── kalman_filter.measurement_error ───────────────────────────────────── */
     {"kalman_filter.measurement_error", "code_phase_ratio_L1", "stats-eratio1"},
@@ -189,12 +184,9 @@ static const toml_map_t toml_mapping[] = {
     /* ── receiver ──────────────────────────────────────────────────────────── */
     {"receiver", "iono_correction", "pos2-ionocorr"},
     {"receiver", "ignore_chi_error", "pos2-ign_chierr"},
-    {"receiver", "bds2_bias", "pos2-bds2bias"},
     {"receiver", "ppp_sat_clock_bias", "pos2-pppsatcb"},
     {"receiver", "ppp_sat_phase_bias", "pos2-pppsatpb"},
-    {"receiver", "uncorr_bias", "pos2-uncorrbias"},
     {"receiver", "max_bias_dt", "pos2-maxbiasdt"},
-    {"receiver", "satellite_mode", "pos2-sattmode"},
     {"receiver", "phase_shift", "pos2-phasshft"},
     {"receiver", "isb", "pos2-isb"},
     {"receiver", "reference_type", "pos2-rectype"},
@@ -252,10 +244,7 @@ static const toml_map_t toml_mapping[] = {
     {"files", "dcb", "file-dcbfile"},
     {"files", "eop", "file-eopfile"},
     {"files", "ocean_loading", "file-blqfile"},
-    {"files", "elevation_mask_file", "file-elmaskfile"},
     {"files", "temp_dir", "file-tempdir"},
-    {"files", "geexe", "file-geexefile"},
-    {"files", "solution_stat", "file-solstatfile"},
     {"files", "trace", "file-tracefile"},
     {"files", "fcb", "file-fcbfile"},
     {"files", "bias_sinex", "file-biafile"},

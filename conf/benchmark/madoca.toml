@@ -125,8 +125,6 @@ dcb = ""
 eop = ""
 ocean_loading = ""
 temp_dir = ""
-geexe = ""
-solution_stat = ""
 trace = ""
 
 [server]

@@ -1685,9 +1685,9 @@ int clas_ssr2osr(rtk_t* rtk, obsd_t* obs, int n, nav_t* nav, clas_osrd_t* osr, i
                     (lam_v[f] > 0.0) ? osr[i].c[j] / lam_v[f] + osr_ctx.pbias_ofst[j * MAXSAT + sati - 1] : 0.0;
                 obs[ko].LLI[j] = (rtk->ssat[sati - 1].slip[j] & 1) ? 1 : 0;
                 /* SNR model: elevation-dependent or fixed (via posopt[11]).
-                 * Note: posopt[11] is the reserved slot used by cssr2rtcm3
-                 * to carry snr_fixed without clashing with posopt[10] (GPS
-                 * frequency option in clas_osr_selfreqpair). */
+                 * cssr2rtcm3 carries snr_fixed in this slot so it does not
+                 * clash with posopt[10], the GPS frequency option read by
+                 * clas_osr_selfreqpair(). */
                 {
                     double el = azel[i * 2 + 1]; /* elevation (rad), from zdres */
                     double snr_db = (opt->posopt[11] > 0.0) ? opt->posopt[11] : 25.0 + 20.0 * sin(el);

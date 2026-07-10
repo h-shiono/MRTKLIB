@@ -37,7 +37,6 @@ mode = "fix-and-hold"
 [ambiguity_resolution.thresholds]
 ratio = 3.0
 ratio1 = 0.9999
-ratio2 = 0.25
 elevation_mask = 15.0
 hold_elevation = 0.0
 
@@ -104,8 +103,6 @@ station_pos = ""
 geoid = ""
 dcb = ""
 temp_dir = ""
-geexe = ""
-solution_stat = ""
 trace = ""
 
 [server]

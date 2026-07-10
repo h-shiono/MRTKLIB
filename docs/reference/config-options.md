@@ -109,7 +109,7 @@ TOML section: `[positioning.corrections]`
 | `exclude_qzs_ref` | boolean | PPP-RTK, VRS | Exclude QZS satellites from reference satellite selection in DD processing. |
 | `no_phase_bias_adj` | boolean | PPP-RTK, VRS | Disable phase bias adjustment. Used when phase bias is already applied by SSR corrections. |
 | `gps_frequency` | enum | PPP-RTK, VRS | GPS frequency pair selection for CLAS processing. `l1` · `l1+l2` · `l1+l5` · `l1+l2+l5` · `l1+l5(l2)` |
-| `reserved` | boolean | — | Reserved for future use. |
+| `snr_fixed` | float | SSR2OSR | Fixed output SNR (dB-Hz). 0 uses the elevation-dependent SNR model. |
 | `qzs_frequency` | enum | PPP-RTK, VRS | QZS frequency pair selection for CLAS processing. `l1` · `l1+l2` · `l1+l5` · `l1+l2+l5` · `l1+l5(l2)` |
 | `tidal_correction` | enum | PPP, PPP-RTK, VRS | Tidal displacement correction. Option `solid+otl-clasgrid+pole` uses CLAS grid-based ocean tide loading. `off` · `on` · `otl` · `solid+otl-clasgrid+pole` |
 
@@ -133,7 +133,7 @@ TOML section: `[ambiguity_resolution]`
 | `glonass_ar` | enum | RTK | GLONASS ambiguity resolution mode. `off` · `on` |
 | `bds_ar` | boolean | RTK, PPP-RTK | BDS ambiguity resolution enable/disable. |
 | `qzs_ar` | boolean | PPP-RTK, VRS | QZS ambiguity resolution mode. |
-| `systems` | integer | RTK, PPP-RTK, VRS | Constellation bitmask for AR. Limits which systems participate in integer ambiguity resolution. |
+| `systems` | integer | PPP | Constellation bitmask for AR. Limits which systems participate in integer ambiguity resolution. |
 
 ## Ambiguity Resolution — Thresholds
 
@@ -143,17 +143,14 @@ TOML section: `[ambiguity_resolution.thresholds]`
 |:---------|:-----|:------|:------------|
 | `ratio` | float | RTK, PPP, PPP-RTK, VRS | LAMBDA ratio test threshold (2nd-best / best). Typical value: 3.0. |
 | `ratio1` | float | RTK, PPP, PPP-RTK | Secondary AR threshold. In MADOCA-PPP: max 3D position std-dev to start narrow-lane AR. |
-| `ratio2` | float | RTK, PPP-RTK | Additional AR threshold parameter. |
-| `ratio3` | float | RTK, PPP-RTK | Additional AR threshold parameter. |
-| `ratio4` | float | RTK | Additional AR threshold parameter. |
-| `ratio5` | float | PPP-RTK | Chi-square threshold for hold validation. |
-| `ratio6` | float | PPP-RTK | Chi-square threshold for fix validation. |
+| `ratio5` | float | RTK | Adaptive lower clamp for the AR ratio threshold. |
+| `ratio6` | float | RTK | Adaptive upper clamp for the AR ratio threshold. |
 | `alpha` | enum | PPP-RTK, VRS | AR significance level (ILS success rate). `0.1%` · `0.5%` · `1%` · `5%` · `10%` · `20%` |
 | `elevation_mask` | float | RTK, PPP-RTK, VRS | Minimum satellite elevation for AR participation (degrees). |
 | `hold_elevation` | float | RTK, PPP-RTK, VRS | Minimum satellite elevation for fix-and-hold constraint application (degrees). |
-| `max_pdop_ar` | float | RTK, PPP-RTK | Maximum PDOP for attempting ambiguity resolution. 0 = no limit. |
-| `max_pdop_hold` | float | RTK, PPP-RTK | Maximum PDOP for applying the fix-and-hold constraint. 0 = no limit. |
-| `reference_dop` | enum | RTK, PPP-RTK | Reference DOP formulation used for AR validation. `zd` · `sd` |
+| `max_pdop_ar` | float | PPP-RTK, VRS | Maximum PDOP for attempting ambiguity resolution. 0 = no limit. |
+| `max_pdop_hold` | float | PPP-RTK, VRS | Maximum PDOP for applying the fix-and-hold constraint. 0 = no limit. |
+| `reference_dop` | enum | PPP-RTK, VRS | Reference DOP formulation used for AR validation. `zd` · `sd` |
 
 ## Ambiguity Resolution — Counters
 
@@ -163,7 +160,7 @@ TOML section: `[ambiguity_resolution.counters]`
 |:---------|:-----|:------|:------------|
 | `lock_count` | integer | RTK, PPP-RTK, VRS | Minimum continuous lock count before a satellite participates in AR. |
 | `min_fix` | integer | RTK, PPP-RTK | Minimum fix epochs before applying fix-and-hold constraint. |
-| `max_iterations` | integer | RTK, PPP-RTK | Maximum LAMBDA search iterations per epoch. |
+| `max_iterations` | integer | PPP | Maximum LAMBDA search iterations per epoch. |
 | `out_count` | integer | RTK, PPP-RTK, VRS | Reset ambiguity after this many continuous outage epochs. |
 
 ## Ambiguity Resolution — Partial AR
@@ -186,7 +183,6 @@ TOML section: `[ambiguity_resolution.hold]`
 | TOML Key | Type | Modes | Description |
 |:---------|:-----|:------|:------------|
 | `variance` | float | PPP-RTK, VRS | Variance of held ambiguity pseudo-observation (cyc²). Controls how tightly held ambiguities constrain the filter. |
-| `gain` | float | RTK | Gain factor for fractional GLONASS/SBAS inter-channel bias update in fix-and-hold. |
 
 ## Rejection Criteria
 
@@ -222,7 +218,6 @@ TOML section: `[kalman_filter]`
 | TOML Key | Type | Modes | Description |
 |:---------|:-----|:------|:------------|
 | `iterations` | integer | RTK, PPP, PPP-RTK, VRS | Number of measurement update iterations per epoch. More iterations improve linearization accuracy. |
-| `sync_solution` | boolean | RT | Synchronize solution output with observation time in real-time mode. |
 
 ## Kalman Filter — Measurement Error
 
@@ -249,7 +244,7 @@ TOML section: `[kalman_filter.initial_std]`
 |:---------|:-----|:------|:------------|
 | `bias` | float | RTK, PPP, PPP-RTK, VRS | Initial standard deviation for carrier phase bias states (m). |
 | `ionosphere` | float | PPP-RTK, VRS | Initial standard deviation for ionospheric delay states (m). |
-| `troposphere` | float | PPP, PPP-RTK, VRS | Initial standard deviation for tropospheric delay states (m). |
+| `troposphere` | float | RTK, PPP-RTK, VRS | Initial standard deviation for tropospheric delay states (m). |
 
 ## Kalman Filter — Process Noise
 
@@ -268,7 +263,7 @@ TOML section: `[kalman_filter.process_noise]`
 | `position` | float | All | General position process noise (m). Fallback when h/v not specified. |
 | `ifb` | float | PPP | Inter-frequency bias process noise (m). For multi-frequency PPP bias estimation. |
 | `iono_time_const` | float | PPP-RTK, VRS | Ionospheric time constant (s). Controls iono state temporal correlation in the adaptive filter. |
-| `clock_stability` | float | PPP | Receiver clock stability (s/s). Used in PPP clock state prediction. |
+| `clock_stability` | float | RTK, VRS | Receiver clock stability (s/s). Used in clock state prediction. |
 
 ## Adaptive Filter
 
@@ -304,16 +299,13 @@ TOML section: `[receiver]`
 |:---------|:-----|:------|:------------|
 | `iono_correction` | boolean | PPP | Enable ionospheric correction in MADOCA-PPP processing. |
 | `ignore_chi_error` | boolean | SPP | Ignore chi-square test errors in SPP solution validation. |
-| `bds2_bias` | boolean | PPP | Enable BDS-2 code bias correction (satellite-dependent group delay). |
 | `ppp_sat_clock_bias` | integer | PPP | PPP satellite code bias source selection. |
 | `ppp_sat_phase_bias` | integer | PPP | PPP satellite phase bias source selection. |
-| `uncorr_bias` | integer | PPP | Uncorrelated bias parameter for PPP processing. |
 | `max_bias_dt` | integer | PPP | Maximum age of bias correction data (s) before invalidation. |
-| `satellite_mode` | integer | PPP | Satellite processing mode selector. |
 | `phase_shift` | enum | PPP-RTK, VRS | Phase cycle shift correction. Corrects quarter-cycle shifts between systems. `off` · `table` |
 | `isb` | boolean | PPP-RTK, VRS | Inter-system bias estimation mode. |
 | `reference_type` | string | PPP-RTK, VRS | Reference station receiver type for ISB table lookup. |
-| `max_age` | float | RTK, PPP-RTK | Maximum age of differential correction (s). |
+| `max_age` | float | RTK, VRS | Maximum age of differential correction (s). |
 | `baseline_length` | float | RTK | Baseline length constraint (m). 0 = no constraint. |
 | `baseline_sigma` | float | RTK | Standard deviation of baseline length constraint (m). |
 
@@ -371,7 +363,7 @@ TOML section: `[output]`
 | `static_solution` | enum | PP | Static mode output control. `all` · `single` |
 | `nmea_interval_1` | float | All | NMEA GGA/RMC output interval (s). |
 | `nmea_interval_2` | float | All | NMEA GSA/GSV output interval (s). |
-| `solution_status` | enum | All | Solution status output level. `off` · `state` · `residual` |
+| `solution_status` | enum | PP | Solution status output level. `off` · `state` · `residual` |
 
 ## Files
 
@@ -387,10 +379,7 @@ TOML section: `[files]`
 | `dcb` | string | PPP | Differential code bias file. |
 | `eop` | string | PPP, PPP-RTK | Earth orientation parameter file for precise coordinate frame. |
 | `ocean_loading` | string | PPP, PPP-RTK | BLQ ocean tide loading file. Required when `tidal_correction` includes OTL. |
-| `elevation_mask_file` | string | All | Azimuth-dependent elevation mask file. |
 | `temp_dir` | string | All | Temporary directory for intermediate files. |
-| `geexe` | string | All | Google Earth executable path (legacy GUI feature). |
-| `solution_stat` | string | All | Solution statistics output file path. |
 | `trace` | string | All | Debug trace output file path. |
 | `fcb` | string | PPP | Fractional cycle bias file for PPP-AR. |
 | `bias_sinex` | string | PPP | Bias SINEX file for PPP satellite bias correction. |
