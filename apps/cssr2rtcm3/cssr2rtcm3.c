@@ -1314,6 +1314,7 @@ int mrtk_cssr2rtcm3(int argc, char** argv) {
     prcopt.elmin = OSR_ELMASK * D2R;
     prcopt.tidecorr = 1;
     prcopt.posopt[2] = 1; /* phase windup correction */
+    prcopt.posopt[7] = 1; /* shapiro time delay correction */
 
     if (*conffile) {
         setsysopts(&prcopt, &solopt, &filopt);

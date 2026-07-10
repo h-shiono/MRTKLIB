@@ -1234,12 +1234,10 @@ int clas_osr_zdres(const obsd_t* obs, int n, const double* rs, const double* dts
             continue;
         }
 
-        /* shapiro time delay correction */
-        if (opt->posopt[2]) {
-            /* upstream uses posopt[7]; map to posopt[2] for MRTKLIB.
-             * If posopt[2] is used for another purpose, set it appropriately. */
-            osr[i].relatv = shapiro(rs + i * 6, rr);
-        }
+        /* shapiro time delay correction. Assigned unconditionally: PRC/CPC below read
+         * .relatv every epoch, but the caller's osr[] is reused across epochs (see the
+         * partial-clear note in clas_ssr2osr), which would let a stale term survive here. */
+        osr[i].relatv = opt->posopt[7] ? shapiro(rs + i * 6, rr) : 0.0;
 
         /* tropospheric delay correction */
         osr[i].trop = clas_osr_prectrop(obs_copy[i].time, pos, azel + i * 2, zwd, ztd);

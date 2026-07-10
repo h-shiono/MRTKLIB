@@ -538,6 +538,7 @@ static int set_prcopt(const char* file, prcopt_t* prcopt, solopt_t* solopt, filo
     prcopt->elmin = OSR_ELMASK * D2R;
     prcopt->tidecorr = 1;
     prcopt->posopt[2] = 1; /* phase windup correction */
+    prcopt->posopt[7] = 1; /* shapiro time delay correction */
     solopt->timef = 0;
 
     if (*file) {
