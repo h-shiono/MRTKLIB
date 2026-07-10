@@ -108,4 +108,4 @@ baseline_sigma = 0.0
 time_interpolation = true
 
 [input.sbas]
-sbas_satellite = "all"
+satellite = 0

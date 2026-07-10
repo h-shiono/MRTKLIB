@@ -142,10 +142,10 @@ trace = ""
 ignore_chi_error = false # (0:off,1:on)
 
 [positioning.ppp]
-ppp_sat_clock_bias = 0 # (0:auto,1:ssr,2:bia,3:dcb)
-ppp_sat_phase_bias = 0 # (0:auto,1:ssr,3:fcb)
-max_bias_dt = 0        # (bia and fcb product code/phase bias timeout(s))
-ppp_option = ""
+satellite_clock_bias = 0 # (0:auto,1:ssr,2:bia,3:dcb)
+satellite_phase_bias = 0 # (0:auto,1:ssr,3:fcb)
+max_bias_dt = 0          # (bia and fcb product code/phase bias timeout(s))
+options = ""
 
 [positioning.relative]
 max_age = 30.0             # (s)
@@ -154,11 +154,11 @@ baseline_sigma = 0.0       # (m)
 time_interpolation = false # (0:off,1:on)
 
 [input.rinex]
-rinex_option_1 = ""
-rinex_option_2 = ""
+option_1 = ""
+option_2 = ""
 
 [input.rtcm]
-rtcm_option = ""
+options = ""
 
 [input.sbas]
-sbas_satellite = "0" # (0:all)
+satellite = 0 # (0:all)
