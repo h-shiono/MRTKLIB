@@ -109,7 +109,7 @@ TOML section: `[positioning.corrections]`
 | `exclude_qzs_ref` | boolean | PPP-RTK, VRS | Exclude QZS satellites from reference satellite selection in DD processing. |
 | `no_phase_bias_adj` | boolean | PPP-RTK, VRS | Disable phase bias adjustment. Used when phase bias is already applied by SSR corrections. |
 | `gps_frequency` | enum | PPP-RTK, VRS | GPS frequency pair selection for CLAS processing. `l1` · `l1+l2` · `l1+l5` · `l1+l2+l5` · `l1+l5(l2)` |
-| `snr_fixed` | float | SSR2OSR | Fixed output SNR (dB-Hz). 0 uses the elevation-dependent SNR model. |
+| `snr_fixed` | integer | SSR2OSR | Fixed output SNR (integer dB-Hz). 0 uses the elevation-dependent SNR model. |
 | `qzs_frequency` | enum | PPP-RTK, VRS | QZS frequency pair selection for CLAS processing. `l1` · `l1+l2` · `l1+l5` · `l1+l2+l5` · `l1+l5(l2)` |
 | `tidal_correction` | enum | PPP, PPP-RTK, VRS | Tidal displacement correction. Option `solid+otl-clasgrid+pole` uses CLAS grid-based ocean tide loading. `off` · `on` · `otl` · `solid+otl-clasgrid+pole` |
 

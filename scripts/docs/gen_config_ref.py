@@ -181,7 +181,7 @@ _OPTION_META: dict[str, tuple[str, str]] = {
     "pos1-posopt11": ("PPP-RTK, VRS", "GPS frequency pair selection for CLAS processing."),
     "pos1-posopt12": (
         "SSR2OSR",
-        "Fixed output SNR (dB-Hz). 0 uses the elevation-dependent SNR model.",
+        "Fixed output SNR (integer dB-Hz). 0 uses the elevation-dependent SNR model.",
     ),
     "pos1-posopt13": ("PPP-RTK, VRS", "QZS frequency pair selection for CLAS processing."),
     "pos1-tidecorr": (

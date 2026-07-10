@@ -77,7 +77,7 @@ MAPPING: list[tuple[str, str, str, str]] = [
     ("pos1-posopt9", "positioning.corrections", "exclude_qzs_ref", "bool"),
     ("pos1-posopt10", "positioning.corrections", "no_phase_bias_adj", "bool"),
     ("pos1-posopt11", "positioning.corrections", "gps_frequency", "enum"),
-    ("pos1-posopt12", "positioning.corrections", "snr_fixed", "float"),
+    ("pos1-posopt12", "positioning.corrections", "snr_fixed", "int"),
     ("pos1-posopt13", "positioning.corrections", "qzs_frequency", "enum"),
     # ── positioning.atmosphere ───────────────────────────────────────────────
     ("pos1-ionoopt", "positioning.atmosphere", "ionosphere", "enum"),
