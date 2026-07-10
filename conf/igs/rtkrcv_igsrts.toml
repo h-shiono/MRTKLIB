@@ -46,9 +46,6 @@ systems = 9
 [ambiguity_resolution.thresholds]
 ratio = 3.0
 ratio1 = 0.9999
-ratio2 = 0.25
-ratio3 = 0.1
-ratio4 = 0.05
 elevation_mask = 15.0
 hold_elevation = 0.0
 
@@ -66,7 +63,6 @@ gdop = 30.0
 threshold = 0.05
 
 [kalman_filter]
-sync_solution = false
 iterations = 1
 
 [kalman_filter.measurement_error]
@@ -94,7 +90,6 @@ clock_stability = 5.00e-12
 [receiver]
 max_age = 30.0
 ignore_chi_error = false
-bds2_bias = false
 
 [antenna.rover]
 position_type = "single" # PPP seeds position from single-point; rover is estimated
@@ -149,8 +144,6 @@ ocean_loading = ""
 fcb = ""
 bias_sinex = ""
 temp_dir = ""
-geexe = ""
-solution_stat = ""
 trace = ""
 
 [server]

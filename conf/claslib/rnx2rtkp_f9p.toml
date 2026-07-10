@@ -166,8 +166,6 @@ station_pos = ""
 geoid = ""
 dcb = ""
 temp_dir = ""
-geexe = ""
-solution_stat = ""
 trace = ""
 
 [server]

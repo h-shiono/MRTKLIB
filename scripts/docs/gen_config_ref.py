@@ -179,7 +179,10 @@ _OPTION_META: dict[str, tuple[str, str]] = {
         "Disable phase bias adjustment. Used when phase bias is already applied by SSR corrections.",
     ),
     "pos1-posopt11": ("PPP-RTK, VRS", "GPS frequency pair selection for CLAS processing."),
-    "pos1-posopt12": ("—", "Reserved for future use."),
+    "pos1-posopt12": (
+        "SSR2OSR",
+        "Fixed output SNR (integer dB-Hz). 0 uses the elevation-dependent SNR model.",
+    ),
     "pos1-posopt13": ("PPP-RTK, VRS", "QZS frequency pair selection for CLAS processing."),
     "pos1-tidecorr": (
         "PPP, PPP-RTK, VRS",
@@ -201,7 +204,7 @@ _OPTION_META: dict[str, tuple[str, str]] = {
     "pos2-bdsarmode": ("RTK, PPP-RTK", "BDS ambiguity resolution enable/disable."),
     "pos2-qzsarmode": ("PPP-RTK, VRS", "QZS ambiguity resolution mode."),
     "pos2-arsys": (
-        "RTK, PPP-RTK, VRS",
+        "PPP",
         "Constellation bitmask for AR. Limits which systems participate in integer ambiguity resolution.",
     ),
     # ── ambiguity_resolution.thresholds ──────────────────────────────────────
@@ -213,11 +216,8 @@ _OPTION_META: dict[str, tuple[str, str]] = {
         "RTK, PPP, PPP-RTK",
         "Secondary AR threshold. In MADOCA-PPP: max 3D position std-dev to start narrow-lane AR.",
     ),
-    "pos2-arthres2": ("RTK, PPP-RTK", "Additional AR threshold parameter."),
-    "pos2-arthres3": ("RTK, PPP-RTK", "Additional AR threshold parameter."),
-    "pos2-arthres4": ("RTK", "Additional AR threshold parameter."),
-    "pos2-arthres5": ("PPP-RTK", "Chi-square threshold for hold validation."),
-    "pos2-arthres6": ("PPP-RTK", "Chi-square threshold for fix validation."),
+    "pos2-arthres5": ("RTK", "Adaptive lower clamp for the AR ratio threshold."),
+    "pos2-arthres6": ("RTK", "Adaptive upper clamp for the AR ratio threshold."),
     "pos2-aralpha": ("PPP-RTK, VRS", "AR significance level (ILS success rate)."),
     "pos2-arelmask": (
         "RTK, PPP-RTK, VRS",
@@ -228,15 +228,15 @@ _OPTION_META: dict[str, tuple[str, str]] = {
         "Minimum satellite elevation for fix-and-hold constraint application (degrees).",
     ),
     "pos2-maxpdopar": (
-        "RTK, PPP-RTK",
+        "PPP-RTK, VRS",
         "Maximum PDOP for attempting ambiguity resolution. 0 = no limit.",
     ),
     "pos2-maxpdophold": (
-        "RTK, PPP-RTK",
+        "PPP-RTK, VRS",
         "Maximum PDOP for applying the fix-and-hold constraint. 0 = no limit.",
     ),
     "pos2-refdop": (
-        "RTK, PPP-RTK",
+        "PPP-RTK, VRS",
         "Reference DOP formulation used for AR validation.",
     ),
     # ── ambiguity_resolution.counters ────────────────────────────────────────
@@ -248,7 +248,7 @@ _OPTION_META: dict[str, tuple[str, str]] = {
         "RTK, PPP-RTK",
         "Minimum fix epochs before applying fix-and-hold constraint.",
     ),
-    "pos2-armaxiter": ("RTK, PPP-RTK", "Maximum LAMBDA search iterations per epoch."),
+    "pos2-armaxiter": ("PPP", "Maximum LAMBDA search iterations per epoch."),
     "pos2-aroutcnt": (
         "RTK, PPP-RTK, VRS",
         "Reset ambiguity after this many continuous outage epochs.",
@@ -279,10 +279,6 @@ _OPTION_META: dict[str, tuple[str, str]] = {
     "pos2-varholdamb": (
         "PPP-RTK, VRS",
         "Variance of held ambiguity pseudo-observation (cyc\u00b2). Controls how tightly held ambiguities constrain the filter.",
-    ),
-    "pos2-gainholdamb": (
-        "RTK",
-        "Gain factor for fractional GLONASS/SBAS inter-channel bias update in fix-and-hold.",
     ),
     # ── rejection ────────────────────────────────────────────────────────────
     "pos2-rejionno": (
@@ -325,7 +321,6 @@ _OPTION_META: dict[str, tuple[str, str]] = {
         "RTK, PPP, PPP-RTK, VRS",
         "Number of measurement update iterations per epoch. More iterations improve linearization accuracy.",
     ),
-    "pos2-syncsol": ("RT", "Synchronize solution output with observation time in real-time mode."),
     # ── kalman_filter.measurement_error ──────────────────────────────────────
     "stats-eratio1": (
         "All",
@@ -365,7 +360,7 @@ _OPTION_META: dict[str, tuple[str, str]] = {
         "Initial standard deviation for ionospheric delay states (m).",
     ),
     "stats-stdtrop": (
-        "PPP, PPP-RTK, VRS",
+        "RTK, PPP-RTK, VRS",
         "Initial standard deviation for tropospheric delay states (m).",
     ),
     # ── kalman_filter.process_noise ──────────────────────────────────────────
@@ -402,7 +397,10 @@ _OPTION_META: dict[str, tuple[str, str]] = {
         "PPP-RTK, VRS",
         "Ionospheric time constant (s). Controls iono state temporal correlation in the adaptive filter.",
     ),
-    "stats-clkstab": ("PPP", "Receiver clock stability (s/s). Used in PPP clock state prediction."),
+    "stats-clkstab": (
+        "RTK, VRS",
+        "Receiver clock stability (s/s). Used in clock state prediction.",
+    ),
     # ── adaptive_filter ──────────────────────────────────────────────────────
     "pos2-prnadpt": ("PPP-RTK, VRS", "Enable adaptive Kalman filter process noise scaling."),
     "pos2-forgetion": (
@@ -424,22 +422,16 @@ _OPTION_META: dict[str, tuple[str, str]] = {
     # ── receiver ─────────────────────────────────────────────────────────────
     "pos2-ionocorr": ("PPP", "Enable ionospheric correction in MADOCA-PPP processing."),
     "pos2-ign_chierr": ("SPP", "Ignore chi-square test errors in SPP solution validation."),
-    "pos2-bds2bias": (
-        "PPP",
-        "Enable BDS-2 code bias correction (satellite-dependent group delay).",
-    ),
     "pos2-pppsatcb": ("PPP", "PPP satellite code bias source selection."),
     "pos2-pppsatpb": ("PPP", "PPP satellite phase bias source selection."),
-    "pos2-uncorrbias": ("PPP", "Uncorrelated bias parameter for PPP processing."),
     "pos2-maxbiasdt": ("PPP", "Maximum age of bias correction data (s) before invalidation."),
-    "pos2-sattmode": ("PPP", "Satellite processing mode selector."),
     "pos2-phasshft": (
         "PPP-RTK, VRS",
         "Phase cycle shift correction. Corrects quarter-cycle shifts between systems.",
     ),
     "pos2-isb": ("PPP-RTK, VRS", "Inter-system bias estimation mode."),
     "pos2-rectype": ("PPP-RTK, VRS", "Reference station receiver type for ISB table lookup."),
-    "pos2-maxage": ("RTK, PPP-RTK", "Maximum age of differential correction (s)."),
+    "pos2-maxage": ("RTK, VRS", "Maximum age of differential correction (s)."),
     "pos2-baselen": ("RTK", "Baseline length constraint (m). 0 = no constraint."),
     "pos2-basesig": ("RTK", "Standard deviation of baseline length constraint (m)."),
     # ── antenna.rover ────────────────────────────────────────────────────────
@@ -451,12 +443,12 @@ _OPTION_META: dict[str, tuple[str, str]] = {
     "ant1-pos2": ("All", "Rover position coordinate 2 (longitude or Y)."),
     "ant1-pos3": ("All", "Rover position coordinate 3 (height or Z)."),
     "ant1-anttype": (
-        "All",
+        "RTK, PPP, PPP-RTK, VRS",
         "Rover antenna type (must match ANTEX file entry). `*` = use RINEX header.",
     ),
-    "ant1-antdele": ("All", "Rover antenna delta East offset (m)."),
-    "ant1-antdeln": ("All", "Rover antenna delta North offset (m)."),
-    "ant1-antdelu": ("All", "Rover antenna delta Up offset (m)."),
+    "ant1-antdele": ("RTK, PPP, PPP-RTK, VRS", "Rover antenna delta East offset (m)."),
+    "ant1-antdeln": ("RTK, PPP, PPP-RTK, VRS", "Rover antenna delta North offset (m)."),
+    "ant1-antdelu": ("RTK, PPP, PPP-RTK, VRS", "Rover antenna delta Up offset (m)."),
     # ── antenna.base ─────────────────────────────────────────────────────────
     "ant2-postype": ("RTK, VRS", "Base station position input type."),
     "ant2-pos1": ("RTK, VRS", "Base position coordinate 1."),
@@ -488,14 +480,14 @@ _OPTION_META: dict[str, tuple[str, str]] = {
     "out-solstatic": ("PP", "Static mode output control."),
     "out-nmeaintv1": ("All", "NMEA GGA/RMC output interval (s)."),
     "out-nmeaintv2": ("All", "NMEA GSA/GSV output interval (s)."),
-    "out-outstat": ("All", "Solution status output level."),
+    "out-outstat": ("PP", "Solution status output level."),
     # ── files ────────────────────────────────────────────────────────────────
     "file-satantfile": (
         "All",
         "Satellite antenna ANTEX file. Required for satellite antenna PCV correction.",
     ),
     "file-rcvantfile": (
-        "All",
+        "RTK, PPP, PPP-RTK, VRS",
         "Receiver antenna ANTEX file. Required for receiver antenna PCV correction.",
     ),
     "file-staposfile": ("All", "Station position file for fixed/known positions."),
@@ -510,10 +502,7 @@ _OPTION_META: dict[str, tuple[str, str]] = {
         "PPP, PPP-RTK",
         "BLQ ocean tide loading file. Required when `tidal_correction` includes OTL.",
     ),
-    "file-elmaskfile": ("All", "Azimuth-dependent elevation mask file."),
     "file-tempdir": ("All", "Temporary directory for intermediate files."),
-    "file-geexefile": ("All", "Google Earth executable path (legacy GUI feature)."),
-    "file-solstatfile": ("All", "Solution statistics output file path."),
     "file-tracefile": ("All", "Debug trace output file path."),
     "file-fcbfile": ("PPP", "Fractional cycle bias file for PPP-AR."),
     "file-biafile": ("PPP", "Bias SINEX file for PPP satellite bias correction."),
@@ -544,15 +533,15 @@ _OPTION_META: dict[str, tuple[str, str]] = {
         "RT",
         "File swap margin (s) for continuous logging across file boundaries.",
     ),
-    "misc-timeinterp": ("RT", "Enable time interpolation between observation epochs."),
-    "misc-sbasatsel": ("RT", "SBAS satellite selection."),
-    "misc-maxobsloss": ("RT", "Maximum observation gap duration before filter reset (s)."),
-    "misc-floatcnt": ("RT", "Number of float epochs before triggering filter reset."),
+    "misc-timeinterp": ("RTK, VRS, PP", "Enable time interpolation between observation epochs."),
+    "misc-sbasatsel": ("RT, PP", "SBAS satellite selection."),
+    "misc-maxobsloss": ("PPP-RTK", "Maximum observation gap duration before filter reset (s)."),
+    "misc-floatcnt": ("PPP-RTK, VRS", "Number of float epochs before triggering filter reset."),
     "misc-rnxopt1": ("All", "RINEX conversion option string for rover stream."),
     "misc-rnxopt2": ("All", "RINEX conversion option string for base stream."),
     "misc-pppopt": ("PPP", "PPP processing option string (passed to PPP engine)."),
-    "misc-rtcmopt": ("RT", "RTCM decoder option string."),
-    "misc-l6mrg": ("RT", "L6 message margin (epochs) for CLAS L6 real-time synchronization."),
+    "misc-rtcmopt": ("RT, PP", "RTCM decoder option string."),
+    "misc-l6mrg": ("PPP-RTK, VRS", "L6 message merge mode for CLAS corrections."),
     "misc-regularly": ("VRS", "Regular filter reset interval (s). 0 = disabled."),
     "misc-startcmd": ("RT", "Shell command executed on server start."),
     "misc-stopcmd": ("RT", "Shell command executed on server stop."),
