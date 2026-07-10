@@ -319,10 +319,10 @@ TOML section: `[antenna.rover]`
 | `position_1` | float | All | Rover position coordinate 1 (latitude or X, depending on `position_type`). |
 | `position_2` | float | All | Rover position coordinate 2 (longitude or Y). |
 | `position_3` | float | All | Rover position coordinate 3 (height or Z). |
-| `type` | string | All | Rover antenna type (must match ANTEX file entry). `*` = use RINEX header. |
-| `delta_e` | float | All | Rover antenna delta East offset (m). |
-| `delta_n` | float | All | Rover antenna delta North offset (m). |
-| `delta_u` | float | All | Rover antenna delta Up offset (m). |
+| `type` | string | RTK, PPP, PPP-RTK, VRS | Rover antenna type (must match ANTEX file entry). `*` = use RINEX header. |
+| `delta_e` | float | RTK, PPP, PPP-RTK, VRS | Rover antenna delta East offset (m). |
+| `delta_n` | float | RTK, PPP, PPP-RTK, VRS | Rover antenna delta North offset (m). |
+| `delta_u` | float | RTK, PPP, PPP-RTK, VRS | Rover antenna delta Up offset (m). |
 
 ## Antenna — Base
 
@@ -372,7 +372,7 @@ TOML section: `[files]`
 | TOML Key | Type | Modes | Description |
 |:---------|:-----|:------|:------------|
 | `satellite_atx` | string | All | Satellite antenna ANTEX file. Required for satellite antenna PCV correction. |
-| `receiver_atx` | string | All | Receiver antenna ANTEX file. Required for receiver antenna PCV correction. |
+| `receiver_atx` | string | RTK, PPP, PPP-RTK, VRS | Receiver antenna ANTEX file. Required for receiver antenna PCV correction. |
 | `station_pos` | string | All | Station position file for fixed/known positions. |
 | `geoid` | string | All | Geoid data file for geodetic height conversion. |
 | `ionosphere` | string | All | IONEX ionosphere map file. Used when `ionosphere = ionex-tec`. |
@@ -404,15 +404,15 @@ TOML section: `[server]`
 | `nav_msg_select` | string | RT | Navigation message type selection for multi-source environments. |
 | `proxy` | string | RT | HTTP proxy address for NTRIP connections. |
 | `swap_margin` | integer | RT | File swap margin (s) for continuous logging across file boundaries. |
-| `time_interpolation` | boolean | RT | Enable time interpolation between observation epochs. |
-| `sbas_satellite` | string | RT | SBAS satellite selection. |
-| `max_obs_loss` | float | RT | Maximum observation gap duration before filter reset (s). |
-| `float_count` | integer | RT | Number of float epochs before triggering filter reset. |
+| `time_interpolation` | boolean | RTK, VRS, PP | Enable time interpolation between observation epochs. |
+| `sbas_satellite` | string | RT, PP | SBAS satellite selection. |
+| `max_obs_loss` | float | PPP-RTK | Maximum observation gap duration before filter reset (s). |
+| `float_count` | integer | PPP-RTK, VRS | Number of float epochs before triggering filter reset. |
 | `rinex_option_1` | string | All | RINEX conversion option string for rover stream. |
 | `rinex_option_2` | string | All | RINEX conversion option string for base stream. |
 | `ppp_option` | string | PPP | PPP processing option string (passed to PPP engine). |
-| `rtcm_option` | string | RT | RTCM decoder option string. |
-| `l6_margin` | integer | RT | L6 message margin (epochs) for CLAS L6 real-time synchronization. |
+| `rtcm_option` | string | RT, PP | RTCM decoder option string. |
+| `l6_margin` | integer | PPP-RTK, VRS | L6 message merge mode for CLAS corrections. |
 | `regularly` | integer | VRS | Regular filter reset interval (s). 0 = disabled. |
 | `start_cmd` | string | RT | Shell command executed on server start. |
 | `stop_cmd` | string | RT | Shell command executed on server stop. |
