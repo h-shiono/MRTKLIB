@@ -74,9 +74,6 @@ galileo = "E1/E5a/E5b/E6"
 bds2 = "B1I/B3I/B2I"
 bds3 = "B1I/B3I/B2a"
 
-[receiver]
-iono_correction = false
-
 [antenna.rover]
 position_type = "single"
 type = "*"
@@ -127,10 +124,22 @@ ocean_loading = ""
 temp_dir = ""
 trace = ""
 
-[server]
+
+[positioning.madoca]
+iono_correction = false
+
+[positioning.ppp]
+ppp_option = ""
+
+[positioning.relative]
 time_interpolation = true
-sbas_satellite = "0"
+
+[input.rinex]
 rinex_option_1 = ""
 rinex_option_2 = ""
-ppp_option = ""
+
+[input.rtcm]
 rtcm_option = ""
+
+[input.sbas]
+sbas_satellite = "0"

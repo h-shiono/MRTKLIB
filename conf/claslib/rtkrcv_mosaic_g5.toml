@@ -129,14 +129,6 @@ enabled = false
 pva_forgetting = 0.3
 pva_gain = 1.0
 
-[receiver]
-baseline_length = 0.0
-baseline_sigma = 0.0
-max_age = 30.0
-isb = false
-phase_shift = "table"
-reference_type = "CLAS"
-
 [antenna.rover]
 position_type = "single"
 type = "*"
@@ -198,12 +190,7 @@ buffer_size = 32768
 nav_msg_select = "all"
 proxy = ""
 swap_margin = 30
-time_interpolation = true
-max_obs_loss = 90.0
-float_count = 15
 
-# Rover: SBF stream carries obs + nav + L6D (all from single TCP relay)
-# L6D (QZSRawL6D) blocks are automatically redirected to CLAS decoder
 [streams.input.rover]
 type = "tcpcli"
 path = "localhost:9000"
@@ -247,3 +234,18 @@ passwd = ""
 timetype = "gpst"
 soltype = "deg"
 solflag = "off"
+
+[positioning.clas.ambiguities]
+isb = false
+phase_shift = "table"
+reference_type = "CLAS"
+
+[positioning.clas.resilience]
+max_obs_loss = 90.0
+float_count = 15
+
+[positioning.relative]
+baseline_length = 0.0
+baseline_sigma = 0.0
+max_age = 30.0
+time_interpolation = true

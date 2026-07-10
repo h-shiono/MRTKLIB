@@ -181,18 +181,30 @@ static const toml_map_t toml_mapping[] = {
     {"signals", "bds2", "pos2-sigbds2"},
     {"signals", "bds3", "pos2-sigbds3"},
 
-    /* ── receiver ──────────────────────────────────────────────────────────── */
-    {"receiver", "iono_correction", "pos2-ionocorr"},
-    {"receiver", "ignore_chi_error", "pos2-ign_chierr"},
-    {"receiver", "ppp_sat_clock_bias", "pos2-pppsatcb"},
-    {"receiver", "ppp_sat_phase_bias", "pos2-pppsatpb"},
-    {"receiver", "max_bias_dt", "pos2-maxbiasdt"},
-    {"receiver", "phase_shift", "pos2-phasshft"},
-    {"receiver", "isb", "pos2-isb"},
-    {"receiver", "reference_type", "pos2-rectype"},
-    {"receiver", "max_age", "pos2-maxage"},
-    {"receiver", "baseline_length", "pos2-baselen"},
-    {"receiver", "baseline_sigma", "pos2-basesig"},
+    /* ── positioning engine options ───────────────────────────────────────── */
+    {"positioning.spp", "ignore_chi_error", "pos2-ign_chierr"},
+    {"positioning.madoca", "iono_correction", "pos2-ionocorr"},
+    {"positioning.ppp", "satellite_clock_bias", "pos2-pppsatcb"},
+    {"positioning.ppp", "satellite_phase_bias", "pos2-pppsatpb"},
+    {"positioning.ppp", "max_bias_dt", "pos2-maxbiasdt"},
+    {"positioning.ppp", "options", "misc-pppopt"},
+    {"positioning.clas.ambiguities", "phase_shift", "pos2-phasshft"},
+    {"positioning.clas.ambiguities", "isb", "pos2-isb"},
+    {"positioning.clas.ambiguities", "reference_type", "pos2-rectype"},
+    {"positioning.clas.resilience", "max_obs_loss", "misc-maxobsloss"},
+    {"positioning.clas.resilience", "float_count", "misc-floatcnt"},
+    {"positioning.clas.resilience", "l6_merge", "misc-l6mrg"},
+    {"positioning.relative", "max_age", "pos2-maxage"},
+    {"positioning.relative", "baseline_length", "pos2-baselen"},
+    {"positioning.relative", "baseline_sigma", "pos2-basesig"},
+    {"positioning.relative", "time_interpolation", "misc-timeinterp"},
+    {"positioning.vrs", "reset_interval", "misc-regularly"},
+
+    /* ── input decoding ───────────────────────────────────────────────────── */
+    {"input.rinex", "option_1", "misc-rnxopt1"},
+    {"input.rinex", "option_2", "misc-rnxopt2"},
+    {"input.rtcm", "options", "misc-rtcmopt"},
+    {"input.sbas", "satellite", "misc-sbasatsel"},
 
     /* ── antenna.rover ─────────────────────────────────────────────────────── */
     {"antenna.rover", "position_type", "ant1-postype"},
@@ -252,7 +264,7 @@ static const toml_map_t toml_mapping[] = {
     {"files", "isb_table", "file-isbfile"},
     {"files", "phase_cycle", "file-phacycfile"},
 
-    /* ── server (misc) ─────────────────────────────────────────────────────── */
+    /* ── server (rtkrcv runtime only) ──────────────────────────────────────── */
     {"server", "cycle_ms", "misc-svrcycle"},
     {"server", "timeout_ms", "misc-timeout"},
     {"server", "reconnect_ms", "misc-reconnect"},
@@ -261,16 +273,6 @@ static const toml_map_t toml_mapping[] = {
     {"server", "nav_msg_select", "misc-navmsgsel"},
     {"server", "proxy", "misc-proxyaddr"},
     {"server", "swap_margin", "misc-fswapmargin"},
-    {"server", "time_interpolation", "misc-timeinterp"},
-    {"server", "sbas_satellite", "misc-sbasatsel"},
-    {"server", "max_obs_loss", "misc-maxobsloss"},
-    {"server", "float_count", "misc-floatcnt"},
-    {"server", "rinex_option_1", "misc-rnxopt1"},
-    {"server", "rinex_option_2", "misc-rnxopt2"},
-    {"server", "ppp_option", "misc-pppopt"},
-    {"server", "rtcm_option", "misc-rtcmopt"},
-    {"server", "l6_margin", "misc-l6mrg"},
-    {"server", "regularly", "misc-regularly"},
     {"server", "start_cmd", "misc-startcmd"},
     {"server", "stop_cmd", "misc-stopcmd"},
 

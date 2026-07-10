@@ -76,9 +76,6 @@ galileo = "E1/E5a/E5b/E6" # (0:E1/E5a,1:E1/E5b,3:E1/E5a/E5b/E6,4:E1/E5a/E6/E5b)
 bds2 = "B1I/B3I/B2I"      # (0:B1I/B3I,1:B1I/B2I,2:B1I/B3I/B2I)
 bds3 = "B1I/B3I/B2a"      # (0:B1I/B3I,1:B1I/B2a,2:B1I/B3I/B2a)
 
-[receiver]
-iono_correction = false # (0:off,1:on)
-
 [antenna.rover]
 position_type = "llh"      # (0:llh,1:xyz,2:single,3:posfile,4:rinexhead,5:rtcm,6:raw)
 position_1 = 90.0          # (deg|m)
@@ -120,10 +117,22 @@ ocean_loading = ""
 temp_dir = ""
 trace = ""
 
-[server]
+
+[positioning.madoca]
+iono_correction = false # (0:off,1:on)
+
+[positioning.ppp]
+ppp_option = ""
+
+[positioning.relative]
 time_interpolation = false # (0:off,1:on)
-sbas_satellite = "0"       # (0:all)
+
+[input.rinex]
 rinex_option_1 = ""
 rinex_option_2 = ""
-ppp_option = ""
+
+[input.rtcm]
 rtcm_option = ""
+
+[input.sbas]
+sbas_satellite = "0"       # (0:all)

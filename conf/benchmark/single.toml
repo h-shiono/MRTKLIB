@@ -112,10 +112,19 @@ ocean_loading = ""
 temp_dir = ""
 trace = ""
 
-[server]
+
+[positioning.ppp]
+ppp_option = ""
+
+[positioning.relative]
 time_interpolation = true
-sbas_satellite = "0"
+
+[input.rinex]
 rinex_option_1 = ""
 rinex_option_2 = ""
-ppp_option = ""
+
+[input.rtcm]
 rtcm_option = ""
+
+[input.sbas]
+sbas_satellite = "0"

@@ -53,9 +53,6 @@ accel_h = 1.0
 accel_v = 0.1
 clock_stability = 5e-12
 
-[receiver]
-max_age = 30.0
-
 [antenna.rover]
 type = "TRM55971.00     NONE"
 delta_e = 0.0
@@ -72,3 +69,6 @@ satellite_atx = "./tests/data/igs/igs20_iflc_trim.atx"
 receiver_atx = "./tests/data/igs/igs20_iflc_trim.atx"
 bias_sinex = "./tests/data/igs/COD0MGXFIN_20261210000_01D_01D_OSB.BIA"
 eop = "./tests/data/igs/COD0MGXFIN_20261210000_01D_12H_ERP.ERP"
+
+[positioning.relative]
+max_age = 30.0

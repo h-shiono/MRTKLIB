@@ -61,11 +61,6 @@ doppler = 1.0    # Doppler slip threshold (cyc/s, 0=off)
 [kalman_filter]
 iterations = 1
 
-[receiver]
-max_age = 30.0        # (s)
-baseline_length = 0.0
-baseline_sigma = 0.0
-
 [antenna.rover]
 position_type = "single"
 type = "*"
@@ -105,6 +100,12 @@ dcb = ""
 temp_dir = ""
 trace = ""
 
-[server]
+
+[positioning.relative]
+max_age = 30.0        # (s)
+baseline_length = 0.0
+baseline_sigma = 0.0
 time_interpolation = true
+
+[input.sbas]
 sbas_satellite = "all"

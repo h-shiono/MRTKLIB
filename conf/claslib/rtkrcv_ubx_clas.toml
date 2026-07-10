@@ -118,14 +118,6 @@ enabled = false
 pva_forgetting = 0.3
 pva_gain = 1.0
 
-[receiver]
-baseline_length = 0.0
-baseline_sigma = 0.0
-max_age = 30.0
-isb = true
-phase_shift = "table"
-reference_type = "CLAS"
-
 [antenna.rover]
 position_type = "single"      # initial position from SPP
 type = "AOAD/M_T        NONE" # change to your antenna type
@@ -187,23 +179,6 @@ buffer_size = 32768
 nav_msg_select = "all"
 proxy = ""
 swap_margin = 30
-time_interpolation = true
-max_obs_loss = 90.0
-float_count = 15
-
-# ── Input streams ─────────────────────────────────────────────────────────────
-# Edit these sections to match your local setup.
-#
-# Example: u-blox F9P (obs) on TCP port 20001, D9C (L6D) on TCP port 20002
-#   [streams.input.rover]
-#   type   = "tcpcli"
-#   path   = "localhost:20001"
-#   format = "ubx"
-#
-#   [streams.input.correction]
-#   type   = "tcpcli"
-#   path   = "localhost:20002"
-#   format = "ubx"
 
 [streams.input.rover]
 type = "tcpcli"
@@ -252,3 +227,18 @@ passwd = ""
 timetype = "gpst"
 soltype = "deg"
 solflag = "off"
+
+[positioning.clas.ambiguities]
+isb = true
+phase_shift = "table"
+reference_type = "CLAS"
+
+[positioning.clas.resilience]
+max_obs_loss = 90.0
+float_count = 15
+
+[positioning.relative]
+baseline_length = 0.0
+baseline_sigma = 0.0
+max_age = 30.0
+time_interpolation = true
