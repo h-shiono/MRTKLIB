@@ -9,7 +9,7 @@ solution_type = "forward"
 elevation_mask = 15.0                                                                          # (deg)
 dynamics = true                                                                                # kinematic
 satellite_ephemeris = "brdc"
-excluded_sats = ""
+excluded_sats = []
 systems = ["GPS", "Galileo", "QZSS", "BeiDou"]
 
 [positioning.snr_mask]

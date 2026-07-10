@@ -88,7 +88,12 @@ Exclude specific satellites using a string list:
 excluded_sats = ["G01", "G02", "+E05"]
 ```
 
-A `+` prefix means "include only this satellite" (whitelist mode).
+A `+` prefix inverts the entry: that satellite is force-included, and is kept even
+when it would otherwise be dropped as unhealthy. Satellites absent from the list are
+unaffected — the list is not a whitelist.
+
+The legacy space-separated string form (`excluded_sats = "G01 G02 +E05"`) is still
+accepted.
 
 ## Bundled Configuration Files
 

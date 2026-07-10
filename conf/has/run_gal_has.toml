@@ -22,7 +22,7 @@ elevation_mask = 10.0               # (deg)
 dynamics = false                    # (0:off,1:on)
 satellite_ephemeris = "brdc+ssrapc" # (0:brdc,1:precise,3:brdc+ssrapc,4:brdc+ssrcom)
 correction = "gal-has"              # Galileo HAS (E6-B SSR)
-excluded_sats = ""                  # (prn ...)
+excluded_sats = []                  # (prn ...)
 systems = ["GPS", "Galileo"]
 
 [positioning.snr_mask]
