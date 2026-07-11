@@ -316,6 +316,7 @@ TOML section: `[positioning.ppp]`
 | `satellite_clock_bias` | integer | PPP | PPP satellite code bias source selection. |
 | `satellite_phase_bias` | integer | PPP | PPP satellite phase bias source selection. |
 | `drop_uncorrected_code` | boolean | PPP | In uncombined IGS PPP, discard a pseudorange measurement when its satellite or receiver code bias is unavailable. |
+| `clock_jump` | boolean | PPP | Reset PPP phase-bias states at a GPS day boundary. |
 | `max_bias_dt` | integer | PPP | Maximum age of bias correction data (s) before invalidation. |
 | `options` | string | PPP | PPP processing option string (passed to PPP engine). |
 

@@ -320,6 +320,9 @@ typedef struct prcopt_t {         /* processing options type */
     /* SPP large-residual exclusion (upstream CLAS sync, appended for ABI stability) */
     double rejethres; /* pseudorange residual rejection threshold (m, <0:off, 0:CLAS seed auto) */
     int rejeminsat;   /* SPP residual rejection runs only when valid sats exceed this (nv > rejeminsat, as upstream) */
+
+    /* PPP day-boundary clock-jump handling (kept separate from CLAS posopt[5]) */
+    int clockjump; /* reset PPP phase biases at a GPS day boundary (0:off,1:on) */
 } prcopt_t;
 
 /* enhanced_spp_seed profiles (applied to the PPP-RTK/VRS a-priori SPP seed only).

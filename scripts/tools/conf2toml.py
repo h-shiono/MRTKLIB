@@ -179,6 +179,7 @@ MAPPING: list[tuple[str, str, str, str]] = [
     ("pos2-pppsatcb", "positioning.ppp", "satellite_clock_bias", "int"),
     ("pos2-pppsatpb", "positioning.ppp", "satellite_phase_bias", "int"),
     ("pos2-uncorrbias", "positioning.ppp", "drop_uncorrected_code", "bool"),
+    ("pos2-clkjump", "positioning.ppp", "clock_jump", "bool"),
     ("pos2-maxbiasdt", "positioning.ppp", "max_bias_dt", "int"),
     ("misc-pppopt", "positioning.ppp", "options", "str"),
     ("pos2-phasshft", "positioning.clas.ambiguities", "phase_shift", "enum"),

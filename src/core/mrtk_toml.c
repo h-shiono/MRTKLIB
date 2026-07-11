@@ -187,6 +187,7 @@ static const toml_map_t toml_mapping[] = {
     {"positioning.ppp", "satellite_clock_bias", "pos2-pppsatcb"},
     {"positioning.ppp", "satellite_phase_bias", "pos2-pppsatpb"},
     {"positioning.ppp", "drop_uncorrected_code", "pos2-uncorrbias"},
+    {"positioning.ppp", "clock_jump", "pos2-clkjump"},
     {"positioning.ppp", "max_bias_dt", "pos2-maxbiasdt"},
     {"positioning.ppp", "options", "misc-pppopt"},
     {"positioning.clas.ambiguities", "phase_shift", "pos2-phasshft"},
