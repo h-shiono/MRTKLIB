@@ -603,8 +603,10 @@ static void udpos_ppp(rtk_t* rtk, const obsd_t* obs, int n, double tt) {
         }
     } else {
         /* process noise added to position */
-        prnpos_h = rtk->opt.stats_prnposith != 0.0 ? rtk->opt.stats_prnposith : rtk->opt.prn[5];
-        prnpos_v = rtk->opt.stats_prnpositv != 0.0 ? rtk->opt.stats_prnpositv : rtk->opt.prn[6];
+        /* Do not fall back to prn[6]: PPP uses that slot for IFB process
+         * noise. CLAS position process noise has dedicated fields. */
+        prnpos_h = rtk->opt.stats_prnposith;
+        prnpos_v = rtk->opt.stats_prnpositv;
         Q[0] = Q[4] = SQR(prnpos_h) * fabs(tt);
         Q[8] = SQR(prnpos_v) * fabs(tt);
         ecef2pos(rtk->x, pos);

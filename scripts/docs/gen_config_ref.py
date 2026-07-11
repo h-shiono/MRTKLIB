@@ -387,7 +387,7 @@ _OPTION_META: dict[str, tuple[str, str]] = {
     ),
     "stats-prnposith": ("PPP-RTK, VRS", "Horizontal position process noise (m)."),
     "stats-prnpositv": ("PPP-RTK, VRS", "Vertical position process noise (m)."),
-    "stats-prnpos": ("All", "General position process noise (m). Fallback when h/v not specified."),
+    "stats-prnpos": ("PPP", "General position process noise for static PPP states (m)."),
     "stats-prnifb": (
         "PPP",
         "Inter-frequency bias process noise (m). For multi-frequency PPP bias estimation.",

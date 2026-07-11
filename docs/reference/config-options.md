@@ -260,7 +260,7 @@ TOML section: `[kalman_filter.process_noise]`
 | `accel_v` | float | All | Vertical acceleration process noise (m/s²). Active when `dynamics = true`. |
 | `position_h` | float | PPP-RTK, VRS | Horizontal position process noise (m). |
 | `position_v` | float | PPP-RTK, VRS | Vertical position process noise (m). |
-| `position` | float | All | General position process noise (m). Fallback when h/v not specified. |
+| `position` | float | PPP | General position process noise for static PPP states (m). |
 | `ifb` | float | PPP | Inter-frequency bias process noise (m). For multi-frequency PPP bias estimation. |
 | `iono_time_const` | float | PPP-RTK, VRS | Ionospheric time constant (s). Controls iono state temporal correlation in the adaptive filter. |
 | `clock_stability` | float | RTK, VRS | Receiver clock stability (s/s). Used in clock state prediction. |
