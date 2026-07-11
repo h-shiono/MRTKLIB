@@ -349,10 +349,10 @@ static double varerr(int sat, int sys, double el, int type, const prcopt_t* opt)
         a = fact * opt->err[1];
         b = fact * opt->err[2];
         if (opt->ionoopt == IONOOPT_EST) {
-            c = opt->err[5];
+            c = opt->stats_erriono;
         }
         if (opt->tropopt >= TROPOPT_EST) {
-            d = opt->err[6];
+            d = opt->stats_errtrop;
         }
     }
     return a * a + b * b / sinel / sinel + c * c + d * d;

@@ -339,12 +339,20 @@ _OPTION_META: dict[str, tuple[str, str]] = {
     ),
     "stats-errdoppler": ("All", "Doppler measurement error (Hz)."),
     "stats-snrmax": (
-        "All",
+        "SPP, RTK",
         "C/N0 at which the SNR-based measurement weighting model saturates (dBHz). Used when C/N0 weighting is enabled.",
     ),
     "stats-errsnr": (
-        "All",
+        "SPP, RTK",
         "Carrier phase measurement error at the SNR-weighting reference level (m).",
+    ),
+    "stats-erriono": (
+        "PPP-RTK",
+        "Additional ionosphere estimation-error term in the CLAS measurement variance model (m). Active when ionosphere estimation is enabled.",
+    ),
+    "stats-errtrop": (
+        "PPP-RTK",
+        "Additional troposphere estimation-error term in the CLAS measurement variance model (m). Active when troposphere estimation is enabled.",
     ),
     "stats-uraratio": (
         "PPP",

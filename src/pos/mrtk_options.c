@@ -227,6 +227,8 @@ opt_t sysopts[] = {
     {"stats-errdoppler", 1, (void*)&prcopt_.err[4], "Hz"},
     {"stats-snrmax", 1, (void*)&prcopt_.err[5], "dBHz"},
     {"stats-errsnr", 1, (void*)&prcopt_.err[6], "m"},
+    {"stats-erriono", 1, (void*)&prcopt_.stats_erriono, "m"},
+    {"stats-errtrop", 1, (void*)&prcopt_.stats_errtrop, "m"},
     {"stats-stdbias", 1, (void*)&prcopt_.std[0], "m"},
     {"stats-stdiono", 1, (void*)&prcopt_.std[1], "m"},
     {"stats-stdtrop", 1, (void*)&prcopt_.std[2], "m"},
