@@ -2,15 +2,19 @@
 """Assert that the CLAS PPP-RTK periodic filter reset (#264) fired and recovered.
 
 Given the trace and NMEA output of a CLAS run with reset_interval enabled,
-verify three things:
+verify three aggregate properties (counts over the whole run, not a per-epoch
+correlation):
 
 1. The trace records at least ``--min-resets`` "regularly reset filter" lines.
-2. Each reset epoch appears in the NMEA output as a Single (GGA quality 1)
-   solution -- the filter state was zeroed at that epoch.
-3. The filter re-converges afterwards, i.e. Float/Fixed (quality >= 4) epochs
-   still dominate the run. A reset that never recovered would leave the rest
-   of the window in Single.
+2. At least ``--min-resets`` Single (GGA quality 1) epochs are present -- each
+   reset zeroes the filter state and emits a Single solution that epoch, so a
+   reset that fired must leave a Single behind.
+3. The filter re-converges: Float/Fixed (quality >= 4) epochs outnumber the
+   Single epochs. A reset that never recovered would leave the rest of the
+   window in Single.
 """
+
+from __future__ import annotations
 
 import argparse
 import sys
