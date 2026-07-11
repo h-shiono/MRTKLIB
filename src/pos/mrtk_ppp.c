@@ -1216,7 +1216,7 @@ static void udbias_ppp(rtk_t* rtk, const obsd_t* obs, int n, const nav_t* nav) {
     trace(NULL, 3, "udbias  : n=%d\n", n);
 
     /* handle day-boundary clock jump */
-    if (rtk->opt.posopt[5]) {
+    if (rtk->opt.clockjump) {
         clk_jump = ROUND(time2gpst(obs[0].time, NULL) * 10) % 864000 == 0;
     }
     for (i = 0; i < MAXSAT; i++) {

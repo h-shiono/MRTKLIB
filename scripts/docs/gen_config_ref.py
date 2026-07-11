@@ -428,6 +428,7 @@ _OPTION_META: dict[str, tuple[str, str]] = {
         "PPP",
         "In uncombined IGS PPP, discard a pseudorange measurement when its satellite or receiver code bias is unavailable.",
     ),
+    "pos2-clkjump": ("PPP", "Reset PPP phase-bias states at a GPS day boundary."),
     "pos2-maxbiasdt": ("PPP", "Maximum age of bias correction data (s) before invalidation."),
     "pos2-phasshft": (
         "PPP-RTK, VRS",
