@@ -180,7 +180,6 @@ opt_t sysopts[] = {
     {"pos2-arminholdsats", 0, (void*)&prcopt_.minholdsats, ""},
     {"pos2-arfilter", 3, (void*)&prcopt_.arfilter, SWTOPT},
     {"pos2-gpsarmode", 3, (void*)&prcopt_.gpsmodear, SWTOPT},
-    {"pos2-gainholdamb", 1, (void*)&prcopt_.gainholdamb, ""},
     {"pos2-rejionno1", 1, (void*)&prcopt_.maxinno_ext[0], "sigma"},
     {"pos2-rejionno2", 1, (void*)&prcopt_.maxinno_ext[1], "sigma"},
     {"pos2-rejionno3", 1, (void*)&prcopt_.maxinno_ext[2], "sigma"},
