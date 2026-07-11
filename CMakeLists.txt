@@ -715,10 +715,10 @@ set(_F5_0627_2019 ${_CLSDATA}/960627.19.pos)
 
 # ── Fixture: extract / clean claslib test data archive ────────────────────────
 add_test(NAME claslib_setup
-    COMMAND bash -c "tar xzf ${_CLSDATA}/claslib_testdata.tar.gz \
-        --exclude=ref_L6_2CH_RT.nmea --exclude=rtkrcv_clas_ref.nmea -C ${_CLSDATA} && \
-        mkdir -p ${_CLSRTREFDATA} && \
-        tar xzf ${_CLSDATA}/claslib_testdata.tar.gz -C ${_CLSRTREFDATA} \
+    COMMAND bash -c "tar xzf \"${_CLSDATA}/claslib_testdata.tar.gz\" \
+        --exclude=ref_L6_2CH_RT.nmea --exclude=rtkrcv_clas_ref.nmea -C \"${_CLSDATA}\" && \
+        mkdir -p \"${_CLSRTREFDATA}\" && \
+        tar xzf \"${_CLSDATA}/claslib_testdata.tar.gz\" -C \"${_CLSRTREFDATA}\" \
         ref_L6_2CH_RT.nmea rtkrcv_clas_ref.nmea"
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
 )
@@ -758,8 +758,8 @@ add_test(NAME claslib_cleanup
         ${_CLSDATA}/0627157U.bnx.tag \
         ${_CLSDATA}/2025157U_ch1.l6.tag \
         ${_CLSDATA}/2025157U_ch2.l6.tag \
-        ${_CLSRTREFDATA}/rtkrcv_clas_ref.nmea \
-        ${_CLSRTREFDATA}/ref_L6_2CH_RT.nmea"
+        \"${_CLSRTREFDATA}/rtkrcv_clas_ref.nmea\" \
+        \"${_CLSRTREFDATA}/ref_L6_2CH_RT.nmea\""
 )
 set_tests_properties(claslib_cleanup PROPERTIES
     FIXTURES_CLEANUP claslib_data
