@@ -424,6 +424,10 @@ _OPTION_META: dict[str, tuple[str, str]] = {
     "pos2-ign_chierr": ("SPP", "Ignore chi-square test errors in SPP solution validation."),
     "pos2-pppsatcb": ("PPP", "PPP satellite code bias source selection."),
     "pos2-pppsatpb": ("PPP", "PPP satellite phase bias source selection."),
+    "pos2-uncorrbias": (
+        "PPP",
+        "In uncombined IGS PPP, discard a pseudorange measurement when its satellite or receiver code bias is unavailable.",
+    ),
     "pos2-maxbiasdt": ("PPP", "Maximum age of bias correction data (s) before invalidation."),
     "pos2-phasshft": (
         "PPP-RTK, VRS",

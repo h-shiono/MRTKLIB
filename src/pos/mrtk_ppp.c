@@ -624,12 +624,41 @@ static int corr_meas(const obsd_t* obs, const nav_t* nav, const double* azel, co
                  * (same consumer convention as the OSR engine). */
                 int c = obs->code[i] - 1;
                 if (c >= 0) {
-                    if (nav->osb.vscb[obs->sat - 1][c]) {
-                        P[i] += nav->osb.scb[obs->sat - 1][c];
-                    }
                     if (nav->osb.vspb[obs->sat - 1][c]) {
                         L[i] += nav->osb.spb[obs->sat - 1][c];
                     }
+                    if (nav->osb.vscb[obs->sat - 1][c]) {
+                        P[i] += nav->osb.scb[obs->sat - 1][c];
+                    } else if (opt->unbias) {
+                        P[i] = 0.0;
+                        trace(NULL, tl > 0 ? 3 : 4,
+                              "corr_meas: %s satellite code bias does not exist. %s obscode=C%s\n", tstr, satid,
+                              code2obs(obs->code[i]));
+                        continue;
+                    }
+                    /* Apply a receiver-specific OSB when available, otherwise
+                     * its system-wide OSB. With unbias enabled, a usable code
+                     * observation must have both satellite and receiver OSBs.
+                     * This gates P[i] only -- L[i] (phase) already carries the
+                     * satellite phase bias above and must not be dropped here. */
+                    {
+                        int sysno = getsysno(obs->sat);
+
+                        if (nav->osb.vrsatcb[obs->sat - 1][c]) {
+                            P[i] += nav->osb.rsatcb[obs->sat - 1][c];
+                        } else if (sysno >= 0 && nav->osb.vrsyscb[sysno][c]) {
+                            P[i] += nav->osb.rsyscb[sysno][c];
+                        } else if (opt->unbias) {
+                            P[i] = 0.0;
+                            trace(NULL, tl > 0 ? 3 : 4,
+                                  "corr_meas: %s receiver code bias does not exist. %s obscode=C%s\n", tstr, satid,
+                                  code2obs(obs->code[i]));
+                            continue;
+                        }
+                    }
+                } else if (opt->unbias) {
+                    P[i] = 0.0;
+                    trace(NULL, tl > 0 ? 3 : 4, "corr_meas: %s invalid observation code. %s\n", tstr, satid);
                 }
             } else if (sys == SYS_GPS || sys == SYS_GLO) {
                 if (obs->code[i] == CODE_L1C) {
