@@ -815,6 +815,41 @@ set_tests_properties(claslib_ppp_rtk_abs_check PROPERTIES
     LABELS            "absolute;claslib;ppp-rtk"
 )
 
+# ── CLAS PPP-RTK periodic filter reset (#264) ────────────────────────────────
+# reset_interval overlay forces a full reset every 600 s over the 1 h window
+# (5 resets). -x 3 writes the trace next to the output; the checker asserts the
+# resets fired, each showed as a Single epoch, and the filter re-converged.
+add_test(NAME claslib_ppp_rtk_regularly
+    COMMAND $<TARGET_FILE:mrtk> post
+        -x 3
+        -k ${CMAKE_SOURCE_DIR}/conf/claslib/rnx2rtkp.toml
+        -k ${CMAKE_SOURCE_DIR}/conf/claslib/rnx2rtkp_regularly.toml
+        -ts 2019/08/27 16:00:00 -te 2019/08/27 16:59:59 -ti 1
+        -o ${CMAKE_BINARY_DIR}/out_claslib_ppp_rtk_regularly.nmea
+        ${_CLSDATA}/0627239Q.obs
+        ${_CLSDATA}/sept_2019239.nav
+        ${_CLSDATA}/2019239Q.l6
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+set_tests_properties(claslib_ppp_rtk_regularly PROPERTIES
+    FIXTURES_REQUIRED claslib_data
+    TIMEOUT           300
+    LABELS            "regression;claslib;ppp-rtk"
+)
+
+add_test(NAME claslib_ppp_rtk_regularly_check
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/scripts/tests/check_regularly_reset.py
+        ${CMAKE_BINARY_DIR}/out_claslib_ppp_rtk_regularly.nmea
+        ${CMAKE_BINARY_DIR}/out_claslib_ppp_rtk_regularly.nmea.trace
+        --min-resets 4
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+set_tests_properties(claslib_ppp_rtk_regularly_check PROPERTIES
+    DEPENDS           claslib_ppp_rtk_regularly
+    FIXTURES_REQUIRED claslib_data
+    LABELS            "regression;claslib;ppp-rtk"
+)
+
 # ── rnx2rtkp CLAS PPP-RTK regression (L6, BINEX obs) ─────────────────────────
 # Data: 2019/08/27 16:00-17:00, 0627239Q.bnx + sept_2019239.nav + 2019239Q.l6
 # Reference: ref_L6_bnx.nmea (upstream claslib output)

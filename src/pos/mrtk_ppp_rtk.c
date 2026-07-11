@@ -2245,6 +2245,7 @@ static void check_clas_facility(nav_t* nav, const clas_ctx_t* clas, const clas_g
  * @param[in,out] nav  Navigation data (includes SSR via nav->ssr_ch[][])
  */
 extern void ppp_rtk_pos(rtk_t* rtk, const obsd_t* obs, int n, nav_t* nav) {
+    static gtime_t regularly = {-1, 0.0};
     prcopt_t* opt = &rtk->opt;
     clas_ctx_t* clas;
     clas_grid_t* grid;
@@ -2295,6 +2296,30 @@ extern void ppp_rtk_pos(rtk_t* rtk, const obsd_t* obs, int n, nav_t* nav) {
         for (i = 0; i < rtk->nx; i++) {
             rtk->x[i] = 0.0;
         }
+    }
+
+    /* periodic filter reset: force a full state reset every opt->regularly
+     * seconds (0 = disabled). Ported from upstream claslib ppp_rtk_pos()
+     * (#264); mirrors the already-ported VRS path in relposvrs(). Returns
+     * early to skip the epoch, so the buffers allocated above must be freed
+     * here (unlike VRS, which allocates them after this check). */
+    regularly = (regularly.time == -1 ? obs[0].time : regularly);
+    if (opt->regularly != 0 && timediff(obs[0].time, regularly) >= (double)opt->regularly) {
+        trace(NULL, 1, "ppp_rtk_pos: regularly reset filter, tow=%.1f\n", time2gpst(obs[0].time, NULL));
+        for (i = 0; i < rtk->nx; i++) {
+            rtk->x[i] = 0.0;
+        }
+        rtk->sol.stat = SOLQ_SINGLE;
+        regularly = obs[0].time;
+        nav->filreset = 0;
+        prtk_ctx.float_count = 0;
+        free(azel);
+        free(e);
+        free(y);
+        free(rs);
+        free(dts);
+        free(var);
+        return;
     }
 
     /* reset filter if consecutive FLOAT epochs exceed floatcnt threshold */
