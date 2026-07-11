@@ -76,9 +76,6 @@ TOML section: `[positioning.clas]`
 | `grid_selection_radius` | integer | PPP-RTK, VRS | CLAS grid search radius (m). Controls how far from the rover to search for grid-based tropospheric/ionospheric corrections. |
 | `receiver_type` | string | PPP-RTK, VRS | Rover receiver type identifier. Used for ISB (inter-system bias) table lookup. |
 | `enhanced_spp_seed` | enum | PPP-RTK | Enhanced SPP seed for CLAS PPP-RTK reconvergence. Selects the code / Doppler QC stack used to seed the float filter after outages (opt-in; the default base seed uses C/N0 + TDCP). `off` · `cn0+tdcp` · `cn0+tdcp+robust` |
-| `position_uncertainty_x` | float | PPP-RTK, VRS | Rover approximate position X in ECEF (m). Used for initial CLAS grid search before first fix. |
-| `position_uncertainty_y` | float | PPP-RTK, VRS | Rover approximate position Y in ECEF (m). |
-| `position_uncertainty_z` | float | PPP-RTK, VRS | Rover approximate position Z in ECEF (m). |
 
 ## Positioning — SNR Mask
 

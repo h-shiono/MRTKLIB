@@ -137,12 +137,6 @@ _OPTION_META: dict[str, tuple[str, str]] = {
         "Enhanced SPP seed for CLAS PPP-RTK reconvergence. Selects the code / Doppler QC stack used to seed the "
         "float filter after outages (opt-in; the default base seed uses C/N0 + TDCP).",
     ),
-    "pos1-rux": (
-        "PPP-RTK, VRS",
-        "Rover approximate position X in ECEF (m). Used for initial CLAS grid search before first fix.",
-    ),
-    "pos1-ruy": ("PPP-RTK, VRS", "Rover approximate position Y in ECEF (m)."),
-    "pos1-ruz": ("PPP-RTK, VRS", "Rover approximate position Z in ECEF (m)."),
     # ── positioning.snr_mask ─────────────────────────────────────────────────
     "pos1-snrmask_r": ("All", "Enable elevation-dependent SNR mask for the rover receiver."),
     "pos1-snrmask_b": ("RTK", "Enable elevation-dependent SNR mask for the base station."),

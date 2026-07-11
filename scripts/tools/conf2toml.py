@@ -56,9 +56,6 @@ MAPPING: list[tuple[str, str, str, str]] = [
     ("pos1-gridsel", "positioning.clas", "grid_selection_radius", "int"),
     ("pos1-rectype", "positioning.clas", "receiver_type", "str"),
     ("pos1-seedenh", "positioning.clas", "enhanced_spp_seed", "enum"),
-    ("pos1-rux", "positioning.clas", "position_uncertainty_x", "float"),
-    ("pos1-ruy", "positioning.clas", "position_uncertainty_y", "float"),
-    ("pos1-ruz", "positioning.clas", "position_uncertainty_z", "float"),
     # ── positioning.snr_mask ─────────────────────────────────────────────────
     ("pos1-snrmask_r", "positioning.snr_mask", "rover_enabled", "bool"),
     ("pos1-snrmask_b", "positioning.snr_mask", "base_enabled", "bool"),
