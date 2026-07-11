@@ -338,7 +338,7 @@ TOML section: `[positioning.clas.resilience]`
 | `max_obs_loss` | float | PPP-RTK | Maximum observation gap duration before filter reset (s). |
 | `float_count` | integer | PPP-RTK, VRS | Number of float epochs before triggering filter reset. |
 | `l6_merge` | integer | PPP-RTK, VRS | L6 message merge mode for CLAS corrections. |
-| `reset_interval` | integer | VRS | Regular filter reset interval (s). 0 = disabled. |
+| `reset_interval` | integer | PPP-RTK, VRS | Regular filter reset interval (s). 0 = disabled. |
 
 ## Positioning — Relative
 

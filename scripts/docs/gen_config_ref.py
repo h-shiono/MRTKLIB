@@ -549,7 +549,7 @@ _OPTION_META: dict[str, tuple[str, str]] = {
     "misc-pppopt": ("PPP", "PPP processing option string (passed to PPP engine)."),
     "misc-rtcmopt": ("RT, PP", "RTCM decoder option string."),
     "misc-l6mrg": ("PPP-RTK, VRS", "L6 message merge mode for CLAS corrections."),
-    "misc-regularly": ("VRS", "Regular filter reset interval (s). 0 = disabled."),
+    "misc-regularly": ("PPP-RTK, VRS", "Regular filter reset interval (s). 0 = disabled."),
     "misc-startcmd": ("RT", "Shell command executed on server start."),
     "misc-stopcmd": ("RT", "Shell command executed on server stop."),
 }
