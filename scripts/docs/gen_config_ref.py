@@ -149,7 +149,7 @@ _OPTION_META: dict[str, tuple[str, str]] = {
         "Apply satellite antenna phase center offset correction using ANTEX file.",
     ),
     "pos1-posopt2": ("All", "Apply receiver antenna phase center offset/variation correction."),
-    "pos1-posopt3": ("PPP, PPP-RTK, VRS", "Phase wind-up correction."),
+    "pos1-posopt3": ("PPP", "Phase wind-up correction."),
     "pos1-posopt4": (
         "PPP, PPP-RTK",
         "Exclude satellites in eclipse (yaw maneuver period) to avoid degraded orbit/clock.",
@@ -163,7 +163,7 @@ _OPTION_META: dict[str, tuple[str, str]] = {
         "PPP-RTK, VRS",
         "Enable partial ambiguity resolution (fix a satellite subset).",
     ),
-    "pos1-posopt8": ("PPP, PPP-RTK, VRS", "Apply relativistic Shapiro time delay correction."),
+    "pos1-posopt8": ("PPP-RTK, VRS", "Apply relativistic Shapiro time delay correction."),
     "pos1-posopt9": (
         "PPP-RTK, VRS",
         "Exclude QZS satellites from reference satellite selection in DD processing.",

@@ -97,12 +97,12 @@ TOML section: `[positioning.corrections]`
 |:---------|:-----|:------|:------------|
 | `satellite_antenna` | boolean | All | Apply satellite antenna phase center offset correction using ANTEX file. |
 | `receiver_antenna` | boolean | All | Apply receiver antenna phase center offset/variation correction. |
-| `phase_windup` | enum | PPP, PPP-RTK, VRS | Phase wind-up correction. `off` · `on` · `precise` |
+| `phase_windup` | enum | PPP | Phase wind-up correction. `off` · `on` · `precise` |
 | `exclude_eclipse` | boolean | PPP, PPP-RTK | Exclude satellites in eclipse (yaw maneuver period) to avoid degraded orbit/clock. |
 | `raim_fde` | boolean | SPP | RAIM fault detection and exclusion for single-point positioning. |
 | `iono_compensation` | enum | PPP-RTK, VRS, SSR2OSR | Ionospheric compensation method for SSR-based processing. `off` · `ssr` · `meas` |
 | `partial_ar` | boolean | PPP-RTK, VRS | Enable partial ambiguity resolution (fix a satellite subset). |
-| `shapiro_delay` | boolean | PPP, PPP-RTK, VRS | Apply relativistic Shapiro time delay correction. |
+| `shapiro_delay` | boolean | PPP-RTK, VRS | Apply relativistic Shapiro time delay correction. |
 | `exclude_qzs_ref` | boolean | PPP-RTK, VRS | Exclude QZS satellites from reference satellite selection in DD processing. |
 | `no_phase_bias_adj` | boolean | PPP-RTK, VRS | Disable phase bias adjustment. Used when phase bias is already applied by SSR corrections. |
 | `gps_frequency` | enum | PPP-RTK, VRS | GPS frequency pair selection for CLAS processing. `l1` · `l1+l2` · `l1+l5` · `l1+l2+l5` · `l1+l5(l2)` |
