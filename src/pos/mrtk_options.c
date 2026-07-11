@@ -164,7 +164,7 @@ opt_t sysopts[] = {
     {"pos2-bds2bias", 3, (void*)&prcopt_.bds2bias, SWTOPT},
     {"pos2-pppsatcb", 0, (void*)&prcopt_.pppsatcb, SATCB},
     {"pos2-pppsatpb", 0, (void*)&prcopt_.pppsatpb, SATPB},
-    {"pos2-uncorrbias", 0, (void*)&prcopt_.unbias, ""},
+    {"pos2-uncorrbias", 3, (void*)&prcopt_.unbias, SWTOPT},
     {"pos2-maxbiasdt", 0, (void*)&prcopt_.maxbiasdt, "s"},
     {"pos2-sattmode", 0, (void*)&prcopt_.sattmode, ""},
     {"pos2-qzsarmode", 3, (void*)&prcopt_.qzsmodear, SWTOPT},
