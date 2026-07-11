@@ -123,9 +123,6 @@ opt_t sysopts[] = {
     {"pos1-posopt13", 3, (void*)&prcopt_.posopt[12], FRQOPT2}, /* qzs freq (l1+l2/l1+l5) */
     {"pos1-gridsel", 0, (void*)&prcopt_.gridsel, "m"},
     {"pos1-rectype", 2, (void*)prcopt_.rectype[0], ""},
-    {"pos1-rux", 1, (void*)&prcopt_.ru[0], ""},
-    {"pos1-ruy", 1, (void*)&prcopt_.ru[1], ""},
-    {"pos1-ruz", 1, (void*)&prcopt_.ru[2], ""},
     {"pos1-signals", 2, (void*)signals_, ""},
 
     {"pos2-armode", 3, (void*)&prcopt_.modear, ARMOPT},

@@ -18,9 +18,6 @@ systems = ["GPS", "Galileo", "QZSS"]
 [positioning.clas]
 grid_selection_radius = 1000    # [m]
 receiver_type = "Trimble NetR9" # User receiver type
-position_uncertainty_x = 10.0
-position_uncertainty_y = 10.0
-position_uncertainty_z = 10.0
 
 [positioning.snr_mask]
 rover_enabled = true                      # (0:off,1:on)
