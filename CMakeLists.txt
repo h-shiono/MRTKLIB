@@ -1614,6 +1614,49 @@ set_tests_properties(igs_pppar_ge_check PROPERTIES
     LABELS            "absolute;igs;ppp;pppar"
 )
 
+# ── receiver code bias coverage (#263) ───────────────────────────────────────
+# The COD MGEX bias-sinex product used above has no station-level (receiver)
+# OSB records, so nav->osb.rsatcb/rsyscb are never populated by the tests
+# above -- the receiver code bias branch in corr_meas() is otherwise dead in
+# CI. tests/data/igs/COD0MGXFIN_2026021_01D_OSB_recvbias.BIA is a small,
+# permanently-tracked (not tar.gz-extracted) copy of the same product with
+# added station-level entries for station "3034" (the RINEX MARKER NAME in
+# 30340210.26o, auto-selected as prcopt.staname): a satellite-specific record
+# for G03 and a system-wide GPS record covering the rest, exercising both the
+# vrsatcb and vrsyscb fallback paths. Receiver OSB is applied, accuracy
+# unaffected vs the plain igs_pppar_gps baseline.
+add_test(NAME igs_pppar_gps_recvbias
+    COMMAND $<TARGET_FILE:mrtk> post
+        -k ${CMAKE_SOURCE_DIR}/conf/igs/rnx2rtkp_igspppar_gps_recvbias.toml
+        -ts 2026/01/21 0:00:00 -te 2026/01/21 2:00:00
+        -o ${CMAKE_BINARY_DIR}/out_igs_pppar_gps_recvbias.pos
+        ${_IGSDATA}/30340210.26o
+        ${_IGSDATA}/BRDC00IGS_2026021_GE.rnx
+        ${_IGSDATA}/COD0MGXFIN_2026021_05M_ORB.SP3
+        ${_IGSDATA}/COD0MGXFIN_2026021_30S_CLK.CLK
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+set_tests_properties(igs_pppar_gps_recvbias PROPERTIES
+    FIXTURES_REQUIRED igs_data
+    TIMEOUT           180
+    LABELS            "regression;igs;ppp;pppar"
+)
+
+add_test(NAME igs_pppar_gps_recvbias_check
+    COMMAND ${Python3_EXECUTABLE} ${_COMPARE_POS_ABS}
+        --f5 ${_IGSDATA}/93034.26.pos
+        --date 2026/01/21
+        --tolerance 0.15
+        --skip-epochs 30
+        ${CMAKE_BINARY_DIR}/out_igs_pppar_gps_recvbias.pos
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+set_tests_properties(igs_pppar_gps_recvbias_check PROPERTIES
+    DEPENDS           igs_pppar_gps_recvbias
+    FIXTURES_REQUIRED igs_data
+    LABELS            "absolute;igs;ppp;pppar"
+)
+
 # -----------------------------------------------------------------------------
 # IGS-products iono-free frequency fallback regression (#135)
 # Source: ECJ02 u-blox raw log, 2026-05-01, first 1 h window.

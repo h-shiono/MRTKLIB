@@ -1,0 +1,83 @@
+# MRTKLIB Configuration (TOML v1.0.0)
+# IGS-products PPP-AR, GPS-only, with station-level (receiver) OSB coverage (#263).
+#
+# Same window/data as rnx2rtkp_igspppar_gps.toml, but bias_sinex points at a
+# fixture with added station-level OSB entries for station "3034" (the RINEX
+# MARKER NAME in 30340210.26o, auto-selected as prcopt.staname): a
+# satellite-specific entry for G03 and a system-wide GPS entry covering the
+# rest. This is the only regression coverage that actually exercises the
+# receiver code bias application in corr_meas() (nav->osb.rsatcb/rsyscb) --
+# the standard COD MGEX product used by the other igs_pppar_* tests carries no
+# station-level records, so that code path is otherwise dead in CI.
+
+[positioning]
+mode = "ppp-static"
+frequency = "l1+2"
+solution_type = "forward"
+elevation_mask = 15.0
+dynamics = false
+satellite_ephemeris = "precise"
+systems = ["GPS"]
+correction = "igs"
+
+[positioning.corrections]
+satellite_antenna = true
+receiver_antenna = true
+phase_windup = "on"
+tidal_correction = "on"
+
+[positioning.atmosphere]
+ionosphere = "est-stec"     # uncombined (IONOOPT_EST) -- required for PPP-AR
+troposphere = "est-ztdgrad"
+
+[ambiguity_resolution]
+mode = "continuous"
+systems = 1         # GPS only
+
+[ambiguity_resolution.thresholds]
+ratio = 2.0
+ratio1 = 1.5
+elevation_mask = 15.0
+
+[ambiguity_resolution.counters]
+min_fix = 10
+max_iterations = 10
+
+[rejection]
+innovation = 30.0
+
+[slip_detection]
+threshold = 0.05
+
+[kalman_filter]
+iterations = 1
+
+[kalman_filter.measurement_error]
+phase = 0.003
+phase_elevation = 0.003
+
+[kalman_filter.initial_std]
+bias = 30.0
+ionosphere = 0.3
+troposphere = 0.3
+
+[kalman_filter.process_noise]
+bias = 0.0001
+ionosphere = 0.01
+troposphere = 0.0001
+
+[output]
+format = "llh"
+height_type = "ellipsoidal"
+static_solution = "all"
+
+[files]
+satellite_atx = "./tests/data/igs/igs20_trim.atx"
+receiver_atx = "./tests/data/igs/igs20_trim.atx"
+bias_sinex = "./tests/data/igs/COD0MGXFIN_2026021_01D_OSB_recvbias.BIA"
+
+[positioning.ppp]
+max_bias_dt = 86400
+
+[positioning.relative]
+max_age = 30.0

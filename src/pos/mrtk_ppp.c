@@ -630,6 +630,17 @@ static int corr_meas(const obsd_t* obs, const nav_t* nav, const double* azel, co
                     if (nav->osb.vspb[obs->sat - 1][c]) {
                         L[i] += nav->osb.spb[obs->sat - 1][c];
                     }
+                    /* Apply a receiver-specific OSB when available, otherwise
+                     * its system-wide OSB (#263). */
+                    {
+                        int sysno = getsysno(obs->sat);
+
+                        if (nav->osb.vrsatcb[obs->sat - 1][c]) {
+                            P[i] += nav->osb.rsatcb[obs->sat - 1][c];
+                        } else if (sysno >= 0 && nav->osb.vrsyscb[sysno][c]) {
+                            P[i] += nav->osb.rsyscb[sysno][c];
+                        }
+                    }
                 }
             } else if (sys == SYS_GPS || sys == SYS_GLO) {
                 if (obs->code[i] == CODE_L1C) {
