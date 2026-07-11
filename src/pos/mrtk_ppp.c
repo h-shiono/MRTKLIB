@@ -624,6 +624,9 @@ static int corr_meas(const obsd_t* obs, const nav_t* nav, const double* azel, co
                  * (same consumer convention as the OSR engine). */
                 int c = obs->code[i] - 1;
                 if (c >= 0) {
+                    if (nav->osb.vspb[obs->sat - 1][c]) {
+                        L[i] += nav->osb.spb[obs->sat - 1][c];
+                    }
                     if (nav->osb.vscb[obs->sat - 1][c]) {
                         P[i] += nav->osb.scb[obs->sat - 1][c];
                     } else if (opt->unbias) {
@@ -632,9 +635,6 @@ static int corr_meas(const obsd_t* obs, const nav_t* nav, const double* azel, co
                               "corr_meas: %s satellite code bias does not exist. %s obscode=C%s\n", tstr, satid,
                               code2obs(obs->code[i]));
                         continue;
-                    }
-                    if (nav->osb.vspb[obs->sat - 1][c]) {
-                        L[i] += nav->osb.spb[obs->sat - 1][c];
                     }
                     /* Apply a receiver-specific OSB when available, otherwise
                      * its system-wide OSB. With unbias enabled, a usable code

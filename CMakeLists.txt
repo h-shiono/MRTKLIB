@@ -1657,10 +1657,11 @@ set_tests_properties(igs_pppar_gps_recvbias_check PROPERTIES
     LABELS            "absolute;igs;ppp;pppar"
 )
 
-# drop_uncorrected_code = true against the same fixture, which gives every
-# satellite/code used in this window a receiver-level OSB -- the gate must
-# never trigger a drop here, so accuracy stays unaffected. Exercises the
-# corr_meas() unbias branches end to end (#263).
+# drop_uncorrected_code = true against the receiver-OSB fixture. The fixture
+# supplies the L1/L2 receiver OSBs used by this regression; third-band C5X
+# measurements without a satellite OSB are safely discarded without changing
+# the selected L1/L2 solution. This confirms that enabling the gate preserves
+# a fully usable L1/L2 PPP-AR solution (#263).
 add_test(NAME igs_pppar_gps_recvbias_unbias
     COMMAND $<TARGET_FILE:mrtk> post
         -k ${CMAKE_SOURCE_DIR}/conf/igs/rnx2rtkp_igspppar_gps_unbias.toml
@@ -1691,6 +1692,41 @@ set_tests_properties(igs_pppar_gps_recvbias_unbias_check PROPERTIES
     DEPENDS           igs_pppar_gps_recvbias_unbias
     FIXTURES_REQUIRED igs_data
     LABELS            "absolute;igs;ppp;pppar"
+)
+
+# The standard COD product has no receiver OSBs. Layering the small unbias
+# overlay onto the ordinary GPS-only PPP-AR config must reject every usable
+# pseudorange. The checker asserts both satellite- and receiver-bias miss
+# paths in the trace, so the gate cannot silently become a no-op.
+add_test(NAME igs_pppar_gps_unbias_missing
+    COMMAND $<TARGET_FILE:mrtk> post
+        -x 4
+        -k ${CMAKE_SOURCE_DIR}/conf/igs/rnx2rtkp_igspppar_gps.toml
+        -k ${CMAKE_SOURCE_DIR}/conf/igs/rnx2rtkp_igspppar_unbias.toml
+        -ts 2026/01/21 0:00:00 -te 2026/01/21 2:00:00
+        -o ${CMAKE_BINARY_DIR}/out_igs_pppar_gps_unbias_missing.pos
+        ${_IGSDATA}/30340210.26o
+        ${_IGSDATA}/BRDC00IGS_2026021_GE.rnx
+        ${_IGSDATA}/COD0MGXFIN_2026021_05M_ORB.SP3
+        ${_IGSDATA}/COD0MGXFIN_2026021_30S_CLK.CLK
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+set_tests_properties(igs_pppar_gps_unbias_missing PROPERTIES
+    FIXTURES_REQUIRED igs_data
+    TIMEOUT           180
+    LABELS            "regression;igs;ppp;pppar"
+)
+
+add_test(NAME igs_pppar_gps_unbias_missing_check
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/scripts/tests/check_unbias_drop.py
+        ${CMAKE_BINARY_DIR}/out_igs_pppar_gps_unbias_missing.pos
+        ${CMAKE_BINARY_DIR}/out_igs_pppar_gps_unbias_missing.pos.trace
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+set_tests_properties(igs_pppar_gps_unbias_missing_check PROPERTIES
+    DEPENDS           igs_pppar_gps_unbias_missing
+    FIXTURES_REQUIRED igs_data
+    LABELS            "regression;igs;ppp;pppar"
 )
 
 # -----------------------------------------------------------------------------

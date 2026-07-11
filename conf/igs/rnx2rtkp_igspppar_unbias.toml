@@ -1,0 +1,10 @@
+# Overlay for the IGS PPP-AR unbias regression (#263).
+#
+# This file is layered after rnx2rtkp_igspppar_gps.toml. That configuration
+# uses the standard COD Bias-SINEX product, which deliberately has no
+# station-level receiver OSBs. Enabling this flag must therefore reject every
+# pseudorange and yield no solution; the paired test also checks the trace for
+# both satellite- and receiver-bias rejection paths.
+
+[positioning.ppp]
+drop_uncorrected_code = true
