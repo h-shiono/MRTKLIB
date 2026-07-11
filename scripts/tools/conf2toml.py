@@ -142,6 +142,8 @@ MAPPING: list[tuple[str, str, str, str]] = [
     ("stats-errdoppler", "kalman_filter.measurement_error", "doppler", "float"),
     ("stats-snrmax", "kalman_filter.measurement_error", "snr_max", "float"),
     ("stats-errsnr", "kalman_filter.measurement_error", "snr_error", "float"),
+    ("stats-erriono", "kalman_filter.measurement_error", "ionosphere", "float"),
+    ("stats-errtrop", "kalman_filter.measurement_error", "troposphere", "float"),
     ("stats-uraratio", "kalman_filter.measurement_error", "ura_ratio", "float"),
     # ── kalman_filter.initial_std ────────────────────────────────────────────
     ("stats-stdbias", "kalman_filter.initial_std", "bias", "float"),

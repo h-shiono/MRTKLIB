@@ -232,8 +232,10 @@ TOML section: `[kalman_filter.measurement_error]`
 | `phase_elevation` | float | All | Elevation-dependent carrier phase error coefficient (m). |
 | `phase_baseline` | float | RTK | Baseline-length-dependent phase error (m/10km). Proportional to rover–base distance. |
 | `doppler` | float | All | Doppler measurement error (Hz). |
-| `snr_max` | float | All | C/N0 at which the SNR-based measurement weighting model saturates (dBHz). Used when C/N0 weighting is enabled. |
-| `snr_error` | float | All | Carrier phase measurement error at the SNR-weighting reference level (m). |
+| `snr_max` | float | SPP, RTK | C/N0 at which the SNR-based measurement weighting model saturates (dBHz). Used when C/N0 weighting is enabled. |
+| `snr_error` | float | SPP, RTK | Carrier phase measurement error at the SNR-weighting reference level (m). |
+| `ionosphere` | float | PPP-RTK | Additional ionosphere estimation-error term in the CLAS measurement variance model (m). Active when ionosphere estimation is enabled. |
+| `troposphere` | float | PPP-RTK | Additional troposphere estimation-error term in the CLAS measurement variance model (m). Active when troposphere estimation is enabled. |
 | `ura_ratio` | float | PPP | User Range Accuracy scaling ratio. Adjusts satellite-specific weighting based on broadcast URA. |
 
 ## Kalman Filter — Initial Std. Deviation

@@ -146,6 +146,8 @@ static const toml_map_t toml_mapping[] = {
     {"kalman_filter.measurement_error", "doppler", "stats-errdoppler"},
     {"kalman_filter.measurement_error", "snr_max", "stats-snrmax"},
     {"kalman_filter.measurement_error", "snr_error", "stats-errsnr"},
+    {"kalman_filter.measurement_error", "ionosphere", "stats-erriono"},
+    {"kalman_filter.measurement_error", "troposphere", "stats-errtrop"},
     {"kalman_filter.measurement_error", "ura_ratio", "stats-uraratio"},
 
     /* ── kalman_filter.initial_std ─────────────────────────────────────────── */

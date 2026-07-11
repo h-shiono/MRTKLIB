@@ -552,9 +552,9 @@ PPP-RTK computes a single-point fix every epoch that seeds — and, on a filter
 reset (obs-loss gap, persistent-FLOAT, large PPP-RTK↔SPP divergence), re-seeds —
 the CLAS filter position, which then feeds the ambiguity search. The same
 v0.6.10 SPP error model can be applied to that seed **without touching the CLAS
-measurement model** (the seed runs on a private option copy; the C/N0 slots
-`err[5]/err[6]` mean snr_max/snr_error in SPP but iono/trop terms in the CLAS
-engine, so they are set on the copy only). Controlled by
+measurement model** (the seed runs on a private option copy; C/N0 weighting uses
+`err[5]/err[6]`, while the CLAS ionosphere/troposphere terms are dedicated
+options). Controlled by
 `[positioning.clas] enhanced_spp_seed`, **default `cn0+tdcp`**:
 
 | Value | Seed gets |
