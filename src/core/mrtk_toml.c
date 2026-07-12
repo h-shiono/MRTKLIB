@@ -758,7 +758,7 @@ extern int loadopts_toml(const char* file, opt_t* opts) {
      * reload but a back-to-back second pass is not. When the file cannot be
      * fingerprinted, fail open: sweeping twice beats losing the warnings. */
     {
-        static char swept_path[1080];
+        static char swept_path[MAXSTRPATH];
         static time_t swept_mtime;
         static off_t swept_size;
         struct stat st;
