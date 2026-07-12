@@ -318,6 +318,53 @@ static const toml_map_t toml_mapping[] = {
     {NULL, NULL, NULL} /* terminator */
 };
 
+/* ── Deprecated section.key aliases ────────────────────────────────────────── */
+
+/* Old TOML paths retired by the section-taxonomy refactor (#266) and later
+ * renames. Each is still accepted for backward compatibility: loadopts_toml()
+ * applies the value and emits a one-line deprecation warning pointing at the
+ * new path. The new location wins when both are present. saveopts_toml() does
+ * not consult this table, so a re-saved file always uses the new layout.
+ * Add an entry here whenever a section.key is renamed (see #286). */
+typedef struct {
+    const char* old_section;
+    const char* old_key;
+    const char* new_section;
+    const char* new_key;
+    const char* legacy_name;
+} toml_alias_t;
+
+static const toml_alias_t toml_alias[] = {
+    /* [receiver] dismantled (#266) */
+    {"receiver", "phase_shift", "positioning.clas.ambiguities", "phase_shift", "pos2-phasshft"},
+    {"receiver", "isb", "positioning.clas.ambiguities", "isb", "pos2-isb"},
+    {"receiver", "reference_type", "positioning.clas.ambiguities", "reference_type", "pos2-rectype"},
+    {"receiver", "iono_correction", "positioning.madoca", "iono_correction", "pos2-ionocorr"},
+    {"receiver", "ignore_chi_error", "positioning.spp", "ignore_chi_error", "pos2-ign_chierr"},
+    {"receiver", "ppp_sat_clock_bias", "positioning.ppp", "satellite_clock_bias", "pos2-pppsatcb"},
+    {"receiver", "ppp_sat_phase_bias", "positioning.ppp", "satellite_phase_bias", "pos2-pppsatpb"},
+    {"receiver", "max_bias_dt", "positioning.ppp", "max_bias_dt", "pos2-maxbiasdt"},
+    {"receiver", "max_age", "positioning.relative", "max_age", "pos2-maxage"},
+    {"receiver", "baseline_length", "positioning.relative", "baseline_length", "pos2-baselen"},
+    {"receiver", "baseline_sigma", "positioning.relative", "baseline_sigma", "pos2-basesig"},
+    /* keys moved out of [server] (#266) */
+    {"server", "max_obs_loss", "positioning.clas.resilience", "max_obs_loss", "misc-maxobsloss"},
+    {"server", "float_count", "positioning.clas.resilience", "float_count", "misc-floatcnt"},
+    {"server", "l6_margin", "positioning.clas.resilience", "l6_merge", "misc-l6mrg"},
+    {"server", "regularly", "positioning.clas.resilience", "reset_interval", "misc-regularly"},
+    {"server", "ppp_option", "positioning.ppp", "options", "misc-pppopt"},
+    {"server", "time_interpolation", "positioning.relative", "time_interpolation", "misc-timeinterp"},
+    {"server", "rinex_option_1", "input.rinex", "option_1", "misc-rnxopt1"},
+    {"server", "rinex_option_2", "input.rinex", "option_2", "misc-rnxopt2"},
+    {"server", "rtcm_option", "input.rtcm", "options", "misc-rtcmopt"},
+    {"server", "sbas_satellite", "input.sbas", "satellite", "misc-sbasatsel"},
+    {NULL, NULL, NULL, NULL, NULL} /* terminator */
+};
+
+/* Sections owned by a specific app (not the positioning option table); their
+ * keys must not be flagged as unknown. */
+static const char* const toml_app_sections[] = {"cssr2rtcm3", "signal_remap", NULL};
+
 /* ── Helper: navigate nested TOML tables ───────────────────────────────────── */
 
 /**
@@ -350,6 +397,73 @@ static toml_table_t* navigate_table(toml_table_t* root, const char* path) {
         tbl = toml_table_in(tbl, tok);
     }
     return tbl;
+}
+
+/* ── Helper: unknown-key detection ─────────────────────────────────────────── */
+
+/**
+ * @brief Report whether a section.key pair is recognized by the loader.
+ * @param[in] section  Dotted TOML section path.
+ * @param[in] key      Leaf key name.
+ * @return 1 if the key is in the mapping, an alias, or an app-owned section.
+ */
+static int is_known_key(const char* section, const char* key) {
+    const toml_map_t* m;
+    const toml_alias_t* a;
+    const char* const* s;
+
+    for (s = toml_app_sections; *s; s++) {
+        if (!strcmp(section, *s)) {
+            return 1;
+        }
+    }
+    /* positioning.systems is a string-list key handled outside toml_mapping */
+    if (!strcmp(section, "positioning") && !strcmp(key, "systems")) {
+        return 1;
+    }
+    for (m = toml_mapping; m->toml_section; m++) {
+        if (!strcmp(m->toml_section, section) && !strcmp(m->toml_key, key)) {
+            return 1;
+        }
+    }
+    for (a = toml_alias; a->old_section; a++) {
+        if (!strcmp(a->old_section, section) && !strcmp(a->old_key, key)) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+/**
+ * @brief Recursively walk a parsed TOML table and warn on unrecognized keys.
+ *        Sub-tables extend the dotted section path; scalar/array leaves are
+ *        checked against is_known_key(). Catches values silently dropped
+ *        because their section.key is not in the mapping (typo or stale name).
+ * @param[in] tab   TOML table to walk.
+ * @param[in] path  Dotted section path accumulated so far ("" at the root).
+ */
+static void check_unknown_keys(toml_table_t* tab, const char* path) {
+    int i, n = toml_table_nkval(tab) + toml_table_narr(tab) + toml_table_ntab(tab);
+    char subpath[256];
+
+    for (i = 0; i < n; i++) {
+        const char* key = toml_key_in(tab, i);
+        toml_table_t* sub;
+        if (!key) {
+            continue;
+        }
+        sub = toml_table_in(tab, key);
+        if (sub) {
+            if (*path) {
+                snprintf(subpath, sizeof(subpath), "%s.%s", path, key);
+            } else {
+                snprintf(subpath, sizeof(subpath), "%s", key);
+            }
+            check_unknown_keys(sub, subpath);
+        } else if (!is_known_key(path, key)) {
+            fprintf(stderr, "TOML: unknown key [%s].%s (ignored)\n", *path ? path : "(root)", key);
+        }
+    }
 }
 
 /* ── Helper: read a TOML value as string for str2opt() ─────────────────────── */
@@ -486,6 +600,7 @@ extern int loadopts_toml(const char* file, opt_t* opts) {
     toml_table_t* root;
     char errbuf[256];
     const toml_map_t* m;
+    const toml_alias_t* a;
     toml_table_t* tbl;
     opt_t* opt;
     char valbuf[2048];
@@ -530,6 +645,37 @@ extern int loadopts_toml(const char* file, opt_t* opts) {
         if (!str2opt(opt, valbuf)) {
             fprintf(stderr, "TOML: invalid value for %s.%s = %s (legacy: %s)\n", m->toml_section, m->toml_key, valbuf,
                     m->legacy_name);
+            continue;
+        }
+        count++;
+    }
+
+    /* Accept retired section.key paths for backward compatibility, warning the
+     * user to migrate. The new location (already read above) takes precedence.
+     * Mirrors the main mapping loop's error handling: stay silent when this
+     * opts table does not own the legacy option (e.g. the same file loaded
+     * into rcvopts), and report an invalid value on a str2opt() failure. */
+    for (a = toml_alias; a->old_section; a++) {
+        toml_table_t* ntbl;
+        tbl = navigate_table(root, a->old_section);
+        if (!tbl || !toml_val_to_str(tbl, a->old_key, valbuf, sizeof(valbuf))) {
+            continue; /* old key not present */
+        }
+        opt = searchopt(a->legacy_name, opts);
+        if (!opt) {
+            continue; /* legacy option not in this opts table */
+        }
+        ntbl = navigate_table(root, a->new_section);
+        if (ntbl && toml_key_exists(ntbl, a->new_key)) {
+            fprintf(stderr, "TOML: [%s].%s is deprecated and ignored; [%s].%s takes precedence\n", a->old_section,
+                    a->old_key, a->new_section, a->new_key);
+            continue;
+        }
+        fprintf(stderr, "TOML: [%s].%s is deprecated; move it to [%s].%s\n", a->old_section, a->old_key, a->new_section,
+                a->new_key);
+        if (!str2opt(opt, valbuf)) {
+            fprintf(stderr, "TOML: invalid value for %s.%s = %s (legacy: %s)\n", a->old_section, a->old_key, valbuf,
+                    a->legacy_name);
             continue;
         }
         count++;
@@ -595,6 +741,10 @@ extern int loadopts_toml(const char* file, opt_t* opts) {
             }
         }
     }
+
+    /* Warn on any key the loader does not recognize (typo, or a stale name with
+     * no alias) so it does not silently fall back to a default. */
+    check_unknown_keys(root, "");
 
     toml_free(root);
 
