@@ -13,6 +13,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 
 #include "mrtklib/mrtk_const.h"
 #include "mrtklib/mrtk_trace.h"
@@ -344,6 +345,7 @@ static const toml_alias_t toml_alias[] = {
     {"receiver", "ppp_sat_clock_bias", "positioning.ppp", "satellite_clock_bias", "pos2-pppsatcb"},
     {"receiver", "ppp_sat_phase_bias", "positioning.ppp", "satellite_phase_bias", "pos2-pppsatpb"},
     {"receiver", "max_bias_dt", "positioning.ppp", "max_bias_dt", "pos2-maxbiasdt"},
+    {"receiver", "uncorr_bias", "positioning.ppp", "drop_uncorrected_code", "pos2-uncorrbias"},
     {"receiver", "max_age", "positioning.relative", "max_age", "pos2-maxage"},
     {"receiver", "baseline_length", "positioning.relative", "baseline_length", "pos2-baselen"},
     {"receiver", "baseline_sigma", "positioning.relative", "baseline_sigma", "pos2-basesig"},
@@ -749,8 +751,26 @@ extern int loadopts_toml(const char* file, opt_t* opts) {
     }
 
     /* Warn on any key the loader does not recognize (typo, or a stale name with
-     * no alias) so it does not silently fall back to a default. */
-    check_unknown_keys(root, "");
+     * no alias) so it does not silently fall back to a default. rtkrcv loads
+     * the same file twice per logical load (once for rcvopts, once for
+     * sysopts), which would print every warning twice; sweep once per file
+     * fingerprint (path + mtime + size), so an edited file is re-checked on
+     * reload but a back-to-back second pass is not. When the file cannot be
+     * fingerprinted, fail open: sweeping twice beats losing the warnings. */
+    {
+        static char swept_path[MAXSTRPATH];
+        static time_t swept_mtime;
+        static off_t swept_size;
+        struct stat st;
+        if (stat(file, &st) != 0) {
+            check_unknown_keys(root, "");
+        } else if (strcmp(file, swept_path) != 0 || st.st_mtime != swept_mtime || st.st_size != swept_size) {
+            check_unknown_keys(root, "");
+            snprintf(swept_path, sizeof(swept_path), "%s", file);
+            swept_mtime = st.st_mtime;
+            swept_size = st.st_size;
+        }
+    }
 
     toml_free(root);
 
