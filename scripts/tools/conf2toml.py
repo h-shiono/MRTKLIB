@@ -160,7 +160,7 @@ MAPPING: list[tuple[str, str, str, str]] = [
     ("stats-prndcb", "kalman_filter.process_noise", "ifb", "float"),  # alias
     ("stats-tconstiono", "kalman_filter.process_noise", "iono_time_const", "float"),
     ("stats-clkstab", "kalman_filter.process_noise", "clock_stability", "float"),
-    # ── adaptive_filter ──────────────────────────────────────────────────────
+    # ── positioning.clas.adaptive_filter ─────────────────────────────────────
     ("pos2-prnadpt", "positioning.clas.adaptive_filter", "enabled", "bool"),
     ("pos2-forgetion", "positioning.clas.adaptive_filter", "iono_forgetting", "float"),
     ("pos2-afgainion", "positioning.clas.adaptive_filter", "iono_gain", "float"),
