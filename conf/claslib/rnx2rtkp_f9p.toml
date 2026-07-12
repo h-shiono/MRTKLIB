@@ -103,7 +103,7 @@ troposphere = 0.001        # process-noise std trop(m)
 iono_time_const = 10.0     # time constant of ionosphere variation (s)
 clock_stability = 5.00e-12 # (s/s)
 
-[adaptive_filter]
+[positioning.clas.adaptive_filter]
 iono_forgetting = 0.3 # forgetting factor of iono (0.0~1.0)
 iono_gain = 3.0       # adaptive filter gain in iono estimation
 enabled = false       # adjust adaptively pos/vel/acc process noise (0:off,1:on)

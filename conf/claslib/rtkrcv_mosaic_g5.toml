@@ -119,7 +119,7 @@ gps = 0     # L1/L2
 qzs = 1     # L1/L2
 galileo = 0 # E1/E5a
 
-[adaptive_filter]
+[positioning.clas.adaptive_filter]
 iono_forgetting = 0.3
 iono_gain = 3.0
 enabled = false

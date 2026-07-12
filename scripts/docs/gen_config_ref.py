@@ -416,11 +416,15 @@ _OPTION_META: dict[str, tuple[str, str]] = {
     ),
     "pos2-afgainpva": ("PPP-RTK, VRS", "Adaptive gain for PVA process noise adjustment."),
     # ── signals ──────────────────────────────────────────────────────────────
-    "pos2-siggps": ("PPP, PPP-RTK", "GPS frequency pair selection for PPP/PPP-RTK processing."),
-    "pos2-sigqzs": ("PPP, PPP-RTK", "QZS frequency pair selection."),
-    "pos2-siggal": ("PPP, PPP-RTK", "Galileo frequency pair selection."),
-    "pos2-sigbds2": ("PPP, PPP-RTK", "BDS-2 frequency pair selection."),
-    "pos2-sigbds3": ("PPP, PPP-RTK", "BDS-3 frequency pair selection."),
+    "pos2-siggps": (
+        "PPP, PPP-RTK, VRS",
+        "GPS frequency pair selection for the SSR-corrected measurement model. Applied via `apply_pppsig()` for "
+        "every correction source except `igs`, so it also reshapes the observation set used by CLAS PPP-RTK / VRS.",
+    ),
+    "pos2-sigqzs": ("PPP, PPP-RTK, VRS", "QZS frequency pair selection."),
+    "pos2-siggal": ("PPP, PPP-RTK, VRS", "Galileo frequency pair selection."),
+    "pos2-sigbds2": ("PPP, PPP-RTK, VRS", "BDS-2 frequency pair selection."),
+    "pos2-sigbds3": ("PPP, PPP-RTK, VRS", "BDS-3 frequency pair selection."),
     # ── receiver ─────────────────────────────────────────────────────────────
     "pos2-ionocorr": ("PPP", "Enable ionospheric correction in MADOCA-PPP processing."),
     "pos2-ign_chierr": ("SPP", "Ignore chi-square test errors in SPP solution validation."),
@@ -629,8 +633,8 @@ def main() -> int:
         "kalman_filter.measurement_error": "Kalman Filter — Measurement Error",
         "kalman_filter.initial_std": "Kalman Filter — Initial Std. Deviation",
         "kalman_filter.process_noise": "Kalman Filter — Process Noise",
-        "adaptive_filter": "Adaptive Filter",
-        "signals": "Signal Selection",
+        "positioning.clas.adaptive_filter": "Positioning — CLAS Adaptive Filter",
+        "signals": "Positioning — Signal Selection",
         "input.rinex": "Input — RINEX",
         "input.rtcm": "Input — RTCM",
         "input.sbas": "Input — SBAS",
@@ -640,6 +644,50 @@ def main() -> int:
         "files": "Files",
         "server": "Server Runtime (rtkrcv)",
     }
+
+    # Explicit section emission order (readability grouping). The `positioning`
+    # cluster is ordered engine-agnostic first (SNR/atmosphere/corrections),
+    # then per-engine (SPP → Relative → PPP → Signal Selection → MADOCA), then
+    # the CLAS family (CLAS → Ambiguities → Resilience → Adaptive Filter). Any
+    # section present in MAPPING but missing here is appended at the end so a
+    # new section can never silently vanish from the reference.
+    section_order = [
+        "positioning",
+        "positioning.snr_mask",
+        "positioning.atmosphere",
+        "positioning.corrections",
+        "positioning.spp",
+        "positioning.relative",
+        "positioning.ppp",
+        "signals",
+        "positioning.madoca",
+        "positioning.clas",
+        "positioning.clas.ambiguities",
+        "positioning.clas.resilience",
+        "positioning.clas.adaptive_filter",
+        "ambiguity_resolution",
+        "ambiguity_resolution.thresholds",
+        "ambiguity_resolution.counters",
+        "ambiguity_resolution.partial_ar",
+        "ambiguity_resolution.hold",
+        "rejection",
+        "slip_detection",
+        "kalman_filter",
+        "kalman_filter.measurement_error",
+        "kalman_filter.initial_std",
+        "kalman_filter.process_noise",
+        "input.rinex",
+        "input.rtcm",
+        "input.sbas",
+        "antenna.rover",
+        "antenna.base",
+        "output",
+        "files",
+        "server",
+    ]
+    ordered_sections = [s for s in section_order if s in sections]
+    ordered_sections += [s for s in sections if s not in section_order]
+    sections = OrderedDict((s, sections[s]) for s in ordered_sections)
 
     lines: list[str] = []
     lines.append("# Configuration Options Reference")
@@ -666,7 +714,10 @@ def main() -> int:
     lines.append("| **PPP** | `ppp-kine` · `ppp-static` · `ppp-fixed` |")
     lines.append("| **PPP-RTK** | `ppp-rtk` (CLAS PPP-RTK) |")
     lines.append("| **SSR2OSR** | `ssr2osr` · `ssr2osr-fixed` |")
-    lines.append("| **VRS** | `vrs-rtk` |")
+    lines.append(
+        "| **VRS** | `vrs-rtk` — a CLAS-only mode: it builds CLAS-derived OSR and "
+        "double-differences it like RTK (`correction = qzs-clas`, not a generic RTK base station). |"
+    )
     lines.append("| **RT** | Real-time only (`mrtk run` / `rtkrcv`) |")
     lines.append("| **PP** | Post-processing only (`mrtk post` / `rnx2rtkp`) |")
     lines.append("")
