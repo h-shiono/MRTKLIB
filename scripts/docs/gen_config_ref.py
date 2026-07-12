@@ -403,7 +403,7 @@ _OPTION_META: dict[str, tuple[str, str]] = {
         "RTK, VRS",
         "Receiver clock stability (s/s). Used in clock state prediction.",
     ),
-    # ── adaptive_filter ──────────────────────────────────────────────────────
+    # ── positioning.clas.adaptive_filter ─────────────────────────────────────
     "pos2-prnadpt": ("PPP-RTK, VRS", "Enable adaptive Kalman filter process noise scaling."),
     "pos2-forgetion": (
         "PPP-RTK, VRS",
