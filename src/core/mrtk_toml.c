@@ -13,6 +13,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 
 #include "mrtklib/mrtk_const.h"
 #include "mrtklib/mrtk_trace.h"
@@ -749,8 +750,24 @@ extern int loadopts_toml(const char* file, opt_t* opts) {
     }
 
     /* Warn on any key the loader does not recognize (typo, or a stale name with
-     * no alias) so it does not silently fall back to a default. */
-    check_unknown_keys(root, "");
+     * no alias) so it does not silently fall back to a default. rtkrcv loads
+     * the same file twice per logical load (once for rcvopts, once for
+     * sysopts), which would print every warning twice; sweep once per file
+     * content (path + mtime), so an edited file is re-checked on reload but a
+     * back-to-back second pass is not. */
+    {
+        static char swept_path[1080];
+        static time_t swept_mtime;
+        struct stat st;
+        if (stat(file, &st) != 0) {
+            st.st_mtime = 0;
+        }
+        if (strcmp(file, swept_path) != 0 || st.st_mtime != swept_mtime) {
+            check_unknown_keys(root, "");
+            snprintf(swept_path, sizeof(swept_path), "%s", file);
+            swept_mtime = st.st_mtime;
+        }
+    }
 
     toml_free(root);
 

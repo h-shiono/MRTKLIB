@@ -24,20 +24,25 @@ static void expect(int cond, const char* what) {
     }
 }
 
-static int capture_contains(const char* needle) {
+static int capture_count(const char* needle) {
     char buf[8192];
     size_t n;
     FILE* fp = fopen(CAPTURE, "r");
-    int found = 0;
+    const char* p;
+    int count = 0;
     if (!fp) {
         return 0;
     }
     n = fread(buf, 1, sizeof(buf) - 1, fp);
     buf[n] = '\0';
     fclose(fp);
-    found = strstr(buf, needle) != NULL;
-    return found;
+    for (p = buf; (p = strstr(p, needle)) != NULL; p += strlen(needle)) {
+        count++;
+    }
+    return count;
 }
+
+static int capture_contains(const char* needle) { return capture_count(needle) > 0; }
 
 int main(void) {
     prcopt_t prcopt;
@@ -97,6 +102,14 @@ int main(void) {
     expect(capture_contains("unknown key [positioning].elevaton_mask"), "unknown-key warning for typo");
     expect(capture_contains("invalid value for receiver.iono_correction"),
            "invalid-value warning for a deprecated key with a bad value");
+
+    /* rtkrcv loads the same file twice per logical load (rcvopts, then
+     * sysopts); the unknown-key sweep must not run again for an unchanged
+     * file, so the typo warning stays single. */
+    loadopts_toml(FIXTURE, sysopts);
+    fflush(stderr);
+    expect(capture_count("unknown key [positioning].elevaton_mask") == 1,
+           "unknown-key sweep runs once for an unchanged file loaded twice");
 
     remove(FIXTURE);
     remove(CAPTURE);
