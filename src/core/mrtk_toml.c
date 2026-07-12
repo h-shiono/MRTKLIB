@@ -345,6 +345,7 @@ static const toml_alias_t toml_alias[] = {
     {"receiver", "ppp_sat_clock_bias", "positioning.ppp", "satellite_clock_bias", "pos2-pppsatcb"},
     {"receiver", "ppp_sat_phase_bias", "positioning.ppp", "satellite_phase_bias", "pos2-pppsatpb"},
     {"receiver", "max_bias_dt", "positioning.ppp", "max_bias_dt", "pos2-maxbiasdt"},
+    {"receiver", "uncorr_bias", "positioning.ppp", "drop_uncorrected_code", "pos2-uncorrbias"},
     {"receiver", "max_age", "positioning.relative", "max_age", "pos2-maxage"},
     {"receiver", "baseline_length", "positioning.relative", "baseline_length", "pos2-baselen"},
     {"receiver", "baseline_sigma", "positioning.relative", "baseline_sigma", "pos2-basesig"},
