@@ -54,8 +54,9 @@ int main(void) {
     }
     fprintf(fp,
             "[receiver]\n"
-            "phase_shift = \"table\"\n" /* alias -> pos2-phasshft -> phasshft=1 */
-            "max_age = 99.0\n"          /* deprecated, but shadowed below */
+            "phase_shift = \"table\"\n"     /* alias -> pos2-phasshft -> phasshft=1 */
+            "max_age = 99.0\n"              /* deprecated, but shadowed below */
+            "iono_correction = \"maybe\"\n" /* deprecated + invalid enum value */
             "[server]\n"
             "regularly = 600\n" /* alias -> regularly=600 */
             "[positioning.relative]\n"
@@ -89,6 +90,8 @@ int main(void) {
     expect(capture_contains("[receiver].max_age is deprecated and ignored"),
            "shadowed-alias warning for [receiver].max_age");
     expect(capture_contains("unknown key [positioning].elevaton_mask"), "unknown-key warning for typo");
+    expect(capture_contains("invalid value for receiver.iono_correction"),
+           "invalid-value warning for a deprecated key with a bad value");
 
     remove(FIXTURE);
     remove(CAPTURE);

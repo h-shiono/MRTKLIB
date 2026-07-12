@@ -651,12 +651,19 @@ extern int loadopts_toml(const char* file, opt_t* opts) {
     }
 
     /* Accept retired section.key paths for backward compatibility, warning the
-     * user to migrate. The new location (already read above) takes precedence. */
+     * user to migrate. The new location (already read above) takes precedence.
+     * Mirrors the main mapping loop's error handling: stay silent when this
+     * opts table does not own the legacy option (e.g. the same file loaded
+     * into rcvopts), and report an invalid value on a str2opt() failure. */
     for (a = toml_alias; a->old_section; a++) {
         toml_table_t* ntbl;
         tbl = navigate_table(root, a->old_section);
         if (!tbl || !toml_val_to_str(tbl, a->old_key, valbuf, sizeof(valbuf))) {
             continue; /* old key not present */
+        }
+        opt = searchopt(a->legacy_name, opts);
+        if (!opt) {
+            continue; /* legacy option not in this opts table */
         }
         ntbl = navigate_table(root, a->new_section);
         if (ntbl && toml_key_exists(ntbl, a->new_key)) {
@@ -666,10 +673,12 @@ extern int loadopts_toml(const char* file, opt_t* opts) {
         }
         fprintf(stderr, "TOML: [%s].%s is deprecated; move it to [%s].%s\n", a->old_section, a->old_key, a->new_section,
                 a->new_key);
-        opt = searchopt(a->legacy_name, opts);
-        if (opt && str2opt(opt, valbuf)) {
-            count++;
+        if (!str2opt(opt, valbuf)) {
+            fprintf(stderr, "TOML: invalid value for %s.%s = %s (legacy: %s)\n", a->old_section, a->old_key, valbuf,
+                    a->legacy_name);
+            continue;
         }
+        count++;
     }
 
     /* Handle positioning.systems string list (overrides constellations) */
