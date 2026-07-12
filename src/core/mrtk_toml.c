@@ -754,19 +754,21 @@ extern int loadopts_toml(const char* file, opt_t* opts) {
      * no alias) so it does not silently fall back to a default. rtkrcv loads
      * the same file twice per logical load (once for rcvopts, once for
      * sysopts), which would print every warning twice; sweep once per file
-     * content (path + mtime), so an edited file is re-checked on reload but a
-     * back-to-back second pass is not. */
+     * fingerprint (path + mtime + size), so an edited file is re-checked on
+     * reload but a back-to-back second pass is not. When the file cannot be
+     * fingerprinted, fail open: sweeping twice beats losing the warnings. */
     {
         static char swept_path[1080];
         static time_t swept_mtime;
+        static off_t swept_size;
         struct stat st;
         if (stat(file, &st) != 0) {
-            st.st_mtime = 0;
-        }
-        if (strcmp(file, swept_path) != 0 || st.st_mtime != swept_mtime) {
+            check_unknown_keys(root, "");
+        } else if (strcmp(file, swept_path) != 0 || st.st_mtime != swept_mtime || st.st_size != swept_size) {
             check_unknown_keys(root, "");
             snprintf(swept_path, sizeof(swept_path), "%s", file);
             swept_mtime = st.st_mtime;
+            swept_size = st.st_size;
         }
     }
 
