@@ -358,6 +358,12 @@ static const toml_alias_t toml_alias[] = {
     {"server", "rinex_option_2", "input.rinex", "option_2", "misc-rnxopt2"},
     {"server", "rtcm_option", "input.rtcm", "options", "misc-rtcmopt"},
     {"server", "sbas_satellite", "input.sbas", "satellite", "misc-sbasatsel"},
+    /* [adaptive_filter] nested under CLAS (#287) */
+    {"adaptive_filter", "enabled", "positioning.clas.adaptive_filter", "enabled", "pos2-prnadpt"},
+    {"adaptive_filter", "iono_forgetting", "positioning.clas.adaptive_filter", "iono_forgetting", "pos2-forgetion"},
+    {"adaptive_filter", "iono_gain", "positioning.clas.adaptive_filter", "iono_gain", "pos2-afgainion"},
+    {"adaptive_filter", "pva_forgetting", "positioning.clas.adaptive_filter", "pva_forgetting", "pos2-forgetpva"},
+    {"adaptive_filter", "pva_gain", "positioning.clas.adaptive_filter", "pva_gain", "pos2-afgainpva"},
     {NULL, NULL, NULL, NULL, NULL} /* terminator */
 };
 
