@@ -59,6 +59,8 @@ int main(void) {
             "iono_correction = \"maybe\"\n" /* deprecated + invalid enum value */
             "[server]\n"
             "regularly = 600\n" /* alias -> regularly=600 */
+            "[adaptive_filter]\n"
+            "enabled = true\n" /* alias (#287 nesting) -> pos2-prnadpt -> prnadpt=1 */
             "[positioning.relative]\n"
             "max_age = 5.0\n" /* new location wins over [receiver].max_age */
             "[positioning]\n"
@@ -79,6 +81,7 @@ int main(void) {
     /* Aliases applied their values. */
     expect(prcopt.phasshft == 1, "[receiver].phase_shift alias sets phasshft=1");
     expect(prcopt.regularly == 600, "[server].regularly alias sets regularly=600");
+    expect(prcopt.prnadpt == 1, "[adaptive_filter].enabled alias sets prnadpt=1");
     /* New location wins over the deprecated one. */
     expect(prcopt.maxtdiff == 5.0, "[positioning.relative].max_age wins over [receiver].max_age");
 
