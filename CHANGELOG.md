@@ -7,6 +7,151 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.7.6] - 2026-07-12
+
+**TOML configuration redesign.** The configuration vocabulary introduced with
+the v0.5.0 TOML migration is re-organized end to end
+([PRs #270–#290](https://github.com/h-shiono/MRTKLIB/pull/290)): sections are
+regrouped by the engine that consumes them, inaccurate names are renamed, dead
+keys are removed, and several option-slot collisions — where two unrelated
+settings shared one storage slot in the positioning code — are fixed. **Old
+configs keep working**: every renamed path is accepted through a deprecation
+alias that warns with the new location, and unknown keys now warn instead of
+being silently ignored (see the migration table under *Deprecated*). The
+generated configuration reference (`docs/reference/config-options.md`) is now
+CI-gated against drift. The release also adds receiver code-bias support and an
+opt-in uncorrected-pseudorange gate to IGS PPP-AR
+([#263](https://github.com/h-shiono/MRTKLIB/issues/263)), and ports the claslib
+periodic filter reset to post-processing PPP-RTK
+([#264](https://github.com/h-shiono/MRTKLIB/issues/264)).
+
+### Added
+
+- **Deprecation aliases + unknown-key warning in the TOML loader.** Every
+  section/key renamed by this series still loads at its old path; the loader
+  applies the value and prints a one-line warning pointing at the new location
+  (the new path wins when both are present). Keys the loader does not recognize
+  now produce `TOML: unknown key [section].key (ignored)` instead of silently
+  falling back to defaults. Locked in by a new `t_toml` unit test
+  ([#286](https://github.com/h-shiono/MRTKLIB/issues/286),
+  [PR #288](https://github.com/h-shiono/MRTKLIB/pull/288)–[#290](https://github.com/h-shiono/MRTKLIB/pull/290)).
+- **Generated configuration reference with a CI drift gate.**
+  `docs/reference/config-options.md` is produced by
+  `scripts/docs/gen_config_ref.py`; a new `config-ref` CI job fails when the
+  committed reference no longer matches a fresh generator run
+  ([PR #256](https://github.com/h-shiono/MRTKLIB/pull/256)).
+- **Receiver code bias in IGS PPP-AR.** Station-level OSB records in a
+  Bias-SINEX product (matched against the RINEX marker name) are now applied to
+  pseudoranges in the uncombined PPP-AR engine, with satellite-specific and
+  system-wide fallback paths; products without station records are unaffected
+  ([PR #274](https://github.com/h-shiono/MRTKLIB/pull/274)).
+- **`[positioning.ppp].drop_uncorrected_code`** (opt-in, default off) — port of
+  the MADOCALIB unbias gate: pseudoranges without an applicable code bias are
+  excluded instead of entering the solution uncorrected; carrier phase is kept
+  ([PR #274](https://github.com/h-shiono/MRTKLIB/pull/274)).
+- **`[positioning.clas.resilience].reset_interval`** (opt-in, default off) —
+  claslib's periodic full-filter reset ported to post-processing
+  `ppp_rtk_pos()`, with a trace-checked regression test
+  ([PR #284](https://github.com/h-shiono/MRTKLIB/pull/284)).
+
+### Changed
+
+- **Configuration sections regrouped by consumer**
+  ([PR #272](https://github.com/h-shiono/MRTKLIB/pull/272),
+  [#273](https://github.com/h-shiono/MRTKLIB/pull/273),
+  [#287](https://github.com/h-shiono/MRTKLIB/pull/287)): the grab-bag
+  `[receiver]` and `[server]` sections are dismantled into
+  `[positioning.ppp]`, `[positioning.relative]`, `[positioning.spp]`,
+  `[positioning.madoca]`, `[positioning.clas.*]` and `[input.*]`, and
+  `[adaptive_filter]` is nested as `[positioning.clas.adaptive_filter]` (it is
+  consumed by the CLAS PPP-RTK/VRS engines only). All shipped `conf/` samples
+  and docs use the new layout; old paths load via the aliases below.
+- `excluded_sats` is now a string list (`excluded_sats = ["G05", "+G26"]`); the
+  old single-string form still loads
+  ([PR #270](https://github.com/h-shiono/MRTKLIB/pull/270)). `+` cannot
+  force-include a satellite that has no ephemeris.
+- `[input.sbas].satellite` is an integer PRN selector, and
+  `[positioning.corrections].snr_fixed` (ex-`reserved`) is an integer dB-Hz
+  value routed to its own option slot
+  ([PR #271](https://github.com/h-shiono/MRTKLIB/pull/271),
+  [#273](https://github.com/h-shiono/MRTKLIB/pull/273)).
+- Config-reference metadata audited: per-option mode-applicability corrected
+  (phase windup and Shapiro delay are PPP-family options, etc.)
+  ([PR #281](https://github.com/h-shiono/MRTKLIB/pull/281)).
+- RT CLAS test reference files moved out of the source tree into the build
+  directory so parallel ctest invocations no longer collide
+  ([PR #282](https://github.com/h-shiono/MRTKLIB/pull/282)).
+
+### Deprecated
+
+The old paths below still load with a one-line warning; they are planned for
+removal in a future minor release. Re-saving a config always writes the new
+layout.
+
+| Old path | New path |
+|---|---|
+| `[receiver].phase_shift` / `isb` / `reference_type` | `[positioning.clas.ambiguities]` (same key) |
+| `[receiver].iono_correction` | `[positioning.madoca].iono_correction` |
+| `[receiver].ignore_chi_error` | `[positioning.spp].ignore_chi_error` |
+| `[receiver].ppp_sat_clock_bias` / `ppp_sat_phase_bias` | `[positioning.ppp].satellite_clock_bias` / `satellite_phase_bias` |
+| `[receiver].max_bias_dt` | `[positioning.ppp].max_bias_dt` |
+| `[receiver].uncorr_bias` | `[positioning.ppp].drop_uncorrected_code` |
+| `[receiver].max_age` / `baseline_length` / `baseline_sigma` | `[positioning.relative]` (same key) |
+| `[server].max_obs_loss` / `float_count` | `[positioning.clas.resilience]` (same key) |
+| `[server].l6_margin` | `[positioning.clas.resilience].l6_merge` |
+| `[server].regularly` | `[positioning.clas.resilience].reset_interval` |
+| `[server].ppp_option` | `[positioning.ppp].options` |
+| `[server].time_interpolation` | `[positioning.relative].time_interpolation` |
+| `[server].rinex_option_1` / `rinex_option_2` | `[input.rinex].option_1` / `option_2` |
+| `[server].rtcm_option` | `[input.rtcm].options` |
+| `[server].sbas_satellite` | `[input.sbas].satellite` |
+| `[adaptive_filter].*` | `[positioning.clas.adaptive_filter].*` (same keys) |
+
+### Removed
+
+Dead configuration keys ([PR #271](https://github.com/h-shiono/MRTKLIB/pull/271),
+[#280](https://github.com/h-shiono/MRTKLIB/pull/280),
+[#283](https://github.com/h-shiono/MRTKLIB/pull/283)) — none of these had any
+effect (or, for `position_uncertainty_*`, a wrong one), so there is no
+replacement; setting them now triggers the unknown-key warning:
+
+- `[ambiguity_resolution.thresholds].ratio2` / `ratio3` / `ratio4` (unread)
+- `[ambiguity_resolution.hold].gain` (no consumer)
+- `[kalman_filter].sync_solution`, `[receiver].bds2_bias`,
+  `[receiver].satellite_mode` (unread)
+- `[files].elevation_mask_file` / `geexe` / `solution_stat` (unread)
+- `[positioning.clas].position_uncertainty_x` / `_y` / `_z` — miswired: they
+  overwrote the rover ECEF position used by fixed-position modes instead of
+  setting any uncertainty. Fixed-mode rover coordinates remain settable via the
+  antenna-position options.
+
+### Fixed
+
+- **Option-slot collisions in the positioning code.** Several unrelated
+  settings shared one storage slot; each now has its own. None of these changes
+  the results of shipped/default configurations:
+  - CLAS OSR gated the Shapiro delay on the *phase windup* option instead of
+    `shapiro_delay`; `cssr2rtcm3` / `ssr2obs` explicitly enable the correct
+    option so converter behavior is unchanged
+    ([PR #267](https://github.com/h-shiono/MRTKLIB/pull/267)).
+  - `osr[].relatv` could carry a stale cross-epoch relativity term when the
+    option was off ([PR #267](https://github.com/h-shiono/MRTKLIB/pull/267)).
+  - CLAS/VRS position process noise fell back to the *IFB* process-noise slots;
+    `[kalman_filter.process_noise].position_h` / `position_v` / `ifb` are now
+    independent ([PR #275](https://github.com/h-shiono/MRTKLIB/pull/275)).
+  - The PPP day-boundary clock-jump compensation shared a slot with CLAS
+    `iono_compensation`; it is now its own `[positioning.ppp].clock_jump`
+    option (default off, as before)
+    ([PR #278](https://github.com/h-shiono/MRTKLIB/pull/278)).
+  - The CLAS atmosphere variance terms shared slots with the SPP C/N0 error
+    model (`snr_max` / `snr_error`); they are now dedicated
+    `[kalman_filter.measurement_error].ionosphere` / `troposphere` options, and
+    the ionosphere variance is applied in `est-adaptive` mode too
+    ([PR #279](https://github.com/h-shiono/MRTKLIB/pull/279)).
+- rtkrcv printed every unknown-key warning twice (it loads the options file
+  once for server options and once for system options); the sweep now runs once
+  per file fingerprint ([PR #290](https://github.com/h-shiono/MRTKLIB/pull/290)).
+
 ## [v0.7.5] - 2026-07-06
 
 **Single-band CLAS PPP-RTK — regression coverage and capability record.** Not a

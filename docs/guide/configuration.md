@@ -182,6 +182,18 @@ provides GPS and Galileo phase biases on the nominal `l1+2` pair, but its QZSS
 phase biases are L1/L5 only (no L2) and it carries no BeiDou phase biases —
 so GPS+Galileo is the dependable combination with that product today.
 
+## Migration from pre-v0.7.6 TOML layouts
+
+v0.7.6 re-organized the section taxonomy (the `[receiver]` and `[server]`
+grab-bag sections were dismantled, and `[adaptive_filter]` moved to
+`[positioning.clas.adaptive_filter]`). Old paths still load: the loader applies
+the value and prints a warning pointing at the new location, and any key it
+does not recognize is warned about instead of silently ignored. The full
+old→new table is in the
+[v0.7.6 changelog entry](https://github.com/h-shiono/MRTKLIB/blob/main/CHANGELOG.md);
+the aliases are planned for removal in a future minor release, so update
+configs when convenient.
+
 ## Migration from .conf
 
 Use the included conversion script to migrate legacy `.conf` files:
