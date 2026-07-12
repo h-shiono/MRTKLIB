@@ -50,8 +50,9 @@ int main(void) {
     filopt_t filopt;
     FILE* fp;
 
-    /* fixture: two deprecated aliases that must apply, one deprecated key
-     * shadowed by its new location (new must win), and one typo (unknown). */
+    /* fixture: deprecated aliases that must apply, one deprecated key shadowed
+     * by its new location (new must win), one typo (unknown), and the special
+     * string-list / integer keys whose types changed in the redesign. */
     fp = fopen(FIXTURE, "w");
     if (!fp) {
         printf("FAIL: cannot write fixture\n");
@@ -61,6 +62,7 @@ int main(void) {
             "[receiver]\n"
             "phase_shift = \"table\"\n"     /* alias -> pos2-phasshft -> phasshft=1 */
             "max_age = 99.0\n"              /* deprecated, but shadowed below */
+            "uncorr_bias = true\n"          /* alias -> pos2-uncorrbias -> unbias=1 */
             "iono_correction = \"maybe\"\n" /* deprecated + invalid enum value */
             "[server]\n"
             "regularly = 600\n" /* alias -> regularly=600 */
@@ -69,7 +71,11 @@ int main(void) {
             "[positioning.relative]\n"
             "max_age = 5.0\n" /* new location wins over [receiver].max_age */
             "[positioning]\n"
-            "elevaton_mask = 15.0\n"); /* typo -> unknown key */
+            "elevaton_mask = 15.0\n" /* typo -> unknown key */
+            "systems = [\"GPS\", \"GAL\"]\n"
+            "excluded_sats = [\"G05\"]\n"
+            "[positioning.corrections]\n"
+            "snr_fixed = 45\n");
     fclose(fp);
 
     /* Capture loader warnings. stdout stays on the console for PASS/FAIL. */
@@ -87,8 +93,15 @@ int main(void) {
     expect(prcopt.phasshft == 1, "[receiver].phase_shift alias sets phasshft=1");
     expect(prcopt.regularly == 600, "[server].regularly alias sets regularly=600");
     expect(prcopt.prnadpt == 1, "[adaptive_filter].enabled alias sets prnadpt=1");
+    expect(prcopt.unbias == 1, "[receiver].uncorr_bias alias sets unbias=1");
     /* New location wins over the deprecated one. */
     expect(prcopt.maxtdiff == 5.0, "[positioning.relative].max_age wins over [receiver].max_age");
+
+    /* Keys whose types changed in the redesign parse into the right options. */
+    expect(prcopt.navsys == (SYS_GPS | SYS_GAL), "systems string list sets the navsys mask");
+    expect(satid2no("G05") > 0 && prcopt.exsats[satid2no("G05") - 1] == 1,
+           "excluded_sats string list marks the satellite excluded");
+    expect(prcopt.posopt[11] == 45, "snr_fixed integer parses into posopt[11]");
 
     /* Warnings emitted. */
     expect(capture_contains("[receiver].phase_shift is deprecated; move it to"),
@@ -99,9 +112,15 @@ int main(void) {
            "deprecation warning for [adaptive_filter].enabled");
     expect(capture_contains("[receiver].max_age is deprecated and ignored"),
            "shadowed-alias warning for [receiver].max_age");
+    expect(capture_contains("[receiver].uncorr_bias is deprecated; move it to"),
+           "deprecation warning for [receiver].uncorr_bias");
     expect(capture_contains("unknown key [positioning].elevaton_mask"), "unknown-key warning for typo");
     expect(capture_contains("invalid value for receiver.iono_correction"),
            "invalid-value warning for a deprecated key with a bad value");
+    /* The specially-handled string-list keys must not trip the unknown-key sweep. */
+    expect(capture_count("unknown key [positioning].systems") == 0 &&
+               capture_count("unknown key [positioning].excluded_sats") == 0,
+           "systems / excluded_sats are not flagged as unknown keys");
 
     /* rtkrcv loads the same file twice per logical load (rcvopts, then
      * sysopts); the unknown-key sweep must not run again for an unchanged
