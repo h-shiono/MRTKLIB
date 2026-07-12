@@ -280,7 +280,7 @@ set(_UTEST_DIR ${CMAKE_SOURCE_DIR}/tests/utest)
 set(_UTEST_SOURCES
     t_atmos t_clas_route t_coord t_freqidx t_geoid t_gloeph t_ionex
     t_lambda t_matrix t_misc t_obsdef t_ppp t_preceph
-    t_rinex t_rinex4 t_sigcfg_decode t_time
+    t_rinex t_rinex4 t_sigcfg_decode t_time t_toml
     # t_tle excluded: tle_pos() implementation not yet in library
 )
 foreach(test IN LISTS _UTEST_SOURCES)
