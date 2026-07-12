@@ -166,12 +166,12 @@ static const toml_map_t toml_mapping[] = {
     {"kalman_filter.process_noise", "iono_time_const", "stats-tconstiono"},
     {"kalman_filter.process_noise", "clock_stability", "stats-clkstab"},
 
-    /* ── adaptive_filter ───────────────────────────────────────────────────── */
-    {"adaptive_filter", "enabled", "pos2-prnadpt"},
-    {"adaptive_filter", "iono_forgetting", "pos2-forgetion"},
-    {"adaptive_filter", "iono_gain", "pos2-afgainion"},
-    {"adaptive_filter", "pva_forgetting", "pos2-forgetpva"},
-    {"adaptive_filter", "pva_gain", "pos2-afgainpva"},
+    /* ── positioning.clas.adaptive_filter ──────────────────────────────────── */
+    {"positioning.clas.adaptive_filter", "enabled", "pos2-prnadpt"},
+    {"positioning.clas.adaptive_filter", "iono_forgetting", "pos2-forgetion"},
+    {"positioning.clas.adaptive_filter", "iono_gain", "pos2-afgainion"},
+    {"positioning.clas.adaptive_filter", "pva_forgetting", "pos2-forgetpva"},
+    {"positioning.clas.adaptive_filter", "pva_gain", "pos2-afgainpva"},
 
     /* ── signals ───────────────────────────────────────────────────────────── */
     {"signals", "gps", "pos2-siggps"},

@@ -161,11 +161,11 @@ MAPPING: list[tuple[str, str, str, str]] = [
     ("stats-tconstiono", "kalman_filter.process_noise", "iono_time_const", "float"),
     ("stats-clkstab", "kalman_filter.process_noise", "clock_stability", "float"),
     # ── adaptive_filter ──────────────────────────────────────────────────────
-    ("pos2-prnadpt", "adaptive_filter", "enabled", "bool"),
-    ("pos2-forgetion", "adaptive_filter", "iono_forgetting", "float"),
-    ("pos2-afgainion", "adaptive_filter", "iono_gain", "float"),
-    ("pos2-forgetpva", "adaptive_filter", "pva_forgetting", "float"),
-    ("pos2-afgainpva", "adaptive_filter", "pva_gain", "float"),
+    ("pos2-prnadpt", "positioning.clas.adaptive_filter", "enabled", "bool"),
+    ("pos2-forgetion", "positioning.clas.adaptive_filter", "iono_forgetting", "float"),
+    ("pos2-afgainion", "positioning.clas.adaptive_filter", "iono_gain", "float"),
+    ("pos2-forgetpva", "positioning.clas.adaptive_filter", "pva_forgetting", "float"),
+    ("pos2-afgainpva", "positioning.clas.adaptive_filter", "pva_gain", "float"),
     # ── signals ──────────────────────────────────────────────────────────────
     ("pos2-siggps", "signals", "gps", "enum"),
     ("pos2-sigqzs", "signals", "qzs", "enum"),

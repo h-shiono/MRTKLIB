@@ -100,7 +100,7 @@ troposphere = 0.001
 iono_time_const = 10.0
 clock_stability = 5.00e-12
 
-[adaptive_filter]
+[positioning.clas.adaptive_filter]
 iono_forgetting = 0.3
 iono_gain = 3.0
 enabled = false
