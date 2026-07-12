@@ -311,15 +311,22 @@ typedef struct prcopt_t {         /* processing options type */
     /* PPP-RTK/VRS a-priori SPP seed quality (appended for ABI stability).
      * When set, the per-epoch single-point seed (pntpos) used to (re)initialize
      * the CLAS/VRS filter applies a v0.6.10 SPP profile (see SEEDENH_??? below) on
-     * its PRIVATE option copy only, so the CLAS measurement model (which reuses
-     * err[5]/err[6] as iono/trop terms) is left untouched. prcopt_default sets
-     * SEEDENH_BASE (C/N0 + TDCP): a net win on kinematic data and inert on the
-     * static regression suite. Set SEEDENH_OFF to restore prior seed behaviour. */
+     * its PRIVATE option copy only. prcopt_default sets SEEDENH_BASE (C/N0 + TDCP):
+     * a net win on kinematic data and inert on the static regression suite. Set
+     * SEEDENH_OFF to restore prior seed behaviour. */
     int enhanced_spp_seed; /* a-priori SPP seed profile (SEEDENH_???) */
 
     /* SPP large-residual exclusion (upstream CLAS sync, appended for ABI stability) */
     double rejethres; /* pseudorange residual rejection threshold (m, <0:off, 0:CLAS seed auto) */
     int rejeminsat;   /* SPP residual rejection runs only when valid sats exceed this (nv > rejeminsat, as upstream) */
+
+    /* PPP day-boundary clock-jump handling (kept separate from CLAS posopt[5]) */
+    int clockjump; /* reset PPP phase biases at a GPS day boundary (0:off,1:on) */
+
+    /* CLAS PPP-RTK atmosphere terms in the measurement variance model
+     * (kept separate from err[5]/err[6], which are C/N0 weighting parameters). */
+    double stats_erriono; /* ionosphere estimation-error term (m) */
+    double stats_errtrop; /* troposphere estimation-error term (m) */
 } prcopt_t;
 
 /* enhanced_spp_seed profiles (applied to the PPP-RTK/VRS a-priori SPP seed only).

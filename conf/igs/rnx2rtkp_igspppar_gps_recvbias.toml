@@ -1,14 +1,14 @@
 # MRTKLIB Configuration (TOML v1.0.0)
-# IGS-products integer PPP-AR (#142): precise SP3/CLK + Bias-SINEX OSB phase
-# biases, uncombined measurement model, GPS+Galileo.
+# IGS-products PPP-AR, GPS-only, with station-level (receiver) OSB coverage (#263).
 #
-# Integer ambiguity resolution requires:
-#   - ionosphere = "est-stec"  (uncombined; per-frequency ambiguity states)
-#   - a satellite phase-bias product via files.bias_sinex (COD MGEX IAR OSB.BIA)
-# The iono-free float config (rnx2rtkp_ppp.toml, ionosphere = "dual-freq") cannot
-# resolve integers -- there is one ambiguity per satellite, not per frequency.
-#
-# Used by the igs_pppar_ge regression test (tests/data/igs/igs_testdata.tar.gz).
+# Same window/data as rnx2rtkp_igspppar_gps.toml, but bias_sinex points at a
+# fixture with added station-level OSB entries for station "3034" (the RINEX
+# MARKER NAME in 30340210.26o, auto-selected as prcopt.staname): a
+# satellite-specific entry for G03 and a system-wide GPS entry covering the
+# rest. This is the only regression coverage that actually exercises the
+# receiver code bias application in corr_meas() (nav->osb.rsatcb/rsyscb) --
+# the standard COD MGEX product used by the other igs_pppar_* tests carries no
+# station-level records, so that code path is otherwise dead in CI.
 
 [positioning]
 mode = "ppp-static"
@@ -17,7 +17,7 @@ solution_type = "forward"
 elevation_mask = 15.0
 dynamics = false
 satellite_ephemeris = "precise"
-systems = ["GPS", "Galileo"]
+systems = ["GPS"]
 correction = "igs"
 
 [positioning.corrections]
@@ -32,7 +32,7 @@ troposphere = "est-ztdgrad"
 
 [ambiguity_resolution]
 mode = "continuous"
-systems = 9         # GPS(1) + Galileo(8)
+systems = 1         # GPS only
 
 [ambiguity_resolution.thresholds]
 ratio = 2.0
@@ -74,7 +74,7 @@ static_solution = "all"
 [files]
 satellite_atx = "./tests/data/igs/igs20_trim.atx"
 receiver_atx = "./tests/data/igs/igs20_trim.atx"
-bias_sinex = "./tests/data/igs/COD0MGXFIN_2026021_01D_OSB.BIA"
+bias_sinex = "./tests/data/igs/COD0MGXFIN_2026021_01D_OSB_recvbias.BIA"
 
 [positioning.ppp]
 max_bias_dt = 86400

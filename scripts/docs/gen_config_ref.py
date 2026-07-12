@@ -41,10 +41,27 @@ from conf2toml import MAPPING, _KEY_ENUM, _ENUM_STRINGS  # noqa: E402
 
 # {legacy_key: (modes, description)}
 # Description for enum types should NOT include the values — they are appended
-# automatically from _ENUM_STRINGS.
+# automatically from _ENUM_STRINGS (via _KEY_ENUM).
+# Exception: a key deliberately omitted from _KEY_ENUM (e.g. `pos1-correction`,
+# whose values carry inline annotations the plain append cannot express) gets no
+# automatic append, so its description embeds the value list itself.
 _OPTION_META: dict[str, tuple[str, str]] = {
     # ── positioning ──────────────────────────────────────────────────────────
     "pos1-posmode": ("All", "Positioning mode selector."),
+    "pos1-correction": (
+        "PPP, PPP-RTK, VRS",
+        "Correction source (lowercase; parsing is case-sensitive). Decouples the augmentation source from `mode`. "
+        "`none` · `igs` (precise SP3/CLK files) · `igs-rts` (real-time RTCM-SSR / IGS-SSR MT4076; float PPP) · "
+        "`qzs-madoca` · `qzs-clas` · `gal-has`† · `bds-b2b`† (†reserved/not yet implemented). "
+        "Optional: when omitted it is inferred from `mode` + `satellite_ephemeris` for backward compatibility. "
+        '**`igs-rts` is never inferred and must be set explicitly** (it shares `satellite_ephemeris = "brdc+ssrapc"` '
+        'with `qzs-madoca`); it requires `satellite_ephemeris = "brdc+ssrapc"` or `"brdc+ssrcom"`. '
+        "See [Positioning Configuration Model](../design/configuration.md). "
+        "**Note:** `igs` enables conventional IGS-products float PPP for both geodetic receivers "
+        "(e.g. GPS L1+L2, Galileo E1+E5a) and receivers that provide the 2nd frequency only as Galileo **E5b** / "
+        "BeiDou **B2I** (no E5a/B3I, e.g. u-blox F9P) — the iono-free pair is selected from the available "
+        "observations (fixed in v0.6.7, see [#135](https://github.com/h-shiono/MRTKLIB/issues/135)).",
+    ),
     "pos1-frequency": (
         "All",
         "Number of carrier frequencies to use. CLAS PPP-RTK requires `l1+2` (nf=2).",
@@ -64,15 +81,47 @@ _OPTION_META: dict[str, tuple[str, str]] = {
     ),
     "pos1-navsys": (
         "All",
-        'GNSS constellations to use. Accepts a human-readable string list like `["GPS", "Galileo"]`.',
+        'GNSS constellations to use. Accepts a human-readable string list like `["GPS", "Galileo"]`. '
+        "The low-level `constellations` key (integer/string bitmask, legacy `pos1-navsys` form) is also "
+        "accepted for backward compatibility; `systems` supersedes it when both are present.",
     ),
     "pos1-exclsats": (
         "All",
-        "Satellites to exclude. Space-separated PRN list (e.g., `G01 G02`). Prefix `+` to include only.",
+        'Satellites to exclude, as a PRN list (e.g. `["G01", "G02"]`). Prefix a PRN with `+` to force '
+        "inclusion instead, overriding the health and URA checks (a satellite with no ephemeris is still "
+        'dropped). The legacy space-separated string form (`"G01 G02"`) is also accepted.',
     ),
     "pos1-signals": (
         "All",
-        "Explicit signal code list. Overrides default observation definition when set.",
+        "Explicit RINEX3-style signal code list (`{sys}{freq}{attr}`, e.g. "
+        '`["G1C", "G2W", "R1C", "R2C", "E1C", "E7Q", "J1C", "J2L"]`). When set it is the **authoritative** '
+        "signal selection: it overrides `frequency` / the `[signals]` presets, derives the number of "
+        "frequencies, **and** selects which observation code occupies each band's slot during real-time raw "
+        "decoding (so e.g. GLONASS L2C/A can be used as the iono-free 2nd frequency without the legacy `-RL2C` "
+        "receiver option — see [#189](https://github.com/h-shiono/MRTKLIB/issues/189)). List **every** band you "
+        'want, for every constellation you want to constrain — `signals = ["R2C"]` alone derives nf=1 '
+        "(single-frequency). A constellation you omit entirely keeps its default signal selection.",
+    ),
+    "pos1-robust": (
+        "SPP",
+        "Robust estimation strategy for single-point positioning (down-weights outliers via M-estimation).",
+    ),
+    "pos1-robustk0": (
+        "SPP",
+        "IGG-III robust weighting lower threshold k0 (standardized residual). Residuals below k0 keep full weight.",
+    ),
+    "pos1-robustk1": (
+        "SPP",
+        "IGG-III robust weighting upper threshold k1 (standardized residual). Residuals above k1 are rejected; "
+        "between k0 and k1 the weight is tapered.",
+    ),
+    "pos1-tdcp": (
+        "SPP",
+        "Time-differenced carrier phase (TDCP) velocity estimation and carrier-phase-based cycle-slip / jump QC.",
+    ),
+    "pos1-tdcpjump": (
+        "SPP",
+        "TDCP position-jump rejection threshold (m). Epoch-to-epoch jumps exceeding this are rejected as outliers.",
     ),
     # ── positioning.clas ─────────────────────────────────────────────────────
     "pos1-gridsel": (
@@ -83,12 +132,11 @@ _OPTION_META: dict[str, tuple[str, str]] = {
         "PPP-RTK, VRS",
         "Rover receiver type identifier. Used for ISB (inter-system bias) table lookup.",
     ),
-    "pos1-rux": (
-        "PPP-RTK, VRS",
-        "Rover approximate position X in ECEF (m). Used for initial CLAS grid search before first fix.",
+    "pos1-seedenh": (
+        "PPP-RTK",
+        "Enhanced SPP seed for CLAS PPP-RTK reconvergence. Selects the code / Doppler QC stack used to seed the "
+        "float filter after outages (opt-in; the default base seed uses C/N0 + TDCP).",
     ),
-    "pos1-ruy": ("PPP-RTK, VRS", "Rover approximate position Y in ECEF (m)."),
-    "pos1-ruz": ("PPP-RTK, VRS", "Rover approximate position Z in ECEF (m)."),
     # ── positioning.snr_mask ─────────────────────────────────────────────────
     "pos1-snrmask_r": ("All", "Enable elevation-dependent SNR mask for the rover receiver."),
     "pos1-snrmask_b": ("RTK", "Enable elevation-dependent SNR mask for the base station."),
@@ -101,7 +149,7 @@ _OPTION_META: dict[str, tuple[str, str]] = {
         "Apply satellite antenna phase center offset correction using ANTEX file.",
     ),
     "pos1-posopt2": ("All", "Apply receiver antenna phase center offset/variation correction."),
-    "pos1-posopt3": ("PPP, PPP-RTK, VRS", "Phase wind-up correction."),
+    "pos1-posopt3": ("PPP", "Phase wind-up correction."),
     "pos1-posopt4": (
         "PPP, PPP-RTK",
         "Exclude satellites in eclipse (yaw maneuver period) to avoid degraded orbit/clock.",
@@ -115,7 +163,7 @@ _OPTION_META: dict[str, tuple[str, str]] = {
         "PPP-RTK, VRS",
         "Enable partial ambiguity resolution (fix a satellite subset).",
     ),
-    "pos1-posopt8": ("PPP, PPP-RTK, VRS", "Apply relativistic Shapiro time delay correction."),
+    "pos1-posopt8": ("PPP-RTK, VRS", "Apply relativistic Shapiro time delay correction."),
     "pos1-posopt9": (
         "PPP-RTK, VRS",
         "Exclude QZS satellites from reference satellite selection in DD processing.",
@@ -125,7 +173,10 @@ _OPTION_META: dict[str, tuple[str, str]] = {
         "Disable phase bias adjustment. Used when phase bias is already applied by SSR corrections.",
     ),
     "pos1-posopt11": ("PPP-RTK, VRS", "GPS frequency pair selection for CLAS processing."),
-    "pos1-posopt12": ("—", "Reserved for future use."),
+    "pos1-posopt12": (
+        "SSR2OSR",
+        "Fixed output SNR (integer dB-Hz). 0 uses the elevation-dependent SNR model.",
+    ),
     "pos1-posopt13": ("PPP-RTK, VRS", "QZS frequency pair selection for CLAS processing."),
     "pos1-tidecorr": (
         "PPP, PPP-RTK, VRS",
@@ -147,7 +198,7 @@ _OPTION_META: dict[str, tuple[str, str]] = {
     "pos2-bdsarmode": ("RTK, PPP-RTK", "BDS ambiguity resolution enable/disable."),
     "pos2-qzsarmode": ("PPP-RTK, VRS", "QZS ambiguity resolution mode."),
     "pos2-arsys": (
-        "RTK, PPP-RTK, VRS",
+        "PPP",
         "Constellation bitmask for AR. Limits which systems participate in integer ambiguity resolution.",
     ),
     # ── ambiguity_resolution.thresholds ──────────────────────────────────────
@@ -159,11 +210,8 @@ _OPTION_META: dict[str, tuple[str, str]] = {
         "RTK, PPP, PPP-RTK",
         "Secondary AR threshold. In MADOCA-PPP: max 3D position std-dev to start narrow-lane AR.",
     ),
-    "pos2-arthres2": ("RTK, PPP-RTK", "Additional AR threshold parameter."),
-    "pos2-arthres3": ("RTK, PPP-RTK", "Additional AR threshold parameter."),
-    "pos2-arthres4": ("RTK", "Additional AR threshold parameter."),
-    "pos2-arthres5": ("PPP-RTK", "Chi-square threshold for hold validation."),
-    "pos2-arthres6": ("PPP-RTK", "Chi-square threshold for fix validation."),
+    "pos2-arthres5": ("RTK", "Adaptive lower clamp for the AR ratio threshold."),
+    "pos2-arthres6": ("RTK", "Adaptive upper clamp for the AR ratio threshold."),
     "pos2-aralpha": ("PPP-RTK, VRS", "AR significance level (ILS success rate)."),
     "pos2-arelmask": (
         "RTK, PPP-RTK, VRS",
@@ -172,6 +220,18 @@ _OPTION_META: dict[str, tuple[str, str]] = {
     "pos2-elmaskhold": (
         "RTK, PPP-RTK, VRS",
         "Minimum satellite elevation for fix-and-hold constraint application (degrees).",
+    ),
+    "pos2-maxpdopar": (
+        "PPP-RTK, VRS",
+        "Maximum PDOP for attempting ambiguity resolution. 0 = no limit.",
+    ),
+    "pos2-maxpdophold": (
+        "PPP-RTK, VRS",
+        "Maximum PDOP for applying the fix-and-hold constraint. 0 = no limit.",
+    ),
+    "pos2-refdop": (
+        "PPP-RTK, VRS",
+        "Reference DOP formulation used for AR validation.",
     ),
     # ── ambiguity_resolution.counters ────────────────────────────────────────
     "pos2-arlockcnt": (
@@ -182,7 +242,7 @@ _OPTION_META: dict[str, tuple[str, str]] = {
         "RTK, PPP-RTK",
         "Minimum fix epochs before applying fix-and-hold constraint.",
     ),
-    "pos2-armaxiter": ("RTK, PPP-RTK", "Maximum LAMBDA search iterations per epoch."),
+    "pos2-armaxiter": ("PPP", "Maximum LAMBDA search iterations per epoch."),
     "pos2-aroutcnt": (
         "RTK, PPP-RTK, VRS",
         "Reset ambiguity after this many continuous outage epochs.",
@@ -214,10 +274,6 @@ _OPTION_META: dict[str, tuple[str, str]] = {
         "PPP-RTK, VRS",
         "Variance of held ambiguity pseudo-observation (cyc\u00b2). Controls how tightly held ambiguities constrain the filter.",
     ),
-    "pos2-gainholdamb": (
-        "RTK",
-        "Gain factor for fractional GLONASS/SBAS inter-channel bias update in fix-and-hold.",
-    ),
     # ── rejection ────────────────────────────────────────────────────────────
     "pos2-rejionno": (
         "RTK, PPP",
@@ -234,6 +290,11 @@ _OPTION_META: dict[str, tuple[str, str]] = {
     ),
     "pos2-rejionno4": ("PPP-RTK, VRS", "Chi-square threshold for hold-mode outlier detection."),
     "pos2-rejionno5": ("PPP-RTK, VRS", "Chi-square threshold for fix-mode outlier detection."),
+    "pos2-rejethres": ("SPP", "SPP pseudorange residual rejection threshold (m) used by RAIM FDE."),
+    "pos2-rejeminsat": (
+        "SPP",
+        "Minimum number of satellites SPP RAIM FDE retains before it stops excluding outliers.",
+    ),
     "pos2-rejgdop": ("All", "Maximum GDOP for valid solution output."),
     "pos2-rejdiffpse": (
         "VRS",
@@ -254,7 +315,6 @@ _OPTION_META: dict[str, tuple[str, str]] = {
         "RTK, PPP, PPP-RTK, VRS",
         "Number of measurement update iterations per epoch. More iterations improve linearization accuracy.",
     ),
-    "pos2-syncsol": ("RT", "Synchronize solution output with observation time in real-time mode."),
     # ── kalman_filter.measurement_error ──────────────────────────────────────
     "stats-eratio1": (
         "All",
@@ -272,6 +332,22 @@ _OPTION_META: dict[str, tuple[str, str]] = {
         "Baseline-length-dependent phase error (m/10km). Proportional to rover\u2013base distance.",
     ),
     "stats-errdoppler": ("All", "Doppler measurement error (Hz)."),
+    "stats-snrmax": (
+        "SPP, RTK",
+        "C/N0 at which the SNR-based measurement weighting model saturates (dBHz). Used when C/N0 weighting is enabled.",
+    ),
+    "stats-errsnr": (
+        "SPP, RTK",
+        "Carrier phase measurement error at the SNR-weighting reference level (m).",
+    ),
+    "stats-erriono": (
+        "PPP-RTK",
+        "Additional ionosphere estimation-error term in the CLAS measurement variance model (m). Active when ionosphere estimation is enabled.",
+    ),
+    "stats-errtrop": (
+        "PPP-RTK",
+        "Additional troposphere estimation-error term in the CLAS measurement variance model (m). Active when troposphere estimation is enabled.",
+    ),
     "stats-uraratio": (
         "PPP",
         "User Range Accuracy scaling ratio. Adjusts satellite-specific weighting based on broadcast URA.",
@@ -286,7 +362,7 @@ _OPTION_META: dict[str, tuple[str, str]] = {
         "Initial standard deviation for ionospheric delay states (m).",
     ),
     "stats-stdtrop": (
-        "PPP, PPP-RTK, VRS",
+        "RTK, PPP-RTK, VRS",
         "Initial standard deviation for tropospheric delay states (m).",
     ),
     # ── kalman_filter.process_noise ──────────────────────────────────────────
@@ -313,7 +389,7 @@ _OPTION_META: dict[str, tuple[str, str]] = {
     ),
     "stats-prnposith": ("PPP-RTK, VRS", "Horizontal position process noise (m)."),
     "stats-prnpositv": ("PPP-RTK, VRS", "Vertical position process noise (m)."),
-    "stats-prnpos": ("All", "General position process noise (m). Fallback when h/v not specified."),
+    "stats-prnpos": ("PPP", "General position process noise for static PPP states (m)."),
     "stats-prnifb": (
         "PPP",
         "Inter-frequency bias process noise (m). For multi-frequency PPP bias estimation.",
@@ -323,8 +399,11 @@ _OPTION_META: dict[str, tuple[str, str]] = {
         "PPP-RTK, VRS",
         "Ionospheric time constant (s). Controls iono state temporal correlation in the adaptive filter.",
     ),
-    "stats-clkstab": ("PPP", "Receiver clock stability (s/s). Used in PPP clock state prediction."),
-    # ── adaptive_filter ──────────────────────────────────────────────────────
+    "stats-clkstab": (
+        "RTK, VRS",
+        "Receiver clock stability (s/s). Used in clock state prediction.",
+    ),
+    # ── positioning.clas.adaptive_filter ─────────────────────────────────────
     "pos2-prnadpt": ("PPP-RTK, VRS", "Enable adaptive Kalman filter process noise scaling."),
     "pos2-forgetion": (
         "PPP-RTK, VRS",
@@ -337,30 +416,33 @@ _OPTION_META: dict[str, tuple[str, str]] = {
     ),
     "pos2-afgainpva": ("PPP-RTK, VRS", "Adaptive gain for PVA process noise adjustment."),
     # ── signals ──────────────────────────────────────────────────────────────
-    "pos2-siggps": ("PPP, PPP-RTK", "GPS frequency pair selection for PPP/PPP-RTK processing."),
-    "pos2-sigqzs": ("PPP, PPP-RTK", "QZS frequency pair selection."),
-    "pos2-siggal": ("PPP, PPP-RTK", "Galileo frequency pair selection."),
-    "pos2-sigbds2": ("PPP, PPP-RTK", "BDS-2 frequency pair selection."),
-    "pos2-sigbds3": ("PPP, PPP-RTK", "BDS-3 frequency pair selection."),
+    "pos2-siggps": (
+        "PPP, PPP-RTK, VRS",
+        "GPS frequency pair selection for the SSR-corrected measurement model. Applied via `apply_pppsig()` for "
+        "every correction source except `igs`, so it also reshapes the observation set used by CLAS PPP-RTK / VRS.",
+    ),
+    "pos2-sigqzs": ("PPP, PPP-RTK, VRS", "QZS frequency pair selection."),
+    "pos2-siggal": ("PPP, PPP-RTK, VRS", "Galileo frequency pair selection."),
+    "pos2-sigbds2": ("PPP, PPP-RTK, VRS", "BDS-2 frequency pair selection."),
+    "pos2-sigbds3": ("PPP, PPP-RTK, VRS", "BDS-3 frequency pair selection."),
     # ── receiver ─────────────────────────────────────────────────────────────
     "pos2-ionocorr": ("PPP", "Enable ionospheric correction in MADOCA-PPP processing."),
     "pos2-ign_chierr": ("SPP", "Ignore chi-square test errors in SPP solution validation."),
-    "pos2-bds2bias": (
-        "PPP",
-        "Enable BDS-2 code bias correction (satellite-dependent group delay).",
-    ),
     "pos2-pppsatcb": ("PPP", "PPP satellite code bias source selection."),
     "pos2-pppsatpb": ("PPP", "PPP satellite phase bias source selection."),
-    "pos2-uncorrbias": ("PPP", "Uncorrelated bias parameter for PPP processing."),
+    "pos2-uncorrbias": (
+        "PPP",
+        "In uncombined IGS PPP, discard a pseudorange measurement when its satellite or receiver code bias is unavailable.",
+    ),
+    "pos2-clkjump": ("PPP", "Reset PPP phase-bias states at a GPS day boundary."),
     "pos2-maxbiasdt": ("PPP", "Maximum age of bias correction data (s) before invalidation."),
-    "pos2-sattmode": ("PPP", "Satellite processing mode selector."),
     "pos2-phasshft": (
         "PPP-RTK, VRS",
         "Phase cycle shift correction. Corrects quarter-cycle shifts between systems.",
     ),
     "pos2-isb": ("PPP-RTK, VRS", "Inter-system bias estimation mode."),
     "pos2-rectype": ("PPP-RTK, VRS", "Reference station receiver type for ISB table lookup."),
-    "pos2-maxage": ("RTK, PPP-RTK", "Maximum age of differential correction (s)."),
+    "pos2-maxage": ("RTK, VRS", "Maximum age of differential correction (s)."),
     "pos2-baselen": ("RTK", "Baseline length constraint (m). 0 = no constraint."),
     "pos2-basesig": ("RTK", "Standard deviation of baseline length constraint (m)."),
     # ── antenna.rover ────────────────────────────────────────────────────────
@@ -372,12 +454,12 @@ _OPTION_META: dict[str, tuple[str, str]] = {
     "ant1-pos2": ("All", "Rover position coordinate 2 (longitude or Y)."),
     "ant1-pos3": ("All", "Rover position coordinate 3 (height or Z)."),
     "ant1-anttype": (
-        "All",
+        "RTK, PPP, PPP-RTK, VRS",
         "Rover antenna type (must match ANTEX file entry). `*` = use RINEX header.",
     ),
-    "ant1-antdele": ("All", "Rover antenna delta East offset (m)."),
-    "ant1-antdeln": ("All", "Rover antenna delta North offset (m)."),
-    "ant1-antdelu": ("All", "Rover antenna delta Up offset (m)."),
+    "ant1-antdele": ("RTK, PPP, PPP-RTK, VRS", "Rover antenna delta East offset (m)."),
+    "ant1-antdeln": ("RTK, PPP, PPP-RTK, VRS", "Rover antenna delta North offset (m)."),
+    "ant1-antdelu": ("RTK, PPP, PPP-RTK, VRS", "Rover antenna delta Up offset (m)."),
     # ── antenna.base ─────────────────────────────────────────────────────────
     "ant2-postype": ("RTK, VRS", "Base station position input type."),
     "ant2-pos1": ("RTK, VRS", "Base position coordinate 1."),
@@ -409,14 +491,14 @@ _OPTION_META: dict[str, tuple[str, str]] = {
     "out-solstatic": ("PP", "Static mode output control."),
     "out-nmeaintv1": ("All", "NMEA GGA/RMC output interval (s)."),
     "out-nmeaintv2": ("All", "NMEA GSA/GSV output interval (s)."),
-    "out-outstat": ("All", "Solution status output level."),
+    "out-outstat": ("PP", "Solution status output level."),
     # ── files ────────────────────────────────────────────────────────────────
     "file-satantfile": (
         "All",
         "Satellite antenna ANTEX file. Required for satellite antenna PCV correction.",
     ),
     "file-rcvantfile": (
-        "All",
+        "RTK, PPP, PPP-RTK, VRS",
         "Receiver antenna ANTEX file. Required for receiver antenna PCV correction.",
     ),
     "file-staposfile": ("All", "Station position file for fixed/known positions."),
@@ -431,10 +513,7 @@ _OPTION_META: dict[str, tuple[str, str]] = {
         "PPP, PPP-RTK",
         "BLQ ocean tide loading file. Required when `tidal_correction` includes OTL.",
     ),
-    "file-elmaskfile": ("All", "Azimuth-dependent elevation mask file."),
     "file-tempdir": ("All", "Temporary directory for intermediate files."),
-    "file-geexefile": ("All", "Google Earth executable path (legacy GUI feature)."),
-    "file-solstatfile": ("All", "Solution statistics output file path."),
     "file-tracefile": ("All", "Debug trace output file path."),
     "file-fcbfile": ("PPP", "Fractional cycle bias file for PPP-AR."),
     "file-biafile": ("PPP", "Bias SINEX file for PPP satellite bias correction."),
@@ -465,16 +544,16 @@ _OPTION_META: dict[str, tuple[str, str]] = {
         "RT",
         "File swap margin (s) for continuous logging across file boundaries.",
     ),
-    "misc-timeinterp": ("RT", "Enable time interpolation between observation epochs."),
-    "misc-sbasatsel": ("RT", "SBAS satellite selection."),
-    "misc-maxobsloss": ("RT", "Maximum observation gap duration before filter reset (s)."),
-    "misc-floatcnt": ("RT", "Number of float epochs before triggering filter reset."),
+    "misc-timeinterp": ("RTK, VRS, PP", "Enable time interpolation between observation epochs."),
+    "misc-sbasatsel": ("RT, PP", "SBAS satellite selection."),
+    "misc-maxobsloss": ("PPP-RTK", "Maximum observation gap duration before filter reset (s)."),
+    "misc-floatcnt": ("PPP-RTK, VRS", "Number of float epochs before triggering filter reset."),
     "misc-rnxopt1": ("All", "RINEX conversion option string for rover stream."),
     "misc-rnxopt2": ("All", "RINEX conversion option string for base stream."),
     "misc-pppopt": ("PPP", "PPP processing option string (passed to PPP engine)."),
-    "misc-rtcmopt": ("RT", "RTCM decoder option string."),
-    "misc-l6mrg": ("RT", "L6 message margin (epochs) for CLAS L6 real-time synchronization."),
-    "misc-regularly": ("VRS", "Regular filter reset interval (s). 0 = disabled."),
+    "misc-rtcmopt": ("RT, PP", "RTCM decoder option string."),
+    "misc-l6mrg": ("PPP-RTK, VRS", "L6 message merge mode for CLAS corrections."),
+    "misc-regularly": ("PPP-RTK, VRS", "Regular filter reset interval (s). 0 = disabled."),
     "misc-startcmd": ("RT", "Shell command executed on server start."),
     "misc-stopcmd": ("RT", "Shell command executed on server stop."),
 }
@@ -517,6 +596,7 @@ def type_label(vtype: str) -> str:
         "snr": "array[int]",
         "navsys": "string[]",
         "siglist": "string[]",
+        "strlist": "string[]",
     }
     return labels.get(vtype, vtype)
 
@@ -533,6 +613,12 @@ def main() -> int:
     section_names = {
         "positioning": "Positioning",
         "positioning.clas": "Positioning — CLAS",
+        "positioning.spp": "Positioning — SPP",
+        "positioning.madoca": "Positioning — MADOCA",
+        "positioning.ppp": "Positioning — PPP",
+        "positioning.clas.ambiguities": "Positioning — CLAS Ambiguities",
+        "positioning.clas.resilience": "Positioning — CLAS Resilience",
+        "positioning.relative": "Positioning — Relative",
         "positioning.snr_mask": "Positioning — SNR Mask",
         "positioning.corrections": "Positioning — Corrections",
         "positioning.atmosphere": "Positioning — Atmosphere",
@@ -547,15 +633,61 @@ def main() -> int:
         "kalman_filter.measurement_error": "Kalman Filter — Measurement Error",
         "kalman_filter.initial_std": "Kalman Filter — Initial Std. Deviation",
         "kalman_filter.process_noise": "Kalman Filter — Process Noise",
-        "adaptive_filter": "Adaptive Filter",
-        "signals": "Signal Selection",
-        "receiver": "Receiver",
+        "positioning.clas.adaptive_filter": "Positioning — CLAS Adaptive Filter",
+        "signals": "Positioning — Signal Selection",
+        "input.rinex": "Input — RINEX",
+        "input.rtcm": "Input — RTCM",
+        "input.sbas": "Input — SBAS",
         "antenna.rover": "Antenna — Rover",
         "antenna.base": "Antenna — Base",
         "output": "Output",
         "files": "Files",
-        "server": "Server (rtkrcv)",
+        "server": "Server Runtime (rtkrcv)",
     }
+
+    # Explicit section emission order (readability grouping). The `positioning`
+    # cluster is ordered engine-agnostic first (SNR/atmosphere/corrections),
+    # then per-engine (SPP → Relative → PPP → Signal Selection → MADOCA), then
+    # the CLAS family (CLAS → Ambiguities → Resilience → Adaptive Filter). Any
+    # section present in MAPPING but missing here is appended at the end so a
+    # new section can never silently vanish from the reference.
+    section_order = [
+        "positioning",
+        "positioning.snr_mask",
+        "positioning.atmosphere",
+        "positioning.corrections",
+        "positioning.spp",
+        "positioning.relative",
+        "positioning.ppp",
+        "signals",
+        "positioning.madoca",
+        "positioning.clas",
+        "positioning.clas.ambiguities",
+        "positioning.clas.resilience",
+        "positioning.clas.adaptive_filter",
+        "ambiguity_resolution",
+        "ambiguity_resolution.thresholds",
+        "ambiguity_resolution.counters",
+        "ambiguity_resolution.partial_ar",
+        "ambiguity_resolution.hold",
+        "rejection",
+        "slip_detection",
+        "kalman_filter",
+        "kalman_filter.measurement_error",
+        "kalman_filter.initial_std",
+        "kalman_filter.process_noise",
+        "input.rinex",
+        "input.rtcm",
+        "input.sbas",
+        "antenna.rover",
+        "antenna.base",
+        "output",
+        "files",
+        "server",
+    ]
+    ordered_sections = [s for s in section_order if s in sections]
+    ordered_sections += [s for s in sections if s not in section_order]
+    sections = OrderedDict((s, sections[s]) for s in ordered_sections)
 
     lines: list[str] = []
     lines.append("# Configuration Options Reference")
@@ -582,7 +714,10 @@ def main() -> int:
     lines.append("| **PPP** | `ppp-kine` · `ppp-static` · `ppp-fixed` |")
     lines.append("| **PPP-RTK** | `ppp-rtk` (CLAS PPP-RTK) |")
     lines.append("| **SSR2OSR** | `ssr2osr` · `ssr2osr-fixed` |")
-    lines.append("| **VRS** | `vrs-rtk` |")
+    lines.append(
+        "| **VRS** | `vrs-rtk` — a CLAS-only mode: it builds CLAS-derived OSR and "
+        "double-differences it like RTK (`correction = qzs-clas`, not a generic RTK base station). |"
+    )
     lines.append("| **RT** | Real-time only (`mrtk run` / `rtkrcv`) |")
     lines.append("| **PP** | Post-processing only (`mrtk post` / `rnx2rtkp`) |")
     lines.append("")
@@ -595,6 +730,15 @@ def main() -> int:
         lines.append("")
         lines.append(f"TOML section: `[{section}]`")
         lines.append("")
+        if section == "signals":
+            lines.append(
+                "> **Legacy preset form.** These per-constellation presets are the older, coarser "
+                "signal-selection surface (no per-code control, no GLONASS entry). Prefer "
+                "[`[positioning].signals`](#positioning) for new configurations; when `signals` is set it "
+                "overrides this section. GLONASS L2 code selection (e.g. L2C/A vs L2P) can only be expressed "
+                "via `[positioning].signals`."
+            )
+            lines.append("")
         lines.append("| TOML Key | Type | Modes | Description |")
         lines.append("|:---------|:-----|:------|:------------|")
 
@@ -619,6 +763,9 @@ def main() -> int:
             elif vtype == "siglist":
                 if '["' not in desc:
                     desc += ' e.g. `["G1C", "G2W", "E1C"]`'
+            elif vtype == "strlist":
+                if '["' not in desc:
+                    desc += ' e.g. `["G01", "G02"]`'
             elif vtype == "snr":
                 if "9-element" not in desc:
                     desc += " 9-element array (0–45 dBHz per 5° elevation bin)."
@@ -634,6 +781,13 @@ def main() -> int:
 
         # Section-specific supplementary notes
         if section == "positioning":
+            lines.append(
+                "> **Recommended surface.** `[positioning].signals` is the preferred way to select signals. "
+                "The `[signals]` section (`gps`/`qzs`/`galileo`/`bds2`/`bds3` presets) and `frequency` are the "
+                "older, coarser mechanism (no per-code control, and **no GLONASS entry**, which is why GLONASS "
+                "L2 code selection requires `signals`). When `signals` is set it takes precedence."
+            )
+            lines.append("")
             lines.append("### Frequency Index Mapping")
             lines.append("")
             lines.append(
@@ -697,6 +851,28 @@ def main() -> int:
     lines.append("| `nmeareq` | boolean | Send NMEA position request to stream |")
     lines.append("| `nmealat` | float | NMEA request latitude (degrees) |")
     lines.append("| `nmealon` | float | NMEA request longitude (degrees) |")
+    lines.append("| `nmeahgt` | float | NMEA request height (m) |")
+    lines.append("")
+
+    # Console configuration (rtkrcv rcvopts, not in MAPPING)
+    lines.append("## Console (rtkrcv)")
+    lines.append("")
+    lines.append("TOML section: `[console]` — **Real-time only** (`mrtk run` / `rtkrcv`)")
+    lines.append("")
+    lines.append("Interactive rtkrcv console (telnet) settings.")
+    lines.append("")
+    lines.append("| TOML Key | Type | Modes | Description |")
+    lines.append("|:---------|:-----|:------|:------------|")
+    lines.append("| `passwd` | string | RT | Console login password. |")
+    lines.append(
+        "| `timetype` | enum | RT | Console time display. `gpst` · `utc` · `jst` · `tow` |"
+    )
+    lines.append(
+        "| `soltype` | enum | RT | Console solution display format. `dms` · `deg` · `xyz` · `enu` · `pyl` |"
+    )
+    lines.append(
+        "| `solflag` | flag | RT | Console solution status flags (std / age / ratio / ns). |"
+    )
     lines.append("")
 
     print("\n".join(lines))

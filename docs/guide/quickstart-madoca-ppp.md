@@ -112,7 +112,7 @@ mrtk post -k conf/madocalib/rnx2rtkp_pppar_iono.toml \
   tests/data/madocalib/2025091A.206.l6
 ```
 
-This adds `receiver.iono_correction = true`, enabling MADOCA-specific
+This adds `positioning.madoca.iono_correction = true`, enabling MADOCA-specific
 ionospheric corrections for faster convergence.
 
 ### Real-Time PPP-AR/IONO (`mrtk run`)
@@ -130,7 +130,7 @@ mrtk run -o conf/madocalib/rtkrcv_madoca_pppar_iono.toml -s
 
 Requires that PRN 200/201 L6D be tracked (IS-QZSS-MDC-004 Table 3-1,
 "Technology Demonstration"). Set `correction = "qzs-madoca"` and
-`receiver.iono_correction = true`; the corrections ride on the rover SBF, so no
+`positioning.madoca.iono_correction = true`; the corrections ride on the rover SBF, so no
 separate correction stream is needed.
 
 ---

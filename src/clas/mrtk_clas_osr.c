@@ -1234,12 +1234,10 @@ int clas_osr_zdres(const obsd_t* obs, int n, const double* rs, const double* dts
             continue;
         }
 
-        /* shapiro time delay correction */
-        if (opt->posopt[2]) {
-            /* upstream uses posopt[7]; map to posopt[2] for MRTKLIB.
-             * If posopt[2] is used for another purpose, set it appropriately. */
-            osr[i].relatv = shapiro(rs + i * 6, rr);
-        }
+        /* shapiro time delay correction. Assigned unconditionally: PRC/CPC below read
+         * .relatv every epoch, but the caller's osr[] is reused across epochs (see the
+         * partial-clear note in clas_ssr2osr), which would let a stale term survive here. */
+        osr[i].relatv = opt->posopt[7] ? shapiro(rs + i * 6, rr) : 0.0;
 
         /* tropospheric delay correction */
         osr[i].trop = clas_osr_prectrop(obs_copy[i].time, pos, azel + i * 2, zwd, ztd);
@@ -1687,9 +1685,9 @@ int clas_ssr2osr(rtk_t* rtk, obsd_t* obs, int n, nav_t* nav, clas_osrd_t* osr, i
                     (lam_v[f] > 0.0) ? osr[i].c[j] / lam_v[f] + osr_ctx.pbias_ofst[j * MAXSAT + sati - 1] : 0.0;
                 obs[ko].LLI[j] = (rtk->ssat[sati - 1].slip[j] & 1) ? 1 : 0;
                 /* SNR model: elevation-dependent or fixed (via posopt[11]).
-                 * Note: posopt[11] is the reserved slot used by cssr2rtcm3
-                 * to carry snr_fixed without clashing with posopt[10] (GPS
-                 * frequency option in clas_osr_selfreqpair). */
+                 * cssr2rtcm3 carries snr_fixed in this slot so it does not
+                 * clash with posopt[10], the GPS frequency option read by
+                 * clas_osr_selfreqpair(). */
                 {
                     double el = azel[i * 2 + 1]; /* elevation (rad), from zdres */
                     double snr_db = (opt->posopt[11] > 0.0) ? opt->posopt[11] : 25.0 + 20.0 * sin(el);

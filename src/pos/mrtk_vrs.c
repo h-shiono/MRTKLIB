@@ -312,6 +312,7 @@ static int selfreqpair(const int sat, const prcopt_t* opt, const obsd_t* obs) {
 /* temporal update of position/velocity/acceleration -------------------------*/
 static void udpos(rtk_t* rtk, const obsd_t* obs, double tt) {
     double *F, *FP, *xp, pos[3], Q[9] = {0}, Qv[9], var = 0.0;
+    double prnpos_h, prnpos_v;
     int i, j, na, nb, nx, ni, flag_init = 0;
     double *Fx, *Pxx, *Pxi, *Pxb, *Pxi_, *Pxb_, *xp_, ki;
 
@@ -529,8 +530,11 @@ static void udpos(rtk_t* rtk, const obsd_t* obs, double tt) {
         }
     } else {
         /* process noise added to only position */
-        Q[0] = Q[4] = SQR(rtk->opt.prn[5]) * fabs(tt);
-        Q[8] = SQR(rtk->opt.prn[6]) * fabs(tt);
+        /* Keep CLAS position noise independent of PPP's IFB slot prn[6]. */
+        prnpos_h = rtk->opt.stats_prnposith;
+        prnpos_v = rtk->opt.stats_prnpositv;
+        Q[0] = Q[4] = SQR(prnpos_h) * fabs(tt);
+        Q[8] = SQR(prnpos_v) * fabs(tt);
         ecef2pos(rtk->x, pos);
         covecef(pos, Q, Qv);
         if (rtk->opt.prnadpt == 0 || flag_init) {

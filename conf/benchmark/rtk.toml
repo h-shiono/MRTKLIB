@@ -9,7 +9,7 @@ solution_type = "forward"
 elevation_mask = 15.0                                                                          # (deg)
 dynamics = true                                                                                # kinematic
 satellite_ephemeris = "brdc"
-excluded_sats = ""
+excluded_sats = []
 systems = ["GPS", "Galileo", "QZSS", "BeiDou"]
 
 [positioning.snr_mask]
@@ -37,7 +37,6 @@ mode = "fix-and-hold"
 [ambiguity_resolution.thresholds]
 ratio = 3.0
 ratio1 = 0.9999
-ratio2 = 0.25
 elevation_mask = 15.0
 hold_elevation = 0.0
 
@@ -61,11 +60,6 @@ doppler = 1.0    # Doppler slip threshold (cyc/s, 0=off)
 
 [kalman_filter]
 iterations = 1
-
-[receiver]
-max_age = 30.0        # (s)
-baseline_length = 0.0
-baseline_sigma = 0.0
 
 [antenna.rover]
 position_type = "single"
@@ -104,10 +98,14 @@ station_pos = ""
 geoid = ""
 dcb = ""
 temp_dir = ""
-geexe = ""
-solution_stat = ""
 trace = ""
 
-[server]
+
+[positioning.relative]
+max_age = 30.0            # (s)
+baseline_length = 0.0
+baseline_sigma = 0.0
 time_interpolation = true
-sbas_satellite = "all"
+
+[input.sbas]
+satellite = 0

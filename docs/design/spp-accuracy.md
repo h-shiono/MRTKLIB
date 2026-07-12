@@ -750,15 +750,17 @@ float vector — including the position states — from `rtk->x`. So a poor seed
 propagate into the ambiguity search. The hypothesis was that the v0.6.10 SPP
 accuracy work could lift the seed quality and reduce mis-fixes.
 
-### 11.2 The err[5]/err[6] aliasing constraint
+### 11.2 Separation of C/N0 and CLAS atmosphere-error terms
 
-The seed runs on a private option copy (`prcopt_t sppopt = rtk->opt`), but until
-now it inherited the CLAS error model verbatim. The two slots `err[5]`/`err[6]`
-are **overloaded**: in `mrtk_spp.c::varerr` they are the C/N0 `snr_max`/`snr_error`
-coefficients, but in `mrtk_ppp_rtk.c::varerr` the same slots are the iono/trop
-estimation-error terms. Setting them on `rtk->opt` to enable seed C/N0 weighting
-would corrupt the CLAS measurement model. The fix is to set the SPP error model
-on `sppopt` **only**, leaving `rtk->opt` (read by the CLAS engine) untouched.
+`err[5]`/`err[6]` are the C/N0 `snr_max`/`snr_error` coefficients used by the
+SPP and RTK measurement models. They were formerly overloaded as ionosphere and
+troposphere estimation-error terms by the CLAS PPP-RTK model. #261 separates the
+CLAS terms into `stats_erriono` / `stats_errtrop`, exposed as
+`[kalman_filter.measurement_error] ionosphere` / `troposphere`. C/N0 weighting
+can therefore be configured without changing the CLAS measurement variance.
+
+The seed still uses a private option copy (`prcopt_t sppopt = rtk->opt`) so its
+profile does not overwrite the operational filter options.
 
 ### 11.3 The `enhanced_spp_seed` profile
 

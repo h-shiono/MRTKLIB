@@ -13,6 +13,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 
 #include "mrtklib/mrtk_const.h"
 #include "mrtklib/mrtk_trace.h"
@@ -48,9 +49,6 @@ static const toml_map_t toml_mapping[] = {
     {"positioning.clas", "grid_selection_radius", "pos1-gridsel"},
     {"positioning.clas", "receiver_type", "pos1-rectype"},
     {"positioning.clas", "enhanced_spp_seed", "pos1-seedenh"},
-    {"positioning.clas", "position_uncertainty_x", "pos1-rux"},
-    {"positioning.clas", "position_uncertainty_y", "pos1-ruy"},
-    {"positioning.clas", "position_uncertainty_z", "pos1-ruz"},
 
     /* ── positioning.snr_mask ──────────────────────────────────────────────── */
     {"positioning.snr_mask", "rover_enabled", "pos1-snrmask_r"},
@@ -71,7 +69,7 @@ static const toml_map_t toml_mapping[] = {
     {"positioning.corrections", "exclude_qzs_ref", "pos1-posopt9"},
     {"positioning.corrections", "no_phase_bias_adj", "pos1-posopt10"},
     {"positioning.corrections", "gps_frequency", "pos1-posopt11"},
-    {"positioning.corrections", "reserved", "pos1-posopt12"},
+    {"positioning.corrections", "snr_fixed", "pos1-posopt12"},
     {"positioning.corrections", "qzs_frequency", "pos1-posopt13"},
     {"positioning.corrections", "tidal_correction", "pos1-tidecorr"},
 
@@ -90,9 +88,6 @@ static const toml_map_t toml_mapping[] = {
     /* ── ambiguity_resolution.thresholds ───────────────────────────────────── */
     {"ambiguity_resolution.thresholds", "ratio", "pos2-arthres"},
     {"ambiguity_resolution.thresholds", "ratio1", "pos2-arthres1"},
-    {"ambiguity_resolution.thresholds", "ratio2", "pos2-arthres2"},
-    {"ambiguity_resolution.thresholds", "ratio3", "pos2-arthres3"},
-    {"ambiguity_resolution.thresholds", "ratio4", "pos2-arthres4"},
     {"ambiguity_resolution.thresholds", "ratio5", "pos2-arthres5"},
     {"ambiguity_resolution.thresholds", "ratio6", "pos2-arthres6"},
     {"ambiguity_resolution.thresholds", "alpha", "pos2-aralpha"},
@@ -118,7 +113,6 @@ static const toml_map_t toml_mapping[] = {
 
     /* ── ambiguity_resolution.hold ─────────────────────────────────────────── */
     {"ambiguity_resolution.hold", "variance", "pos2-varholdamb"},
-    {"ambiguity_resolution.hold", "gain", "pos2-gainholdamb"},
 
     /* ── rejection ─────────────────────────────────────────────────────────── */
     {"rejection", "innovation", "pos2-rejionno"},
@@ -139,7 +133,6 @@ static const toml_map_t toml_mapping[] = {
 
     /* ── kalman_filter ─────────────────────────────────────────────────────── */
     {"kalman_filter", "iterations", "pos2-niter"},
-    {"kalman_filter", "sync_solution", "pos2-syncsol"},
 
     /* ── kalman_filter.measurement_error ───────────────────────────────────── */
     {"kalman_filter.measurement_error", "code_phase_ratio_L1", "stats-eratio1"},
@@ -151,6 +144,8 @@ static const toml_map_t toml_mapping[] = {
     {"kalman_filter.measurement_error", "doppler", "stats-errdoppler"},
     {"kalman_filter.measurement_error", "snr_max", "stats-snrmax"},
     {"kalman_filter.measurement_error", "snr_error", "stats-errsnr"},
+    {"kalman_filter.measurement_error", "ionosphere", "stats-erriono"},
+    {"kalman_filter.measurement_error", "troposphere", "stats-errtrop"},
     {"kalman_filter.measurement_error", "ura_ratio", "stats-uraratio"},
 
     /* ── kalman_filter.initial_std ─────────────────────────────────────────── */
@@ -172,12 +167,12 @@ static const toml_map_t toml_mapping[] = {
     {"kalman_filter.process_noise", "iono_time_const", "stats-tconstiono"},
     {"kalman_filter.process_noise", "clock_stability", "stats-clkstab"},
 
-    /* ── adaptive_filter ───────────────────────────────────────────────────── */
-    {"adaptive_filter", "enabled", "pos2-prnadpt"},
-    {"adaptive_filter", "iono_forgetting", "pos2-forgetion"},
-    {"adaptive_filter", "iono_gain", "pos2-afgainion"},
-    {"adaptive_filter", "pva_forgetting", "pos2-forgetpva"},
-    {"adaptive_filter", "pva_gain", "pos2-afgainpva"},
+    /* ── positioning.clas.adaptive_filter ──────────────────────────────────── */
+    {"positioning.clas.adaptive_filter", "enabled", "pos2-prnadpt"},
+    {"positioning.clas.adaptive_filter", "iono_forgetting", "pos2-forgetion"},
+    {"positioning.clas.adaptive_filter", "iono_gain", "pos2-afgainion"},
+    {"positioning.clas.adaptive_filter", "pva_forgetting", "pos2-forgetpva"},
+    {"positioning.clas.adaptive_filter", "pva_gain", "pos2-afgainpva"},
 
     /* ── signals ───────────────────────────────────────────────────────────── */
     {"signals", "gps", "pos2-siggps"},
@@ -186,21 +181,32 @@ static const toml_map_t toml_mapping[] = {
     {"signals", "bds2", "pos2-sigbds2"},
     {"signals", "bds3", "pos2-sigbds3"},
 
-    /* ── receiver ──────────────────────────────────────────────────────────── */
-    {"receiver", "iono_correction", "pos2-ionocorr"},
-    {"receiver", "ignore_chi_error", "pos2-ign_chierr"},
-    {"receiver", "bds2_bias", "pos2-bds2bias"},
-    {"receiver", "ppp_sat_clock_bias", "pos2-pppsatcb"},
-    {"receiver", "ppp_sat_phase_bias", "pos2-pppsatpb"},
-    {"receiver", "uncorr_bias", "pos2-uncorrbias"},
-    {"receiver", "max_bias_dt", "pos2-maxbiasdt"},
-    {"receiver", "satellite_mode", "pos2-sattmode"},
-    {"receiver", "phase_shift", "pos2-phasshft"},
-    {"receiver", "isb", "pos2-isb"},
-    {"receiver", "reference_type", "pos2-rectype"},
-    {"receiver", "max_age", "pos2-maxage"},
-    {"receiver", "baseline_length", "pos2-baselen"},
-    {"receiver", "baseline_sigma", "pos2-basesig"},
+    /* ── positioning engine options ───────────────────────────────────────── */
+    {"positioning.spp", "ignore_chi_error", "pos2-ign_chierr"},
+    {"positioning.madoca", "iono_correction", "pos2-ionocorr"},
+    {"positioning.ppp", "satellite_clock_bias", "pos2-pppsatcb"},
+    {"positioning.ppp", "satellite_phase_bias", "pos2-pppsatpb"},
+    {"positioning.ppp", "drop_uncorrected_code", "pos2-uncorrbias"},
+    {"positioning.ppp", "clock_jump", "pos2-clkjump"},
+    {"positioning.ppp", "max_bias_dt", "pos2-maxbiasdt"},
+    {"positioning.ppp", "options", "misc-pppopt"},
+    {"positioning.clas.ambiguities", "phase_shift", "pos2-phasshft"},
+    {"positioning.clas.ambiguities", "isb", "pos2-isb"},
+    {"positioning.clas.ambiguities", "reference_type", "pos2-rectype"},
+    {"positioning.clas.resilience", "max_obs_loss", "misc-maxobsloss"},
+    {"positioning.clas.resilience", "float_count", "misc-floatcnt"},
+    {"positioning.clas.resilience", "l6_merge", "misc-l6mrg"},
+    {"positioning.clas.resilience", "reset_interval", "misc-regularly"},
+    {"positioning.relative", "max_age", "pos2-maxage"},
+    {"positioning.relative", "baseline_length", "pos2-baselen"},
+    {"positioning.relative", "baseline_sigma", "pos2-basesig"},
+    {"positioning.relative", "time_interpolation", "misc-timeinterp"},
+
+    /* ── input decoding ───────────────────────────────────────────────────── */
+    {"input.rinex", "option_1", "misc-rnxopt1"},
+    {"input.rinex", "option_2", "misc-rnxopt2"},
+    {"input.rtcm", "options", "misc-rtcmopt"},
+    {"input.sbas", "satellite", "misc-sbasatsel"},
 
     /* ── antenna.rover ─────────────────────────────────────────────────────── */
     {"antenna.rover", "position_type", "ant1-postype"},
@@ -252,10 +258,7 @@ static const toml_map_t toml_mapping[] = {
     {"files", "dcb", "file-dcbfile"},
     {"files", "eop", "file-eopfile"},
     {"files", "ocean_loading", "file-blqfile"},
-    {"files", "elevation_mask_file", "file-elmaskfile"},
     {"files", "temp_dir", "file-tempdir"},
-    {"files", "geexe", "file-geexefile"},
-    {"files", "solution_stat", "file-solstatfile"},
     {"files", "trace", "file-tracefile"},
     {"files", "fcb", "file-fcbfile"},
     {"files", "bias_sinex", "file-biafile"},
@@ -263,7 +266,7 @@ static const toml_map_t toml_mapping[] = {
     {"files", "isb_table", "file-isbfile"},
     {"files", "phase_cycle", "file-phacycfile"},
 
-    /* ── server (misc) ─────────────────────────────────────────────────────── */
+    /* ── server (rtkrcv runtime only) ──────────────────────────────────────── */
     {"server", "cycle_ms", "misc-svrcycle"},
     {"server", "timeout_ms", "misc-timeout"},
     {"server", "reconnect_ms", "misc-reconnect"},
@@ -272,16 +275,6 @@ static const toml_map_t toml_mapping[] = {
     {"server", "nav_msg_select", "misc-navmsgsel"},
     {"server", "proxy", "misc-proxyaddr"},
     {"server", "swap_margin", "misc-fswapmargin"},
-    {"server", "time_interpolation", "misc-timeinterp"},
-    {"server", "sbas_satellite", "misc-sbasatsel"},
-    {"server", "max_obs_loss", "misc-maxobsloss"},
-    {"server", "float_count", "misc-floatcnt"},
-    {"server", "rinex_option_1", "misc-rnxopt1"},
-    {"server", "rinex_option_2", "misc-rnxopt2"},
-    {"server", "ppp_option", "misc-pppopt"},
-    {"server", "rtcm_option", "misc-rtcmopt"},
-    {"server", "l6_margin", "misc-l6mrg"},
-    {"server", "regularly", "misc-regularly"},
     {"server", "start_cmd", "misc-startcmd"},
     {"server", "stop_cmd", "misc-stopcmd"},
 
@@ -326,6 +319,60 @@ static const toml_map_t toml_mapping[] = {
     {NULL, NULL, NULL} /* terminator */
 };
 
+/* ── Deprecated section.key aliases ────────────────────────────────────────── */
+
+/* Old TOML paths retired by the section-taxonomy refactor (#266) and later
+ * renames. Each is still accepted for backward compatibility: loadopts_toml()
+ * applies the value and emits a one-line deprecation warning pointing at the
+ * new path. The new location wins when both are present. saveopts_toml() does
+ * not consult this table, so a re-saved file always uses the new layout.
+ * Add an entry here whenever a section.key is renamed (see #286). */
+typedef struct {
+    const char* old_section;
+    const char* old_key;
+    const char* new_section;
+    const char* new_key;
+    const char* legacy_name;
+} toml_alias_t;
+
+static const toml_alias_t toml_alias[] = {
+    /* [receiver] dismantled (#266) */
+    {"receiver", "phase_shift", "positioning.clas.ambiguities", "phase_shift", "pos2-phasshft"},
+    {"receiver", "isb", "positioning.clas.ambiguities", "isb", "pos2-isb"},
+    {"receiver", "reference_type", "positioning.clas.ambiguities", "reference_type", "pos2-rectype"},
+    {"receiver", "iono_correction", "positioning.madoca", "iono_correction", "pos2-ionocorr"},
+    {"receiver", "ignore_chi_error", "positioning.spp", "ignore_chi_error", "pos2-ign_chierr"},
+    {"receiver", "ppp_sat_clock_bias", "positioning.ppp", "satellite_clock_bias", "pos2-pppsatcb"},
+    {"receiver", "ppp_sat_phase_bias", "positioning.ppp", "satellite_phase_bias", "pos2-pppsatpb"},
+    {"receiver", "max_bias_dt", "positioning.ppp", "max_bias_dt", "pos2-maxbiasdt"},
+    {"receiver", "uncorr_bias", "positioning.ppp", "drop_uncorrected_code", "pos2-uncorrbias"},
+    {"receiver", "max_age", "positioning.relative", "max_age", "pos2-maxage"},
+    {"receiver", "baseline_length", "positioning.relative", "baseline_length", "pos2-baselen"},
+    {"receiver", "baseline_sigma", "positioning.relative", "baseline_sigma", "pos2-basesig"},
+    /* keys moved out of [server] (#266) */
+    {"server", "max_obs_loss", "positioning.clas.resilience", "max_obs_loss", "misc-maxobsloss"},
+    {"server", "float_count", "positioning.clas.resilience", "float_count", "misc-floatcnt"},
+    {"server", "l6_margin", "positioning.clas.resilience", "l6_merge", "misc-l6mrg"},
+    {"server", "regularly", "positioning.clas.resilience", "reset_interval", "misc-regularly"},
+    {"server", "ppp_option", "positioning.ppp", "options", "misc-pppopt"},
+    {"server", "time_interpolation", "positioning.relative", "time_interpolation", "misc-timeinterp"},
+    {"server", "rinex_option_1", "input.rinex", "option_1", "misc-rnxopt1"},
+    {"server", "rinex_option_2", "input.rinex", "option_2", "misc-rnxopt2"},
+    {"server", "rtcm_option", "input.rtcm", "options", "misc-rtcmopt"},
+    {"server", "sbas_satellite", "input.sbas", "satellite", "misc-sbasatsel"},
+    /* [adaptive_filter] nested under CLAS (#287) */
+    {"adaptive_filter", "enabled", "positioning.clas.adaptive_filter", "enabled", "pos2-prnadpt"},
+    {"adaptive_filter", "iono_forgetting", "positioning.clas.adaptive_filter", "iono_forgetting", "pos2-forgetion"},
+    {"adaptive_filter", "iono_gain", "positioning.clas.adaptive_filter", "iono_gain", "pos2-afgainion"},
+    {"adaptive_filter", "pva_forgetting", "positioning.clas.adaptive_filter", "pva_forgetting", "pos2-forgetpva"},
+    {"adaptive_filter", "pva_gain", "positioning.clas.adaptive_filter", "pva_gain", "pos2-afgainpva"},
+    {NULL, NULL, NULL, NULL, NULL} /* terminator */
+};
+
+/* Sections owned by a specific app (not the positioning option table); their
+ * keys must not be flagged as unknown. */
+static const char* const toml_app_sections[] = {"cssr2rtcm3", "signal_remap", NULL};
+
 /* ── Helper: navigate nested TOML tables ───────────────────────────────────── */
 
 /**
@@ -358,6 +405,73 @@ static toml_table_t* navigate_table(toml_table_t* root, const char* path) {
         tbl = toml_table_in(tbl, tok);
     }
     return tbl;
+}
+
+/* ── Helper: unknown-key detection ─────────────────────────────────────────── */
+
+/**
+ * @brief Report whether a section.key pair is recognized by the loader.
+ * @param[in] section  Dotted TOML section path.
+ * @param[in] key      Leaf key name.
+ * @return 1 if the key is in the mapping, an alias, or an app-owned section.
+ */
+static int is_known_key(const char* section, const char* key) {
+    const toml_map_t* m;
+    const toml_alias_t* a;
+    const char* const* s;
+
+    for (s = toml_app_sections; *s; s++) {
+        if (!strcmp(section, *s)) {
+            return 1;
+        }
+    }
+    /* positioning.systems is a string-list key handled outside toml_mapping */
+    if (!strcmp(section, "positioning") && !strcmp(key, "systems")) {
+        return 1;
+    }
+    for (m = toml_mapping; m->toml_section; m++) {
+        if (!strcmp(m->toml_section, section) && !strcmp(m->toml_key, key)) {
+            return 1;
+        }
+    }
+    for (a = toml_alias; a->old_section; a++) {
+        if (!strcmp(a->old_section, section) && !strcmp(a->old_key, key)) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+/**
+ * @brief Recursively walk a parsed TOML table and warn on unrecognized keys.
+ *        Sub-tables extend the dotted section path; scalar/array leaves are
+ *        checked against is_known_key(). Catches values silently dropped
+ *        because their section.key is not in the mapping (typo or stale name).
+ * @param[in] tab   TOML table to walk.
+ * @param[in] path  Dotted section path accumulated so far ("" at the root).
+ */
+static void check_unknown_keys(toml_table_t* tab, const char* path) {
+    int i, n = toml_table_nkval(tab) + toml_table_narr(tab) + toml_table_ntab(tab);
+    char subpath[256];
+
+    for (i = 0; i < n; i++) {
+        const char* key = toml_key_in(tab, i);
+        toml_table_t* sub;
+        if (!key) {
+            continue;
+        }
+        sub = toml_table_in(tab, key);
+        if (sub) {
+            if (*path) {
+                snprintf(subpath, sizeof(subpath), "%s.%s", path, key);
+            } else {
+                snprintf(subpath, sizeof(subpath), "%s", key);
+            }
+            check_unknown_keys(sub, subpath);
+        } else if (!is_known_key(path, key)) {
+            fprintf(stderr, "TOML: unknown key [%s].%s (ignored)\n", *path ? path : "(root)", key);
+        }
+    }
 }
 
 /* ── Helper: read a TOML value as string for str2opt() ─────────────────────── */
@@ -494,6 +608,7 @@ extern int loadopts_toml(const char* file, opt_t* opts) {
     toml_table_t* root;
     char errbuf[256];
     const toml_map_t* m;
+    const toml_alias_t* a;
     toml_table_t* tbl;
     opt_t* opt;
     char valbuf[2048];
@@ -538,6 +653,37 @@ extern int loadopts_toml(const char* file, opt_t* opts) {
         if (!str2opt(opt, valbuf)) {
             fprintf(stderr, "TOML: invalid value for %s.%s = %s (legacy: %s)\n", m->toml_section, m->toml_key, valbuf,
                     m->legacy_name);
+            continue;
+        }
+        count++;
+    }
+
+    /* Accept retired section.key paths for backward compatibility, warning the
+     * user to migrate. The new location (already read above) takes precedence.
+     * Mirrors the main mapping loop's error handling: stay silent when this
+     * opts table does not own the legacy option (e.g. the same file loaded
+     * into rcvopts), and report an invalid value on a str2opt() failure. */
+    for (a = toml_alias; a->old_section; a++) {
+        toml_table_t* ntbl;
+        tbl = navigate_table(root, a->old_section);
+        if (!tbl || !toml_val_to_str(tbl, a->old_key, valbuf, sizeof(valbuf))) {
+            continue; /* old key not present */
+        }
+        opt = searchopt(a->legacy_name, opts);
+        if (!opt) {
+            continue; /* legacy option not in this opts table */
+        }
+        ntbl = navigate_table(root, a->new_section);
+        if (ntbl && toml_key_exists(ntbl, a->new_key)) {
+            fprintf(stderr, "TOML: [%s].%s is deprecated and ignored; [%s].%s takes precedence\n", a->old_section,
+                    a->old_key, a->new_section, a->new_key);
+            continue;
+        }
+        fprintf(stderr, "TOML: [%s].%s is deprecated; move it to [%s].%s\n", a->old_section, a->old_key, a->new_section,
+                a->new_key);
+        if (!str2opt(opt, valbuf)) {
+            fprintf(stderr, "TOML: invalid value for %s.%s = %s (legacy: %s)\n", a->old_section, a->old_key, valbuf,
+                    a->legacy_name);
             continue;
         }
         count++;
@@ -601,6 +747,28 @@ extern int loadopts_toml(const char* file, opt_t* opts) {
                     buf[pos] = '\0';
                 }
             }
+        }
+    }
+
+    /* Warn on any key the loader does not recognize (typo, or a stale name with
+     * no alias) so it does not silently fall back to a default. rtkrcv loads
+     * the same file twice per logical load (once for rcvopts, once for
+     * sysopts), which would print every warning twice; sweep once per file
+     * fingerprint (path + mtime + size), so an edited file is re-checked on
+     * reload but a back-to-back second pass is not. When the file cannot be
+     * fingerprinted, fail open: sweeping twice beats losing the warnings. */
+    {
+        static char swept_path[MAXSTRPATH];
+        static time_t swept_mtime;
+        static off_t swept_size;
+        struct stat st;
+        if (stat(file, &st) != 0) {
+            check_unknown_keys(root, "");
+        } else if (strcmp(file, swept_path) != 0 || st.st_mtime != swept_mtime || st.st_size != swept_size) {
+            check_unknown_keys(root, "");
+            snprintf(swept_path, sizeof(swept_path), "%s", file);
+            swept_mtime = st.st_mtime;
+            swept_size = st.st_size;
         }
     }
 

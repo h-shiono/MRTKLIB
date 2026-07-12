@@ -57,9 +57,6 @@ accel_h = 1.0
 accel_v = 0.1
 clock_stability = 5e-12
 
-[receiver]
-max_age = 30.0
-
 [antenna.rover]
 type = "TRM59800.00     SCIS" # real-time MSM RINEX carries no antenna name
 
@@ -70,3 +67,6 @@ receiver_atx = "./tests/data/igs/igs20_aira.atx"
 format = "llh"
 height_type = "ellipsoidal"
 static_solution = "all"
+
+[positioning.relative]
+max_age = 30.0

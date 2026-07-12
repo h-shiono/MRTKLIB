@@ -18,7 +18,7 @@ Options are grouped by their TOML section.
 | **PPP** | `ppp-kine` · `ppp-static` · `ppp-fixed` |
 | **PPP-RTK** | `ppp-rtk` (CLAS PPP-RTK) |
 | **SSR2OSR** | `ssr2osr` · `ssr2osr-fixed` |
-| **VRS** | `vrs-rtk` |
+| **VRS** | `vrs-rtk` — a CLAS-only mode: it builds CLAS-derived OSR and double-differences it like RTK (`correction = qzs-clas`, not a generic RTK base station). |
 | **RT** | Real-time only (`mrtk run` / `rtkrcv`) |
 | **PP** | Post-processing only (`mrtk post` / `rnx2rtkp`) |
 
@@ -35,9 +35,14 @@ TOML section: `[positioning]`
 | `elevation_mask` | float | All | Minimum satellite elevation angle (degrees). Satellites below this are excluded. |
 | `dynamics` | boolean | All | Enable receiver dynamics model (velocity/acceleration state estimation). |
 | `satellite_ephemeris` | enum | All | Satellite ephemeris source. SSR modes (`brdc+ssrapc`, `brdc+ssrcom`) are used for PPP and PPP-RTK. `brdc` · `precise` · `brdc+sbas` · `brdc+ssrapc` · `brdc+ssrcom` |
-| `systems` | string[] | All | GNSS constellations to use. Accepts a human-readable string list like `["GPS", "Galileo"]`. |
-| `excluded_sats` | string | All | Satellites to exclude. Space-separated PRN list (e.g., `G01 G02`). Prefix `+` to include only. |
+| `systems` | string[] | All | GNSS constellations to use. Accepts a human-readable string list like `["GPS", "Galileo"]`. The low-level `constellations` key (integer/string bitmask, legacy `pos1-navsys` form) is also accepted for backward compatibility; `systems` supersedes it when both are present. |
+| `excluded_sats` | string[] | All | Satellites to exclude, as a PRN list (e.g. `["G01", "G02"]`). Prefix a PRN with `+` to force inclusion instead, overriding the health and URA checks (a satellite with no ephemeris is still dropped). The legacy space-separated string form (`"G01 G02"`) is also accepted. |
 | `signals` | string[] | All | Explicit RINEX3-style signal code list (`{sys}{freq}{attr}`, e.g. `["G1C", "G2W", "R1C", "R2C", "E1C", "E7Q", "J1C", "J2L"]`). When set it is the **authoritative** signal selection: it overrides `frequency` / the `[signals]` presets, derives the number of frequencies, **and** selects which observation code occupies each band's slot during real-time raw decoding (so e.g. GLONASS L2C/A can be used as the iono-free 2nd frequency without the legacy `-RL2C` receiver option — see [#189](https://github.com/h-shiono/MRTKLIB/issues/189)). List **every** band you want, for every constellation you want to constrain — `signals = ["R2C"]` alone derives nf=1 (single-frequency). A constellation you omit entirely keeps its default signal selection. |
+| `robust` | enum | SPP | Robust estimation strategy for single-point positioning (down-weights outliers via M-estimation). `off` · `igg3` |
+| `robust_k0` | float | SPP | IGG-III robust weighting lower threshold k0 (standardized residual). Residuals below k0 keep full weight. |
+| `robust_k1` | float | SPP | IGG-III robust weighting upper threshold k1 (standardized residual). Residuals above k1 are rejected; between k0 and k1 the weight is tapered. |
+| `tdcp` | enum | SPP | Time-differenced carrier phase (TDCP) velocity estimation and carrier-phase-based cycle-slip / jump QC. `off` · `on` |
+| `tdcp_jump` | float | SPP | TDCP position-jump rejection threshold (m). Epoch-to-epoch jumps exceeding this are rejected as outliers. |
 
 > **Recommended surface.** `[positioning].signals` is the preferred way to select signals. The `[signals]` section (`gps`/`qzs`/`galileo`/`bds2`/`bds3` presets) and `frequency` are the older, coarser mechanism (no per-code control, and **no GLONASS entry**, which is why GLONASS L2 code selection requires `signals`). When `signals` is set it takes precedence.
 
@@ -62,18 +67,6 @@ Each slot maps to a different signal depending on the constellation:
     adds the E5b slot without valid bias, causing false cycle slips on
     Galileo and degrading fix rate from >99% to ~67%.
 
-## Positioning — CLAS
-
-TOML section: `[positioning.clas]`
-
-| TOML Key | Type | Modes | Description |
-|:---------|:-----|:------|:------------|
-| `grid_selection_radius` | integer | PPP-RTK, VRS | CLAS grid search radius (m). Controls how far from the rover to search for grid-based tropospheric/ionospheric corrections. |
-| `receiver_type` | string | PPP-RTK, VRS | Rover receiver type identifier. Used for ISB (inter-system bias) table lookup. |
-| `position_uncertainty_x` | float | PPP-RTK, VRS | Rover approximate position X in ECEF (m). Used for initial CLAS grid search before first fix. |
-| `position_uncertainty_y` | float | PPP-RTK, VRS | Rover approximate position Y in ECEF (m). |
-| `position_uncertainty_z` | float | PPP-RTK, VRS | Rover approximate position Z in ECEF (m). |
-
 ## Positioning — SNR Mask
 
 TOML section: `[positioning.snr_mask]`
@@ -86,27 +79,6 @@ TOML section: `[positioning.snr_mask]`
 | `L2` | array[int] | All | L2 SNR mask values per elevation bin (dBHz). 9-element array (0–45 dBHz per 5° elevation bin). |
 | `L5` | array[int] | All | L5 SNR mask values per elevation bin (dBHz). 9-element array (0–45 dBHz per 5° elevation bin). |
 
-## Positioning — Corrections
-
-TOML section: `[positioning.corrections]`
-
-| TOML Key | Type | Modes | Description |
-|:---------|:-----|:------|:------------|
-| `satellite_antenna` | boolean | All | Apply satellite antenna phase center offset correction using ANTEX file. |
-| `receiver_antenna` | boolean | All | Apply receiver antenna phase center offset/variation correction. |
-| `phase_windup` | enum | PPP, PPP-RTK, VRS | Phase wind-up correction. `off` · `on` · `precise` |
-| `exclude_eclipse` | boolean | PPP, PPP-RTK | Exclude satellites in eclipse (yaw maneuver period) to avoid degraded orbit/clock. |
-| `raim_fde` | boolean | SPP | RAIM fault detection and exclusion for single-point positioning. |
-| `iono_compensation` | enum | PPP-RTK, VRS, SSR2OSR | Ionospheric compensation method for SSR-based processing. `off` · `ssr` · `meas` |
-| `partial_ar` | boolean | PPP-RTK, VRS | Enable partial ambiguity resolution (fix a satellite subset). |
-| `shapiro_delay` | boolean | PPP, PPP-RTK, VRS | Apply relativistic Shapiro time delay correction. |
-| `exclude_qzs_ref` | boolean | PPP-RTK, VRS | Exclude QZS satellites from reference satellite selection in DD processing. |
-| `no_phase_bias_adj` | boolean | PPP-RTK, VRS | Disable phase bias adjustment. Used when phase bias is already applied by SSR corrections. |
-| `gps_frequency` | enum | PPP-RTK, VRS | GPS frequency pair selection for CLAS processing. `l1` · `l1+l2` · `l1+l5` · `l1+l2+l5` · `l1+l5(l2)` |
-| `reserved` | boolean | — | Reserved for future use. |
-| `qzs_frequency` | enum | PPP-RTK, VRS | QZS frequency pair selection for CLAS processing. `l1` · `l1+l2` · `l1+l5` · `l1+l2+l5` · `l1+l5(l2)` |
-| `tidal_correction` | enum | PPP, PPP-RTK, VRS | Tidal displacement correction. Option `solid+otl-clasgrid+pole` uses CLAS grid-based ocean tide loading. `off` · `on` · `otl` · `solid+otl-clasgrid+pole` |
-
 ## Positioning — Atmosphere
 
 TOML section: `[positioning.atmosphere]`
@@ -115,6 +87,124 @@ TOML section: `[positioning.atmosphere]`
 |:---------|:-----|:------|:------------|
 | `ionosphere` | enum | All | Ionospheric correction model. PPP uses `dual-freq` or `est-stec`. PPP-RTK uses `est-stec` or `est-adaptive`. RTK typically uses `dual-freq`. `off` · `brdc` · `sbas` · `dual-freq` · `est-stec` · `ionex-tec` · `qzs-brdc` · `est-adaptive` |
 | `troposphere` | enum | All | Tropospheric correction model. PPP/PPP-RTK use `est-ztd` or `est-ztdgrad`. SPP/RTK typically use `saas`. `off` · `saas` · `sbas` · `est-ztd` · `est-ztdgrad` |
+
+## Positioning — Corrections
+
+TOML section: `[positioning.corrections]`
+
+| TOML Key | Type | Modes | Description |
+|:---------|:-----|:------|:------------|
+| `satellite_antenna` | boolean | All | Apply satellite antenna phase center offset correction using ANTEX file. |
+| `receiver_antenna` | boolean | All | Apply receiver antenna phase center offset/variation correction. |
+| `phase_windup` | enum | PPP | Phase wind-up correction. `off` · `on` · `precise` |
+| `exclude_eclipse` | boolean | PPP, PPP-RTK | Exclude satellites in eclipse (yaw maneuver period) to avoid degraded orbit/clock. |
+| `raim_fde` | boolean | SPP | RAIM fault detection and exclusion for single-point positioning. |
+| `iono_compensation` | enum | PPP-RTK, VRS, SSR2OSR | Ionospheric compensation method for SSR-based processing. `off` · `ssr` · `meas` |
+| `partial_ar` | boolean | PPP-RTK, VRS | Enable partial ambiguity resolution (fix a satellite subset). |
+| `shapiro_delay` | boolean | PPP-RTK, VRS | Apply relativistic Shapiro time delay correction. |
+| `exclude_qzs_ref` | boolean | PPP-RTK, VRS | Exclude QZS satellites from reference satellite selection in DD processing. |
+| `no_phase_bias_adj` | boolean | PPP-RTK, VRS | Disable phase bias adjustment. Used when phase bias is already applied by SSR corrections. |
+| `gps_frequency` | enum | PPP-RTK, VRS | GPS frequency pair selection for CLAS processing. `l1` · `l1+l2` · `l1+l5` · `l1+l2+l5` · `l1+l5(l2)` |
+| `snr_fixed` | integer | SSR2OSR | Fixed output SNR (integer dB-Hz). 0 uses the elevation-dependent SNR model. |
+| `qzs_frequency` | enum | PPP-RTK, VRS | QZS frequency pair selection for CLAS processing. `l1` · `l1+l2` · `l1+l5` · `l1+l2+l5` · `l1+l5(l2)` |
+| `tidal_correction` | enum | PPP, PPP-RTK, VRS | Tidal displacement correction. Option `solid+otl-clasgrid+pole` uses CLAS grid-based ocean tide loading. `off` · `on` · `otl` · `solid+otl-clasgrid+pole` |
+
+## Positioning — SPP
+
+TOML section: `[positioning.spp]`
+
+| TOML Key | Type | Modes | Description |
+|:---------|:-----|:------|:------------|
+| `ignore_chi_error` | boolean | SPP | Ignore chi-square test errors in SPP solution validation. |
+
+## Positioning — Relative
+
+TOML section: `[positioning.relative]`
+
+| TOML Key | Type | Modes | Description |
+|:---------|:-----|:------|:------------|
+| `max_age` | float | RTK, VRS | Maximum age of differential correction (s). |
+| `baseline_length` | float | RTK | Baseline length constraint (m). 0 = no constraint. |
+| `baseline_sigma` | float | RTK | Standard deviation of baseline length constraint (m). |
+| `time_interpolation` | boolean | RTK, VRS, PP | Enable time interpolation between observation epochs. |
+
+## Positioning — PPP
+
+TOML section: `[positioning.ppp]`
+
+| TOML Key | Type | Modes | Description |
+|:---------|:-----|:------|:------------|
+| `satellite_clock_bias` | integer | PPP | PPP satellite code bias source selection. |
+| `satellite_phase_bias` | integer | PPP | PPP satellite phase bias source selection. |
+| `drop_uncorrected_code` | boolean | PPP | In uncombined IGS PPP, discard a pseudorange measurement when its satellite or receiver code bias is unavailable. |
+| `clock_jump` | boolean | PPP | Reset PPP phase-bias states at a GPS day boundary. |
+| `max_bias_dt` | integer | PPP | Maximum age of bias correction data (s) before invalidation. |
+| `options` | string | PPP | PPP processing option string (passed to PPP engine). |
+
+## Positioning — Signal Selection
+
+TOML section: `[signals]`
+
+> **Legacy preset form.** These per-constellation presets are the older, coarser signal-selection surface (no per-code control, no GLONASS entry). Prefer [`[positioning].signals`](#positioning) for new configurations; when `signals` is set it overrides this section. GLONASS L2 code selection (e.g. L2C/A vs L2P) can only be expressed via `[positioning].signals`.
+
+| TOML Key | Type | Modes | Description |
+|:---------|:-----|:------|:------------|
+| `gps` | enum | PPP, PPP-RTK, VRS | GPS frequency pair selection for the SSR-corrected measurement model. Applied via `apply_pppsig()` for every correction source except `igs`, so it also reshapes the observation set used by CLAS PPP-RTK / VRS. `L1/L2` · `L1/L5` · `L1/L2/L5` |
+| `qzs` | enum | PPP, PPP-RTK, VRS | QZS frequency pair selection. `L1/L5` · `L1/L2` · `L1/L5/L2` |
+| `galileo` | enum | PPP, PPP-RTK, VRS | Galileo frequency pair selection. `E1/E5a` · `E1/E5b` · `E1/E6` · `E1/E5a/E5b/E6` · `E1/E5a/E6/E5b` |
+| `bds2` | enum | PPP, PPP-RTK, VRS | BDS-2 frequency pair selection. `B1I/B3I` · `B1I/B2I` · `B1I/B3I/B2I` |
+| `bds3` | enum | PPP, PPP-RTK, VRS | BDS-3 frequency pair selection. `B1I/B3I` · `B1I/B2a` · `B1I/B3I/B2a` |
+
+## Positioning — MADOCA
+
+TOML section: `[positioning.madoca]`
+
+| TOML Key | Type | Modes | Description |
+|:---------|:-----|:------|:------------|
+| `iono_correction` | boolean | PPP | Enable ionospheric correction in MADOCA-PPP processing. |
+
+## Positioning — CLAS
+
+TOML section: `[positioning.clas]`
+
+| TOML Key | Type | Modes | Description |
+|:---------|:-----|:------|:------------|
+| `grid_selection_radius` | integer | PPP-RTK, VRS | CLAS grid search radius (m). Controls how far from the rover to search for grid-based tropospheric/ionospheric corrections. |
+| `receiver_type` | string | PPP-RTK, VRS | Rover receiver type identifier. Used for ISB (inter-system bias) table lookup. |
+| `enhanced_spp_seed` | enum | PPP-RTK | Enhanced SPP seed for CLAS PPP-RTK reconvergence. Selects the code / Doppler QC stack used to seed the float filter after outages (opt-in; the default base seed uses C/N0 + TDCP). `off` · `cn0+tdcp` · `cn0+tdcp+robust` |
+
+## Positioning — CLAS Ambiguities
+
+TOML section: `[positioning.clas.ambiguities]`
+
+| TOML Key | Type | Modes | Description |
+|:---------|:-----|:------|:------------|
+| `phase_shift` | enum | PPP-RTK, VRS | Phase cycle shift correction. Corrects quarter-cycle shifts between systems. `off` · `table` |
+| `isb` | boolean | PPP-RTK, VRS | Inter-system bias estimation mode. |
+| `reference_type` | string | PPP-RTK, VRS | Reference station receiver type for ISB table lookup. |
+
+## Positioning — CLAS Resilience
+
+TOML section: `[positioning.clas.resilience]`
+
+| TOML Key | Type | Modes | Description |
+|:---------|:-----|:------|:------------|
+| `max_obs_loss` | float | PPP-RTK | Maximum observation gap duration before filter reset (s). |
+| `float_count` | integer | PPP-RTK, VRS | Number of float epochs before triggering filter reset. |
+| `l6_merge` | integer | PPP-RTK, VRS | L6 message merge mode for CLAS corrections. |
+| `reset_interval` | integer | PPP-RTK, VRS | Regular filter reset interval (s). 0 = disabled. |
+
+## Positioning — CLAS Adaptive Filter
+
+TOML section: `[positioning.clas.adaptive_filter]`
+
+| TOML Key | Type | Modes | Description |
+|:---------|:-----|:------|:------------|
+| `enabled` | boolean | PPP-RTK, VRS | Enable adaptive Kalman filter process noise scaling. |
+| `iono_forgetting` | float | PPP-RTK, VRS | Forgetting factor for ionospheric state (0–1). Lower = faster adaptation. |
+| `iono_gain` | float | PPP-RTK, VRS | Adaptive gain for ionospheric process noise adjustment. |
+| `pva_forgetting` | float | PPP-RTK, VRS | Forgetting factor for position/velocity/acceleration states (0–1). |
+| `pva_gain` | float | PPP-RTK, VRS | Adaptive gain for PVA process noise adjustment. |
 
 ## Ambiguity Resolution
 
@@ -127,7 +217,7 @@ TOML section: `[ambiguity_resolution]`
 | `glonass_ar` | enum | RTK | GLONASS ambiguity resolution mode. `off` · `on` |
 | `bds_ar` | boolean | RTK, PPP-RTK | BDS ambiguity resolution enable/disable. |
 | `qzs_ar` | boolean | PPP-RTK, VRS | QZS ambiguity resolution mode. |
-| `systems` | integer | RTK, PPP-RTK, VRS | Constellation bitmask for AR. Limits which systems participate in integer ambiguity resolution. |
+| `systems` | integer | PPP | Constellation bitmask for AR. Limits which systems participate in integer ambiguity resolution. |
 
 ## Ambiguity Resolution — Thresholds
 
@@ -137,14 +227,14 @@ TOML section: `[ambiguity_resolution.thresholds]`
 |:---------|:-----|:------|:------------|
 | `ratio` | float | RTK, PPP, PPP-RTK, VRS | LAMBDA ratio test threshold (2nd-best / best). Typical value: 3.0. |
 | `ratio1` | float | RTK, PPP, PPP-RTK | Secondary AR threshold. In MADOCA-PPP: max 3D position std-dev to start narrow-lane AR. |
-| `ratio2` | float | RTK, PPP-RTK | Additional AR threshold parameter. |
-| `ratio3` | float | RTK, PPP-RTK | Additional AR threshold parameter. |
-| `ratio4` | float | RTK | Additional AR threshold parameter. |
-| `ratio5` | float | PPP-RTK | Chi-square threshold for hold validation. |
-| `ratio6` | float | PPP-RTK | Chi-square threshold for fix validation. |
+| `ratio5` | float | RTK | Adaptive lower clamp for the AR ratio threshold. |
+| `ratio6` | float | RTK | Adaptive upper clamp for the AR ratio threshold. |
 | `alpha` | enum | PPP-RTK, VRS | AR significance level (ILS success rate). `0.1%` · `0.5%` · `1%` · `5%` · `10%` · `20%` |
 | `elevation_mask` | float | RTK, PPP-RTK, VRS | Minimum satellite elevation for AR participation (degrees). |
 | `hold_elevation` | float | RTK, PPP-RTK, VRS | Minimum satellite elevation for fix-and-hold constraint application (degrees). |
+| `max_pdop_ar` | float | PPP-RTK, VRS | Maximum PDOP for attempting ambiguity resolution. 0 = no limit. |
+| `max_pdop_hold` | float | PPP-RTK, VRS | Maximum PDOP for applying the fix-and-hold constraint. 0 = no limit. |
+| `reference_dop` | enum | PPP-RTK, VRS | Reference DOP formulation used for AR validation. `zd` · `sd` |
 
 ## Ambiguity Resolution — Counters
 
@@ -154,7 +244,7 @@ TOML section: `[ambiguity_resolution.counters]`
 |:---------|:-----|:------|:------------|
 | `lock_count` | integer | RTK, PPP-RTK, VRS | Minimum continuous lock count before a satellite participates in AR. |
 | `min_fix` | integer | RTK, PPP-RTK | Minimum fix epochs before applying fix-and-hold constraint. |
-| `max_iterations` | integer | RTK, PPP-RTK | Maximum LAMBDA search iterations per epoch. |
+| `max_iterations` | integer | PPP | Maximum LAMBDA search iterations per epoch. |
 | `out_count` | integer | RTK, PPP-RTK, VRS | Reset ambiguity after this many continuous outage epochs. |
 
 ## Ambiguity Resolution — Partial AR
@@ -177,7 +267,6 @@ TOML section: `[ambiguity_resolution.hold]`
 | TOML Key | Type | Modes | Description |
 |:---------|:-----|:------|:------------|
 | `variance` | float | PPP-RTK, VRS | Variance of held ambiguity pseudo-observation (cyc²). Controls how tightly held ambiguities constrain the filter. |
-| `gain` | float | RTK | Gain factor for fractional GLONASS/SBAS inter-channel bias update in fix-and-hold. |
 
 ## Rejection Criteria
 
@@ -191,6 +280,8 @@ TOML section: `[rejection]`
 | `non_dispersive` | float | PPP-RTK, VRS | Non-dispersive (geometric) residual rejection threshold (σ). |
 | `hold_chi_square` | float | PPP-RTK, VRS | Chi-square threshold for hold-mode outlier detection. |
 | `fix_chi_square` | float | PPP-RTK, VRS | Chi-square threshold for fix-mode outlier detection. |
+| `spp_residual` | float | SPP | SPP pseudorange residual rejection threshold (m) used by RAIM FDE. |
+| `spp_min_sats` | integer | SPP | Minimum number of satellites SPP RAIM FDE retains before it stops excluding outliers. |
 | `gdop` | float | All | Maximum GDOP for valid solution output. |
 | `pseudorange_diff` | float | VRS | Pseudorange consistency check threshold (m). Rejects satellites with large code-phase disagreement. |
 | `position_error_count` | integer | VRS | Number of consecutive position error epochs before filter reset. |
@@ -211,7 +302,6 @@ TOML section: `[kalman_filter]`
 | TOML Key | Type | Modes | Description |
 |:---------|:-----|:------|:------------|
 | `iterations` | integer | RTK, PPP, PPP-RTK, VRS | Number of measurement update iterations per epoch. More iterations improve linearization accuracy. |
-| `sync_solution` | boolean | RT | Synchronize solution output with observation time in real-time mode. |
 
 ## Kalman Filter — Measurement Error
 
@@ -226,6 +316,10 @@ TOML section: `[kalman_filter.measurement_error]`
 | `phase_elevation` | float | All | Elevation-dependent carrier phase error coefficient (m). |
 | `phase_baseline` | float | RTK | Baseline-length-dependent phase error (m/10km). Proportional to rover–base distance. |
 | `doppler` | float | All | Doppler measurement error (Hz). |
+| `snr_max` | float | SPP, RTK | C/N0 at which the SNR-based measurement weighting model saturates (dBHz). Used when C/N0 weighting is enabled. |
+| `snr_error` | float | SPP, RTK | Carrier phase measurement error at the SNR-weighting reference level (m). |
+| `ionosphere` | float | PPP-RTK | Additional ionosphere estimation-error term in the CLAS measurement variance model (m). Active when ionosphere estimation is enabled. |
+| `troposphere` | float | PPP-RTK | Additional troposphere estimation-error term in the CLAS measurement variance model (m). Active when troposphere estimation is enabled. |
 | `ura_ratio` | float | PPP | User Range Accuracy scaling ratio. Adjusts satellite-specific weighting based on broadcast URA. |
 
 ## Kalman Filter — Initial Std. Deviation
@@ -236,7 +330,7 @@ TOML section: `[kalman_filter.initial_std]`
 |:---------|:-----|:------|:------------|
 | `bias` | float | RTK, PPP, PPP-RTK, VRS | Initial standard deviation for carrier phase bias states (m). |
 | `ionosphere` | float | PPP-RTK, VRS | Initial standard deviation for ionospheric delay states (m). |
-| `troposphere` | float | PPP, PPP-RTK, VRS | Initial standard deviation for tropospheric delay states (m). |
+| `troposphere` | float | RTK, PPP-RTK, VRS | Initial standard deviation for tropospheric delay states (m). |
 
 ## Kalman Filter — Process Noise
 
@@ -252,57 +346,35 @@ TOML section: `[kalman_filter.process_noise]`
 | `accel_v` | float | All | Vertical acceleration process noise (m/s²). Active when `dynamics = true`. |
 | `position_h` | float | PPP-RTK, VRS | Horizontal position process noise (m). |
 | `position_v` | float | PPP-RTK, VRS | Vertical position process noise (m). |
-| `position` | float | All | General position process noise (m). Fallback when h/v not specified. |
+| `position` | float | PPP | General position process noise for static PPP states (m). |
 | `ifb` | float | PPP | Inter-frequency bias process noise (m). For multi-frequency PPP bias estimation. |
 | `iono_time_const` | float | PPP-RTK, VRS | Ionospheric time constant (s). Controls iono state temporal correlation in the adaptive filter. |
-| `clock_stability` | float | PPP | Receiver clock stability (s/s). Used in PPP clock state prediction. |
+| `clock_stability` | float | RTK, VRS | Receiver clock stability (s/s). Used in clock state prediction. |
 
-## Adaptive Filter
+## Input — RINEX
 
-TOML section: `[adaptive_filter]`
-
-| TOML Key | Type | Modes | Description |
-|:---------|:-----|:------|:------------|
-| `enabled` | boolean | PPP-RTK, VRS | Enable adaptive Kalman filter process noise scaling. |
-| `iono_forgetting` | float | PPP-RTK, VRS | Forgetting factor for ionospheric state (0–1). Lower = faster adaptation. |
-| `iono_gain` | float | PPP-RTK, VRS | Adaptive gain for ionospheric process noise adjustment. |
-| `pva_forgetting` | float | PPP-RTK, VRS | Forgetting factor for position/velocity/acceleration states (0–1). |
-| `pva_gain` | float | PPP-RTK, VRS | Adaptive gain for PVA process noise adjustment. |
-
-## Signal Selection
-
-TOML section: `[signals]`
-
-> **Legacy preset form.** These per-constellation presets are the older, coarser signal-selection surface (no per-code control, no GLONASS entry). Prefer [`[positioning].signals`](#positioning) for new configurations; when `signals` is set it overrides this section. GLONASS L2 code selection (e.g. L2C/A vs L2P) can only be expressed via `[positioning].signals`.
+TOML section: `[input.rinex]`
 
 | TOML Key | Type | Modes | Description |
 |:---------|:-----|:------|:------------|
-| `gps` | enum | PPP, PPP-RTK | GPS frequency pair selection for PPP/PPP-RTK processing. `L1/L2` · `L1/L5` · `L1/L2/L5` |
-| `qzs` | enum | PPP, PPP-RTK | QZS frequency pair selection. `L1/L5` · `L1/L2` · `L1/L5/L2` |
-| `galileo` | enum | PPP, PPP-RTK | Galileo frequency pair selection. `E1/E5a` · `E1/E5b` · `E1/E6` · `E1/E5a/E5b/E6` · `E1/E5a/E6/E5b` |
-| `bds2` | enum | PPP, PPP-RTK | BDS-2 frequency pair selection. `B1I/B3I` · `B1I/B2I` · `B1I/B3I/B2I` |
-| `bds3` | enum | PPP, PPP-RTK | BDS-3 frequency pair selection. `B1I/B3I` · `B1I/B2a` · `B1I/B3I/B2a` |
+| `option_1` | string | All | RINEX conversion option string for rover stream. |
+| `option_2` | string | All | RINEX conversion option string for base stream. |
 
-## Receiver
+## Input — RTCM
 
-TOML section: `[receiver]`
+TOML section: `[input.rtcm]`
 
 | TOML Key | Type | Modes | Description |
 |:---------|:-----|:------|:------------|
-| `iono_correction` | boolean | PPP | Enable ionospheric correction in MADOCA-PPP processing. |
-| `ignore_chi_error` | boolean | SPP | Ignore chi-square test errors in SPP solution validation. |
-| `bds2_bias` | boolean | PPP | Enable BDS-2 code bias correction (satellite-dependent group delay). |
-| `ppp_sat_clock_bias` | integer | PPP | PPP satellite code bias source selection. |
-| `ppp_sat_phase_bias` | integer | PPP | PPP satellite phase bias source selection. |
-| `uncorr_bias` | integer | PPP | Uncorrelated bias parameter for PPP processing. |
-| `max_bias_dt` | integer | PPP | Maximum age of bias correction data (s) before invalidation. |
-| `satellite_mode` | integer | PPP | Satellite processing mode selector. |
-| `phase_shift` | enum | PPP-RTK, VRS | Phase cycle shift correction. Corrects quarter-cycle shifts between systems. `off` · `table` |
-| `isb` | boolean | PPP-RTK, VRS | Inter-system bias estimation mode. |
-| `reference_type` | string | PPP-RTK, VRS | Reference station receiver type for ISB table lookup. |
-| `max_age` | float | RTK, PPP-RTK | Maximum age of differential correction (s). |
-| `baseline_length` | float | RTK | Baseline length constraint (m). 0 = no constraint. |
-| `baseline_sigma` | float | RTK | Standard deviation of baseline length constraint (m). |
+| `options` | string | RT, PP | RTCM decoder option string. |
+
+## Input — SBAS
+
+TOML section: `[input.sbas]`
+
+| TOML Key | Type | Modes | Description |
+|:---------|:-----|:------|:------------|
+| `satellite` | integer | RT, PP | SBAS satellite selection. |
 
 ## Antenna — Rover
 
@@ -314,10 +386,10 @@ TOML section: `[antenna.rover]`
 | `position_1` | float | All | Rover position coordinate 1 (latitude or X, depending on `position_type`). |
 | `position_2` | float | All | Rover position coordinate 2 (longitude or Y). |
 | `position_3` | float | All | Rover position coordinate 3 (height or Z). |
-| `type` | string | All | Rover antenna type (must match ANTEX file entry). `*` = use RINEX header. |
-| `delta_e` | float | All | Rover antenna delta East offset (m). |
-| `delta_n` | float | All | Rover antenna delta North offset (m). |
-| `delta_u` | float | All | Rover antenna delta Up offset (m). |
+| `type` | string | RTK, PPP, PPP-RTK, VRS | Rover antenna type (must match ANTEX file entry). `*` = use RINEX header. |
+| `delta_e` | float | RTK, PPP, PPP-RTK, VRS | Rover antenna delta East offset (m). |
+| `delta_n` | float | RTK, PPP, PPP-RTK, VRS | Rover antenna delta North offset (m). |
+| `delta_u` | float | RTK, PPP, PPP-RTK, VRS | Rover antenna delta Up offset (m). |
 
 ## Antenna — Base
 
@@ -358,7 +430,7 @@ TOML section: `[output]`
 | `static_solution` | enum | PP | Static mode output control. `all` · `single` |
 | `nmea_interval_1` | float | All | NMEA GGA/RMC output interval (s). |
 | `nmea_interval_2` | float | All | NMEA GSA/GSV output interval (s). |
-| `solution_status` | enum | All | Solution status output level. `off` · `state` · `residual` |
+| `solution_status` | enum | PP | Solution status output level. `off` · `state` · `residual` |
 
 ## Files
 
@@ -367,17 +439,14 @@ TOML section: `[files]`
 | TOML Key | Type | Modes | Description |
 |:---------|:-----|:------|:------------|
 | `satellite_atx` | string | All | Satellite antenna ANTEX file. Required for satellite antenna PCV correction. |
-| `receiver_atx` | string | All | Receiver antenna ANTEX file. Required for receiver antenna PCV correction. |
+| `receiver_atx` | string | RTK, PPP, PPP-RTK, VRS | Receiver antenna ANTEX file. Required for receiver antenna PCV correction. |
 | `station_pos` | string | All | Station position file for fixed/known positions. |
 | `geoid` | string | All | Geoid data file for geodetic height conversion. |
 | `ionosphere` | string | All | IONEX ionosphere map file. Used when `ionosphere = ionex-tec`. |
 | `dcb` | string | PPP | Differential code bias file. |
 | `eop` | string | PPP, PPP-RTK | Earth orientation parameter file for precise coordinate frame. |
 | `ocean_loading` | string | PPP, PPP-RTK | BLQ ocean tide loading file. Required when `tidal_correction` includes OTL. |
-| `elevation_mask_file` | string | All | Azimuth-dependent elevation mask file. |
 | `temp_dir` | string | All | Temporary directory for intermediate files. |
-| `geexe` | string | All | Google Earth executable path (legacy GUI feature). |
-| `solution_stat` | string | All | Solution statistics output file path. |
 | `trace` | string | All | Debug trace output file path. |
 | `fcb` | string | PPP | Fractional cycle bias file for PPP-AR. |
 | `bias_sinex` | string | PPP | Bias SINEX file for PPP satellite bias correction. |
@@ -388,7 +457,7 @@ TOML section: `[files]`
 | `cmd_file_2` | string | RT | Receiver command file for input stream 2. |
 | `cmd_file_3` | string | RT | Receiver command file for input stream 3. |
 
-## Server (rtkrcv)
+## Server Runtime (rtkrcv)
 
 TOML section: `[server]`
 
@@ -402,16 +471,6 @@ TOML section: `[server]`
 | `nav_msg_select` | string | RT | Navigation message type selection for multi-source environments. |
 | `proxy` | string | RT | HTTP proxy address for NTRIP connections. |
 | `swap_margin` | integer | RT | File swap margin (s) for continuous logging across file boundaries. |
-| `time_interpolation` | boolean | RT | Enable time interpolation between observation epochs. |
-| `sbas_satellite` | string | RT | SBAS satellite selection. |
-| `max_obs_loss` | float | RT | Maximum observation gap duration before filter reset (s). |
-| `float_count` | integer | RT | Number of float epochs before triggering filter reset. |
-| `rinex_option_1` | string | All | RINEX conversion option string for rover stream. |
-| `rinex_option_2` | string | All | RINEX conversion option string for base stream. |
-| `ppp_option` | string | PPP | PPP processing option string (passed to PPP engine). |
-| `rtcm_option` | string | RT | RTCM decoder option string. |
-| `l6_margin` | integer | RT | L6 message margin (epochs) for CLAS L6 real-time synchronization. |
-| `regularly` | integer | VRS | Regular filter reset interval (s). 0 = disabled. |
 | `start_cmd` | string | RT | Shell command executed on server start. |
 | `stop_cmd` | string | RT | Shell command executed on server stop. |
 
@@ -449,4 +508,18 @@ path = "rover.log"
 | `nmeareq` | boolean | Send NMEA position request to stream |
 | `nmealat` | float | NMEA request latitude (degrees) |
 | `nmealon` | float | NMEA request longitude (degrees) |
+| `nmeahgt` | float | NMEA request height (m) |
+
+## Console (rtkrcv)
+
+TOML section: `[console]` — **Real-time only** (`mrtk run` / `rtkrcv`)
+
+Interactive rtkrcv console (telnet) settings.
+
+| TOML Key | Type | Modes | Description |
+|:---------|:-----|:------|:------------|
+| `passwd` | string | RT | Console login password. |
+| `timetype` | enum | RT | Console time display. `gpst` · `utc` · `jst` · `tow` |
+| `soltype` | enum | RT | Console solution display format. `dms` · `deg` · `xyz` · `enu` · `pyl` |
+| `solflag` | flag | RT | Console solution status flags (std / age / ratio / ns). |
 

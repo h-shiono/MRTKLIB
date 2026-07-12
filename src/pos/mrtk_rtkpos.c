@@ -2729,10 +2729,9 @@ extern int rtkpos(mrtk_ctx_t* ctx, rtk_t* rtk, const obsd_t* obs, int n, nav_t* 
             }
             /* Enhanced seed (default SEEDENH_BASE = cn0+tdcp; set OFF to disable):
              * apply the proven v0.6.10 SPP error model to this PRIVATE copy only.
-             * err[5]/err[6] are the C/N0 snr_max/snr_error coefficients here (varerr
-             * in mrtk_spp.c); the CLAS engine reads rtk->opt where the same slots
-             * mean the iono/trop estimation-error terms, so it stays untouched. When
-             * the profile is OFF the seed is bit-identical to prior behaviour. */
+             * err[5]/err[6] are the C/N0 snr_max/snr_error coefficients here; the
+             * CLAS measurement model uses its dedicated atmosphere-error fields.
+             * When the profile is OFF the seed is bit-identical to prior behaviour. */
             if (rtk->opt.enhanced_spp_seed >= SEEDENH_BASE) {
                 sppopt.err[5] = 50.0;  /* C/N0 reference snr_max (dB-Hz) */
                 sppopt.err[6] = 0.5;   /* C/N0 weighting coefficient (m) */

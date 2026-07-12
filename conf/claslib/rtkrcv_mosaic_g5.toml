@@ -19,15 +19,12 @@ solution_type = "forward"
 elevation_mask = 15.0
 dynamics = true
 satellite_ephemeris = "brdc+ssrapc"
-excluded_sats = ""
+excluded_sats = []
 systems = ["GPS", "Galileo", "QZSS"]
 
 [positioning.clas]
 grid_selection_radius = 1000
 receiver_type = ""
-position_uncertainty_x = 10.0
-position_uncertainty_y = 10.0
-position_uncertainty_z = 10.0
 
 [positioning.snr_mask]
 rover_enabled = true
@@ -122,20 +119,12 @@ gps = 0     # L1/L2
 qzs = 1     # L1/L2
 galileo = 0 # E1/E5a
 
-[adaptive_filter]
+[positioning.clas.adaptive_filter]
 iono_forgetting = 0.3
 iono_gain = 3.0
 enabled = false
 pva_forgetting = 0.3
 pva_gain = 1.0
-
-[receiver]
-baseline_length = 0.0
-baseline_sigma = 0.0
-max_age = 30.0
-isb = false
-phase_shift = "table"
-reference_type = "CLAS"
 
 [antenna.rover]
 position_type = "single"
@@ -187,8 +176,6 @@ station_pos = ""
 geoid = ""
 dcb = ""
 temp_dir = ""
-geexe = ""
-solution_stat = ""
 trace = ""
 
 [server]
@@ -200,12 +187,7 @@ buffer_size = 32768
 nav_msg_select = "all"
 proxy = ""
 swap_margin = 30
-time_interpolation = true
-max_obs_loss = 90.0
-float_count = 15
 
-# Rover: SBF stream carries obs + nav + L6D (all from single TCP relay)
-# L6D (QZSRawL6D) blocks are automatically redirected to CLAS decoder
 [streams.input.rover]
 type = "tcpcli"
 path = "localhost:9000"
@@ -249,3 +231,18 @@ passwd = ""
 timetype = "gpst"
 soltype = "deg"
 solflag = "off"
+
+[positioning.clas.ambiguities]
+isb = false
+phase_shift = "table"
+reference_type = "CLAS"
+
+[positioning.clas.resilience]
+max_obs_loss = 90.0
+float_count = 15
+
+[positioning.relative]
+baseline_length = 0.0
+baseline_sigma = 0.0
+max_age = 30.0
+time_interpolation = true

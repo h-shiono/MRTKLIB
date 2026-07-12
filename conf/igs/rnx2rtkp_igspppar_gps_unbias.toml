@@ -1,14 +1,13 @@
 # MRTKLIB Configuration (TOML v1.0.0)
-# IGS-products integer PPP-AR (#142): precise SP3/CLK + Bias-SINEX OSB phase
-# biases, uncombined measurement model, GPS+Galileo.
+# IGS-products PPP-AR, GPS-only, with drop_uncorrected_code enabled (#263).
 #
-# Integer ambiguity resolution requires:
-#   - ionosphere = "est-stec"  (uncombined; per-frequency ambiguity states)
-#   - a satellite phase-bias product via files.bias_sinex (COD MGEX IAR OSB.BIA)
-# The iono-free float config (rnx2rtkp_ppp.toml, ionosphere = "dual-freq") cannot
-# resolve integers -- there is one ambiguity per satellite, not per frequency.
-#
-# Used by the igs_pppar_ge regression test (tests/data/igs/igs_testdata.tar.gz).
+# Identical to rnx2rtkp_igspppar_gps_recvbias.toml but with
+# positioning.ppp.drop_uncorrected_code = true (pos2-uncorrbias / opt->unbias).
+# The bias-sinex fixture gives every satellite/code used in this window a
+# receiver-level OSB (satellite-specific for G03, system-wide GPS for the
+# rest), so the gate should never trigger a drop here -- this locks in that
+# turning the flag on does not regress accuracy when coverage is complete,
+# and exercises the corr_meas() unbias branches end to end (see #263).
 
 [positioning]
 mode = "ppp-static"
@@ -17,7 +16,7 @@ solution_type = "forward"
 elevation_mask = 15.0
 dynamics = false
 satellite_ephemeris = "precise"
-systems = ["GPS", "Galileo"]
+systems = ["GPS"]
 correction = "igs"
 
 [positioning.corrections]
@@ -32,7 +31,7 @@ troposphere = "est-ztdgrad"
 
 [ambiguity_resolution]
 mode = "continuous"
-systems = 9         # GPS(1) + Galileo(8)
+systems = 1         # GPS only
 
 [ambiguity_resolution.thresholds]
 ratio = 2.0
@@ -74,10 +73,11 @@ static_solution = "all"
 [files]
 satellite_atx = "./tests/data/igs/igs20_trim.atx"
 receiver_atx = "./tests/data/igs/igs20_trim.atx"
-bias_sinex = "./tests/data/igs/COD0MGXFIN_2026021_01D_OSB.BIA"
+bias_sinex = "./tests/data/igs/COD0MGXFIN_2026021_01D_OSB_recvbias.BIA"
 
 [positioning.ppp]
 max_bias_dt = 86400
+drop_uncorrected_code = true
 
 [positioning.relative]
 max_age = 30.0

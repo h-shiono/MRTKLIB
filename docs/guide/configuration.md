@@ -42,12 +42,15 @@ format = "llh"
 | `[positioning.atmosphere]` | Ionosphere and troposphere models |
 | `[positioning.snr_mask]` | SNR mask thresholds per frequency |
 | `[positioning.clas]` | CLAS-specific settings (grid, receiver type) |
+| `[positioning.clas.ambiguities]` / `[positioning.relative]` | CLAS ambiguity and relative-positioning settings |
+| `[positioning.madoca]` / `[positioning.ppp]` | MADOCA and PPP bias-product settings |
+| `[input.*]` | RINEX, RTCM, and SBAS decoder options |
 | `[ambiguity_resolution]` | AR mode, thresholds, GLONASS/BDS AR |
 | `[kalman_filter]` | Process noise, measurement noise |
 | `[output]` | Solution format, time format, output paths |
 | `[streams]` | Real-time stream configuration (rtkrcv only) |
 | `[files]` | Antenna, DCB, geoid, ionosphere files |
-| `[server]` / `[console]` | Server and console options (rtkrcv) |
+| `[server]` / `[console]` | Real-time server runtime and console options (rtkrcv) |
 
 ## Constellation Selection
 
@@ -88,7 +91,17 @@ Exclude specific satellites using a string list:
 excluded_sats = ["G01", "G02", "+E05"]
 ```
 
-A `+` prefix means "include only this satellite" (whitelist mode).
+A `+` prefix inverts the entry: that satellite is force-included, and is kept even
+when it would otherwise be dropped as unhealthy or for an excessive ephemeris
+variance (URA). Satellites absent from the list are unaffected — the list is not a
+whitelist.
+
+Force-inclusion is not absolute. A satellite whose ephemeris is unavailable is still
+dropped, because that check precedes the exclusion list; `+` cannot conjure an orbit
+that was never decoded.
+
+The legacy space-separated string form (`excluded_sats = "G01 G02 +E05"`) is still
+accepted.
 
 ## Bundled Configuration Files
 
@@ -168,6 +181,18 @@ product carrying phase biases for the **signals you process**: the COD MGEX OSB
 provides GPS and Galileo phase biases on the nominal `l1+2` pair, but its QZSS
 phase biases are L1/L5 only (no L2) and it carries no BeiDou phase biases —
 so GPS+Galileo is the dependable combination with that product today.
+
+## Migration from pre-v0.7.6 TOML layouts
+
+v0.7.6 re-organized the section taxonomy (the `[receiver]` and `[server]`
+grab-bag sections were dismantled, and `[adaptive_filter]` moved to
+`[positioning.clas.adaptive_filter]`). Old paths still load: the loader applies
+the value and prints a warning pointing at the new location, and any key it
+does not recognize is warned about instead of silently ignored. The full
+old→new table is in the
+[v0.7.6 changelog entry](https://github.com/h-shiono/MRTKLIB/blob/main/CHANGELOG.md);
+the aliases are planned for removal in a future minor release, so update
+configs when convenient.
 
 ## Migration from .conf
 

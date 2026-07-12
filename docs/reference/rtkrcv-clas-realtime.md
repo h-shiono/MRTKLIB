@@ -267,11 +267,11 @@ conflicts with the MADOCA `rtkrcv_rt` test.
 | `positioning.atmosphere.ionosphere` | `"est-adaptive"` | Adaptive ionosphere estimation |
 | `positioning.clas.grid_selection_radius` | `1000` | CLAS grid selection radius (m) |
 | `ambiguity_resolution.mode` | `"fix-and-hold"` | Ambiguity resolution mode |
-| `receiver.isb` | `true` | Inter-system bias correction |
+| `positioning.clas.ambiguities.isb` | `true` | Inter-system bias correction |
 | `files.cssr_grid` | `"clas_grid.def"` | CLAS grid definition (required) |
-| `server.time_interpolation` | `true` | Interpolate corrections between epochs |
-| `server.max_obs_loss` | `90.0` | Max epochs without obs before reset |
-| `server.float_count` | `15` | Float epochs before fix attempt |
+| `positioning.relative.time_interpolation` | `true` | Interpolate corrections between epochs |
+| `positioning.clas.resilience.max_obs_loss` | `90.0` | Max epochs without obs before reset |
+| `positioning.clas.resilience.float_count` | `15` | Float epochs before fix attempt |
 
 ### Required Support Files
 

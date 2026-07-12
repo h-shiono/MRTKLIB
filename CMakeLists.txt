@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.15)
-project(MRTKLIB VERSION 0.7.5 LANGUAGES C)
+project(MRTKLIB VERSION 0.7.6 LANGUAGES C)
 
 # ── Version header generation ─────────────────────────────────────────────────
 set(MRTKLIB_VERSION_MAJOR ${PROJECT_VERSION_MAJOR})
@@ -280,7 +280,7 @@ set(_UTEST_DIR ${CMAKE_SOURCE_DIR}/tests/utest)
 set(_UTEST_SOURCES
     t_atmos t_clas_route t_coord t_freqidx t_geoid t_gloeph t_ionex
     t_lambda t_matrix t_misc t_obsdef t_ppp t_preceph
-    t_rinex t_rinex4 t_sigcfg_decode t_time
+    t_rinex t_rinex4 t_sigcfg_decode t_time t_toml
     # t_tle excluded: tle_pos() implementation not yet in library
 )
 foreach(test IN LISTS _UTEST_SOURCES)
@@ -705,6 +705,7 @@ set_tests_properties(madocalib_pppar_abs_check PROPERTIES
 #   rtkrcv_rt_clas          Real-time CLAS PPP-RTK (BINEX+L6, rtkrcv file replay)
 #   rtkrcv_rt_clas_2ch      Real-time CLAS PPP-RTK dual-channel L6 (rtkrcv file replay)
 set(_CLSDATA  ${CMAKE_SOURCE_DIR}/tests/data/claslib)
+set(_CLSRTREFDATA ${CMAKE_BINARY_DIR}/tests/data/claslib)
 set(_COMPARE_NMEA ${CMAKE_SOURCE_DIR}/scripts/tests/compare_nmea.py)
 # GSI F5 daily-coordinate truth for station 0627 (TSUKUBA3), used by the
 # *_abs_check tests.  2019 = F3/ITRF2005, 2025 = F5/ITRF2014 (set as _F5_0627
@@ -714,7 +715,11 @@ set(_F5_0627_2019 ${_CLSDATA}/960627.19.pos)
 
 # ── Fixture: extract / clean claslib test data archive ────────────────────────
 add_test(NAME claslib_setup
-    COMMAND bash -c "tar xzf ${_CLSDATA}/claslib_testdata.tar.gz -C ${_CLSDATA}"
+    COMMAND bash -c "tar xzf \"${_CLSDATA}/claslib_testdata.tar.gz\" \
+        --exclude=ref_L6_2CH_RT.nmea --exclude=rtkrcv_clas_ref.nmea -C \"${_CLSDATA}\" && \
+        mkdir -p \"${_CLSRTREFDATA}\" && \
+        tar xzf \"${_CLSDATA}/claslib_testdata.tar.gz\" -C \"${_CLSRTREFDATA}\" \
+        ref_L6_2CH_RT.nmea rtkrcv_clas_ref.nmea"
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
 )
 set_tests_properties(claslib_setup PROPERTIES
@@ -753,8 +758,8 @@ add_test(NAME claslib_cleanup
         ${_CLSDATA}/0627157U.bnx.tag \
         ${_CLSDATA}/2025157U_ch1.l6.tag \
         ${_CLSDATA}/2025157U_ch2.l6.tag \
-        ${_CLSDATA}/rtkrcv_clas_ref.nmea \
-        ${_CLSDATA}/ref_L6_2CH_RT.nmea"
+        \"${_CLSRTREFDATA}/rtkrcv_clas_ref.nmea\" \
+        \"${_CLSRTREFDATA}/ref_L6_2CH_RT.nmea\""
 )
 set_tests_properties(claslib_cleanup PROPERTIES
     FIXTURES_CLEANUP claslib_data
@@ -808,6 +813,41 @@ set_tests_properties(claslib_ppp_rtk_abs_check PROPERTIES
     DEPENDS           claslib_ppp_rtk
     FIXTURES_REQUIRED claslib_data
     LABELS            "absolute;claslib;ppp-rtk"
+)
+
+# ── CLAS PPP-RTK periodic filter reset (#264) ────────────────────────────────
+# reset_interval overlay forces a full reset every 600 s over the 1 h window
+# (5 resets). -x 3 writes the trace next to the output; the checker asserts the
+# resets fired, each showed as a Single epoch, and the filter re-converged.
+add_test(NAME claslib_ppp_rtk_regularly
+    COMMAND $<TARGET_FILE:mrtk> post
+        -x 3
+        -k ${CMAKE_SOURCE_DIR}/conf/claslib/rnx2rtkp.toml
+        -k ${CMAKE_SOURCE_DIR}/conf/claslib/rnx2rtkp_regularly.toml
+        -ts 2019/08/27 16:00:00 -te 2019/08/27 16:59:59 -ti 1
+        -o ${CMAKE_BINARY_DIR}/out_claslib_ppp_rtk_regularly.nmea
+        ${_CLSDATA}/0627239Q.obs
+        ${_CLSDATA}/sept_2019239.nav
+        ${_CLSDATA}/2019239Q.l6
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+set_tests_properties(claslib_ppp_rtk_regularly PROPERTIES
+    FIXTURES_REQUIRED claslib_data
+    TIMEOUT           300
+    LABELS            "regression;claslib;ppp-rtk"
+)
+
+add_test(NAME claslib_ppp_rtk_regularly_check
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/scripts/tests/check_regularly_reset.py
+        ${CMAKE_BINARY_DIR}/out_claslib_ppp_rtk_regularly.nmea
+        ${CMAKE_BINARY_DIR}/out_claslib_ppp_rtk_regularly.nmea.trace
+        --min-resets 4
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+set_tests_properties(claslib_ppp_rtk_regularly_check PROPERTIES
+    DEPENDS           claslib_ppp_rtk_regularly
+    FIXTURES_REQUIRED claslib_data
+    LABELS            "regression;claslib;ppp-rtk"
 )
 
 # ── rnx2rtkp CLAS PPP-RTK regression (L6, BINEX obs) ─────────────────────────
@@ -1381,7 +1421,7 @@ add_test(NAME rtkrcv_rt_clas
     COMMAND bash ${_TESTCMAKE}/run_rtkrcv_test.sh
         $<TARGET_FILE:mrtk> run
         ${CMAKE_SOURCE_DIR}
-        ${_CLSDATA}/rtkrcv_clas_ref.nmea
+        ${_CLSRTREFDATA}/rtkrcv_clas_ref.nmea
         10
         conf/claslib/rtkrcv.toml
         52005
@@ -1403,7 +1443,7 @@ add_test(NAME rtkrcv_rt_clas_2ch
     COMMAND bash ${_TESTCMAKE}/run_rtkrcv_test.sh
         $<TARGET_FILE:mrtk> run
         ${CMAKE_SOURCE_DIR}
-        ${_CLSDATA}/ref_L6_2CH_RT.nmea
+        ${_CLSRTREFDATA}/ref_L6_2CH_RT.nmea
         10
         conf/claslib/rtkrcv_2ch.toml
         52006
@@ -1612,6 +1652,121 @@ set_tests_properties(igs_pppar_ge_check PROPERTIES
     DEPENDS           igs_pppar_ge
     FIXTURES_REQUIRED igs_data
     LABELS            "absolute;igs;ppp;pppar"
+)
+
+# ── receiver code bias coverage (#263) ───────────────────────────────────────
+# The COD MGEX bias-sinex product used above has no station-level (receiver)
+# OSB records, so nav->osb.rsatcb/rsyscb are never populated by the tests
+# above -- the receiver code bias branch in corr_meas() is otherwise dead in
+# CI. tests/data/igs/COD0MGXFIN_2026021_01D_OSB_recvbias.BIA is a small,
+# permanently-tracked (not tar.gz-extracted) copy of the same product with
+# added station-level entries for station "3034" (the RINEX MARKER NAME in
+# 30340210.26o, auto-selected as prcopt.staname): a satellite-specific record
+# for G03 and a system-wide GPS record covering the rest, exercising both the
+# vrsatcb and vrsyscb fallback paths. Receiver OSB is applied, accuracy
+# unaffected vs the plain igs_pppar_gps baseline.
+add_test(NAME igs_pppar_gps_recvbias
+    COMMAND $<TARGET_FILE:mrtk> post
+        -k ${CMAKE_SOURCE_DIR}/conf/igs/rnx2rtkp_igspppar_gps_recvbias.toml
+        -ts 2026/01/21 0:00:00 -te 2026/01/21 2:00:00
+        -o ${CMAKE_BINARY_DIR}/out_igs_pppar_gps_recvbias.pos
+        ${_IGSDATA}/30340210.26o
+        ${_IGSDATA}/BRDC00IGS_2026021_GE.rnx
+        ${_IGSDATA}/COD0MGXFIN_2026021_05M_ORB.SP3
+        ${_IGSDATA}/COD0MGXFIN_2026021_30S_CLK.CLK
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+set_tests_properties(igs_pppar_gps_recvbias PROPERTIES
+    FIXTURES_REQUIRED igs_data
+    TIMEOUT           180
+    LABELS            "regression;igs;ppp;pppar"
+)
+
+add_test(NAME igs_pppar_gps_recvbias_check
+    COMMAND ${Python3_EXECUTABLE} ${_COMPARE_POS_ABS}
+        --f5 ${_IGSDATA}/93034.26.pos
+        --date 2026/01/21
+        --tolerance 0.15
+        --skip-epochs 30
+        ${CMAKE_BINARY_DIR}/out_igs_pppar_gps_recvbias.pos
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+set_tests_properties(igs_pppar_gps_recvbias_check PROPERTIES
+    DEPENDS           igs_pppar_gps_recvbias
+    FIXTURES_REQUIRED igs_data
+    LABELS            "absolute;igs;ppp;pppar"
+)
+
+# drop_uncorrected_code = true against the receiver-OSB fixture. The fixture
+# supplies the L1/L2 receiver OSBs used by this regression; third-band C5X
+# measurements without a satellite OSB are safely discarded without changing
+# the selected L1/L2 solution. This confirms that enabling the gate preserves
+# a fully usable L1/L2 PPP-AR solution (#263).
+add_test(NAME igs_pppar_gps_recvbias_unbias
+    COMMAND $<TARGET_FILE:mrtk> post
+        -k ${CMAKE_SOURCE_DIR}/conf/igs/rnx2rtkp_igspppar_gps_unbias.toml
+        -ts 2026/01/21 0:00:00 -te 2026/01/21 2:00:00
+        -o ${CMAKE_BINARY_DIR}/out_igs_pppar_gps_unbias.pos
+        ${_IGSDATA}/30340210.26o
+        ${_IGSDATA}/BRDC00IGS_2026021_GE.rnx
+        ${_IGSDATA}/COD0MGXFIN_2026021_05M_ORB.SP3
+        ${_IGSDATA}/COD0MGXFIN_2026021_30S_CLK.CLK
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+set_tests_properties(igs_pppar_gps_recvbias_unbias PROPERTIES
+    FIXTURES_REQUIRED igs_data
+    TIMEOUT           180
+    LABELS            "regression;igs;ppp;pppar"
+)
+
+add_test(NAME igs_pppar_gps_recvbias_unbias_check
+    COMMAND ${Python3_EXECUTABLE} ${_COMPARE_POS_ABS}
+        --f5 ${_IGSDATA}/93034.26.pos
+        --date 2026/01/21
+        --tolerance 0.15
+        --skip-epochs 30
+        ${CMAKE_BINARY_DIR}/out_igs_pppar_gps_unbias.pos
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+set_tests_properties(igs_pppar_gps_recvbias_unbias_check PROPERTIES
+    DEPENDS           igs_pppar_gps_recvbias_unbias
+    FIXTURES_REQUIRED igs_data
+    LABELS            "absolute;igs;ppp;pppar"
+)
+
+# The standard COD product has no receiver OSBs. Layering the small unbias
+# overlay onto the ordinary GPS-only PPP-AR config must reject every usable
+# pseudorange. The checker asserts both satellite- and receiver-bias miss
+# paths in the trace, so the gate cannot silently become a no-op.
+add_test(NAME igs_pppar_gps_unbias_missing
+    COMMAND $<TARGET_FILE:mrtk> post
+        -x 4
+        -k ${CMAKE_SOURCE_DIR}/conf/igs/rnx2rtkp_igspppar_gps.toml
+        -k ${CMAKE_SOURCE_DIR}/conf/igs/rnx2rtkp_igspppar_unbias.toml
+        -ts 2026/01/21 0:00:00 -te 2026/01/21 2:00:00
+        -o ${CMAKE_BINARY_DIR}/out_igs_pppar_gps_unbias_missing.pos
+        ${_IGSDATA}/30340210.26o
+        ${_IGSDATA}/BRDC00IGS_2026021_GE.rnx
+        ${_IGSDATA}/COD0MGXFIN_2026021_05M_ORB.SP3
+        ${_IGSDATA}/COD0MGXFIN_2026021_30S_CLK.CLK
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+set_tests_properties(igs_pppar_gps_unbias_missing PROPERTIES
+    FIXTURES_REQUIRED igs_data
+    TIMEOUT           180
+    LABELS            "regression;igs;ppp;pppar"
+)
+
+add_test(NAME igs_pppar_gps_unbias_missing_check
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/scripts/tests/check_unbias_drop.py
+        ${CMAKE_BINARY_DIR}/out_igs_pppar_gps_unbias_missing.pos
+        ${CMAKE_BINARY_DIR}/out_igs_pppar_gps_unbias_missing.pos.trace
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+set_tests_properties(igs_pppar_gps_unbias_missing_check PROPERTIES
+    DEPENDS           igs_pppar_gps_unbias_missing
+    FIXTURES_REQUIRED igs_data
+    LABELS            "regression;igs;ppp;pppar"
 )
 
 # -----------------------------------------------------------------------------

@@ -25,8 +25,10 @@ from typing import Any
 #   "int"    — integer
 #   "float"  — floating-point
 #   "str"    — string
+#   "strlist" — space-separated token list → array of strings
 #   "bool"   — on/off → true/false
 #   "snr"    — comma-separated SNR mask values → array
+#   "siglist" — comma-separated signal codes → array of strings
 #   "navsys" — integer bitmask (kept as int, comment added)
 # ═══════════════════════════════════════════════════════════════════════════════
 
@@ -34,19 +36,26 @@ MAPPING: list[tuple[str, str, str, str]] = [
     # (legacy_key, toml_section, toml_key, value_type)
     # ── positioning ──────────────────────────────────────────────────────────
     ("pos1-posmode", "positioning", "mode", "enum"),
+    # correction has an annotated enum value list embedded in its description
+    # (see gen_config_ref.py _OPTION_META); intentionally omitted from _KEY_ENUM
+    # so the generator does not append a second, unannotated value list.
+    ("pos1-correction", "positioning", "correction", "enum"),
     ("pos1-frequency", "positioning", "frequency", "enum"),
     ("pos1-soltype", "positioning", "solution_type", "enum"),
     ("pos1-elmask", "positioning", "elevation_mask", "float"),
     ("pos1-dynamics", "positioning", "dynamics", "bool"),
     ("pos1-sateph", "positioning", "satellite_ephemeris", "enum"),
     ("pos1-navsys", "positioning", "systems", "navsys"),
-    ("pos1-exclsats", "positioning", "excluded_sats", "str"),
+    ("pos1-exclsats", "positioning", "excluded_sats", "strlist"),
     ("pos1-signals", "positioning", "signals", "siglist"),
+    ("pos1-robust", "positioning", "robust", "enum"),
+    ("pos1-robustk0", "positioning", "robust_k0", "float"),
+    ("pos1-robustk1", "positioning", "robust_k1", "float"),
+    ("pos1-tdcp", "positioning", "tdcp", "enum"),
+    ("pos1-tdcpjump", "positioning", "tdcp_jump", "float"),
     ("pos1-gridsel", "positioning.clas", "grid_selection_radius", "int"),
     ("pos1-rectype", "positioning.clas", "receiver_type", "str"),
-    ("pos1-rux", "positioning.clas", "position_uncertainty_x", "float"),
-    ("pos1-ruy", "positioning.clas", "position_uncertainty_y", "float"),
-    ("pos1-ruz", "positioning.clas", "position_uncertainty_z", "float"),
+    ("pos1-seedenh", "positioning.clas", "enhanced_spp_seed", "enum"),
     # ── positioning.snr_mask ─────────────────────────────────────────────────
     ("pos1-snrmask_r", "positioning.snr_mask", "rover_enabled", "bool"),
     ("pos1-snrmask_b", "positioning.snr_mask", "base_enabled", "bool"),
@@ -65,7 +74,7 @@ MAPPING: list[tuple[str, str, str, str]] = [
     ("pos1-posopt9", "positioning.corrections", "exclude_qzs_ref", "bool"),
     ("pos1-posopt10", "positioning.corrections", "no_phase_bias_adj", "bool"),
     ("pos1-posopt11", "positioning.corrections", "gps_frequency", "enum"),
-    ("pos1-posopt12", "positioning.corrections", "reserved", "bool"),
+    ("pos1-posopt12", "positioning.corrections", "snr_fixed", "int"),
     ("pos1-posopt13", "positioning.corrections", "qzs_frequency", "enum"),
     # ── positioning.atmosphere ───────────────────────────────────────────────
     ("pos1-ionoopt", "positioning.atmosphere", "ionosphere", "enum"),
@@ -81,14 +90,14 @@ MAPPING: list[tuple[str, str, str, str]] = [
     # ── ambiguity_resolution.thresholds ──────────────────────────────────────
     ("pos2-arthres", "ambiguity_resolution.thresholds", "ratio", "float"),
     ("pos2-arthres1", "ambiguity_resolution.thresholds", "ratio1", "float"),
-    ("pos2-arthres2", "ambiguity_resolution.thresholds", "ratio2", "float"),
-    ("pos2-arthres3", "ambiguity_resolution.thresholds", "ratio3", "float"),
-    ("pos2-arthres4", "ambiguity_resolution.thresholds", "ratio4", "float"),
     ("pos2-arthres5", "ambiguity_resolution.thresholds", "ratio5", "float"),
     ("pos2-arthres6", "ambiguity_resolution.thresholds", "ratio6", "float"),
     ("pos2-aralpha", "ambiguity_resolution.thresholds", "alpha", "enum"),
     ("pos2-arelmask", "ambiguity_resolution.thresholds", "elevation_mask", "float"),
     ("pos2-elmaskhold", "ambiguity_resolution.thresholds", "hold_elevation", "float"),
+    ("pos2-maxpdopar", "ambiguity_resolution.thresholds", "max_pdop_ar", "float"),
+    ("pos2-maxpdophold", "ambiguity_resolution.thresholds", "max_pdop_hold", "float"),
+    ("pos2-refdop", "ambiguity_resolution.thresholds", "reference_dop", "enum"),
     # ── ambiguity_resolution.counters ────────────────────────────────────────
     ("pos2-arlockcnt", "ambiguity_resolution.counters", "lock_count", "int"),
     ("pos2-arminfix", "ambiguity_resolution.counters", "min_fix", "int"),
@@ -103,7 +112,6 @@ MAPPING: list[tuple[str, str, str, str]] = [
     ("pos2-arfilter", "ambiguity_resolution.partial_ar", "ar_filter", "bool"),
     # ── ambiguity_resolution.hold ────────────────────────────────────────────
     ("pos2-varholdamb", "ambiguity_resolution.hold", "variance", "float"),
-    ("pos2-gainholdamb", "ambiguity_resolution.hold", "gain", "float"),
     # ── rejection ────────────────────────────────────────────────────────────
     ("pos2-rejionno", "rejection", "innovation", "float"),
     ("pos2-rejionno1", "rejection", "l1_l2_residual", "float"),
@@ -111,6 +119,8 @@ MAPPING: list[tuple[str, str, str, str]] = [
     ("pos2-rejionno3", "rejection", "non_dispersive", "float"),
     ("pos2-rejionno4", "rejection", "hold_chi_square", "float"),
     ("pos2-rejionno5", "rejection", "fix_chi_square", "float"),
+    ("pos2-rejethres", "rejection", "spp_residual", "float"),
+    ("pos2-rejeminsat", "rejection", "spp_min_sats", "int"),
     ("pos2-rejgdop", "rejection", "gdop", "float"),
     ("pos2-rejdiffpse", "rejection", "pseudorange_diff", "float"),
     ("pos2-poserrcnt", "rejection", "position_error_count", "int"),
@@ -119,7 +129,6 @@ MAPPING: list[tuple[str, str, str, str]] = [
     ("pos2-thresdop", "slip_detection", "doppler", "float"),
     # ── kalman_filter ────────────────────────────────────────────────────────
     ("pos2-niter", "kalman_filter", "iterations", "int"),
-    ("pos2-syncsol", "kalman_filter", "sync_solution", "bool"),
     # ── kalman_filter.measurement_error ──────────────────────────────────────
     ("stats-eratio1", "kalman_filter.measurement_error", "code_phase_ratio_L1", "float"),
     ("stats-eratio2", "kalman_filter.measurement_error", "code_phase_ratio_L2", "float"),
@@ -128,6 +137,10 @@ MAPPING: list[tuple[str, str, str, str]] = [
     ("stats-errphaseel", "kalman_filter.measurement_error", "phase_elevation", "float"),
     ("stats-errphasebl", "kalman_filter.measurement_error", "phase_baseline", "float"),
     ("stats-errdoppler", "kalman_filter.measurement_error", "doppler", "float"),
+    ("stats-snrmax", "kalman_filter.measurement_error", "snr_max", "float"),
+    ("stats-errsnr", "kalman_filter.measurement_error", "snr_error", "float"),
+    ("stats-erriono", "kalman_filter.measurement_error", "ionosphere", "float"),
+    ("stats-errtrop", "kalman_filter.measurement_error", "troposphere", "float"),
     ("stats-uraratio", "kalman_filter.measurement_error", "ura_ratio", "float"),
     # ── kalman_filter.initial_std ────────────────────────────────────────────
     ("stats-stdbias", "kalman_filter.initial_std", "bias", "float"),
@@ -147,33 +160,43 @@ MAPPING: list[tuple[str, str, str, str]] = [
     ("stats-prndcb", "kalman_filter.process_noise", "ifb", "float"),  # alias
     ("stats-tconstiono", "kalman_filter.process_noise", "iono_time_const", "float"),
     ("stats-clkstab", "kalman_filter.process_noise", "clock_stability", "float"),
-    # ── adaptive_filter ──────────────────────────────────────────────────────
-    ("pos2-prnadpt", "adaptive_filter", "enabled", "bool"),
-    ("pos2-forgetion", "adaptive_filter", "iono_forgetting", "float"),
-    ("pos2-afgainion", "adaptive_filter", "iono_gain", "float"),
-    ("pos2-forgetpva", "adaptive_filter", "pva_forgetting", "float"),
-    ("pos2-afgainpva", "adaptive_filter", "pva_gain", "float"),
+    # ── positioning.clas.adaptive_filter ─────────────────────────────────────
+    ("pos2-prnadpt", "positioning.clas.adaptive_filter", "enabled", "bool"),
+    ("pos2-forgetion", "positioning.clas.adaptive_filter", "iono_forgetting", "float"),
+    ("pos2-afgainion", "positioning.clas.adaptive_filter", "iono_gain", "float"),
+    ("pos2-forgetpva", "positioning.clas.adaptive_filter", "pva_forgetting", "float"),
+    ("pos2-afgainpva", "positioning.clas.adaptive_filter", "pva_gain", "float"),
     # ── signals ──────────────────────────────────────────────────────────────
     ("pos2-siggps", "signals", "gps", "enum"),
     ("pos2-sigqzs", "signals", "qzs", "enum"),
     ("pos2-siggal", "signals", "galileo", "enum"),
     ("pos2-sigbds2", "signals", "bds2", "enum"),
     ("pos2-sigbds3", "signals", "bds3", "enum"),
-    # ── receiver ─────────────────────────────────────────────────────────────
-    ("pos2-ionocorr", "receiver", "iono_correction", "bool"),
-    ("pos2-ign_chierr", "receiver", "ignore_chi_error", "bool"),
-    ("pos2-bds2bias", "receiver", "bds2_bias", "bool"),
-    ("pos2-pppsatcb", "receiver", "ppp_sat_clock_bias", "int"),
-    ("pos2-pppsatpb", "receiver", "ppp_sat_phase_bias", "int"),
-    ("pos2-uncorrbias", "receiver", "uncorr_bias", "int"),
-    ("pos2-maxbiasdt", "receiver", "max_bias_dt", "int"),
-    ("pos2-sattmode", "receiver", "satellite_mode", "int"),
-    ("pos2-phasshft", "receiver", "phase_shift", "enum"),
-    ("pos2-isb", "receiver", "isb", "bool"),
-    ("pos2-rectype", "receiver", "reference_type", "str"),
-    ("pos2-maxage", "receiver", "max_age", "float"),
-    ("pos2-baselen", "receiver", "baseline_length", "float"),
-    ("pos2-basesig", "receiver", "baseline_sigma", "float"),
+    # ── positioning engine options ───────────────────────────────────────────
+    ("pos2-ign_chierr", "positioning.spp", "ignore_chi_error", "bool"),
+    ("pos2-ionocorr", "positioning.madoca", "iono_correction", "bool"),
+    ("pos2-pppsatcb", "positioning.ppp", "satellite_clock_bias", "int"),
+    ("pos2-pppsatpb", "positioning.ppp", "satellite_phase_bias", "int"),
+    ("pos2-uncorrbias", "positioning.ppp", "drop_uncorrected_code", "bool"),
+    ("pos2-clkjump", "positioning.ppp", "clock_jump", "bool"),
+    ("pos2-maxbiasdt", "positioning.ppp", "max_bias_dt", "int"),
+    ("misc-pppopt", "positioning.ppp", "options", "str"),
+    ("pos2-phasshft", "positioning.clas.ambiguities", "phase_shift", "enum"),
+    ("pos2-isb", "positioning.clas.ambiguities", "isb", "bool"),
+    ("pos2-rectype", "positioning.clas.ambiguities", "reference_type", "str"),
+    ("misc-maxobsloss", "positioning.clas.resilience", "max_obs_loss", "float"),
+    ("misc-floatcnt", "positioning.clas.resilience", "float_count", "int"),
+    ("misc-l6mrg", "positioning.clas.resilience", "l6_merge", "int"),
+    ("misc-regularly", "positioning.clas.resilience", "reset_interval", "int"),
+    ("pos2-maxage", "positioning.relative", "max_age", "float"),
+    ("pos2-baselen", "positioning.relative", "baseline_length", "float"),
+    ("pos2-basesig", "positioning.relative", "baseline_sigma", "float"),
+    ("misc-timeinterp", "positioning.relative", "time_interpolation", "bool"),
+    # ── input decoding ───────────────────────────────────────────────────────
+    ("misc-rnxopt1", "input.rinex", "option_1", "str"),
+    ("misc-rnxopt2", "input.rinex", "option_2", "str"),
+    ("misc-rtcmopt", "input.rtcm", "options", "str"),
+    ("misc-sbasatsel", "input.sbas", "satellite", "int"),
     # ── antenna.rover ────────────────────────────────────────────────────────
     ("ant1-postype", "antenna.rover", "position_type", "enum"),
     ("ant1-pos1", "antenna.rover", "position_1", "float"),
@@ -221,17 +244,14 @@ MAPPING: list[tuple[str, str, str, str]] = [
     ("file-dcbfile", "files", "dcb", "str"),
     ("file-eopfile", "files", "eop", "str"),
     ("file-blqfile", "files", "ocean_loading", "str"),
-    ("file-elmaskfile", "files", "elevation_mask_file", "str"),
     ("file-tempdir", "files", "temp_dir", "str"),
-    ("file-geexefile", "files", "geexe", "str"),
-    ("file-solstatfile", "files", "solution_stat", "str"),
     ("file-tracefile", "files", "trace", "str"),
     ("file-fcbfile", "files", "fcb", "str"),
     ("file-biafile", "files", "bias_sinex", "str"),
     ("file-cssrgridfile", "files", "cssr_grid", "str"),
     ("file-isbfile", "files", "isb_table", "str"),
     ("file-phacycfile", "files", "phase_cycle", "str"),
-    # ── server (rtkrcv misc) ─────────────────────────────────────────────────
+    # ── server (rtkrcv runtime only) ─────────────────────────────────────────
     ("misc-svrcycle", "server", "cycle_ms", "int"),
     ("misc-timeout", "server", "timeout_ms", "int"),
     ("misc-reconnect", "server", "reconnect_ms", "int"),
@@ -240,16 +260,6 @@ MAPPING: list[tuple[str, str, str, str]] = [
     ("misc-navmsgsel", "server", "nav_msg_select", "str"),
     ("misc-proxyaddr", "server", "proxy", "str"),
     ("misc-fswapmargin", "server", "swap_margin", "int"),
-    ("misc-timeinterp", "server", "time_interpolation", "bool"),
-    ("misc-sbasatsel", "server", "sbas_satellite", "str"),
-    ("misc-maxobsloss", "server", "max_obs_loss", "float"),
-    ("misc-floatcnt", "server", "float_count", "int"),
-    ("misc-rnxopt1", "server", "rinex_option_1", "str"),
-    ("misc-rnxopt2", "server", "rinex_option_2", "str"),
-    ("misc-pppopt", "server", "ppp_option", "str"),
-    ("misc-rtcmopt", "server", "rtcm_option", "str"),
-    ("misc-l6mrg", "server", "l6_margin", "int"),
-    ("misc-regularly", "server", "regularly", "int"),
     ("misc-startcmd", "server", "start_cmd", "str"),
     ("misc-stopcmd", "server", "stop_cmd", "str"),
     # ── files (rtkrcv-specific) ──────────────────────────────────────────────
@@ -308,6 +318,9 @@ _ENUM_STRINGS = {
     "SIGOPT4": "0:B1I/B3I,1:B1I/B2I,2:B1I/B3I/B2I",
     "SIGOPT5": "0:B1I/B3I,1:B1I/B2a,2:B1I/B3I/B2a",
     "ARALPHAOPT": "0:0.1%,1:0.5%,2:1%,3:5%,4:10%,5:20%",
+    "ROBOPT": "0:off,1:igg3",
+    "SEEDOPT": "0:off,1:cn0+tdcp,2:cn0+tdcp+robust",
+    "DOPOPT": "0:zd,1:sd",
 }
 
 for _name, _defstr in _ENUM_STRINGS.items():
@@ -343,7 +356,6 @@ _KEY_ENUM: dict[str, str] = {
     "pos1-posopt9": "SWTOPT",
     "pos1-posopt10": "SWTOPT",
     "pos1-posopt11": "FRQOPT2",
-    "pos1-posopt12": "SWTOPT",
     "pos1-posopt13": "FRQOPT2",
     "pos2-armode": "ARMOPT",
     "pos2-gloarmode": "GAROPT",
@@ -351,11 +363,13 @@ _KEY_ENUM: dict[str, str] = {
     "pos2-qzsarmode": "SWTOPT",
     "pos2-gpsarmode": "SWTOPT",
     "pos2-aralpha": "ARALPHAOPT",
-    "pos2-syncsol": "SWTOPT",
     "pos2-arfilter": "SWTOPT",
+    "pos1-robust": "ROBOPT",
+    "pos1-tdcp": "SWTOPT",
+    "pos1-seedenh": "SEEDOPT",
+    "pos2-refdop": "DOPOPT",
     "pos2-ionocorr": "SWTOPT",
     "pos2-ign_chierr": "SWTOPT",
-    "pos2-bds2bias": "SWTOPT",
     "pos2-prnadpt": "SWTOPT",
     "pos2-phasshft": "PSHFTOPT",
     "pos2-isb": "SWTOPT",
@@ -422,6 +436,9 @@ def convert_value(raw: str, vtype: str, legacy_key: str = "") -> Any:
         # Comma-separated signal codes → list of strings
         parts = [s.strip() for s in raw.split(",") if s.strip()]
         return parts if parts else []
+    if vtype == "strlist":
+        # Space-separated tokens (e.g. "G01 G02 +E05") → list of strings
+        return raw.split()
     if vtype == "snr":
         parts = [s.strip() for s in raw.split(",") if s.strip()]
         return [float(x) if "." in x else int(x) for x in parts]
