@@ -724,6 +724,18 @@ void clas_backup_current(clas_ctx_t* ctx, const clas_grid_t* grid, int l6mrg);
 void clas_restore_backup(clas_ctx_t* ctx, gtime_t time, clas_grid_t* grid, int l6mrg);
 
 /**
+ * @brief Drop the current correction snapshot of one channel.
+ *
+ * Used when a channel supplies no corrections for the epoch, so that
+ * clas_update_global() clears nav_t.ssr_ch[ch] instead of re-applying the
+ * previous epoch's snapshot.
+ *
+ * @param[in,out] ctx  CLAS context
+ * @param[in]     ch   Channel index
+ */
+void clas_clear_current(clas_ctx_t* ctx, int ch);
+
+/**
  * @brief Apply global corrections (orbit/clock/bias) to nav_t.ssr[].
  * @param[in,out] nav   Navigation data
  * @param[in]     corr  Merged correction snapshot

@@ -697,6 +697,8 @@ set_tests_properties(madocalib_pppar_abs_check PROPERTIES
 #   claslib_ppp_rtk         PPP-RTK with L6 (RINEX obs, 2019/239)
 #   claslib_ppp_rtk_bnx     PPP-RTK with L6 (BINEX obs, 2019/239)
 #   claslib_ppp_rtk_2ch     PPP-RTK with 2-channel L6 (2025/157)
+#   claslib_ppp_rtk_l6mrg_1file
+#                           PPP-RTK with l6_merge but only one L6 file (2025/157)
 #   claslib_ppp_rtk_st12    PPP-RTK with SubType 12 (BINEX obs, 2019/349)
 #   claslib_ppp_rtk_l1cl5   PPP-RTK with L1C+L5 frequency (2025/022)
 #   claslib_vrs_rtk         VRS-RTK (2019/239)
@@ -1081,6 +1083,40 @@ set_tests_properties(claslib_ppp_rtk_2ch_abs_check PROPERTIES
     DEPENDS           claslib_ppp_rtk_2ch
     FIXTURES_REQUIRED claslib_data
     LABELS            "absolute;claslib;ppp-rtk"
+)
+
+# ── rnx2rtkp CLAS PPP-RTK with l6_merge but a single L6 source (#303) ─────────
+# Same dataset/window as claslib_ppp_rtk_2ch, but only ch1 is supplied while
+# -l6msg 1 stays on: the correction fetch must skip the empty channel instead of
+# degrading every epoch to Single.  Reference is the upstream 2-channel output,
+# which the single-channel solution tracks to ~4 cm 3D RMS.
+add_test(NAME claslib_ppp_rtk_l6mrg_1file
+    COMMAND $<TARGET_FILE:mrtk> post
+        -k ${CMAKE_SOURCE_DIR}/conf/claslib/rnx2rtkp.toml
+        -ts 2025/06/06 20:00:00 -te 2025/06/06 20:59:59 -ti 1
+        -l6msg 1
+        -o ${CMAKE_BINARY_DIR}/out_claslib_ppp_rtk_l6mrg_1file.nmea
+        ${_CLSDATA}/0627157U.bnx
+        ${_CLSDATA}/0627157U.nav
+        ${_CLSDATA}/2025157U_ch1.l6
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+set_tests_properties(claslib_ppp_rtk_l6mrg_1file PROPERTIES
+    FIXTURES_REQUIRED claslib_data
+    TIMEOUT           300
+    LABELS            "regression;claslib;ppp-rtk"
+)
+
+add_test(NAME claslib_ppp_rtk_l6mrg_1file_check
+    COMMAND ${Python3_EXECUTABLE} ${_COMPARE_NMEA}
+        ${_CLSDATA}/ref_L6_2CH.nmea
+        ${CMAKE_BINARY_DIR}/out_claslib_ppp_rtk_l6mrg_1file.nmea
+        --tolerance 0.10
+)
+set_tests_properties(claslib_ppp_rtk_l6mrg_1file_check PROPERTIES
+    DEPENDS           claslib_ppp_rtk_l6mrg_1file
+    FIXTURES_REQUIRED claslib_data
+    LABELS            "regression;claslib;ppp-rtk"
 )
 
 # ── rnx2rtkp CLAS VRS-RTK regression ──────────────────────────────────────────
