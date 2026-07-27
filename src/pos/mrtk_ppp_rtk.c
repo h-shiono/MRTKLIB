@@ -29,8 +29,9 @@
  *     unlike the undifferenced PPP engine in mrtk_ppp.c.
  *   - Dual-channel (l6mrg) processing merges the two L6 transmit patterns:
  *     residuals are computed per channel and combined in ddres(), which picks
- *     a channel per satellite and resets the phase bias when a satellite
- *     switches channel.  With l6mrg off the engine runs on channel 0 only.
+ *     a channel per satellite and, when the channels carry different
+ *     facilities, resets the phase bias of a satellite that switches channel.
+ *     With l6mrg off the engine runs on channel 0 only.
  */
 #include "mrtklib/mrtk_ppp_rtk.h"
 
@@ -1568,8 +1569,11 @@ static void set_init_pb(rtk_t* rtk, const nav_t* nav, const obsd_t* obs, int n, 
  * the reference satellite is preferentially one that both channels observe,
  * each non-reference satellite is assigned to a channel (priority channel for
  * l6mrg==1, load-balanced otherwise) with a fallback to the other channel, and
- * a satellite that changes channel has its phase bias re-initialized. With
- * l6mrg clear only y[0]/pbslip[0] are read and the merge logic is bypassed.
+ * a satellite that changes channel has its phase bias re-initialized — only
+ * when the channels carry different facilities: same-facility channels share
+ * the correction basis, so a switch does not break phase-bias continuity.
+ * With l6mrg clear only y[0]/pbslip[0] are read and the merge logic is
+ * bypassed.
  *
  * @param[in,out] rtk    RTK control struct
  * @param[in]     nav    Navigation data
