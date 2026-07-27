@@ -13,6 +13,11 @@ The unused base-station stream slot (stream index 1) is repurposed as a second L
 correction input, enabling `rtkrcv` to process two independent CLAS L6D streams
 simultaneously — matching the post-processing engine's dual-channel capability.
 
+*Clarification (added later): at this date the post-processing engine's
+"dual-channel capability" was two-stream VRS-RTK only. Dual-channel correction
+merging in the post-processing PPP-RTK engine itself landed later, via
+[#303](https://github.com/h-shiono/MRTKLIB/issues/303)/#305.*
+
 ### Highlights
 
 - **2ch CLAS real-time** — `rtkrcv` now accepts two L6 correction streams: stream 3

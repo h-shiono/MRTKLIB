@@ -697,6 +697,9 @@ set_tests_properties(madocalib_pppar_abs_check PROPERTIES
 #   claslib_ppp_rtk         PPP-RTK with L6 (RINEX obs, 2019/239)
 #   claslib_ppp_rtk_bnx     PPP-RTK with L6 (BINEX obs, 2019/239)
 #   claslib_ppp_rtk_2ch     PPP-RTK with 2-channel L6 (2025/157)
+#   claslib_ppp_rtk_2ch_merge_diff_check
+#                           Sensitivity guard: 2ch merge output must differ from
+#                           ch1-only output (catches a dead/no-op merge, #303 A-4)
 #   claslib_ppp_rtk_l6mrg_1file
 #                           PPP-RTK with l6_merge but only one L6 file (2025/157)
 #   claslib_ppp_rtk_st12    PPP-RTK with SubType 12 (BINEX obs, 2019/349)
@@ -1032,7 +1035,6 @@ set_tests_properties(claslib_ppp_rtk_f9p_abs_check PROPERTIES
 # ── rnx2rtkp CLAS PPP-RTK regression (dual-channel L6) ────────────────────────
 # Data: 2025/06/06 20:00-21:00, 0627157U.bnx + 2025157U_ch1.l6 + ch2.l6
 # Reference: ref_L6_2CH.nmea (upstream claslib output with -l6msg 1)
-# Note: tolerance 0.21m due to wider accuracy gap on 2025 dataset (~20.2cm RMS)
 add_test(NAME claslib_ppp_rtk_2ch
     COMMAND $<TARGET_FILE:mrtk> post
         -k ${CMAKE_SOURCE_DIR}/conf/claslib/rnx2rtkp.toml
@@ -1051,12 +1053,16 @@ set_tests_properties(claslib_ppp_rtk_2ch PROPERTIES
     LABELS            "regression;claslib;ppp-rtk"
 )
 
+# Tolerance 0.10m: post-#305 dual-channel merge measures 4.543cm 3D RMS / fix
+# rate identical to reference (99.86%) -- ~2.2x headroom, matching the
+# ch1-only sibling claslib_ppp_rtk_l6mrg_1file_check's 0.10m/4.11cm precedent.
+# Fix-rate check is no longer skipped: the merge now reproduces the
+# reference's fix rate exactly, so a degradation is a real regression signal.
 add_test(NAME claslib_ppp_rtk_2ch_check
     COMMAND ${Python3_EXECUTABLE} ${_COMPARE_NMEA}
         ${_CLSDATA}/ref_L6_2CH.nmea
         ${CMAKE_BINARY_DIR}/out_claslib_ppp_rtk_2ch.nmea
-        --tolerance 0.21
-        --skip-fixrate
+        --tolerance 0.10
 )
 set_tests_properties(claslib_ppp_rtk_2ch_check PROPERTIES
     DEPENDS           claslib_ppp_rtk_2ch
@@ -1117,6 +1123,29 @@ set_tests_properties(claslib_ppp_rtk_l6mrg_1file_check PROPERTIES
     DEPENDS           claslib_ppp_rtk_l6mrg_1file
     FIXTURES_REQUIRED claslib_data
     LABELS            "regression;claslib;ppp-rtk"
+)
+
+# ── Sensitivity guard: the 2ch merge must actually change the solution ───────
+# claslib_ppp_rtk_2ch_check / claslib_ppp_rtk_l6mrg_1file_check alone cannot
+# tell a working 2-channel merge from a dead one that silently degrades to
+# ch1-only: both would still pass their tolerance-vs-reference checks. This
+# test instead compares the two engine outputs directly and asserts they
+# DIFFER by at least 2mm -- comfortably below the actual 1.77cm 3D RMS
+# merge-vs-ch1-only delta (median dH 0.319cm / max 3.156cm), comfortably above
+# the ~0.2mm single-epoch Accelerate ULP wobble between otherwise-identical
+# runs (#303 A-4). Verified sensitive: the same comparison against a run with
+# the merge disabled (l6_merge=0, both .l6 files still supplied) measures
+# 0.015cm 3D RMS and correctly FAILs this check.
+add_test(NAME claslib_ppp_rtk_2ch_merge_diff_check
+    COMMAND ${Python3_EXECUTABLE} ${_COMPARE_NMEA}
+        ${CMAKE_BINARY_DIR}/out_claslib_ppp_rtk_l6mrg_1file.nmea
+        ${CMAKE_BINARY_DIR}/out_claslib_ppp_rtk_2ch.nmea
+        --expect-min-rms 0.002
+)
+set_tests_properties(claslib_ppp_rtk_2ch_merge_diff_check PROPERTIES
+    DEPENDS           "claslib_ppp_rtk_2ch;claslib_ppp_rtk_l6mrg_1file"
+    FIXTURES_REQUIRED  claslib_data
+    LABELS             "regression;claslib;ppp-rtk"
 )
 
 # ── rnx2rtkp CLAS VRS-RTK regression ──────────────────────────────────────────
