@@ -2445,12 +2445,15 @@ extern void ppp_rtk_pos(rtk_t* rtk, const obsd_t* obs, int n, nav_t* nav) {
             clas_update_global(nav, &clas->current[ch], ch);
             clas_update_local(nav, &clas->current[ch], ch);
         }
-        /* local corrections come from ch=0 unless that channel is the one that
-         * failed; all live channels share grid->network, so any of them fits */
+        /* local corrections come from the first channel holding a valid
+         * snapshot: a fetched channel and a backup-restored channel both set
+         * current[ch].use, while a failed channel was cleared above (or left
+         * empty by clas_restore_backup), so this covers the fetch and the
+         * backup paths alike; all live channels share grid->network */
         corr = &clas->current[0];
-        if (!use_backup && !chok[0] && nok > 0) {
+        if (opt->l6mrg && !clas->current[0].use) {
             for (ch = 1; ch < nch; ch++) {
-                if (chok[ch]) {
+                if (clas->current[ch].use) {
                     corr = &clas->current[ch];
                     break;
                 }
