@@ -1600,7 +1600,9 @@ static int ddres(rtk_t* rtk, const nav_t* nav, double* x, double** pbslip, const
     prcopt_t* opt = &rtk->opt;
     double pos[3], lami, lamj, *Ri, *Rj, *Hi = NULL;
     double *tropu, *im, *dtdxu, didxi = 0.0, didxj = 0.0, fi, fj;
-    int i, j, k, l, m, f, nv = 0, nb[NFREQ * 4 * 2 + 1] = {0}, b = 0;
+    /* nb is indexed once per (system group, freq, phase/code) DD block: the
+     * system loop runs 6 groups, so size by 6 as upstream does (#307) */
+    int i, j, k, l, m, f, nv = 0, nb[NFREQ * 6 * 2 + 1] = {0}, b = 0;
     int sati, satj, sysi, sysj, nf = NF_RTK(opt), flg = 0;
     int h, ch = -1, sch, refsatch, refchgflg, ch_sig_cnt[SSR_CH_NUM] = {0};
     int samefac = 0, nch = opt->l6mrg ? SSR_CH_NUM : 1;
