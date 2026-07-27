@@ -77,6 +77,11 @@ ID, so two channels suffice no matter how many PRNs the receiver tracks
 for merging). The re-lock clock now takes the fresher of `raw[0].time` /
 `rtcm[0].time`, so it advances for any rover format.
 
+*Clarification (added later): "for merging" here means each channel gets a
+coherent, routable L6 stream. Genuine per-channel correction merging inside
+the PPP-RTK filter (as opposed to demux-level routing / handover redundancy)
+landed later, via [#303](https://github.com/h-shiono/MRTKLIB/issues/303)/#305.*
+
 #### Verification
 
 A live archive that froze on a real QZS handover (J195 set) was replayed through

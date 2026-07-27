@@ -191,7 +191,7 @@ TOML section: `[positioning.clas.resilience]`
 |:---------|:-----|:------|:------------|
 | `max_obs_loss` | float | PPP-RTK | Maximum observation gap duration before filter reset (s). |
 | `float_count` | integer | PPP-RTK, VRS | Number of float epochs before triggering filter reset. |
-| `l6_merge` | integer | PPP-RTK, VRS | L6 message merge mode for CLAS corrections. |
+| `l6_merge` | integer | PPP-RTK, VRS | L6 message merge mode for CLAS corrections, across the two CLAS transmit pattern channels. `0` = off (channel 0 only). `1` = merge, choosing the per-satellite channel with more valid observations. `2` = merge with load-balanced channel choice. Applies to post-processing PPP-RTK (since the dual-channel correction merge, [#303](https://github.com/h-shiono/MRTKLIB/issues/303)) and VRS-RTK. Real-time `mrtk run` currently uses the second stream for PRN handover redundancy, not merging. |
 | `reset_interval` | integer | PPP-RTK, VRS | Regular filter reset interval (s). 0 = disabled. |
 
 ## Positioning — CLAS Adaptive Filter
