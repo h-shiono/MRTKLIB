@@ -690,6 +690,13 @@ static int inputobs(obsd_t* obs, int solq, const prcopt_t* popt) {
         }
         /* update CLAS L6 corrections */
         if (clas_ctx) {
+            if (popt->l6mrg && !*clas_file[1]) {
+                static int warned_l6mrg_1file = 0;
+                if (!warned_l6mrg_1file) {
+                    warned_l6mrg_1file = 1;
+                    trace(NULL, 2, "l6_merge enabled but only one L6 source supplied - running single-channel\n");
+                }
+            }
             update_clas(obs[0].time);
         }
         /* update stat corrections */

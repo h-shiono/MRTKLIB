@@ -2217,6 +2217,11 @@ static void check_clas_facility(nav_t* nav, const clas_ctx_t* clas, const clas_g
 
     for (ch = 0; ch < nch; ch++) {
         int facility = clas->current[ch].facility;
+        /* a channel without corrections carries no facility id: keep the last
+         * known one so that a correction gap does not look like a facility change */
+        if (!clas->current[ch].use) {
+            continue;
+        }
         if (savefacility[ch] != facility) {
             if (savefacility[ch] != -1) {
                 nav->filreset = 1;
@@ -2379,11 +2384,13 @@ extern void ppp_rtk_pos(rtk_t* rtk, const obsd_t* obs, int n, nav_t* nav) {
         use_backup = 1;
     }
 
-    /* fetch corrections for all active channels, or restore a short-gap backup */
+    /* fetch corrections for all active channels, or restore a short-gap backup.
+     * OR semantics as in claslib get_close_cssr(): a channel that cannot supply
+     * corrections is skipped and the epoch fails only if every channel fails. */
     {
         int nch = opt->l6mrg ? SSR_CH_NUM : 1;
-        int ch;
-        int fetch_failed = 0;
+        int ch, nok = 0;
+        int chok[SSR_CH_NUM] = {0};
         for (ch = 0; ch < nch && !use_backup; ch++) {
             /* re-fetch corrections closest to observation time,
              * falling back to L6 buffer time if obs lookup fails */
@@ -2395,13 +2402,23 @@ extern void ppp_rtk_pos(rtk_t* rtk, const obsd_t* obs, int n, nav_t* nav) {
                 }
                 if (bgrc != 0) {
                     trace(NULL, 3, "ppp_rtk_pos: bank lookup failed ch=%d\n", ch);
-                    fetch_failed = 1;
-                    break;
+                    continue;
                 }
                 clas_check_grid_status(clas, &clas->current[ch], ch);
             }
+            chok[ch] = 1;
+            nok++;
         }
-        if (fetch_failed) {
+        if (opt->l6mrg && nok == 1) {
+            static int warned_single_ch = 0;
+            if (!warned_single_ch) {
+                warned_single_ch = 1;
+                trace(NULL, 2,
+                      "ppp_rtk_pos: l6_merge active but only ch=%d supplies corrections, running single-channel\n",
+                      chok[0] ? 0 : 1);
+            }
+        }
+        if (!use_backup && nok == 0) {
             if (!clas_backup_valid(clas, obs[0].time, opt->l6mrg)) {
                 free(azel);
                 free(e);
@@ -2416,12 +2433,32 @@ extern void ppp_rtk_pos(rtk_t* rtk, const obsd_t* obs, int n, nav_t* nav) {
             use_backup = 1;
         } else if (!use_backup) {
             clas_backup_current(clas, grid, opt->l6mrg);
+            /* the snapshot of a channel that failed this epoch is stale: drop it so
+             * that neither ssr_ch[ch] nor the clock merge below picks it up */
+            for (ch = 0; ch < nch; ch++) {
+                if (!chok[ch]) {
+                    clas_clear_current(clas, ch);
+                }
+            }
         }
         for (ch = 0; ch < nch; ch++) {
             clas_update_global(nav, &clas->current[ch], ch);
             clas_update_local(nav, &clas->current[ch], ch);
         }
+        /* local corrections come from the first channel holding a valid
+         * snapshot: a fetched channel and a backup-restored channel both set
+         * current[ch].use, while a failed channel was cleared above (or left
+         * empty by clas_restore_backup), so this covers the fetch and the
+         * backup paths alike; all live channels share grid->network */
         corr = &clas->current[0];
+        if (opt->l6mrg && !clas->current[0].use) {
+            for (ch = 1; ch < nch; ch++) {
+                if (clas->current[ch].use) {
+                    corr = &clas->current[ch];
+                    break;
+                }
+            }
+        }
         check_clas_facility(nav, clas, grid, opt);
 
         /* dual-channel: merge freshest orbit/clock into ch=0 for satposs */
