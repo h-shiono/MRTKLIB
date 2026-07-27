@@ -217,6 +217,9 @@ def main():
     )
     args = parser.parse_args()
 
+    if args.expect_min_rms is not None and args.expect_min_rms <= 0.0:
+        parser.error("--expect-min-rms must be > 0 (a non-positive minimum passes trivially)")
+
     # Parse files
     print(f"Reference : {args.ref}")
     print(f"Test      : {args.test}")
