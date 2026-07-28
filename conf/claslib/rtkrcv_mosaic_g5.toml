@@ -240,6 +240,11 @@ reference_type = "CLAS"
 [positioning.clas.resilience]
 max_obs_loss = 90.0
 float_count = 15
+# The mosaic-G5 tracks two CLAS satellites and pre-splits their L6D frames
+# into QZSRawL6D blocks; the demux keys a channel per transmit pattern, so
+# both patterns merge and operation degrades to single-channel when only one
+# pattern is tracked. Validated live on an NTRIP SBF feed (#309).
+l6_merge = 1
 
 [positioning.relative]
 baseline_length = 0.0

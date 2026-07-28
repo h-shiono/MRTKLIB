@@ -5,10 +5,19 @@
 #
 # Usage:
 #   bash run_rtkrcv_test.sh <binary> <subcmd> <project_root> <reference_pos> \
-#        [playback_speed] [conf_file] [port]
+#        [playback_speed] [conf_file] [port] [max_timeout] [save_output] \
+#        [toml_overrides]
+#
+# save_output    copy the produced solution file here so a follow-up CTest
+#                step can compare it (the working copy lives in /tmp and is
+#                removed on exit).
+# toml_overrides semicolon-separated "key=value" pairs rewritten in the temp
+#                conf, e.g. "l6_merge=0".  Lets one shipped conf serve both a
+#                default-settings run and a run that pins one option, without
+#                keeping a near-duplicate conf in the tree.
 #
 # The test:
-#   1. Patches the conf file (output path, playback speed)
+#   1. Patches the conf file (output path, playback speed, overrides)
 #   2. Runs rtkrcv with file stream replay
 #   3. Waits until output stabilises (10s idle timeout, 300s max)
 #   4. Checks that data line count >= 90% of reference
@@ -22,6 +31,8 @@ PLAYBACK_SPEED="${5:-10}"
 CONF_FILE="${6:-conf/malib/rtkrcv.toml}"
 RTKRCV_PORT="${7:-52003}"
 MAX_TIMEOUT="${8:-300}"
+SAVE_OUTPUT="${9:-}"
+TOML_OVERRIDES="${10:-}"
 IDLE_TIMEOUT=10
 
 cd "$PROJECT_ROOT"
@@ -50,6 +61,14 @@ RTKRCV_PID=""
 cleanup() {
     if [[ -n "$RTKRCV_PID" ]] && kill -0 "$RTKRCV_PID" 2>/dev/null; then
         kill -TERM "$RTKRCV_PID" 2>/dev/null || true
+        for _ in $(seq 1 10); do
+            kill -0 "$RTKRCV_PID" 2>/dev/null || break
+            sleep 1
+        done
+        if kill -0 "$RTKRCV_PID" 2>/dev/null; then
+            echo "WARNING: rtkrcv ignored SIGTERM in cleanup, sending SIGKILL" >&2
+            kill -KILL "$RTKRCV_PID" 2>/dev/null || true
+        fi
         wait "$RTKRCV_PID" 2>/dev/null || true
     fi
     rm -f "$OUTPUT" "$CONF" "${CONF}.bak"
@@ -71,10 +90,22 @@ text = re.sub(
     text, count=1, flags=re.DOTALL)
 # Replace playback speed
 text = re.sub(r'::x[0-9]+', '::x${PLAYBACK_SPEED}', text)
+# Apply 'key=value' overrides on existing bare keys
+for item in sys.argv[2].split(';'):
+    if not item:
+        continue
+    key, _, value = item.partition('=')
+    key, value = key.strip(), value.strip()
+    text, n = re.subn(r'(?m)^' + re.escape(key) + r'\s*=.*$', key + ' = ' + value, text)
+    if n != 1:
+        sys.exit('conf override %s matched %d keys (expected 1)' % (key, n))
 open(sys.argv[1], 'w').write(text)
-" "$CONF"
+" "$CONF" "$TOML_OVERRIDES"
 else
     # Legacy .conf format
+    if [[ -n "$TOML_OVERRIDES" ]]; then
+        echo "ERROR: conf overrides are only supported for TOML configs" >&2; exit 1
+    fi
     sed -i.bak "s|^outstr1-path.*|outstr1-path       =${OUTPUT}|" "$CONF"
     sed -i.bak "s|::x[0-9]*|::x${PLAYBACK_SPEED}|g" "$CONF"
 fi
@@ -113,15 +144,32 @@ while true; do
     fi
 done
 
-# Graceful shutdown
+# Graceful shutdown. A server that ignores SIGTERM (stuck stream or engine
+# thread) must not turn into a CTest-level timeout: escalate to SIGKILL after
+# 20 s so the checks below still run and report on the output produced so far.
 if kill -0 "$RTKRCV_PID" 2>/dev/null; then
-    kill -TERM "$RTKRCV_PID"; wait "$RTKRCV_PID" 2>/dev/null || true
+    kill -TERM "$RTKRCV_PID"
+    for _ in $(seq 1 20); do
+        kill -0 "$RTKRCV_PID" 2>/dev/null || break
+        sleep 1
+    done
+    if kill -0 "$RTKRCV_PID" 2>/dev/null; then
+        echo "WARNING: rtkrcv ignored SIGTERM, sending SIGKILL" >&2
+        kill -KILL "$RTKRCV_PID" 2>/dev/null || true
+    fi
+    wait "$RTKRCV_PID" 2>/dev/null || true
 fi
 RTKRCV_PID=""
 
 # Verify output is non-empty
 if [[ ! -s "$OUTPUT" ]]; then
     echo "ERROR: output file empty or missing" >&2; exit 1
+fi
+
+# Keep the solution for follow-up comparison steps
+if [[ -n "$SAVE_OUTPUT" ]]; then
+    cp "$OUTPUT" "$SAVE_OUTPUT"
+    echo "  saved output: $SAVE_OUTPUT"
 fi
 
 # Count data lines (exclude % headers)

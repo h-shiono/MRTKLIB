@@ -559,8 +559,12 @@ _OPTION_META: dict[str, tuple[str, str]] = {
         "per-satellite channel with more valid observations. `2` = merge with "
         "load-balanced channel choice. Applies to post-processing PPP-RTK (since "
         "the dual-channel correction merge, [#303](https://github.com/h-shiono/MRTKLIB/issues/303)) "
-        "and VRS-RTK. Real-time `mrtk run` currently uses the second stream for "
-        "PRN handover redundancy, not merging.",
+        "and VRS-RTK, and to real-time `mrtk run` "
+        "([#309](https://github.com/h-shiono/MRTKLIB/issues/309)), where a channel is keyed to an "
+        "L6 transmit pattern — two `clas` input streams, or one UBX/SBF stream carrying both "
+        "patterns. Enabled by default in the real-time CLAS configs; an epoch in which only one "
+        "channel has corrections is served from that channel, so a satellite handover on one "
+        "pattern does not interrupt positioning.",
     ),
     "misc-regularly": ("PPP-RTK, VRS", "Regular filter reset interval (s). 0 = disabled."),
     "misc-startcmd": ("RT", "Shell command executed on server start."),

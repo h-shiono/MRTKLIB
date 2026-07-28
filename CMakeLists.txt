@@ -708,7 +708,13 @@ set_tests_properties(madocalib_pppar_abs_check PROPERTIES
 #   claslib_vrs_rtk_st12    VRS-RTK with SubType 12 (2019/349)
 #   claslib_vrs_rtk_2ch     VRS-RTK with 2-channel (2025/157)
 #   rtkrcv_rt_clas          Real-time CLAS PPP-RTK (BINEX+L6, rtkrcv file replay)
-#   rtkrcv_rt_clas_2ch      Real-time CLAS PPP-RTK dual-channel L6 (rtkrcv file replay)
+#   rtkrcv_rt_clas_2ch      Real-time CLAS PPP-RTK dual-channel L6, single-channel
+#                           engine (l6_merge pinned to 0; rtkrcv file replay)
+#   rtkrcv_rt_clas_2ch_merge
+#                           Same replay with the shipped l6_merge = 1 default (#309)
+#   rtkrcv_rt_clas_2ch_merge_nsat_check
+#                           Sensitivity guard: the merged run must track more
+#                           satellites per fixed epoch than the single-channel run
 set(_CLSDATA  ${CMAKE_SOURCE_DIR}/tests/data/claslib)
 set(_CLSRTREFDATA ${CMAKE_BINARY_DIR}/tests/data/claslib)
 set(_COMPARE_NMEA ${CMAKE_SOURCE_DIR}/scripts/tests/compare_nmea.py)
@@ -1504,6 +1510,11 @@ set_tests_properties(rtkrcv_rt_clas PROPERTIES
 # Replays BINEX obs + 2-channel CLAS L6 via rtkrcv at x10 speed.
 # Stream 2 (base slot) carries L6 ch2; stream 3 carries L6 ch1.
 # Uses line-count threshold (≥90% of reference) for pass/fail.
+#
+# The conf ships with l6_merge = 1 (#309); this run pins it back to 0 so the
+# single-channel real-time path (engine on ch0 only) keeps its own regression,
+# which is also what ref_L6_2CH_RT.nmea was recorded under.  The merge-enabled
+# run is rtkrcv_rt_clas_2ch_merge below.
 add_test(NAME rtkrcv_rt_clas_2ch
     COMMAND bash ${_TESTCMAKE}/run_rtkrcv_test.sh
         $<TARGET_FILE:mrtk> run
@@ -1513,6 +1524,8 @@ add_test(NAME rtkrcv_rt_clas_2ch
         conf/claslib/rtkrcv_2ch.toml
         52006
         500
+        ${CMAKE_BINARY_DIR}/out_rtkrcv_rt_clas_2ch_1ch.nmea
+        "l6_merge=0"
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
 )
 set_tests_properties(rtkrcv_rt_clas_2ch PROPERTIES
@@ -1520,6 +1533,62 @@ set_tests_properties(rtkrcv_rt_clas_2ch PROPERTIES
     TIMEOUT           600
     LABELS            "regression;claslib;realtime"
     RESOURCE_LOCK     rtkrcv_port
+)
+
+# ── rtkrcv RT CLAS PPP-RTK dual-channel merge regression (#309) ───────────────
+# Same replay with the shipped conf as-is, i.e. l6_merge = 1: both L6 transmit
+# patterns feed the engine and are merged per satellite.
+add_test(NAME rtkrcv_rt_clas_2ch_merge
+    COMMAND bash ${_TESTCMAKE}/run_rtkrcv_test.sh
+        $<TARGET_FILE:mrtk> run
+        ${CMAKE_SOURCE_DIR}
+        ${_CLSRTREFDATA}/ref_L6_2CH_RT.nmea
+        10
+        conf/claslib/rtkrcv_2ch.toml
+        52007
+        500
+        ${CMAKE_BINARY_DIR}/out_rtkrcv_rt_clas_2ch_merge.nmea
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+set_tests_properties(rtkrcv_rt_clas_2ch_merge PROPERTIES
+    FIXTURES_REQUIRED claslib_data
+    TIMEOUT           600
+    LABELS            "regression;claslib;realtime"
+    RESOURCE_LOCK     rtkrcv_port
+)
+
+# Sensitivity guard: the merged run must use satellites the single-channel run
+# cannot see.  Position RMS is useless as the discriminator here — real-time
+# replay scatters 3.0 cm 3D RMS between two identical runs, while merge moves
+# the solution only 4.5-4.8 cm — so this compares the mean GGA satellite count
+# over fixed epochs instead, which is structural rather than timing-dependent:
+# measured 14.59 (single-channel) vs 15.56-15.63 (merged), i.e. +0.97, with
+# +-0.07 spread across repeats, and it stays valid even in a run that loses
+# fix for a while.  Threshold 0.5 keeps ~2x headroom.
+add_test(NAME rtkrcv_rt_clas_2ch_merge_nsat_check
+    COMMAND ${Python3_EXECUTABLE} -c "
+import statistics, sys
+def mean_nsat(path):
+    ns=[]
+    for line in open(path):
+        if line.startswith(('$GNGGA','$GPGGA')):
+            f=line.split(',')
+            if len(f)>=10 and f[6]=='4':
+                ns.append(int(f[7]))
+    assert len(ns)>=1000, f'{path}: too few fixed epochs ({len(ns)})'
+    return statistics.mean(ns)
+one=mean_nsat(sys.argv[1]); both=mean_nsat(sys.argv[2])
+print(f'mean satellites per fixed epoch: single-channel={one:.3f} merged={both:.3f} delta={both-one:+.3f}')
+assert both-one>=0.5, f'merge added only {both-one:+.3f} satellites (expected >= 0.5)'
+print('OK: dual-channel merge adds satellites')
+"
+        ${CMAKE_BINARY_DIR}/out_rtkrcv_rt_clas_2ch_1ch.nmea
+        ${CMAKE_BINARY_DIR}/out_rtkrcv_rt_clas_2ch_merge.nmea
+)
+set_tests_properties(rtkrcv_rt_clas_2ch_merge_nsat_check PROPERTIES
+    DEPENDS           "rtkrcv_rt_clas_2ch;rtkrcv_rt_clas_2ch_merge"
+    FIXTURES_REQUIRED claslib_data
+    LABELS            "regression;claslib;realtime"
 )
 
 # ═══════════════════════════════════════════════════════════════════════════════
