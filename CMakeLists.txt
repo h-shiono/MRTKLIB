@@ -1571,7 +1571,7 @@ import statistics, sys
 def mean_nsat(path):
     ns=[]
     for line in open(path):
-        if line.startswith(('\$GNGGA','\$GPGGA')):
+        if line.startswith(('$GNGGA','$GPGGA')):
             f=line.split(',')
             if len(f)>=10 and f[6]=='4':
                 ns.append(int(f[7]))

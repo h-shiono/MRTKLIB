@@ -65,7 +65,10 @@ cleanup() {
             kill -0 "$RTKRCV_PID" 2>/dev/null || break
             sleep 1
         done
-        kill -KILL "$RTKRCV_PID" 2>/dev/null || true
+        if kill -0 "$RTKRCV_PID" 2>/dev/null; then
+            echo "WARNING: rtkrcv ignored SIGTERM in cleanup, sending SIGKILL" >&2
+            kill -KILL "$RTKRCV_PID" 2>/dev/null || true
+        fi
         wait "$RTKRCV_PID" 2>/dev/null || true
     fi
     rm -f "$OUTPUT" "$CONF" "${CONF}.bak"
