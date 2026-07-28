@@ -223,6 +223,7 @@ reference_type = "CLAS" # reference receiver type (always CLAS)
 [positioning.clas.resilience]
 max_obs_loss = 90.0 # max epochs without observation before reset
 float_count = 15    # float epochs before fix attempt
+l6_merge = 1        # D9C carries both L6 patterns in one stream; merge them
 
 [positioning.relative]
 baseline_length = 0.0     # (m)

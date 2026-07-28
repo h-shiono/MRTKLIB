@@ -233,6 +233,10 @@ reference_type = "CLAS"
 [positioning.clas.resilience]
 max_obs_loss = 90.0
 float_count = 15
+# The D9C interleaves both L6 transmit patterns in one UBX stream; the demux
+# keys a CLAS channel per pattern, so merging is available with one input
+# stream and degrades to single-channel when only one pattern is tracked.
+l6_merge = 1
 
 [positioning.relative]
 baseline_length = 0.0

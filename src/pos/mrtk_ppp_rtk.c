@@ -2700,7 +2700,8 @@ extern void ppp_rtk_pos(rtk_t* rtk, const obsd_t* obs, int n, nav_t* nav) {
             if (!warned_single_ch) {
                 warned_single_ch = 1;
                 trace(NULL, 2,
-                      "ppp_rtk_pos: l6_merge active but only ch=%d supplies corrections, running single-channel\n",
+                      "ppp_rtk_pos: l6_merge running single-channel on ch=%d (only one L6 transmit pattern "
+                      "received so far)\n",
                       chok[0] ? 0 : 1);
             }
         }
