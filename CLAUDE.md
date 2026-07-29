@@ -53,6 +53,7 @@ See [`docs/releases/changelog.md`](docs/releases/changelog.md) for the full hist
 | v0.7.4 | CLAS PPP-RTK claslib parity (#225) — storm-day fix 89.44%→93.54% (> upstream 92.88%); BackupCSSR gap-bridge, GAL E5a PCV fix; opt-in `MRTK_DETERMINISTIC_BLAS` |
 | v0.7.5 | Single-band CLAS PPP-RTK regression coverage (SF nf=1 + Galileo E1/E5b mismatch, independent-truth anchors) + capability record `docs/design/sf-ppp-rtk.md`; no positioning change |
 | v0.7.6 | TOML configuration redesign (taxonomy by consumer, deprecation aliases + unknown-key warning, dead keys removed, option-slot collision fixes, CI-gated config reference) + IGS PPP-AR receiver bias / unbias gate + CLAS periodic filter reset |
+| v0.7.7 | CLAS dual-channel transmit-pattern merge (#303/#309) — PPP-RTK engine merges both L6 patterns (selection byte-identical to upstream; +0.94 sats/epoch), OR-semantics fetch with graceful degradation, RT merge on by default (pattern-keyed demux), merge-sensitive regressions |
 
 ### Test Status
 

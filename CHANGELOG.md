@@ -7,6 +7,98 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.7.7] - 2026-07-29
+
+**CLAS dual-channel correction merge — post-processing and real-time.** CLAS
+is broadcast in two transmit patterns whose correction schedules are
+complementary: each pattern alone carries only ~93 % of their union, about one
+satellite's atmospheric corrections per epoch existing in only one pattern.
+MRTKLIB decoded both patterns into separate channels since v0.3.0, but the
+PPP-RTK engine processed channel 0 only — with `l6_merge` set, the solution
+was bit-identical to a single-channel run. This release ports upstream
+claslib's multi-channel merge into the engine
+([#303](https://github.com/h-shiono/MRTKLIB/issues/303), PRs
+[#304](https://github.com/h-shiono/MRTKLIB/pull/304)/[#305](https://github.com/h-shiono/MRTKLIB/pull/305)/[#308](https://github.com/h-shiono/MRTKLIB/pull/308))
+and turns it on by default in the real-time dual-pattern configurations
+([#309](https://github.com/h-shiono/MRTKLIB/issues/309), PR
+[#311](https://github.com/h-shiono/MRTKLIB/pull/311)). Merge decisions are
+verified **byte-identical to an upstream claslib build** across the full
+2025/157 dataset (per-epoch channel selection and all 10 795 DD calls); the
+`l6mrg=0` path is byte-identical to the previous release. Measured effect:
+**+0.94 satellites per fixed epoch** (14.64 → 15.58, matching upstream to two
+decimals), vertical accuracy vs GSI F5 truth 3.02 → 2.71 cm RMS, horizontal /
+TTFF / fix rate unchanged on the clean benchmark; one pattern dropping out no
+longer sinks the epoch.
+
+### Added
+
+- **PPP-RTK dual-channel merge** (`src/pos/mrtk_ppp_rtk.c`): per-channel
+  satellite positions and zero-difference residuals, priority-channel
+  selection by valid-observation count, per-satellite channel assignment with
+  cross-channel fallback, same-facility detection with per-channel
+  reference-satellite search and phase-bias reset on channel switches when
+  facilities differ ([#303](https://github.com/h-shiono/MRTKLIB/issues/303),
+  [PR #305](https://github.com/h-shiono/MRTKLIB/pull/305)).
+- **OR-semantics correction fetch with graceful degradation**: a channel that
+  cannot supply corrections for an epoch is skipped (upstream
+  `get_close_cssr()` behaviour); `l6_merge` with a single L6 source runs
+  single-channel with a one-shot notice instead of degrading every epoch to
+  Single ([PR #304](https://github.com/h-shiono/MRTKLIB/pull/304)).
+- **Real-time merge enabled by default** in `rtkrcv_2ch.toml`,
+  `rtkrcv_ubx_clas.toml`, `rtkrcv_rtcm3_ubx.toml` and
+  `rtkrcv_mosaic_g5.toml`. The transmit pattern is the channel identity in
+  the L6 demux, so operation is adaptive without runtime switching: merge
+  when both patterns are visible, single-channel otherwise. The mosaic-G5
+  single-SBF path was validated against a live NTRIP feed (dual-pattern
+  channel lock, both channels assembling CSSR; Single-quality epochs 41 → 25
+  on a 40-minute capture)
+  ([#309](https://github.com/h-shiono/MRTKLIB/issues/309),
+  [PR #311](https://github.com/h-shiono/MRTKLIB/pull/311)).
+- `compare_nmea.py --expect-min-rms`: inverse assertion (two solutions must
+  differ by at least the given 3D RMS); non-positive thresholds rejected.
+- `run_rtkrcv_test.sh`: `save_output` / `toml_overrides` arguments and a
+  bounded SIGTERM wait with a diagnostic before SIGKILL escalation.
+
+### Fixed
+
+- `ddres()` `nb[]` sized for all six system groups as upstream does; latent
+  overflow only reachable with `nf ≥ 4`
+  ([#307](https://github.com/h-shiono/MRTKLIB/issues/307),
+  [PR #310](https://github.com/h-shiono/MRTKLIB/pull/310)).
+
+### Changed
+
+- **Deliberate test-tolerance change**: `claslib_ppp_rtk_2ch_check` tightened
+  from 0.21 m to 0.10 m (measured 4.54 cm, ~2.2× headroom) and its fix-rate
+  check enabled — mandated by
+  [#303](https://github.com/h-shiono/MRTKLIB/issues/303) A-4; the old gate
+  could not detect a dead merge. A new differential check asserts the merged
+  and single-channel solutions differ (≥ 2 mm; a disabled merge measures
+  0.015 cm and fails). The real-time merge regression asserts the structural
+  satellite-count gain (+0.5 threshold vs +0.96 measured) because RT replay
+  position scatter (3.0–3.3 cm between identical runs) exceeds the merge
+  signal's discrimination margin.
+- One-shot single-channel notice reworded to informational tone (normal
+  operation under default-on real-time merge).
+
+### Documentation
+
+- `l6_merge` reference row rewritten (0/1/2 semantics, per-mode
+  applicability); real-time CLAS guide dual-channel section rewritten with
+  measured numbers; historical clarifications added to the v0.4.4 / v0.6.14
+  release notes (PPP-RTK correction merging landed here, not there).
+
+### Known / open
+
+- [#306](https://github.com/h-shiono/MRTKLIB/issues/306): channel-2
+  correction stream diverges from upstream ~1.8× more than channel 1's —
+  floors merged-solution consistency with upstream at ~4.5 cm on 2025/157;
+  absolute accuracy unaffected (MRTKLIB ahead of upstream on every variant).
+- [#312](https://github.com/h-shiono/MRTKLIB/issues/312): the L6 pattern
+  demux has no CI replay coverage (replay streams bypass it; the bundled 2ch
+  dataset has no PRN handover) — a raw UBX/SBF handover fixture is the open
+  item.
+
 ## [v0.7.6] - 2026-07-12
 
 **TOML configuration redesign.** The configuration vocabulary introduced with
