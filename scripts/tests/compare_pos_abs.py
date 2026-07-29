@@ -43,12 +43,18 @@ Reported statistics
   state — Fix, Float or PPP (Q = 1, 2, 6); Single and DGPS epochs are excluded
   so the figure describes the epochs the accuracy statistics come from.
   TTFF — first epoch that is integer-fixed (Q=1, i.e. GGA quality 4) *and*
-  within 30 cm horizontally and 50 cm vertically (--ttff-h / --ttff-v).
-  Measured from the first epoch of the file: --skip-epochs discards the
-  convergence transient, which is what TTFF is about, so it is not applied.
-  PPP conv — the same bounds applied to the PPP state (Q=6, GGA quality 3),
-  reported as a reference convergence time.  Printed only when the solution
-  actually contains PPP epochs.
+  within 30 cm horizontally and 50 cm vertically (--ttff-h / --ttff-v), which
+  then has to hold for 5 minutes (--hold).  The time reported is the START of
+  the sustained run: the hold confirms the solution really had converged there,
+  it is not a delay added to the answer.  Measured from the first epoch of the
+  file — --skip-epochs discards the convergence transient, which is what this
+  is about, so it is not applied.
+  PPP conv — the same bounds and hold applied to the PPP state (Q=6, GGA
+  quality 3) *or better*: upgrading to an integer fix counts as maintaining
+  PPP, so it does not break the run.  A reference figure, printed only when the
+  solution actually contains PPP epochs.
+  A data gap longer than 3x the median epoch interval ends a run in both
+  cases — nothing is known about the missing time.
 
 Pass / Fail
 -----------
@@ -82,6 +88,7 @@ Options
     --tolerance FLOAT   Tolerance for criterion A in metres (default 0.030)
     --ttff-h FLOAT      TTFF horizontal bound in metres (default 0.30)
     --ttff-v FLOAT      TTFF vertical bound in metres (default 0.50)
+    --hold FLOAT        Seconds the TTFF / convergence criteria must hold (300)
     --skip-epochs INT   Skip N initial epochs (convergence transient)
     --use-2d            Evaluate pass/fail on 2D horizontal error (default: 3D)
     --plot              Generate ENU error time-series plot
@@ -546,13 +553,21 @@ def compute_abs_metrics(true_xyz, rows, skip_epochs=0):
     }
 
 
-def compute_ttff(true_xyz, rows, max_h=0.30, max_v=0.50, fix_q=1):
-    """Time to first fix: first epoch in the given state that is *also* accurate.
+def compute_ttff(true_xyz, rows, max_h=0.30, max_v=0.50, states=(1,), hold=0.0):
+    """First epoch in the given solution states that is *also* accurate.
 
-    An epoch qualifies when its solution status equals ``fix_q`` and both the
-    horizontal error and the absolute Up error are within the given bounds.
+    An epoch qualifies when its solution status is one of ``states`` and both
+    the horizontal error and the absolute Up error are within the given bounds.
+
+    With ``hold`` > 0 the epoch must additionally start an unbroken run of
+    qualifying epochs spanning at least that many seconds, and the reported
+    epoch is the *start* of that run: the hold is the confirmation that the
+    solution had really converged there, not a delay added to the answer.  A
+    data gap — an interval longer than 3x the median epoch interval — ends a
+    run, since nothing is known about the missing time.
+
     The search always starts at the first epoch of the file — skip_epochs
-    exists to drop the convergence transient, which is exactly what TTFF
+    exists to drop the convergence transient, which is exactly what this
     measures.
 
     Args:
@@ -560,8 +575,10 @@ def compute_ttff(true_xyz, rows, max_h=0.30, max_v=0.50, fix_q=1):
         rows: list of (lat, lon, h, q, ns, t) tuples in epoch order.
         max_h: horizontal error bound in metres.
         max_v: absolute vertical (Up) error bound in metres.
-        fix_q: quality value that means integer fix — 1 on the .pos scale,
-            4 for raw GGA quality.
+        states: accepted quality values.  A better state than the one asked
+            about counts as maintaining it, so PPP convergence passes
+            ``(PPP, fix)`` — upgrading to an integer fix must not break the run.
+        hold: seconds the criteria must hold from the reported epoch on.
 
     Returns:
         dict with keys ``ttff`` (seconds from the first epoch, None when the
@@ -571,28 +588,53 @@ def compute_ttff(true_xyz, rows, max_h=0.30, max_v=0.50, fix_q=1):
     if not rows:
         return None
     true_lat, true_lon, _ = xyz2blh(*true_xyz)
+    times = [r[5] for r in rows]
+    t0 = times[0]
 
-    for i, (lat, lon, h, q, _ns, t) in enumerate(rows):
-        if q != fix_q:
+    good = []
+    for lat, lon, h, q, _ns, _t in rows:
+        if q not in states:
+            good.append(False)
             continue
         enu = xyz2enu(blh2xyz(lat, lon, h) - true_xyz, true_lat, true_lon)
-        if math.hypot(enu[0], enu[1]) > max_h or abs(enu[2]) > max_v:
-            continue
-        t0 = rows[0][5]
+        good.append(math.hypot(enu[0], enu[1]) <= max_h and abs(enu[2]) <= max_v)
+
+    if hold <= 0:
+        i = next((k for k, g in enumerate(good) if g), None)
+        if i is None:
+            return None
         return {
-            "ttff": (t - t0) if (t is not None and t0 is not None) else None,
+            "ttff": (times[i] - t0) if (times[i] is not None and t0 is not None) else None,
             "index": i,
             "n": len(rows),
         }
+
+    if any(t is None for t in times):
+        return None  # the hold cannot be verified without epoch times
+
+    dts = [b - a for a, b in zip(times, times[1:])]
+    gap = 3.0 * float(np.median(dts)) if dts else float("inf")
+
+    start = None
+    for i, g in enumerate(good):
+        if not g:
+            start = None
+            continue
+        if start is None or times[i] - times[i - 1] > gap:
+            start = i
+        if times[i] - times[start] >= hold:
+            return {"ttff": times[start] - t0, "index": start, "n": len(rows)}
     return None
 
 
-def print_ttff(true_xyz, rows, max_h=0.30, max_v=0.50, geoid_ok=True, fix_q=1, ppp_q=6):
+def print_ttff(true_xyz, rows, max_h=0.30, max_v=0.50, geoid_ok=True, fix_q=1, ppp_q=6, hold=300.0):
     """Print the TTFF line, and the PPP convergence time when PPP epochs exist.
 
-    The PPP line applies the same accuracy bounds to the PPP solution state
-    instead of the integer fix.  It is a reference figure — a run that never
-    reports a PPP epoch (plain RTK) simply does not get the line.
+    Both lines require their criteria to hold for ``hold`` seconds and report
+    the start of that run.  The PPP line applies the same accuracy bounds to
+    the PPP state or better (an integer fix counts as maintaining PPP), and is
+    a reference figure — a run that never reports a PPP epoch (plain RTK)
+    simply does not get the line.
 
     Args:
         true_xyz: np.array([X, Y, Z]) — true ECEF coordinate in metres.
@@ -603,14 +645,20 @@ def print_ttff(true_xyz, rows, max_h=0.30, max_v=0.50, geoid_ok=True, fix_q=1, p
             which case the vertical criterion cannot be evaluated.
         fix_q: quality value that means integer fix.
         ppp_q: quality value that means PPP.
+        hold: seconds the criteria must hold from the reported epoch on.
     """
 
-    def line(label, state, q):
+    def line(label, state, qs, hold_s):
         crit = f"{state} & 2D<={max_h * 100:g}cm & Up<={max_v * 100:g}cm"
+        if hold_s > 0:
+            crit += f", held {hold_s / 60:.3g} min"
         if not geoid_ok:
             print(f"  {label} : n/a  (no geoid separation, Up unevaluable; {crit})")
             return
-        r = compute_ttff(true_xyz, rows, max_h, max_v, q)
+        if hold_s > 0 and any(r[5] is None for r in rows):
+            print(f"  {label} : n/a  (no usable time stamps; {crit})")
+            return
+        r = compute_ttff(true_xyz, rows, max_h, max_v, qs, hold_s)
         if r is None:
             print(f"  {label} : not reached in {len(rows)} epochs  ({crit})")
         elif r["ttff"] is None:
@@ -618,9 +666,9 @@ def print_ttff(true_xyz, rows, max_h=0.30, max_v=0.50, geoid_ok=True, fix_q=1, p
         else:
             print(f"  {label} : {r['ttff']:.1f} s  (epoch {r['index'] + 1}/{r['n']}; {crit})")
 
-    line("TTFF    ", "fix", fix_q)
+    line("TTFF    ", "fix", (fix_q,), hold)
     if any(r[3] == ppp_q for r in rows):
-        line("PPP conv", "PPP", ppp_q)
+        line("PPP conv", "PPP or better", (ppp_q, fix_q), hold)
 
 
 # ---------------------------------------------------------------------------
@@ -819,6 +867,12 @@ def main():  # noqa: D103
         help="TTFF vertical error bound in metres (default 0.50)",
     )
     p.add_argument(
+        "--hold",
+        type=float,
+        default=300.0,
+        help="Seconds the TTFF / convergence criteria must hold (default 300)",
+    )
+    p.add_argument(
         "--format",
         choices=["auto", "pos", "nmea"],
         default="auto",
@@ -975,7 +1029,7 @@ def main():  # noqa: D103
     else:
         print("    (none)")
     print()
-    print_ttff(true_xyz, rows, args.ttff_h, args.ttff_v, geoid_ok)
+    print_ttff(true_xyz, rows, args.ttff_h, args.ttff_v, geoid_ok, hold=args.hold)
     print()
 
     if args.plot:

@@ -41,17 +41,20 @@ Float or PPP (GGA quality 4, 5, 3).  Quality 1 (stand-alone SPS) and 2 (DGPS)
 are excluded.
 
 TTFF is the first epoch that is RTK-fixed (GGA quality 4) *and* within 30 cm
-horizontally and 50 cm vertically (--ttff-h / --ttff-v).  It is measured from
-the first epoch of the file — --skip-epochs discards the convergence transient,
-which is exactly what TTFF measures, so it is not applied.  When the solution
-contains PPP epochs (GGA quality 3) the same bounds are applied to the PPP
-state and reported as a reference convergence time.
+horizontally and 50 cm vertically (--ttff-h / --ttff-v), which then has to hold
+for 5 minutes (--hold); the time reported is the START of the sustained run.
+It is measured from the first epoch of the file — --skip-epochs discards the
+convergence transient, which is exactly what TTFF measures, so it is not
+applied.  When the solution contains PPP epochs (GGA quality 3) the same bounds
+and hold are applied to the PPP state *or better* (an RTK fix counts as
+maintaining PPP) and reported as a reference convergence time.
 
 Options
 -------
     --tolerance FLOAT   Tolerance for criterion A in metres (default 0.100)
     --ttff-h FLOAT      TTFF horizontal bound in metres (default 0.30)
     --ttff-v FLOAT      TTFF vertical bound in metres (default 0.50)
+    --hold FLOAT        Seconds the TTFF / convergence criteria must hold (300)
     --skip-epochs INT   Skip N initial epochs
     --use-3d            Evaluate pass/fail on 3D error instead of 2D horizontal
     --plot              Generate ENU error time-series plot
@@ -235,6 +238,12 @@ def main():  # noqa: D103
         default=0.50,
         help="TTFF vertical error bound in metres (default 0.50)",
     )
+    p.add_argument(
+        "--hold",
+        type=float,
+        default=300.0,
+        help="Seconds the TTFF / convergence criteria must hold (default 300)",
+    )
     p.add_argument("--skip-epochs", type=int, default=0, help="Initial epochs to discard")
     p.add_argument(
         "--use-3d",
@@ -368,7 +377,16 @@ def main():  # noqa: D103
     else:
         print("    (none)")
     print()
-    print_ttff(true_xyz, test_data, args.ttff_h, args.ttff_v, geoid_ok, fix_q=4, ppp_q=3)
+    print_ttff(
+        true_xyz,
+        test_data,
+        args.ttff_h,
+        args.ttff_v,
+        geoid_ok,
+        fix_q=4,
+        ppp_q=3,
+        hold=args.hold,
+    )
     print()
 
     if args.plot:

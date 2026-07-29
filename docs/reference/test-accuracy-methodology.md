@@ -156,10 +156,19 @@ Both also report, alongside the error distribution:
   state — Fix, Float or PPP. Single and DGPS epochs are excluded so the figure
   describes the epochs the accuracy statistics come from.
 - **TTFF** — the first epoch that is integer-fixed *and* within 30 cm
-  horizontally and 50 cm vertically (`--ttff-h` / `--ttff-v`), reported in
-  seconds from the first epoch of the file. `--skip-epochs` is deliberately
-  **not** applied to TTFF: it discards the convergence transient, which is
+  horizontally and 50 cm vertically (`--ttff-h` / `--ttff-v`), with the criteria
+  then holding for 5 minutes (`--hold`). The reported time is the **start** of
+  the sustained run: the hold is the confirmation that the solution had
+  converged there, not a delay added to the answer. `--skip-epochs` is
+  deliberately **not** applied — it discards the convergence transient, which is
   exactly what TTFF measures.
+- **PPP convergence time** — the same bounds and hold applied to the PPP
+  solution state **or better**: upgrading to an integer fix counts as
+  maintaining PPP and does not break the run. The line is printed only for
+  solutions that actually contain PPP epochs.
+
+A data gap longer than 3× the median epoch interval ends a sustained run in
+both cases, since nothing is known about the missing time.
 
 ---
 
