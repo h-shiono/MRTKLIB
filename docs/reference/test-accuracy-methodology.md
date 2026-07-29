@@ -135,11 +135,31 @@ difference is the input parser.
 
 | Script | Input format | Used for |
 |--------|-------------|---------|
-| `scripts/tests/compare_pos_abs.py` | RTKLIB `.pos` vs SINEX or GSI F5 | PPP-AR absolute check |
+| `scripts/tests/compare_pos_abs.py` | RTKLIB `.pos` **or** NMEA GGA vs SINEX or GSI F5 | PPP-AR absolute check |
 | `scripts/tests/compare_nmea_abs.py` | NMEA GGA vs SINEX or GSI F5 | PPP-RTK absolute check |
 
-Both scripts share the same reference-parsing helpers and pass/fail logic
-(imported from `compare_pos_abs`).
+Both scripts share the same GGA parser, reference-parsing helpers and pass/fail
+logic (imported from `compare_pos_abs`).
+
+`compare_pos_abs.py` detects the input format from the file content
+(`--format pos|nmea` overrides it) and normalises NMEA onto the `.pos`
+convention: ellipsoidal height is rebuilt as GGA field[9] + field[11], and the
+GGA quality indicator is mapped to the RTKLIB solution status (the inverse of
+`nmea_solq[]` in `src/pos/mrtk_sol.c`), so `Q=1` means integer-fixed and `Q=6`
+PPP for either format — `--min-fix-rate` therefore applies to NMEA input too.
+`compare_nmea_abs.py` keeps the GGA-native quality flags and its 2D-first
+defaults.
+
+Both also report, alongside the error distribution:
+
+- **Satellite count** (mean / min / max) over the epochs in a precise solution
+  state — Fix, Float or PPP. Single and DGPS epochs are excluded so the figure
+  describes the epochs the accuracy statistics come from.
+- **TTFF** — the first epoch that is integer-fixed *and* within 30 cm
+  horizontally and 50 cm vertically (`--ttff-h` / `--ttff-v`), reported in
+  seconds from the first epoch of the file. `--skip-epochs` is deliberately
+  **not** applied to TTFF: it discards the convergence transient, which is
+  exactly what TTFF measures.
 
 ---
 
