@@ -43,7 +43,9 @@ are excluded.
 TTFF is the first epoch that is RTK-fixed (GGA quality 4) *and* within 30 cm
 horizontally and 50 cm vertically (--ttff-h / --ttff-v).  It is measured from
 the first epoch of the file — --skip-epochs discards the convergence transient,
-which is exactly what TTFF measures, so it is not applied.
+which is exactly what TTFF measures, so it is not applied.  When the solution
+contains PPP epochs (GGA quality 3) the same bounds are applied to the PPP
+state and reported as a reference convergence time.
 
 Options
 -------
@@ -366,7 +368,7 @@ def main():  # noqa: D103
     else:
         print("    (none)")
     print()
-    print_ttff(true_xyz, test_data, args.ttff_h, args.ttff_v, geoid_ok, fix_q=4)
+    print_ttff(true_xyz, test_data, args.ttff_h, args.ttff_v, geoid_ok, fix_q=4, ppp_q=3)
     print()
 
     if args.plot:

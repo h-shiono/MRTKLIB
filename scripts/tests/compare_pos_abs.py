@@ -46,6 +46,9 @@ Reported statistics
   within 30 cm horizontally and 50 cm vertically (--ttff-h / --ttff-v).
   Measured from the first epoch of the file: --skip-epochs discards the
   convergence transient, which is what TTFF is about, so it is not applied.
+  PPP conv — the same bounds applied to the PPP state (Q=6, GGA quality 3),
+  reported as a reference convergence time.  Printed only when the solution
+  actually contains PPP epochs.
 
 Pass / Fail
 -----------
@@ -474,8 +477,8 @@ def compute_abs_metrics(true_xyz, rows, skip_epochs=0):
 
     Args:
         true_xyz: np.array([X, Y, Z]) — true ECEF coordinate in metres.
-        rows: list of (lat, lon, h, Q, ns) tuples from load_solution(), in epoch
-            order.  Q follows the RTKLIB .pos convention.
+        rows: list of (lat, lon, h, Q, ns, t) tuples from load_solution(), in
+            epoch order.  Q follows the RTKLIB .pos convention.
         skip_epochs: number of initial epochs to discard.
 
     Returns:
@@ -486,14 +489,15 @@ def compute_abs_metrics(true_xyz, rows, skip_epochs=0):
     if not rows:
         return None
 
-    errors_3d, enu_errors, q_list, ns_list = [], [], [], []
-    for lat, lon, h, q, ns, _t in rows:
+    errors_3d, enu_errors, q_list, ns_list, t_list = [], [], [], [], []
+    for lat, lon, h, q, ns, t in rows:
         dx = blh2xyz(lat, lon, h) - true_xyz
         enu = xyz2enu(dx, true_lat, true_lon)
         enu_errors.append(enu)
         errors_3d.append(float(np.linalg.norm(enu)))
         q_list.append(q)
         ns_list.append(ns)
+        t_list.append(t)
 
     e3 = np.array(errors_3d)
     en = np.array(enu_errors)
@@ -510,6 +514,8 @@ def compute_abs_metrics(true_xyz, rows, skip_epochs=0):
         "errors_3d": e3,
         "enu_errors": en,
         "q_list": q_list,
+        "ns_list": ns_list,
+        "t_list": t_list,
         "true_lat": true_lat,
         "true_lon": true_lon,
         # ENU components
@@ -541,9 +547,9 @@ def compute_abs_metrics(true_xyz, rows, skip_epochs=0):
 
 
 def compute_ttff(true_xyz, rows, max_h=0.30, max_v=0.50, fix_q=1):
-    """Time to first fix: first epoch that is fixed *and* accurate.
+    """Time to first fix: first epoch in the given state that is *also* accurate.
 
-    An epoch qualifies when its solution status is an integer fix and both the
+    An epoch qualifies when its solution status equals ``fix_q`` and both the
     horizontal error and the absolute Up error are within the given bounds.
     The search always starts at the first epoch of the file — skip_epochs
     exists to drop the convergence transient, which is exactly what TTFF
@@ -581,8 +587,12 @@ def compute_ttff(true_xyz, rows, max_h=0.30, max_v=0.50, fix_q=1):
     return None
 
 
-def print_ttff(true_xyz, rows, max_h=0.30, max_v=0.50, geoid_ok=True, fix_q=1):
-    """Print the TTFF line for a solution.
+def print_ttff(true_xyz, rows, max_h=0.30, max_v=0.50, geoid_ok=True, fix_q=1, ppp_q=6):
+    """Print the TTFF line, and the PPP convergence time when PPP epochs exist.
+
+    The PPP line applies the same accuracy bounds to the PPP solution state
+    instead of the integer fix.  It is a reference figure — a run that never
+    reports a PPP epoch (plain RTK) simply does not get the line.
 
     Args:
         true_xyz: np.array([X, Y, Z]) — true ECEF coordinate in metres.
@@ -592,33 +602,80 @@ def print_ttff(true_xyz, rows, max_h=0.30, max_v=0.50, geoid_ok=True, fix_q=1):
         geoid_ok: False when the input is NMEA without geoid separation, in
             which case the vertical criterion cannot be evaluated.
         fix_q: quality value that means integer fix.
+        ppp_q: quality value that means PPP.
     """
-    crit = f"fix & 2D<={max_h * 100:g}cm & Up<={max_v * 100:g}cm"
-    if not geoid_ok:
-        print(f"  TTFF     : n/a  (no geoid separation, Up unevaluable; {crit})")
-        return
 
-    r = compute_ttff(true_xyz, rows, max_h, max_v, fix_q)
-    if r is None:
-        print(f"  TTFF     : not reached in {len(rows)} epochs  ({crit})")
-    elif r["ttff"] is None:
-        print(f"  TTFF     : epoch {r['index'] + 1}/{r['n']}, time unknown  ({crit})")
-    else:
-        print(f"  TTFF     : {r['ttff']:.1f} s  (epoch {r['index'] + 1}/{r['n']}; {crit})")
+    def line(label, state, q):
+        crit = f"{state} & 2D<={max_h * 100:g}cm & Up<={max_v * 100:g}cm"
+        if not geoid_ok:
+            print(f"  {label} : n/a  (no geoid separation, Up unevaluable; {crit})")
+            return
+        r = compute_ttff(true_xyz, rows, max_h, max_v, q)
+        if r is None:
+            print(f"  {label} : not reached in {len(rows)} epochs  ({crit})")
+        elif r["ttff"] is None:
+            print(f"  {label} : epoch {r['index'] + 1}/{r['n']}, time unknown  ({crit})")
+        else:
+            print(f"  {label} : {r['ttff']:.1f} s  (epoch {r['index'] + 1}/{r['n']}; {crit})")
+
+    line("TTFF    ", "fix", fix_q)
+    if any(r[3] == ppp_q for r in rows):
+        line("PPP conv", "PPP", ppp_q)
 
 
 # ---------------------------------------------------------------------------
 # Plot
 # ---------------------------------------------------------------------------
+def _time_axis(m):
+    """Build the shared x axis of the plots.
+
+    Args:
+        m: metrics dict from compute_abs_metrics().
+
+    Returns:
+        Tuple (x, label, formatter, ticks, xlim): elapsed seconds from the first
+        epoch with an HH:MM tick formatter and ticks on round clock times when
+        every epoch carries a time stamp, else the epoch index with none of
+        them.  Elapsed seconds keep the axis monotonic across midnight, which a
+        seconds-of-day axis would not.
+    """
+    t_list = m.get("t_list") or []
+    if len(t_list) != m["n"] or any(t is None for t in t_list):
+        return np.arange(m["n"]), "Epoch", None, None, None
+
+    t0, t1 = t_list[0], t_list[-1]
+
+    def hhmm(x, _pos):
+        sod = (t0 + x) % 86400
+        return f"{int(sod // 3600):02d}:{int(sod % 3600 // 60):02d}"
+
+    # Tick on round clock times rather than on round elapsed seconds: pick the
+    # smallest step that keeps the count under ~10.
+    span = max(t1 - t0, 1.0)
+    step = next(
+        (s for s in (60, 120, 300, 600, 900, 1800, 3600, 7200, 21600, 43200) if span / s <= 9),
+        86400,
+    )
+    # Pad the view so a tick landing on the first or last epoch still has room
+    # for its label instead of being clipped against the frame.
+    pad = 0.02 * span
+    first = math.ceil((t0 - pad) / step) * step
+    ticks = np.arange(first, t1 + pad + step, step) - t0
+    ticks = ticks[(ticks >= -pad) & (ticks <= span + pad)]
+
+    return np.array(t_list) - t0, "Time [HH:MM]", hhmm, ticks, (-pad, span + pad)
+
+
 def plot_results(m, ref_label, output_path="abs_compare.png"):
     """Generate ENU error time-series and Q-flag plot."""
     import matplotlib
 
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
+    from matplotlib.ticker import FuncFormatter
 
     en = m["enu_errors"] * 100  # m → cm
-    idx = np.arange(m["n"])
+    idx, xlabel, formatter, ticks, xlim = _time_axis(m)
 
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 7), sharex=True)
     for col, lbl in zip(range(3), ("East", "North", "Up")):
@@ -634,13 +691,32 @@ def plot_results(m, ref_label, output_path="abs_compare.png"):
     ax1.legend()
     ax1.grid(True, alpha=0.3)
 
-    ax2.scatter(idx, m["q_list"], s=8, alpha=0.6)
-    ax2.set_ylabel("Q flag")
-    ax2.set_xlabel("Epoch")
-    ax2.set_title(f"Q flag  (fix rate {m['fix_rate']:.1f}%)")
-    ax2.set_yticks([1, 2, 3, 4, 5, 6])
-    ax2.set_yticklabels(["1:Fix", "2:Float", "3:SBAS", "4:DGPS", "5:Single", "6:PPP"])
+    # Satellite count on the left axis, Q flag on the right.  The count starts
+    # at 0 so the bar-like trace is read against an absolute scale, which also
+    # keeps it clear of the Q markers anchored at the bottom of the right scale.
+    ax2.plot(idx, m["ns_list"], color="C0", linewidth=0.8, alpha=0.9)
+    ax2.set_ylim(0, max(m["ns_list"]) + 1)
+    ax2.set_ylabel("Satellites", color="C0")
+    ax2.tick_params(axis="y", labelcolor="C0")
+    ax2.set_xlabel(xlabel)
+    ax2.set_title(
+        f"Satellites  (mean {m['ns_mean']:.1f} over Fix/Float/PPP)"
+        f"   |   Q flag  (fix rate {m['fix_rate']:.1f}%)"
+    )
     ax2.grid(True, alpha=0.3)
+
+    ax2q = ax2.twinx()
+    ax2q.scatter(idx, m["q_list"], s=8, alpha=0.5, color="C3")
+    ax2q.set_ylabel("Q flag", color="C3")
+    ax2q.set_yticks([1, 2, 3, 4, 5, 6])
+    ax2q.set_yticklabels(["1:Fix", "2:Float", "3:SBAS", "4:DGPS", "5:Single", "6:PPP"])
+    ax2q.set_ylim(0.5, 6.5)
+    ax2q.tick_params(axis="y", labelcolor="C3")
+    if formatter:
+        # ax1 shares this axis
+        ax2.set_xticks(ticks)
+        ax2.set_xlim(*xlim)
+        ax2.xaxis.set_major_formatter(FuncFormatter(formatter))
 
     plt.tight_layout()
     plt.savefig(output_path, dpi=150)
