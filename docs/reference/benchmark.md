@@ -111,8 +111,18 @@ cd scripts/benchmark
 python download_l6.py --mode both
 ```
 
-This downloads the CLAS L6D and MADOCA L6E files for all six runs into
-`data/benchmark/l6/`.  Use `--dry-run` to preview the URLs without downloading.
+This downloads, for all six runs into `data/benchmark/l6/`, the CLAS L6D file
+plus — for MADOCA-PPP — the L6E SSR file (first available PRN of 204/205/206/
+207/209/210/211) and every available L6D ionospheric-augmentation file
+(PRN 200/201).  Use `--dry-run` to preview the URLs without downloading.
+
+To fetch a date outside the benchmark cases, use `--datetime` with a UTC date
+and an optional session letter (A–X, one per UTC hour):
+
+```bash
+python download_l6.py --datetime 2026-07-25A   # one hourly session
+python download_l6.py --datetime 2026-07-25    # all 24 sessions of the day
+```
 
 > **`single` mode needs no correction data** — it uses only `rover.obs` +
 > `base.nav` (broadcast ephemeris). Skip this step and run
@@ -125,6 +135,7 @@ Options:
 | `--l6-dir DIR` | `data/benchmark/l6` | Where to store L6 files |
 | `--mode clas\|madoca\|both` | `both` | Which correction type |
 | `--case ID[,ID...]` | all | Restrict to specific run IDs |
+| `--datetime YYYY-MM-DD[S]` | — | UTC date (+ optional session letter) instead of the cases; mutually exclusive with `--case` |
 | `--dry-run` | off | Print URLs without downloading |
 
 ### Step 2 — Run the benchmark

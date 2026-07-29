@@ -434,7 +434,7 @@ def run_benchmark(args: argparse.Namespace) -> int:
             else:
                 # Build expected paths without downloading
                 from cases import l6_sessions
-                from download_l6 import MADOCA_PRNS
+                from download_l6 import MADOCA_L6D_PRNS, MADOCA_PRNS
 
                 sessions = l6_sessions(case["gps_week"], case["tow_start"], case["tow_end"])
                 for year, doy, session in sessions:
@@ -446,6 +446,11 @@ def run_benchmark(args: argparse.Namespace) -> int:
                         if l6e.exists():
                             l6_paths["madoca"].append(l6e)
                             break
+                    # MADOCA-PPP L6D iono: every available PRN, as ensure_case_l6 does
+                    for prn in MADOCA_L6D_PRNS:
+                        mdc_l6d = l6_dir / f"{year}{doy:03d}{session}.{prn}.l6"
+                        if mdc_l6d.exists():
+                            l6_paths["madoca"].append(mdc_l6d)
 
         for mode in modes:
             conf = str(conf_dir / f"{mode}.toml")
