@@ -1229,6 +1229,14 @@ extern void clas_backup_current(clas_ctx_t* ctx, const clas_grid_t* grid, int l6
     }
 }
 
+extern void clas_clear_current(clas_ctx_t* ctx, int ch) {
+    if (!ctx || ch < 0 || ch >= CLAS_CH_NUM) {
+        return;
+    }
+    memset(&ctx->current[ch], 0, sizeof(clas_corr_t));
+    init_grid_index(&ctx->current[ch]);
+}
+
 extern void clas_restore_backup(clas_ctx_t* ctx, gtime_t time, clas_grid_t* grid, int l6mrg) {
     clas_clock_bank_t* clock;
     int i, ch, nch = l6mrg ? SSR_CH_NUM : 1;

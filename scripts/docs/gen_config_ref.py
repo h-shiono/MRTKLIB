@@ -552,7 +552,20 @@ _OPTION_META: dict[str, tuple[str, str]] = {
     "misc-rnxopt2": ("All", "RINEX conversion option string for base stream."),
     "misc-pppopt": ("PPP", "PPP processing option string (passed to PPP engine)."),
     "misc-rtcmopt": ("RT, PP", "RTCM decoder option string."),
-    "misc-l6mrg": ("PPP-RTK, VRS", "L6 message merge mode for CLAS corrections."),
+    "misc-l6mrg": (
+        "PPP-RTK, VRS",
+        "L6 message merge mode for CLAS corrections, across the two CLAS transmit "
+        "pattern channels. `0` = off (channel 0 only). `1` = merge, choosing the "
+        "per-satellite channel with more valid observations. `2` = merge with "
+        "load-balanced channel choice. Applies to post-processing PPP-RTK (since "
+        "the dual-channel correction merge, [#303](https://github.com/h-shiono/MRTKLIB/issues/303)) "
+        "and VRS-RTK, and to real-time `mrtk run` "
+        "([#309](https://github.com/h-shiono/MRTKLIB/issues/309)), where a channel is keyed to an "
+        "L6 transmit pattern — two `clas` input streams, or one UBX/SBF stream carrying both "
+        "patterns. Enabled by default in the real-time CLAS configs; an epoch in which only one "
+        "channel has corrections is served from that channel, so a satellite handover on one "
+        "pattern does not interrupt positioning.",
+    ),
     "misc-regularly": ("PPP-RTK, VRS", "Regular filter reset interval (s). 0 = disabled."),
     "misc-startcmd": ("RT", "Shell command executed on server start."),
     "misc-stopcmd": ("RT", "Shell command executed on server stop."),

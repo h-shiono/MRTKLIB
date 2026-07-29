@@ -207,12 +207,26 @@ def main():
         action="store_true",
         help="Skip fix rate degradation check (for float-only solutions)",
     )
+    parser.add_argument(
+        "--expect-min-rms",
+        type=float,
+        default=None,
+        help="Inverse mode: assert the two solutions DIFFER by at least this 3D RMS "
+        "(metres), instead of asserting similarity. Overrides --tolerance and "
+        "--skip-fixrate for the pass/fail judgment.",
+    )
     args = parser.parse_args()
+
+    if args.expect_min_rms is not None and args.expect_min_rms <= 0.0:
+        parser.error("--expect-min-rms must be > 0 (a non-positive minimum passes trivially)")
 
     # Parse files
     print(f"Reference : {args.ref}")
     print(f"Test      : {args.test}")
-    print(f"Tolerance : {args.tolerance:.4f} m")
+    if args.expect_min_rms is not None:
+        print(f"Expect min RMS: {args.expect_min_rms:.4f} m (solutions must DIFFER)")
+    else:
+        print(f"Tolerance : {args.tolerance:.4f} m")
     if args.skip_epochs > 0:
         print(f"Skip      : {args.skip_epochs} initial epochs")
     print()
@@ -264,6 +278,23 @@ def main():
     # Generate plot if requested
     if args.plot:
         plot_results(metrics)
+
+    # Inverse mode: assert the solutions differ instead of matching.
+    if args.expect_min_rms is not None:
+        if metrics["rms_3d"] >= args.expect_min_rms:
+            print(
+                f"PASS: 3D RMS ({metrics['rms_3d']:.6f} m) >= expected minimum "
+                f"({args.expect_min_rms:.6f} m) -- solutions differ as expected"
+            )
+            print("\nRESULT: PASS")
+            return 0
+        else:
+            print(
+                f"FAIL: 3D RMS ({metrics['rms_3d']:.6f} m) < expected minimum "
+                f"({args.expect_min_rms:.6f} m) -- solutions unexpectedly match"
+            )
+            print("\nRESULT: FAIL")
+            return 1
 
     # Pass/Fail judgment
     passed = True

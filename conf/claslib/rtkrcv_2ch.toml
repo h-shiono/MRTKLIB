@@ -223,6 +223,7 @@ reference_type = "CLAS" # reference receiver type (always CLAS)
 [positioning.clas.resilience]
 max_obs_loss = 90.0 # max epochs without observation before reset
 float_count = 15    # float epochs before fix attempt
+l6_merge = 1        # merge both L6 transmit patterns; degrades to single-channel on its own
 
 [positioning.relative]
 baseline_length = 0.0     # (m)

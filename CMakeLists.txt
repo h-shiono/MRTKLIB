@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.15)
-project(MRTKLIB VERSION 0.7.6 LANGUAGES C)
+project(MRTKLIB VERSION 0.7.7 LANGUAGES C)
 
 # ── Version header generation ─────────────────────────────────────────────────
 set(MRTKLIB_VERSION_MAJOR ${PROJECT_VERSION_MAJOR})
@@ -697,13 +697,24 @@ set_tests_properties(madocalib_pppar_abs_check PROPERTIES
 #   claslib_ppp_rtk         PPP-RTK with L6 (RINEX obs, 2019/239)
 #   claslib_ppp_rtk_bnx     PPP-RTK with L6 (BINEX obs, 2019/239)
 #   claslib_ppp_rtk_2ch     PPP-RTK with 2-channel L6 (2025/157)
+#   claslib_ppp_rtk_2ch_merge_diff_check
+#                           Sensitivity guard: 2ch merge output must differ from
+#                           ch1-only output (catches a dead/no-op merge, #303 A-4)
+#   claslib_ppp_rtk_l6mrg_1file
+#                           PPP-RTK with l6_merge but only one L6 file (2025/157)
 #   claslib_ppp_rtk_st12    PPP-RTK with SubType 12 (BINEX obs, 2019/349)
 #   claslib_ppp_rtk_l1cl5   PPP-RTK with L1C+L5 frequency (2025/022)
 #   claslib_vrs_rtk         VRS-RTK (2019/239)
 #   claslib_vrs_rtk_st12    VRS-RTK with SubType 12 (2019/349)
 #   claslib_vrs_rtk_2ch     VRS-RTK with 2-channel (2025/157)
 #   rtkrcv_rt_clas          Real-time CLAS PPP-RTK (BINEX+L6, rtkrcv file replay)
-#   rtkrcv_rt_clas_2ch      Real-time CLAS PPP-RTK dual-channel L6 (rtkrcv file replay)
+#   rtkrcv_rt_clas_2ch      Real-time CLAS PPP-RTK dual-channel L6, single-channel
+#                           engine (l6_merge pinned to 0; rtkrcv file replay)
+#   rtkrcv_rt_clas_2ch_merge
+#                           Same replay with the shipped l6_merge = 1 default (#309)
+#   rtkrcv_rt_clas_2ch_merge_nsat_check
+#                           Sensitivity guard: the merged run must track more
+#                           satellites per fixed epoch than the single-channel run
 set(_CLSDATA  ${CMAKE_SOURCE_DIR}/tests/data/claslib)
 set(_CLSRTREFDATA ${CMAKE_BINARY_DIR}/tests/data/claslib)
 set(_COMPARE_NMEA ${CMAKE_SOURCE_DIR}/scripts/tests/compare_nmea.py)
@@ -1030,7 +1041,6 @@ set_tests_properties(claslib_ppp_rtk_f9p_abs_check PROPERTIES
 # ── rnx2rtkp CLAS PPP-RTK regression (dual-channel L6) ────────────────────────
 # Data: 2025/06/06 20:00-21:00, 0627157U.bnx + 2025157U_ch1.l6 + ch2.l6
 # Reference: ref_L6_2CH.nmea (upstream claslib output with -l6msg 1)
-# Note: tolerance 0.21m due to wider accuracy gap on 2025 dataset (~20.2cm RMS)
 add_test(NAME claslib_ppp_rtk_2ch
     COMMAND $<TARGET_FILE:mrtk> post
         -k ${CMAKE_SOURCE_DIR}/conf/claslib/rnx2rtkp.toml
@@ -1049,12 +1059,16 @@ set_tests_properties(claslib_ppp_rtk_2ch PROPERTIES
     LABELS            "regression;claslib;ppp-rtk"
 )
 
+# Tolerance 0.10m: post-#305 dual-channel merge measures 4.543cm 3D RMS / fix
+# rate identical to reference (99.86%) -- ~2.2x headroom, matching the
+# ch1-only sibling claslib_ppp_rtk_l6mrg_1file_check's 0.10m/4.11cm precedent.
+# Fix-rate check is no longer skipped: the merge now reproduces the
+# reference's fix rate exactly, so a degradation is a real regression signal.
 add_test(NAME claslib_ppp_rtk_2ch_check
     COMMAND ${Python3_EXECUTABLE} ${_COMPARE_NMEA}
         ${_CLSDATA}/ref_L6_2CH.nmea
         ${CMAKE_BINARY_DIR}/out_claslib_ppp_rtk_2ch.nmea
-        --tolerance 0.21
-        --skip-fixrate
+        --tolerance 0.10
 )
 set_tests_properties(claslib_ppp_rtk_2ch_check PROPERTIES
     DEPENDS           claslib_ppp_rtk_2ch
@@ -1081,6 +1095,63 @@ set_tests_properties(claslib_ppp_rtk_2ch_abs_check PROPERTIES
     DEPENDS           claslib_ppp_rtk_2ch
     FIXTURES_REQUIRED claslib_data
     LABELS            "absolute;claslib;ppp-rtk"
+)
+
+# ── rnx2rtkp CLAS PPP-RTK with l6_merge but a single L6 source (#303) ─────────
+# Same dataset/window as claslib_ppp_rtk_2ch, but only ch1 is supplied while
+# -l6msg 1 stays on: the correction fetch must skip the empty channel instead of
+# degrading every epoch to Single.  Reference is the upstream 2-channel output,
+# which the single-channel solution tracks to ~4 cm 3D RMS.
+add_test(NAME claslib_ppp_rtk_l6mrg_1file
+    COMMAND $<TARGET_FILE:mrtk> post
+        -k ${CMAKE_SOURCE_DIR}/conf/claslib/rnx2rtkp.toml
+        -ts 2025/06/06 20:00:00 -te 2025/06/06 20:59:59 -ti 1
+        -l6msg 1
+        -o ${CMAKE_BINARY_DIR}/out_claslib_ppp_rtk_l6mrg_1file.nmea
+        ${_CLSDATA}/0627157U.bnx
+        ${_CLSDATA}/0627157U.nav
+        ${_CLSDATA}/2025157U_ch1.l6
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+set_tests_properties(claslib_ppp_rtk_l6mrg_1file PROPERTIES
+    FIXTURES_REQUIRED claslib_data
+    TIMEOUT           300
+    LABELS            "regression;claslib;ppp-rtk"
+)
+
+add_test(NAME claslib_ppp_rtk_l6mrg_1file_check
+    COMMAND ${Python3_EXECUTABLE} ${_COMPARE_NMEA}
+        ${_CLSDATA}/ref_L6_2CH.nmea
+        ${CMAKE_BINARY_DIR}/out_claslib_ppp_rtk_l6mrg_1file.nmea
+        --tolerance 0.10
+)
+set_tests_properties(claslib_ppp_rtk_l6mrg_1file_check PROPERTIES
+    DEPENDS           claslib_ppp_rtk_l6mrg_1file
+    FIXTURES_REQUIRED claslib_data
+    LABELS            "regression;claslib;ppp-rtk"
+)
+
+# ── Sensitivity guard: the 2ch merge must actually change the solution ───────
+# claslib_ppp_rtk_2ch_check / claslib_ppp_rtk_l6mrg_1file_check alone cannot
+# tell a working 2-channel merge from a dead one that silently degrades to
+# ch1-only: both would still pass their tolerance-vs-reference checks. This
+# test instead compares the two engine outputs directly and asserts they
+# DIFFER by at least 2mm -- comfortably below the actual 1.77cm 3D RMS
+# merge-vs-ch1-only delta (median dH 0.319cm / max 3.156cm), comfortably above
+# the ~0.2mm single-epoch Accelerate ULP wobble between otherwise-identical
+# runs (#303 A-4). Verified sensitive: the same comparison against a run with
+# the merge disabled (l6_merge=0, both .l6 files still supplied) measures
+# 0.015cm 3D RMS and correctly FAILs this check.
+add_test(NAME claslib_ppp_rtk_2ch_merge_diff_check
+    COMMAND ${Python3_EXECUTABLE} ${_COMPARE_NMEA}
+        ${CMAKE_BINARY_DIR}/out_claslib_ppp_rtk_l6mrg_1file.nmea
+        ${CMAKE_BINARY_DIR}/out_claslib_ppp_rtk_2ch.nmea
+        --expect-min-rms 0.002
+)
+set_tests_properties(claslib_ppp_rtk_2ch_merge_diff_check PROPERTIES
+    DEPENDS           "claslib_ppp_rtk_2ch;claslib_ppp_rtk_l6mrg_1file"
+    FIXTURES_REQUIRED  claslib_data
+    LABELS             "regression;claslib;ppp-rtk"
 )
 
 # ── rnx2rtkp CLAS VRS-RTK regression ──────────────────────────────────────────
@@ -1439,6 +1510,11 @@ set_tests_properties(rtkrcv_rt_clas PROPERTIES
 # Replays BINEX obs + 2-channel CLAS L6 via rtkrcv at x10 speed.
 # Stream 2 (base slot) carries L6 ch2; stream 3 carries L6 ch1.
 # Uses line-count threshold (≥90% of reference) for pass/fail.
+#
+# The conf ships with l6_merge = 1 (#309); this run pins it back to 0 so the
+# single-channel real-time path (engine on ch0 only) keeps its own regression,
+# which is also what ref_L6_2CH_RT.nmea was recorded under.  The merge-enabled
+# run is rtkrcv_rt_clas_2ch_merge below.
 add_test(NAME rtkrcv_rt_clas_2ch
     COMMAND bash ${_TESTCMAKE}/run_rtkrcv_test.sh
         $<TARGET_FILE:mrtk> run
@@ -1448,6 +1524,8 @@ add_test(NAME rtkrcv_rt_clas_2ch
         conf/claslib/rtkrcv_2ch.toml
         52006
         500
+        ${CMAKE_BINARY_DIR}/out_rtkrcv_rt_clas_2ch_1ch.nmea
+        "l6_merge=0"
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
 )
 set_tests_properties(rtkrcv_rt_clas_2ch PROPERTIES
@@ -1455,6 +1533,62 @@ set_tests_properties(rtkrcv_rt_clas_2ch PROPERTIES
     TIMEOUT           600
     LABELS            "regression;claslib;realtime"
     RESOURCE_LOCK     rtkrcv_port
+)
+
+# ── rtkrcv RT CLAS PPP-RTK dual-channel merge regression (#309) ───────────────
+# Same replay with the shipped conf as-is, i.e. l6_merge = 1: both L6 transmit
+# patterns feed the engine and are merged per satellite.
+add_test(NAME rtkrcv_rt_clas_2ch_merge
+    COMMAND bash ${_TESTCMAKE}/run_rtkrcv_test.sh
+        $<TARGET_FILE:mrtk> run
+        ${CMAKE_SOURCE_DIR}
+        ${_CLSRTREFDATA}/ref_L6_2CH_RT.nmea
+        10
+        conf/claslib/rtkrcv_2ch.toml
+        52007
+        500
+        ${CMAKE_BINARY_DIR}/out_rtkrcv_rt_clas_2ch_merge.nmea
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+set_tests_properties(rtkrcv_rt_clas_2ch_merge PROPERTIES
+    FIXTURES_REQUIRED claslib_data
+    TIMEOUT           600
+    LABELS            "regression;claslib;realtime"
+    RESOURCE_LOCK     rtkrcv_port
+)
+
+# Sensitivity guard: the merged run must use satellites the single-channel run
+# cannot see.  Position RMS is useless as the discriminator here — real-time
+# replay scatters 3.0 cm 3D RMS between two identical runs, while merge moves
+# the solution only 4.5-4.8 cm — so this compares the mean GGA satellite count
+# over fixed epochs instead, which is structural rather than timing-dependent:
+# measured 14.59 (single-channel) vs 15.56-15.63 (merged), i.e. +0.97, with
+# +-0.07 spread across repeats, and it stays valid even in a run that loses
+# fix for a while.  Threshold 0.5 keeps ~2x headroom.
+add_test(NAME rtkrcv_rt_clas_2ch_merge_nsat_check
+    COMMAND ${Python3_EXECUTABLE} -c "
+import statistics, sys
+def mean_nsat(path):
+    ns=[]
+    for line in open(path):
+        if line.startswith(('$GNGGA','$GPGGA')):
+            f=line.split(',')
+            if len(f)>=10 and f[6]=='4':
+                ns.append(int(f[7]))
+    assert len(ns)>=1000, f'{path}: too few fixed epochs ({len(ns)})'
+    return statistics.mean(ns)
+one=mean_nsat(sys.argv[1]); both=mean_nsat(sys.argv[2])
+print(f'mean satellites per fixed epoch: single-channel={one:.3f} merged={both:.3f} delta={both-one:+.3f}')
+assert both-one>=0.5, f'merge added only {both-one:+.3f} satellites (expected >= 0.5)'
+print('OK: dual-channel merge adds satellites')
+"
+        ${CMAKE_BINARY_DIR}/out_rtkrcv_rt_clas_2ch_1ch.nmea
+        ${CMAKE_BINARY_DIR}/out_rtkrcv_rt_clas_2ch_merge.nmea
+)
+set_tests_properties(rtkrcv_rt_clas_2ch_merge_nsat_check PROPERTIES
+    DEPENDS           "rtkrcv_rt_clas_2ch;rtkrcv_rt_clas_2ch_merge"
+    FIXTURES_REQUIRED claslib_data
+    LABELS            "regression;claslib;realtime"
 )
 
 # ═══════════════════════════════════════════════════════════════════════════════

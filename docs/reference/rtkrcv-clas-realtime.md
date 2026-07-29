@@ -35,6 +35,16 @@ the rtksvr thread, with corrections decoded from a separate L6 input stream.
 Stream 2 (internal index 1, the base-station slot unused in PPP-RTK) is
 repurposed for L6 ch2.  Channel mapping: `ch = (index == 1) ? 1 : 0`.
 
+With `l6_merge = 1` — the default in `rtkrcv_2ch.toml` — the PPP-RTK engine
+uses both channels and picks, per satellite, the channel with more usable
+observations; with `l6_merge = 0` it runs on ch0 only.  An epoch in which just
+one channel can supply corrections is served from that channel, so losing one
+pattern (satellite handover, tracking gap) degrades to single-channel operation
+instead of interrupting positioning.  For a receiver that delivers both L6
+patterns in a single UBX or SBF stream (u-blox D9C, Septentrio mosaic), the
+demux assigns a channel per transmit pattern, so the same merge applies without
+a second input stream.
+
 For file replay, all streams require `.tag` time-tag files and the `::T::xN`
 suffix for synchronised playback (e.g. `::T::x10` for 10x speed).
 
@@ -141,15 +151,19 @@ After convergence, the steady-state fix rate is identical: ~99.86%.
 
 0627 station, 2025-06-06 20:00-21:00 UTC, Trimble NetR9.
 
-| Metric | Post-Processing (`mrtk post`) | Real-Time (`mrtk run`) |
-|--------|:---:|:---:|
-| Fix (Q=4) | 3,579 (99.4%) | ~3,335 (92.6%) |
-| Float (Q=5) | ~21 (0.6%) | ~192 (5.3%) |
-| SPP (Q=1) | 0 (0.0%) | ~73 (2.0%) |
+| Metric | Post-Processing (`mrtk post`) | Real-Time, ch0 only | Real-Time, `l6_merge = 1` |
+|--------|:---:|:---:|:---:|
+| Fix (Q=4) | 3,579 (99.4%) | 3,560 (98.9%) | 3,523 (97.9%) |
+| Float (Q=5) | ~21 (0.6%) | 5 (0.1%) | 37 (1.0%) |
+| SPP (Q=1) | 0 (0.0%) | 35 (1.0%) | 40 (1.1%) |
+| Mean satellites per fixed epoch | 15.6 | 14.6 | 15.5 |
 
-RT fix rate varies slightly between runs due to stream timing, but consistently
-exceeds 90%.  The RT-PP gap is primarily from initial convergence and stream
-synchronisation latency.
+Merging the two transmit patterns buys about one extra usable satellite per
+epoch — the same lift post-processing gets — because a satellite that only one
+facility corrects is still available.  Fix rate is comparable; real-time
+solutions are not bit-reproducible (stream timing shifts which epochs resolve),
+so single-run figures move by a few tenths of a percent, and an occasional run
+loses fix for a longer stretch before recovering.
 
 ### Analysis
 
@@ -170,8 +184,12 @@ strread(obs)       ──> decoderaw(0)  ──> rtkpos()  ──> writesol()
 strread(l6_ch2)    ──> decoderaw(1)  ──> clas_decode_msg(ch=1)  [2ch only]
 strread(l6_ch1)    ──> decoderaw(2)  ──> clas_decode_msg(ch=0)
                                        ──> clas_bank_get_close()
-                                       ──> clas_update_global() ──> nav.ssr[]
+                                       ──> clas_update_global() ──> nav.ssr_ch[]
 ```
+
+`rtkpos()` then fetches, per epoch, the correction set closest to the
+observation time from each active channel's bank (both channels when
+`l6_merge` is set, ch0 alone otherwise).
 
 The rtksvr main loop processes all input streams in each cycle:
 
