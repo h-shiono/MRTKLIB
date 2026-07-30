@@ -84,6 +84,23 @@ def tow_to_utc(week: int, tow: float) -> datetime:
     return gps_t - timedelta(seconds=GPS_LEAP)
 
 
+def tow_to_gpst(week: int, tow: float) -> datetime:
+    """Convert GPS week + time-of-week to a GPST datetime.
+
+    Unlike :func:`tow_to_utc` no leap-second offset is removed: the result is
+    GPS time expressed as a datetime, which is what rnx2rtkp's ``-ts``/``-te``
+    epochs are compared against.
+
+    Args:
+        week: GPS week number.
+        tow: Time of week in seconds.
+
+    Returns:
+        GPST as a timezone-aware datetime.
+    """
+    return _GPS_EPOCH + timedelta(weeks=week, seconds=tow)
+
+
 def utc_to_tow(dt: datetime) -> tuple[int, float]:
     """Convert UTC datetime to GPS week + time-of-week.
 

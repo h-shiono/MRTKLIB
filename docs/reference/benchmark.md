@@ -128,6 +128,15 @@ python download_l6.py --datetime 2026-07-25    # all 24 sessions of the day
 > `base.nav` (broadcast ephemeris). Skip this step and run
 > `run_benchmark.py --mode single --skip-download`.
 
+Three of the six runs (`tokyo_run3`, `nagoya_run1`, `nagoya_run3`) cross a UTC
+hour boundary and therefore need two hourly sessions per stream.  `mrtk post`
+cannot read those as a sequence — it keeps only the first L6E file, and it
+treats each CLAS `.l6` file as a separate transmit-pattern channel
+([#316](https://github.com/h-shiono/MRTKLIB/issues/316)) — so `run_benchmark.py`
+concatenates the sessions of each stream into `data/benchmark/l6/merged/`
+before invoking it.  The merged files are regenerated whenever a source
+session is newer, and can be deleted at any time.
+
 Options:
 
 | Option | Default | Description |

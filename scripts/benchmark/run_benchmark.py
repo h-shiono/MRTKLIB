@@ -40,7 +40,7 @@ import sys
 import time
 from pathlib import Path
 
-from cases import CASES, case_by_id
+from cases import CASES, case_by_id, tow_to_gpst
 from compare_ppc import _match_epochs, compute_metrics, parse_nmea, parse_reference, plot_results
 from download_l6 import ensure_case_l6
 
@@ -66,6 +66,56 @@ def _post_argv(binary: str) -> list[str]:
     standalone `rnx2rtkp` is invoked directly.
     """
     return [binary, "post"] if os.path.basename(binary).startswith("mrtk") else [binary]
+
+
+def _merge_l6_sessions(paths: list[Path], merge_dir: Path) -> list[Path]:
+    """Concatenate the hourly archive sessions of each L6 stream into one file.
+
+    A run that spans a UTC hour boundary needs two hourly archive files per
+    stream, but `mrtk post` cannot consume them as a sequence: it keeps only
+    the *first* L6E file it sees, and it assigns each CLAS `.l6` file to a
+    separate transmit-pattern channel — so the second hour is either dropped
+    or misread as a second channel, and corrections die at the boundary.
+    Concatenating the sessions of one stream into a single file sidesteps both
+    limits; the decoders resynchronise on the L6 preamble of every 250-byte
+    record, so a joined stream decodes exactly like a continuous one.
+
+    Interim workaround for the plumbing; see issue #316 for the fix in postpos.
+
+    Args:
+        paths: L6 file paths for one mode, in session order.
+        merge_dir: Directory for the merged files (created on demand).
+
+    Returns:
+        Path list with each multi-session stream replaced by its merged file.
+        Single-session streams are passed through untouched.
+    """
+    # Group the way postpos itself classifies the files: ".200.l6" / ".201.l6"
+    # are MADOCA-PPP L6D iono streams keyed per PRN, everything else is the one
+    # stream postpos keeps (MADOCA L6E, or the single CLAS channel of this
+    # dataset — the PPC rover records one L6 PRN, never two channels).
+    streams: dict[str, list[Path]] = {}
+    for p in paths:
+        suffix = p.name.split(".", 1)[1]  # "2024205B.204.l6" -> "204.l6"
+        streams.setdefault(suffix if suffix[:3] in ("200", "201") else "l6e", []).append(p)
+
+    merged = []
+    for group in streams.values():
+        if len(group) == 1:
+            merged.append(group[0])
+            continue
+        # "2024205B.204.l6" + "2024205C.204.l6" -> "2024205B-C.204.l6"
+        session, suffix = group[0].name.split(".", 1)
+        out = merge_dir / f"{session}-{group[-1].name.split('.', 1)[0][-1]}.{suffix}"
+        newest_in = max(p.stat().st_mtime for p in group)
+        if not out.exists() or out.stat().st_mtime <= newest_in:
+            merge_dir.mkdir(parents=True, exist_ok=True)
+            with open(out, "wb") as fo:
+                for p in group:
+                    fo.write(p.read_bytes())
+            print(f"  merged {len(group)} L6 sessions -> {out.name}")
+        merged.append(out)
+    return merged
 
 
 def _find_rnx2rtkp(hint: str = "") -> str:
@@ -127,7 +177,7 @@ def _run_rnx2rtkp(
         rnx2rtkp: Path to rnx2rtkp binary.
         conf: Path to mode configuration file.
         city_conf: Path to city override configuration file (applied after conf).
-        week: GPS week (for -ts/-te flags).
+        week: GPS week of tow_start / tow_end.
         tow_start: Run start TOW with margin already subtracted.
         tow_end: Run end TOW with margin already added.
         output: Destination NMEA file path.
@@ -140,6 +190,11 @@ def _run_rnx2rtkp(
     Returns:
         True if rnx2rtkp exited with code 0.
     """
+    # rnx2rtkp parses -ts/-te as "y/m/d" "h:m:s" in GPST; a week/TOW pair is
+    # silently discarded (epoch2time() rejects month 0 and returns t0).
+    ts = tow_to_gpst(week, tow_start)
+    te = tow_to_gpst(week, tow_end)
+
     # Resolve all file paths to absolute so they work regardless of cwd.
     output = output.resolve()
     obs = obs.resolve()
@@ -154,11 +209,11 @@ def _run_rnx2rtkp(
             "-k",
             city_conf,
             "-ts",
-            str(week),
-            f"{tow_start:.3f}",
+            ts.strftime("%Y/%m/%d"),
+            ts.strftime("%H:%M:%S"),
             "-te",
-            str(week),
-            f"{tow_end:.3f}",
+            te.strftime("%Y/%m/%d"),
+            te.strftime("%H:%M:%S"),
             "-o",
             str(output),
             str(obs),
@@ -451,6 +506,10 @@ def run_benchmark(args: argparse.Namespace) -> int:
                         mdc_l6d = l6_dir / f"{year}{doy:03d}{session}.{prn}.l6"
                         if mdc_l6d.exists():
                             l6_paths["madoca"].append(mdc_l6d)
+
+            # Join multi-session streams so corrections survive the hour boundary
+            for key in list(l6_paths):
+                l6_paths[key] = _merge_l6_sessions(l6_paths[key], l6_dir / "merged")
 
         for mode in modes:
             conf = str(conf_dir / f"{mode}.toml")
