@@ -35,6 +35,10 @@ from pathlib import Path
 import matplotlib
 
 matplotlib.use("Agg")
+# The solution readers and the geodesy helpers live with the test comparison
+# scripts; reach them regardless of the working directory.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "tests"))
+
 import matplotlib.pyplot as plt  # noqa: E402
 import numpy as np  # noqa: E402
 from _geo import blh2xyz, xyz2enu  # noqa: E402
