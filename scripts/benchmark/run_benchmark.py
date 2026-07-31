@@ -237,9 +237,9 @@ def _run_rnx2rtkp(
 # Summary table
 # ---------------------------------------------------------------------------
 #  Three rows per case/mode: FIX (Q=4), FF (Q=4|Q=5), ALL (every epoch)
-#  Columns: Case  Mode  Tier  N  Rate%  RMS_2D  1σ  95%  TTFF_s
+#  Columns: Case  Mode  Tier  N  Rate%  <30cm  RMS_2D  1σ  95%  TTFF_s
 _HDR = (
-    f"{'Case':<20} {'Mode':<7} {'Tier':<5} {'N':>6} {'nSV':>5} {'Rate%':>7} "
+    f"{'Case':<20} {'Mode':<7} {'Tier':<5} {'N':>6} {'nSV':>5} {'Rate%':>7} {'<30cm':>7} "
     f"{'RMS_2D':>10} {'1σ':>10} {'95%':>10} {'TTFF_s':>8}"
 )
 _SEP = "-" * len(_HDR)
@@ -261,6 +261,11 @@ def _fmt_sv(v: float) -> str:
     return "—" if math.isnan(v) else f"{v:.1f}"
 
 
+def _fmt_pct(v: float) -> str:
+    """Format a percentage, or '—' when the tier has no epochs."""
+    return "—" if math.isnan(v) else f"{v:.1f}%"
+
+
 def _row(
     case_id: str,
     mode: str,
@@ -268,6 +273,7 @@ def _row(
     n: int,
     n_sv: str,
     rate: str,
+    acc: str,
     rms2: str,
     p68: str,
     p95: str,
@@ -279,7 +285,10 @@ def _row(
         prefix = f"{case_id:<20} {mode:<7}"
     else:
         prefix = _BLANK_CASE_MODE
-    return f"{prefix} {tier:<5} {n:>6} {n_sv:>5} {rate:>7} {rms2:>10} {p68:>10} {p95:>10} {ttff:>8}"
+    return (
+        f"{prefix} {tier:<5} {n:>6} {n_sv:>5} {rate:>7} {acc:>7} "
+        f"{rms2:>10} {p68:>10} {p95:>10} {ttff:>8}"
+    )
 
 
 def print_summary(rows: list[dict]) -> None:
@@ -299,6 +308,11 @@ def print_summary(rows: list[dict]) -> None:
       FIX row : Q=4 fix rate (clas/rtk)
       FF  row : Q=4|Q=5 rate (clas/rtk)
       PPP row : <30cm threshold rate (madoca)
+
+    <30cm column:
+      Fraction of that row's own N epochs within 30 cm 2D — so on the FIX row
+      it answers "of the epochs that claimed an integer fix, how many were
+      actually right", and its complement is the misfix rate.
 
     TTFF column:
       FIX row : first ≥30-consecutive-Q=4 run (clas/rtk)
@@ -337,6 +351,7 @@ def print_summary(rows: list[dict]) -> None:
                     m["n_matched"],
                     _fmt_sv(m["mean_sv_all"]),
                     ppp_rate,
+                    _fmt_pct(m["acc_rate_all"]),
                     _fmt_m(m["rms_2d_all"]),
                     _fmt_m(m["p68_2d_all"]),
                     _fmt_m(m["p95_2d_all"]),
@@ -355,6 +370,7 @@ def print_summary(rows: list[dict]) -> None:
                     m["n_fix"],
                     _fmt_sv(m["mean_sv_fix"]),
                     f"{m['fix_rate']:.1f}%",
+                    _fmt_pct(m["acc_rate_fix"]),
                     _fmt_m(m["rms_2d_fix"]),
                     _fmt_m(m["p68_2d_fix"]),
                     _fmt_m(m["p95_2d_fix"]),
@@ -371,6 +387,7 @@ def print_summary(rows: list[dict]) -> None:
                     m["n_ff"],
                     _fmt_sv(m["mean_sv_ff"]),
                     f"{m['ff_rate']:.1f}%",
+                    _fmt_pct(m["acc_rate_ff"]),
                     _fmt_m(m["rms_2d_ff"]),
                     _fmt_m(m["p68_2d_ff"]),
                     _fmt_m(m["p95_2d_ff"]),
@@ -387,6 +404,7 @@ def print_summary(rows: list[dict]) -> None:
                     m["n_matched"],
                     _fmt_sv(m["mean_sv_all"]),
                     "—",
+                    _fmt_pct(m["acc_rate_all"]),
                     _fmt_m(m["rms_2d_all"]),
                     _fmt_m(m["p68_2d_all"]),
                     _fmt_m(m["p95_2d_all"]),
@@ -399,6 +417,8 @@ def print_summary(rows: list[dict]) -> None:
     print("  CLAS/RTK tiers: FIX=Q=4 | FF=Q=4+5 (excl SPP) | ALL=every epoch")
     print("  MADOCA tier:    PPP=all valid PPP-float epochs (Q=3); Rate%=<30cm fraction")
     print("  SINGLE tier:    SPP=all valid SPP epochs (Q=1); Rate%=<2m fraction")
+    print("  <30cm column:   fraction of THAT row's N epochs within 30 cm 2D.")
+    print("                  On the FIX row, 100% minus it is the misfix rate.")
 
 
 # ---------------------------------------------------------------------------
@@ -605,7 +625,10 @@ def run_benchmark(args: argparse.Namespace) -> int:
                 rate_str = f"{thr_label}={m['thr_rate']:.1f}%"
                 conv_str = _fmt_s(m["conv_thr_s"])
             else:
-                rate_str = f"Fix={m['fix_rate']:.1f}%  FF={m['ff_rate']:.1f}%"
+                rate_str = (
+                    f"Fix={m['fix_rate']:.1f}%  FF={m['ff_rate']:.1f}%  "
+                    f"misfix={_fmt_pct(100.0 - m['acc_rate_fix'])}"
+                )
                 conv_str = _fmt_s(m["conv_time_s"])
             print(
                 f"  N={m['n_matched']}  {rate_str}  "

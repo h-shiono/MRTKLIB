@@ -207,6 +207,13 @@ MADOCA-PPP never produces an integer fix and is reported as a single **PPP** tie
 - FIX / FF rows: fraction of that tier among all matched epochs
 - PPP row: fraction of epochs with 2D horizontal error < 30 cm
 
+**`<30cm` column:** fraction of *that row's own* N epochs with 2D horizontal
+error below 30 cm.  On the FIX row it answers "of the epochs that claimed an
+integer fix, how many were actually right", so its complement is the **misfix
+rate** — a Q=4 epoch beyond 30 cm is a wrong fix, not a degraded one.  The
+per-case progress line prints that complement directly as `misfix=`.  (Added
+after the v0.3.3 tables below, which therefore do not carry the column.)
+
 **TTFF column:**
 - CLAS / RTK: first epoch of a ≥30-consecutive Q=4 run (shown on FIX row)
 - MADOCA: first epoch of a ≥30-consecutive sub-30 cm run (shown on PPP row)
