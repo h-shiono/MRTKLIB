@@ -92,10 +92,11 @@ def compute_abs_metrics(true_xyz, rows, skip_epochs=0):
 
     Args:
         true_xyz: np.array([X, Y, Z]) — true ECEF coordinate in metres.
-        rows: list of (lat, lon, h_ell, q, ns) tuples from parse_nmea(), in
+        rows: list of (lat, lon, h_ell, q, ns, t) tuples from parse_nmea(), in
             file order. Storing epochs as a list avoids silent overwrites
             when HHMMSS.ss timestamps repeat across midnight boundaries.
-            q is the raw GGA quality indicator.
+            q is the raw GGA quality indicator and t the epoch time in
+            seconds; this function uses neither and discards t.
         skip_epochs: initial epochs to discard.
 
     Returns:

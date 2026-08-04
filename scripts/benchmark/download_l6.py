@@ -168,13 +168,15 @@ def _download_madoca(
 
     Returns:
         Paths to the local files (empty if no PRN is available).  In dry-run
-        the first candidate PRN is assumed.
+        every candidate is assumed available, so the paths follow ``first_only``
+        exactly as a real run would: the first PRN alone, or all of them.
     """
     if dry_run:
         print(f"  [dry-run]  probing MADOCA {label} PRNs for {year}/{doy:03d}/{session}:")
         for prn in prns:
             print(f"             {_l6e_url(year, doy, session, prn)}")
-        return [l6_dir / f"{year}{doy:03d}{session}.{prns[0]}.l6"]
+        assumed = prns[:1] if first_only else prns
+        return [l6_dir / f"{year}{doy:03d}{session}.{prn}.l6" for prn in assumed]
 
     found = _probe_madoca_prns(year, doy, session, prns, first_only)
     if not found:

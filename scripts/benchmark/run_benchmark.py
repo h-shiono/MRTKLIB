@@ -82,6 +82,12 @@ def _merge_l6_sessions(paths: list[Path], merge_dir: Path) -> list[Path]:
 
     Interim workaround for the plumbing; see issue #316 for the fix in postpos.
 
+    `download_l6.py` probes for the first available L6E PRN per session, so two
+    hours of one run can carry different PRNs.  They are still merged into one
+    stream — postpos would keep a single file either way, so merging loses
+    nothing and recovers the second hour — but the merged name can only carry
+    one suffix, so every merge reports its source files by name.
+
     Args:
         paths: L6 file paths for one mode, in session order.
         merge_dir: Directory for the merged files (created on demand).
@@ -107,13 +113,15 @@ def _merge_l6_sessions(paths: list[Path], merge_dir: Path) -> list[Path]:
         # "2024205B.204.l6" + "2024205C.204.l6" -> "2024205B-C.204.l6"
         session, suffix = group[0].name.split(".", 1)
         out = merge_dir / f"{session}-{group[-1].name.split('.', 1)[0][-1]}.{suffix}"
+        if len({p.name.split(".", 1)[1] for p in group}) > 1:
+            print(f"  NOTE: sessions carry different PRNs; {out.name} names only the first")
         newest_in = max(p.stat().st_mtime for p in group)
         if not out.exists() or out.stat().st_mtime <= newest_in:
             merge_dir.mkdir(parents=True, exist_ok=True)
             with open(out, "wb") as fo:
                 for p in group:
                     fo.write(p.read_bytes())
-            print(f"  merged {len(group)} L6 sessions -> {out.name}")
+            print(f"  merged {' + '.join(p.name for p in group)} -> {out.name}")
         merged.append(out)
     return merged
 

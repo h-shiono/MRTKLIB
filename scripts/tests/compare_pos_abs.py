@@ -756,9 +756,14 @@ def plot_results(m, ref_label, output_path="abs_compare.png"):
     ax2q = ax2.twinx()
     ax2q.scatter(idx, m["q_list"], s=8, alpha=0.5, color="C3")
     ax2q.set_ylabel("Q flag", color="C3")
-    ax2q.set_yticks([1, 2, 3, 4, 5, 6])
-    ax2q.set_yticklabels(["1:Fix", "2:Float", "3:SBAS", "4:DGPS", "5:Single", "6:PPP"])
-    ax2q.set_ylim(0.5, 6.5)
+    # Q=7 (dead reckoning) is reachable from NMEA input via _GGA_TO_SOLQ, and
+    # Q=0 marks a quality indicator this scale has no slot for; both must stay
+    # on the axis or the plot silently disagrees with the parser.
+    ax2q.set_yticks([0, 1, 2, 3, 4, 5, 6, 7])
+    ax2q.set_yticklabels(
+        ["0:None", "1:Fix", "2:Float", "3:SBAS", "4:DGPS", "5:Single", "6:PPP", "7:DR"]
+    )
+    ax2q.set_ylim(-0.5, 7.5)
     ax2q.tick_params(axis="y", labelcolor="C3")
     if formatter:
         # ax1 shares this axis
