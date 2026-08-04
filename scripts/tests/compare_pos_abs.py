@@ -1,9 +1,22 @@
 #!/usr/bin/env python3
 """compare_pos_abs.py - Absolute accuracy check against geodetic truth.
 
-Compares a RTKLIB .pos file against a true reference coordinate derived from
-either an IGS SINEX file (for IGS/CORS stations such as MIZU) or a GSI F5
-daily coordinate file (for GEONET stations).
+Compares a solution file — RTKLIB .pos or NMEA GGA — against a true reference
+coordinate derived from either an IGS SINEX file (for IGS/CORS stations such as
+MIZU) or a GSI F5 daily coordinate file (for GEONET stations).
+
+Input formats
+-------------
+The format is sniffed from the file content (a leading ``$`` sentence means
+NMEA); ``--format pos|nmea`` overrides the detection.  NMEA input is normalised
+onto the .pos convention so every metric below is format-independent:
+
+  Position  ellipsoidal height is recovered as GGA field[9] (MSL) + field[11]
+            (geoid separation N).  When field[11] is absent or zero the Up
+            component cannot be recovered — the run then requires --use-2d.
+  Q flag    GGA quality is mapped to the RTKLIB solution status (the inverse
+            of nmea_solq[] in src/pos/mrtk_sol.c), so Q=1 is an integer fix and
+            Q=6 is PPP for both formats.
 
 Reference derivation
 --------------------
@@ -26,6 +39,22 @@ Reported statistics
 -------------------
   1σ   — 68th percentile of per-epoch 3D errors  (≈ 1 standard deviation)
   95%  — 95th percentile of per-epoch 3D errors
+  Satellite count (mean / min / max) over the epochs in a precise solution
+  state — Fix, Float or PPP (Q = 1, 2, 6); Single and DGPS epochs are excluded
+  so the figure describes the epochs the accuracy statistics come from.
+  TTFF — first epoch that is integer-fixed (Q=1, i.e. GGA quality 4) *and*
+  within 30 cm horizontally and 50 cm vertically (--ttff-h / --ttff-v), which
+  then has to hold for 5 minutes (--hold).  The time reported is the START of
+  the sustained run: the hold confirms the solution really had converged there,
+  it is not a delay added to the answer.  Measured from the first epoch of the
+  file — --skip-epochs discards the convergence transient, which is what this
+  is about, so it is not applied.
+  PPP conv — the same bounds and hold applied to the PPP state (Q=6, GGA
+  quality 3) *or better*: upgrading to an integer fix counts as maintaining
+  PPP, so it does not break the run.  A reference figure, printed only when the
+  solution actually contains PPP epochs.
+  A data gap longer than 3x the median epoch interval ends a run in both
+  cases — nothing is known about the missing time.
 
 Pass / Fail
 -----------
@@ -45,17 +74,21 @@ individually pass.
 Usage
 -----
     compare_pos_abs.py --sinex FILE.SNX[.gz] --station CODE [--epoch YYYY/MM/DD]
-                       [options] test.pos
+                       [options] test.pos|test.nmea
     compare_pos_abs.py --f5 FILE --date YYYY/MM/DD
-                       [options] test.pos
+                       [options] test.pos|test.nmea
     compare_pos_abs.py --llh LAT,LON,H [--ref-precision FLOAT]
-                       [options] test.pos
+                       [options] test.pos|test.nmea
     compare_pos_abs.py --ecef X,Y,Z [--ref-precision FLOAT]
-                       [options] test.pos
+                       [options] test.pos|test.nmea
 
 Options
 -------
+    --format FMT        Input format: auto (default), pos, or nmea
     --tolerance FLOAT   Tolerance for criterion A in metres (default 0.030)
+    --ttff-h FLOAT      TTFF horizontal bound in metres (default 0.30)
+    --ttff-v FLOAT      TTFF vertical bound in metres (default 0.50)
+    --hold FLOAT        Seconds the TTFF / convergence criteria must hold (300)
     --skip-epochs INT   Skip N initial epochs (convergence transient)
     --use-2d            Evaluate pass/fail on 2D horizontal error (default: 3D)
     --plot              Generate ENU error time-series plot
@@ -74,7 +107,7 @@ import sys
 from datetime import datetime, timedelta
 
 import numpy as np
-from _geo import blh2xyz, xyz2blh, xyz2enu  # noqa: E402
+from _geo import blh2xyz, nmea_to_deg, xyz2blh, xyz2enu  # noqa: E402
 
 
 # ---------------------------------------------------------------------------
@@ -245,13 +278,62 @@ def parse_f5(filepath, eval_date_str):
 
 
 # ---------------------------------------------------------------------------
-# .pos file parser  (same logic as compare_pos.py)
+# Solution file parsers  (.pos — same logic as compare_pos.py — and NMEA GGA)
 # ---------------------------------------------------------------------------
+# NMEA GGA quality indicator → RTKLIB solution status Q.  Inverse of
+# nmea_solq[] in src/pos/mrtk_sol.c: 1=single, 2=DGPS, 3=PPP, 4=fix, 5=float,
+# 6=dead reckoning.  Note that PPP rides on quality 3, not 6.
+_GGA_TO_SOLQ = {1: 5, 2: 4, 3: 6, 4: 1, 5: 2, 6: 7}
+
+_UNIX_EPOCH = datetime(1970, 1, 1)
+
+
+def _pos_seconds(date_field, time_field):
+    """Convert a .pos time stamp to seconds on a monotonic scale.
+
+    Handles both output formats: calendar ``YYYY/MM/DD HH:MM:SS.sss`` and GPS
+    ``week tow``.  Only differences are used downstream, so the origin of the
+    calendar scale (Unix epoch, naive) does not matter.
+
+    Args:
+        date_field: First whitespace field (date or GPS week).
+        time_field: Second field (time of day or time of week).
+
+    Returns:
+        Seconds as float, or None if the stamp is not parsable.
+    """
+    try:
+        if "/" in date_field:
+            day = datetime.strptime(date_field, "%Y/%m/%d")
+            hh, mm, ss = time_field.split(":")
+            return (day - _UNIX_EPOCH).total_seconds() + int(hh) * 3600 + int(mm) * 60 + float(ss)
+        return int(date_field) * 604800 + float(time_field)
+    except ValueError:
+        return None
+
+
+def _gga_seconds(hhmmss):
+    """Convert a GGA HHMMSS.ss field to seconds of day.
+
+    Args:
+        hhmmss: GGA field[1].
+
+    Returns:
+        Seconds of day as float, or None if the field is malformed.
+    """
+    try:
+        return int(hhmmss[0:2]) * 3600 + int(hhmmss[2:4]) * 60 + float(hhmmss[4:])
+    except (ValueError, IndexError):
+        return None
+
+
 def parse_pos(filepath):
     """Parse an RTKLIB .pos file.
 
     Returns:
-        dict mapping time-key string to (lat, lon, h, Q).
+        dict mapping time-key string to (lat, lon, h, Q, ns, t), where ns is the
+        satellite count of the epoch (0 when the file has no ns column) and t is
+        the epoch time in seconds (None if the time stamp is not parsable).
     """
     data = {}
     with open(filepath) as fh:
@@ -263,37 +345,166 @@ def parse_pos(filepath):
             if len(parts) < 6:
                 continue
             key = parts[0] + " " + parts[1]
-            data[key] = (float(parts[2]), float(parts[3]), float(parts[4]), int(parts[5]))
+            data[key] = (
+                float(parts[2]),
+                float(parts[3]),
+                float(parts[4]),
+                int(parts[5]),
+                int(parts[6]) if len(parts) > 6 else 0,
+                _pos_seconds(parts[0], parts[1]),
+            )
     return data
+
+
+def parse_nmea(filepath):
+    """Parse NMEA GGA sentences.
+
+    Recovers ellipsoidal height from the two GGA height fields:
+      field[9]  — MSL altitude (orthometric height)
+      field[11] — Geoid separation N
+      h_ell     = field[9] + field[11]
+
+    Args:
+        filepath: Path to NMEA file.
+
+    Returns:
+        Tuple (rows, geoid_ok) where:
+          rows     — list of (lat_deg, lon_deg, h_ell, quality, nsat, t) tuples
+                     in file order.  h_ell is the ellipsoidal height in metres,
+                     quality is the raw GGA quality indicator, nsat is field[7]
+                     (satellites used) and t is the epoch time in seconds,
+                     unwrapped across midnight (GGA carries no date).
+          geoid_ok — True if geoid separation was successfully read from
+                     at least one sentence; False if field[11] was absent
+                     or zero for all sentences (Up comparison unreliable).
+    """
+    geoid_ok = False
+    rows = []
+    day_offset, prev_sod = 0.0, None
+    with open(filepath) as fh:
+        for raw in fh:
+            line = raw.strip()
+            if not line:
+                continue
+            if "*" in line:
+                line = line[: line.index("*")]
+            fields = line.split(",")
+            if len(fields) < 10:
+                continue
+            if fields[0] not in ("$GPGGA", "$GNGGA"):
+                continue
+            try:
+                quality = int(fields[6])
+                if quality == 0 or not fields[2] or not fields[4]:
+                    continue
+                lat = nmea_to_deg(fields[2], fields[3])
+                lon = nmea_to_deg(fields[4], fields[5])
+                nsat = int(fields[7]) if fields[7] else 0
+                alt_msl = float(fields[9])
+                # Recover ellipsoidal height: h_ell = MSL + geoid_separation
+                geoid_sep = 0.0
+                if len(fields) > 11 and fields[11]:
+                    try:
+                        geoid_sep = float(fields[11])
+                    except ValueError:
+                        pass
+                if geoid_sep != 0.0:
+                    geoid_ok = True
+                sod = _gga_seconds(fields[1])
+                if sod is None:
+                    t = None
+                else:
+                    if prev_sod is not None and sod < prev_sod:
+                        day_offset += 86400.0  # GGA has no date: unwrap midnight
+                    prev_sod = sod
+                    t = sod + day_offset
+                rows.append((lat, lon, alt_msl + geoid_sep, quality, nsat, t))
+            except (ValueError, IndexError):
+                continue
+    return rows, geoid_ok
+
+
+def detect_format(filepath):
+    """Sniff whether a solution file is NMEA or an RTKLIB .pos.
+
+    The extension is not trusted — only the content is inspected.
+
+    Args:
+        filepath: Path to the solution file.
+
+    Returns:
+        ``"nmea"`` if the first payload line is a NMEA sentence, else ``"pos"``.
+    """
+    with open(filepath, errors="replace") as fh:
+        for raw in fh:
+            line = raw.strip()
+            if not line or line.startswith("%"):
+                continue
+            return "nmea" if line.startswith("$") else "pos"
+    return "pos"
+
+
+def load_solution(filepath, fmt="auto"):
+    """Load a solution file as position rows in epoch order.
+
+    Args:
+        filepath: RTKLIB .pos or NMEA GGA file.
+        fmt: ``"pos"``, ``"nmea"``, or ``"auto"`` to sniff the content.
+
+    Returns:
+        Tuple (rows, fmt, geoid_ok) where:
+          rows     — list of (lat_deg, lon_deg, h_ell_m, Q, nsat, t) tuples.  Q
+                     is on the RTKLIB .pos scale for both input formats and t is
+                     the epoch time in seconds.
+          fmt      — format actually used.
+          geoid_ok — False only for NMEA input carrying no geoid separation,
+                     i.e. the ellipsoidal height (hence Up) is not recoverable.
+    """
+    if fmt == "auto":
+        fmt = detect_format(filepath)
+
+    if fmt == "nmea":
+        rows, geoid_ok = parse_nmea(filepath)
+        rows = [(lat, lon, h, _GGA_TO_SOLQ.get(q, 0), ns, t) for lat, lon, h, q, ns, t in rows]
+        return rows, fmt, geoid_ok
+
+    # .pos epochs are keyed by timestamp, so the dict also de-duplicates them.
+    # Order by the parsed epoch time, not the key: the GPS week/TOW output
+    # format would sort wrong as a string ("2320 99000" after "2320 100000").
+    data = parse_pos(filepath)
+    rows = sorted(data.values(), key=lambda r: (r[5] is None, r[5] or 0.0))
+    return rows, fmt, True
 
 
 # ---------------------------------------------------------------------------
 # Absolute accuracy metrics
 # ---------------------------------------------------------------------------
-def compute_abs_metrics(true_xyz, test_data, skip_epochs=0):
+def compute_abs_metrics(true_xyz, rows, skip_epochs=0):
     """Compute per-epoch 3D errors against a fixed true coordinate.
 
     Args:
         true_xyz: np.array([X, Y, Z]) — true ECEF coordinate in metres.
-        test_data: dict from parse_pos().
+        rows: list of (lat, lon, h, Q, ns, t) tuples from load_solution(), in
+            epoch order.  Q follows the RTKLIB .pos convention.
         skip_epochs: number of initial epochs to discard.
 
     Returns:
         dict of statistics, or None if no usable epochs.
     """
     true_lat, true_lon, _ = xyz2blh(*true_xyz)
-    epochs = sorted(test_data.keys())[skip_epochs:]
-    if not epochs:
+    rows = rows[skip_epochs:]
+    if not rows:
         return None
 
-    errors_3d, enu_errors, q_list = [], [], []
-    for key in epochs:
-        lat, lon, h, q = test_data[key]
+    errors_3d, enu_errors, q_list, ns_list, t_list = [], [], [], [], []
+    for lat, lon, h, q, ns, t in rows:
         dx = blh2xyz(lat, lon, h) - true_xyz
         enu = xyz2enu(dx, true_lat, true_lon)
         enu_errors.append(enu)
         errors_3d.append(float(np.linalg.norm(enu)))
         q_list.append(q)
+        ns_list.append(ns)
+        t_list.append(t)
 
     e3 = np.array(errors_3d)
     en = np.array(enu_errors)
@@ -301,11 +512,17 @@ def compute_abs_metrics(true_xyz, test_data, skip_epochs=0):
 
     horiz = np.sqrt(en[:, 0] ** 2 + en[:, 1] ** 2)
 
+    # Satellite count over precise-solution epochs only (Q=1 fix, 2 float,
+    # 6 PPP); Single/DGPS epochs would dilute the figure the user cares about.
+    ns_precise = [ns for ns, q in zip(ns_list, q_list) if q in (1, 2, 6)]
+
     return {
         "n": n,
         "errors_3d": e3,
         "enu_errors": en,
         "q_list": q_list,
+        "ns_list": ns_list,
+        "t_list": t_list,
         "true_lat": true_lat,
         "true_lon": true_lon,
         # ENU components
@@ -328,21 +545,185 @@ def compute_abs_metrics(true_xyz, test_data, skip_epochs=0):
         # integer-fixed only (Q=1 = narrow-lane/RTK fix); excludes Q=6 PPP float.
         # Used by --min-fix-rate to assert PPP-AR actually resolves ambiguities.
         "fix_rate_int": sum(1 for q in q_list if q == 1) / n * 100.0,
+        # Satellite count over Fix/Float/PPP epochs
+        "n_precise": len(ns_precise),
+        "ns_mean": float(np.mean(ns_precise)) if ns_precise else 0.0,
+        "ns_min": int(np.min(ns_precise)) if ns_precise else 0,
+        "ns_max": int(np.max(ns_precise)) if ns_precise else 0,
     }
+
+
+def compute_ttff(true_xyz, rows, max_h=0.30, max_v=0.50, states=(1,), hold=0.0):
+    """First epoch in the given solution states that is *also* accurate.
+
+    An epoch qualifies when its solution status is one of ``states`` and both
+    the horizontal error and the absolute Up error are within the given bounds.
+
+    With ``hold`` > 0 the epoch must additionally start an unbroken run of
+    qualifying epochs spanning at least that many seconds, and the reported
+    epoch is the *start* of that run: the hold is the confirmation that the
+    solution had really converged there, not a delay added to the answer.  A
+    data gap — an interval longer than 3x the median epoch interval — ends a
+    run, since nothing is known about the missing time.
+
+    The search always starts at the first epoch of the file — skip_epochs
+    exists to drop the convergence transient, which is exactly what this
+    measures.
+
+    Args:
+        true_xyz: np.array([X, Y, Z]) — true ECEF coordinate in metres.
+        rows: list of (lat, lon, h, q, ns, t) tuples in epoch order.
+        max_h: horizontal error bound in metres.
+        max_v: absolute vertical (Up) error bound in metres.
+        states: accepted quality values.  A better state than the one asked
+            about counts as maintaining it, so PPP convergence passes
+            ``(PPP, fix)`` — upgrading to an integer fix must not break the run.
+        hold: seconds the criteria must hold from the reported epoch on.
+
+    Returns:
+        dict with keys ``ttff`` (seconds from the first epoch, None when the
+        epoch times are unusable), ``index`` (0-based epoch index) and
+        ``n`` (epochs scanned), or None if no epoch ever qualifies.
+    """
+    if not rows:
+        return None
+    true_lat, true_lon, _ = xyz2blh(*true_xyz)
+    times = [r[5] for r in rows]
+    t0 = times[0]
+
+    good = []
+    for lat, lon, h, q, _ns, _t in rows:
+        if q not in states:
+            good.append(False)
+            continue
+        enu = xyz2enu(blh2xyz(lat, lon, h) - true_xyz, true_lat, true_lon)
+        good.append(math.hypot(enu[0], enu[1]) <= max_h and abs(enu[2]) <= max_v)
+
+    if hold <= 0:
+        i = next((k for k, g in enumerate(good) if g), None)
+        if i is None:
+            return None
+        return {
+            "ttff": (times[i] - t0) if (times[i] is not None and t0 is not None) else None,
+            "index": i,
+            "n": len(rows),
+        }
+
+    if any(t is None for t in times):
+        return None  # the hold cannot be verified without epoch times
+
+    dts = [b - a for a, b in zip(times, times[1:])]
+    gap = 3.0 * float(np.median(dts)) if dts else float("inf")
+
+    start = None
+    for i, g in enumerate(good):
+        if not g:
+            start = None
+            continue
+        if start is None or times[i] - times[i - 1] > gap:
+            start = i
+        if times[i] - times[start] >= hold:
+            return {"ttff": times[start] - t0, "index": start, "n": len(rows)}
+    return None
+
+
+def print_ttff(true_xyz, rows, max_h=0.30, max_v=0.50, geoid_ok=True, fix_q=1, ppp_q=6, hold=300.0):
+    """Print the TTFF line, and the PPP convergence time when PPP epochs exist.
+
+    Both lines require their criteria to hold for ``hold`` seconds and report
+    the start of that run.  The PPP line applies the same accuracy bounds to
+    the PPP state or better (an integer fix counts as maintaining PPP), and is
+    a reference figure — a run that never reports a PPP epoch (plain RTK)
+    simply does not get the line.
+
+    Args:
+        true_xyz: np.array([X, Y, Z]) — true ECEF coordinate in metres.
+        rows: list of (lat, lon, h, q, ns, t) tuples in epoch order.
+        max_h: horizontal error bound in metres.
+        max_v: absolute vertical (Up) error bound in metres.
+        geoid_ok: False when the input is NMEA without geoid separation, in
+            which case the vertical criterion cannot be evaluated.
+        fix_q: quality value that means integer fix.
+        ppp_q: quality value that means PPP.
+        hold: seconds the criteria must hold from the reported epoch on.
+    """
+
+    def line(label, state, qs, hold_s):
+        crit = f"{state} & 2D<={max_h * 100:g}cm & Up<={max_v * 100:g}cm"
+        if hold_s > 0:
+            crit += f", held {hold_s / 60:.3g} min"
+        if not geoid_ok:
+            print(f"  {label} : n/a  (no geoid separation, Up unevaluable; {crit})")
+            return
+        if hold_s > 0 and any(r[5] is None for r in rows):
+            print(f"  {label} : n/a  (no usable time stamps; {crit})")
+            return
+        r = compute_ttff(true_xyz, rows, max_h, max_v, qs, hold_s)
+        if r is None:
+            print(f"  {label} : not reached in {len(rows)} epochs  ({crit})")
+        elif r["ttff"] is None:
+            print(f"  {label} : epoch {r['index'] + 1}/{r['n']}, time unknown  ({crit})")
+        else:
+            print(f"  {label} : {r['ttff']:.1f} s  (epoch {r['index'] + 1}/{r['n']}; {crit})")
+
+    line("TTFF    ", "fix", (fix_q,), hold)
+    if any(r[3] == ppp_q for r in rows):
+        line("PPP conv", "PPP or better", (ppp_q, fix_q), hold)
 
 
 # ---------------------------------------------------------------------------
 # Plot
 # ---------------------------------------------------------------------------
+def _time_axis(m):
+    """Build the shared x axis of the plots.
+
+    Args:
+        m: metrics dict from compute_abs_metrics().
+
+    Returns:
+        Tuple (x, label, formatter, ticks, xlim): elapsed seconds from the first
+        epoch with an HH:MM tick formatter and ticks on round clock times when
+        every epoch carries a time stamp, else the epoch index with none of
+        them.  Elapsed seconds keep the axis monotonic across midnight, which a
+        seconds-of-day axis would not.
+    """
+    t_list = m.get("t_list") or []
+    if len(t_list) != m["n"] or any(t is None for t in t_list):
+        return np.arange(m["n"]), "Epoch", None, None, None
+
+    t0, t1 = t_list[0], t_list[-1]
+
+    def hhmm(x, _pos):
+        sod = (t0 + x) % 86400
+        return f"{int(sod // 3600):02d}:{int(sod % 3600 // 60):02d}"
+
+    # Tick on round clock times rather than on round elapsed seconds: pick the
+    # smallest step that keeps the count under ~10.
+    span = max(t1 - t0, 1.0)
+    step = next(
+        (s for s in (60, 120, 300, 600, 900, 1800, 3600, 7200, 21600, 43200) if span / s <= 9),
+        86400,
+    )
+    # Pad the view so a tick landing on the first or last epoch still has room
+    # for its label instead of being clipped against the frame.
+    pad = 0.02 * span
+    first = math.ceil((t0 - pad) / step) * step
+    ticks = np.arange(first, t1 + pad + step, step) - t0
+    ticks = ticks[(ticks >= -pad) & (ticks <= span + pad)]
+
+    return np.array(t_list) - t0, "Time [HH:MM]", hhmm, ticks, (-pad, span + pad)
+
+
 def plot_results(m, ref_label, output_path="abs_compare.png"):
     """Generate ENU error time-series and Q-flag plot."""
     import matplotlib
 
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
+    from matplotlib.ticker import FuncFormatter
 
     en = m["enu_errors"] * 100  # m → cm
-    idx = np.arange(m["n"])
+    idx, xlabel, formatter, ticks, xlim = _time_axis(m)
 
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 7), sharex=True)
     for col, lbl in zip(range(3), ("East", "North", "Up")):
@@ -358,13 +739,37 @@ def plot_results(m, ref_label, output_path="abs_compare.png"):
     ax1.legend()
     ax1.grid(True, alpha=0.3)
 
-    ax2.scatter(idx, m["q_list"], s=8, alpha=0.6)
-    ax2.set_ylabel("Q flag")
-    ax2.set_xlabel("Epoch")
-    ax2.set_title(f"Q flag  (fix rate {m['fix_rate']:.1f}%)")
-    ax2.set_yticks([1, 2, 3, 4, 5, 6])
-    ax2.set_yticklabels(["1:Fix", "2:Float", "3:SBAS", "4:DGPS", "5:Single", "6:PPP"])
+    # Satellite count on the left axis, Q flag on the right.  The count starts
+    # at 0 so the bar-like trace is read against an absolute scale, which also
+    # keeps it clear of the Q markers anchored at the bottom of the right scale.
+    ax2.plot(idx, m["ns_list"], color="C0", linewidth=0.8, alpha=0.9)
+    ax2.set_ylim(0, max(m["ns_list"]) + 1)
+    ax2.set_ylabel("Satellites", color="C0")
+    ax2.tick_params(axis="y", labelcolor="C0")
+    ax2.set_xlabel(xlabel)
+    ax2.set_title(
+        f"Satellites  (mean {m['ns_mean']:.1f} over Fix/Float/PPP)"
+        f"   |   Q flag  (fix rate {m['fix_rate']:.1f}%)"
+    )
     ax2.grid(True, alpha=0.3)
+
+    ax2q = ax2.twinx()
+    ax2q.scatter(idx, m["q_list"], s=8, alpha=0.5, color="C3")
+    ax2q.set_ylabel("Q flag", color="C3")
+    # Q=7 (dead reckoning) is reachable from NMEA input via _GGA_TO_SOLQ, and
+    # Q=0 marks a quality indicator this scale has no slot for; both must stay
+    # on the axis or the plot silently disagrees with the parser.
+    ax2q.set_yticks([0, 1, 2, 3, 4, 5, 6, 7])
+    ax2q.set_yticklabels(
+        ["0:None", "1:Fix", "2:Float", "3:SBAS", "4:DGPS", "5:Single", "6:PPP", "7:DR"]
+    )
+    ax2q.set_ylim(-0.5, 7.5)
+    ax2q.tick_params(axis="y", labelcolor="C3")
+    if formatter:
+        # ax1 shares this axis
+        ax2.set_xticks(ticks)
+        ax2.set_xlim(*xlim)
+        ax2.xaxis.set_major_formatter(FuncFormatter(formatter))
 
     plt.tight_layout()
     plt.savefig(output_path, dpi=150)
@@ -454,8 +859,32 @@ def main():  # noqa: D103
         action="store_true",
         help="Evaluate pass/fail on 2D horizontal error (default: 3D)",
     )
+    p.add_argument(
+        "--ttff-h",
+        type=float,
+        default=0.30,
+        help="TTFF horizontal error bound in metres (default 0.30)",
+    )
+    p.add_argument(
+        "--ttff-v",
+        type=float,
+        default=0.50,
+        help="TTFF vertical error bound in metres (default 0.50)",
+    )
+    p.add_argument(
+        "--hold",
+        type=float,
+        default=300.0,
+        help="Seconds the TTFF / convergence criteria must hold (default 300)",
+    )
+    p.add_argument(
+        "--format",
+        choices=["auto", "pos", "nmea"],
+        default="auto",
+        help="Input format of the test file (default: auto-detect from content)",
+    )
     p.add_argument("--plot", action="store_true", help="Generate ENU error time-series plot")
-    p.add_argument("test", help="RTKLIB .pos file to evaluate")
+    p.add_argument("test", help="RTKLIB .pos or NMEA GGA file to evaluate")
     args = p.parse_args()
 
     import os
@@ -511,7 +940,7 @@ def main():  # noqa: D103
         ref_precision = args.ref_precision
         ref_label = "fixed LLH"
 
-        print(f"Reference : fixed LLH")
+        print("Reference : fixed LLH")
         print(f"Ref coord : {lat:.8f}°N  {lon:.8f}°E  {h:.4f} m")
         print(f"Ref prec  : {ref_precision * 1000:.2f} mm")
     else:
@@ -525,29 +954,47 @@ def main():  # noqa: D103
         ref_label = "fixed ECEF"
 
         lat, lon, h = xyz2blh(x, y, z)
-        print(f"Reference : fixed ECEF")
+        print("Reference : fixed ECEF")
         print(f"Ref coord : {lat:.8f}°N  {lon:.8f}°E  {h:.4f} m")
         print(f"Ref prec  : {ref_precision * 1000:.2f} mm")
 
-    # ── Parse test .pos ──────────────────────────────────────────────────────
+    # ── Parse test solution (.pos or NMEA) ───────────────────────────────────
     if not os.path.isfile(args.test):
         print(f"FAIL: test file not found: {args.test}", file=sys.stderr)
         return 1
 
+    rows, fmt, geoid_ok = load_solution(args.test, args.format)
+
     metric_label = "2D horizontal" if args.use_2d else "3D"
-    print(f"Test      : {args.test}")
+    fmt_note = f"{fmt.upper()}, auto-detected" if args.format == "auto" else fmt.upper()
+    print(f"Test      : {args.test}  ({fmt_note})")
     print(f"Tolerance : {args.tolerance * 100:.1f} cm  (evaluated on {metric_label} error)")
     if args.skip_epochs:
         print(f"Skip      : {args.skip_epochs} initial epochs")
     print()
 
-    test_data = parse_pos(args.test)
-    if not test_data:
-        print("FAIL: no data in test file", file=sys.stderr)
+    if not rows:
+        label = "GGA" if fmt == "nmea" else "position"
+        print(f"FAIL: no {label} data in test file", file=sys.stderr)
         return 1
 
+    if not geoid_ok:
+        # h_ell = MSL + N is unrecoverable, so Up is off by the undulation
+        # (~30-40 m in Japan).  Horizontal error is unaffected.
+        if not args.use_2d:
+            print(
+                "FAIL: GGA field[11] (geoid separation) is absent or zero in all epochs,\n"
+                "      so the ellipsoidal height cannot be recovered.  Re-run with\n"
+                "      --use-2d to evaluate horizontal accuracy only.",
+                file=sys.stderr,
+            )
+            return 1
+        print("WARNING: GGA field[11] (geoid separation) absent or zero in all epochs.")
+        print("         Up errors are meaningless; 2D horizontal pass/fail is used.")
+        print()
+
     # ── Compute metrics ──────────────────────────────────────────────────────
-    m = compute_abs_metrics(true_xyz, test_data, args.skip_epochs)
+    m = compute_abs_metrics(true_xyz, rows, args.skip_epochs)
     if m is None:
         print("FAIL: no usable epochs", file=sys.stderr)
         return 1
@@ -578,6 +1025,16 @@ def main():  # noqa: D103
     print(f"  Sol rate : {m['fix_rate']:.2f}%  (Q=1/6: fixed or PPP-float)")
     print(f"  Fix rate : {m['fix_rate_int']:.2f}%  (Q=1: integer-fixed)")
     print(f"  Ref prec : {ref_precision * 100:.3f} cm  ({ref_label})")
+    print()
+    print(f"  Satellites over Fix/Float/PPP epochs  ({m['n_precise']} epochs):")
+    if m["n_precise"]:
+        print(f"    Mean  : {m['ns_mean']:8.2f}")
+        print(f"    Min   : {m['ns_min']:8d}")
+        print(f"    Max   : {m['ns_max']:8d}")
+    else:
+        print("    (none)")
+    print()
+    print_ttff(true_xyz, rows, args.ttff_h, args.ttff_v, geoid_ok, hold=args.hold)
     print()
 
     if args.plot:
