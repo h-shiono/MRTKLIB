@@ -178,6 +178,7 @@ def compute_metrics(
     pairs: list[tuple[tuple, tuple]],
     skip_epochs: int = 0,
     threshold_2d: float = float("nan"),
+    acc_threshold_2d: float = 0.30,
 ) -> dict | None:
     """Compute positioning error statistics from matched epoch pairs.
 
@@ -187,6 +188,11 @@ def compute_metrics(
         threshold_2d: Horizontal error threshold in metres for threshold-based
             fix rate and convergence time (e.g. 0.30 for PPP modes where Q=4
             is never set).  When ``nan``, only Q=4-based metrics are computed.
+        acc_threshold_2d: Accuracy threshold in metres, applied *within* each
+            tier (``acc_rate_fix`` / ``acc_rate_ff`` / ``acc_rate_all``).  On
+            the fix tier its complement is the misfix rate: a Q=4 epoch beyond
+            this bound is a wrong integer fix, not a degraded one.  Always
+            computed, including for the AR modes where ``threshold_2d`` is nan.
 
     Returns:
         Dict of statistics, or ``None`` if no usable pairs remain.
@@ -257,6 +263,13 @@ def compute_metrics(
     else:
         rms_2d_ff = rms_3d_ff = p68_2d_ff = p95_2d_ff = math.nan
 
+    # Per-tier accuracy rate: fraction of that tier's epochs inside the bound.
+    # On the fix tier, 100% minus this is the misfix rate.
+    below = horiz < acc_threshold_2d
+    acc_rate_fix = float(np.mean(below[fix_mask]) * 100.0) if n_fix > 0 else math.nan
+    acc_rate_ff = float(np.mean(below[ff_mask]) * 100.0) if n_ff > 0 else math.nan
+    acc_rate_all = float(np.mean(below) * 100.0)
+
     # Q=4-based convergence: first run of ≥30 consecutive Q=4 epochs
     conv_time_s = math.nan
     run = 0
@@ -298,6 +311,7 @@ def compute_metrics(
         # Q=4 fix
         "n_fix": n_fix,
         "fix_rate": n_fix / n * 100.0,
+        "acc_rate_fix": acc_rate_fix,
         "mean_sv_fix": mean_sv_fix,
         "rms_2d_fix": rms_2d_fix,
         "rms_3d_fix": rms_3d_fix,
@@ -307,12 +321,15 @@ def compute_metrics(
         # Q=4 or Q=5 (fix + float)
         "n_ff": n_ff,
         "ff_rate": n_ff / n * 100.0,
+        "acc_rate_ff": acc_rate_ff,
         "mean_sv_ff": mean_sv_ff,
         "rms_2d_ff": rms_2d_ff,
         "rms_3d_ff": rms_3d_ff,
         "p68_2d_ff": p68_2d_ff,
         "p95_2d_ff": p95_2d_ff,
         # All epochs
+        "acc_threshold_2d": acc_threshold_2d,
+        "acc_rate_all": acc_rate_all,
         "mean_sv_all": mean_sv_all,
         "rms_2d_all": float(np.sqrt(np.mean(horiz**2))),
         "rms_3d_all": float(np.sqrt(np.mean(e3d**2))),
@@ -456,6 +473,12 @@ def main() -> int:
     print(f"    RMS    : {_fmt(m['rms_2d_fix'], 'm')}")
     print(f"    1σ     : {_fmt(m['p68_2d_fix'], 'm')}")
     print(f"    95%    : {_fmt(m['p95_2d_fix'], 'm')}")
+    thr_cm = m["acc_threshold_2d"] * 100
+    acc_fix = m["acc_rate_fix"]
+    if math.isnan(acc_fix):
+        print(f"    <{thr_cm:.0f}cm  : nan")
+    else:
+        print(f"    <{thr_cm:.0f}cm  : {acc_fix:.1f}%   (misfix {100.0 - acc_fix:.1f}%)")
     print()
     conv = m["conv_time_s"]
     conv_str = _fmt(conv, "s", 0) if not math.isnan(conv) else "never (no 30-epoch fix run)"

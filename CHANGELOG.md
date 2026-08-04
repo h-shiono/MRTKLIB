@@ -7,6 +7,72 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.7.8] - 2026-08-04
+
+**Kinematic RTK: rover cycle-slip detection restored (regression since
+v0.6.10).** The v0.6.10 SPP TDCP work
+([#116](https://github.com/h-shiono/MRTKLIB/issues/116) P4) made `pntpos()`
+unconditionally overwrite the `ssat[]` previous-carrier-phase bookkeeping
+(`ph[0]`/`pt[0]`) with the *current* epoch every call. `rtkpos()` runs
+`pntpos()` on `rtk->ssat` for the rover SPP seed, so by the time `relpos()`
+ran its detectors the `timediff < DTTOL` guard skipped every rover satellite:
+rover-side LLI (`detslp_ll`) **and** Doppler (`detslp_dop`) cycle-slip
+detection were silently dead in relative RTK for six minor releases (only
+`detslp_gf` survived; the base side was unaffected). Undetected slips carried
+integer-cycle phase-bias errors into fix-and-hold — wrong-integer fixes with
+clean residuals (tokyo_run2 1.3 cm 1σ / 240 m 95th percentile, the false-fix
+mode v0.4.0 had eliminated) and fix-availability collapse (nagoya_run3
+10.1 % → 0.5 %). Root-caused by per-tag bisect in
+[#318](https://github.com/h-shiono/MRTKLIB/issues/318), fixed in
+[PR #320](https://github.com/h-shiono/MRTKLIB/pull/320): the TDCP snapshot
+moves to pntpos-private `spt[]`/`sph[]` fields in `ssat_t`, so the seed reads
+identical values from its own slots and the engines' bookkeeping is never
+touched. **Kinematic RTK returns to the v0.4.1 record on all six PPC
+benchmark cases** (nagoya_run2 fix 7.4 % → 28.3 %, nagoya_run3 0.5 % → 10.1 %,
+tokyo_run2 misfix 11.1 % → 0.6 %); CLAS and MADOCA are verified
+metric-identical (their engines never read those slots). PPP configurations
+with `[slip_detection] doppler > 0` — whose `detslp_dop` reads the same slots
+— get their Doppler slip detection back as well.
+
+### Fixed
+
+- **SPP TDCP snapshot no longer clobbers engine slip-detection state**
+  (`src/pos/mrtk_spp.c`, `include/mrtklib/mrtk_sol.h`): pntpos-private
+  `spt[]`/`sph[]` fields replace the v0.6.10 unconditional write to
+  `ssat[].ph[0]`/`pt[0]`; standalone SPP and the CLAS `enhanced_spp_seed`
+  TDCP profile are behaviour-identical
+  ([#318](https://github.com/h-shiono/MRTKLIB/issues/318),
+  [PR #320](https://github.com/h-shiono/MRTKLIB/pull/320)).
+- **Benchmark harness: hourly L6 archive sessions are concatenated per
+  stream**, so runs crossing a UTC hour boundary keep their corrections
+  (`mrtk post` keeps only the first L6E file and mis-assigns a second CLAS
+  file to a new channel; the decoders resynchronise on the 250-byte frame
+  preamble, so concatenation is safe). Restores the second half of three
+  benchmark drives, e.g. tokyo_run3 MADOCA 2 855 → 14 430 epochs
+  ([#316](https://github.com/h-shiono/MRTKLIB/issues/316),
+  [PR #317](https://github.com/h-shiono/MRTKLIB/pull/317)).
+- `run_benchmark.py` passes `-ts`/`-te` in the `y/m/d h:m:s` form `mrtk post`
+  actually parses (the previous week/TOW pair was silently discarded)
+  ([PR #317](https://github.com/h-shiono/MRTKLIB/pull/317)).
+
+### Added
+
+- **Benchmark `<30cm` per-tier accuracy column**: fraction of each tier's own
+  epochs within 30 cm 2D; on the FIX row its complement is the misfix rate —
+  the column that made the #318 false fixes visible
+  ([PR #317](https://github.com/h-shiono/MRTKLIB/pull/317)).
+- `scripts/benchmark/plot_track_2d.py`: side-by-side 2D track plots coloured
+  by solution quality; MADOCA L6D download support and UTC-date session
+  fetch in `download_l6.py`; sustained-run TTFF / PPP convergence and
+  satellite-count / TTFF columns in the comparison tooling
+  ([PR #317](https://github.com/h-shiono/MRTKLIB/pull/317)).
+
+### Documentation
+
+- `docs/reference/benchmark.md`: v0.7.7 full-suite results recorded; the RTK
+  warning is replaced by the #318 root-cause note and the corrected
+  post-fix RTK table (all six cases back at the v0.4.1 record).
+
 ## [v0.7.7] - 2026-07-29
 
 **CLAS dual-channel correction merge — post-processing and real-time.** CLAS

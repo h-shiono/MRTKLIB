@@ -10,6 +10,10 @@ from datetime import datetime, timedelta, timezone
 # GPS epoch and leap seconds
 _GPS_EPOCH = datetime(1980, 1, 6, tzinfo=timezone.utc)
 GPS_LEAP = 18  # GPS - UTC leap seconds (correct as of 2024)
+SEC_WEEK = 86400 * 7
+# L6 archive session letters, one per UTC hour.  Upper case is mandatory: the
+# MADOCA archive returns 403 for a lower-case letter.
+SESSIONS = "ABCDEFGHIJKLMNOPQRSTUVWX"
 
 # ---------------------------------------------------------------------------
 # Run metadata
@@ -80,6 +84,79 @@ def tow_to_utc(week: int, tow: float) -> datetime:
     return gps_t - timedelta(seconds=GPS_LEAP)
 
 
+def tow_to_gpst(week: int, tow: float) -> datetime:
+    """Convert GPS week + time-of-week to a GPST datetime.
+
+    Unlike :func:`tow_to_utc` no leap-second offset is removed: the result is
+    GPS time expressed as a datetime, which is what rnx2rtkp's ``-ts``/``-te``
+    epochs are compared against.
+
+    Args:
+        week: GPS week number.
+        tow: Time of week in seconds.
+
+    Returns:
+        GPST as a timezone-aware datetime.
+    """
+    return _GPS_EPOCH + timedelta(weeks=week, seconds=tow)
+
+
+def utc_to_tow(dt: datetime) -> tuple[int, float]:
+    """Convert UTC datetime to GPS week + time-of-week.
+
+    Inverse of :func:`tow_to_utc`: the leap-second offset is added back.
+
+    Args:
+        dt: UTC datetime (timezone-aware).
+
+    Returns:
+        Corresponding GPS week number and time of week in seconds.
+    """
+    gps_t = (dt + timedelta(seconds=GPS_LEAP) - _GPS_EPOCH).total_seconds()
+    return int(gps_t // SEC_WEEK), gps_t % SEC_WEEK
+
+
+def ses_to_hour(ses: str) -> int:
+    """Convert an L6 archive session letter to its UTC hour.
+
+    Args:
+        ses: Session letter A–X (case-insensitive).
+
+    Returns:
+        UTC hour, 0–23.
+
+    Raises:
+        ValueError: If ``ses`` is not a single letter in A–X.
+    """
+    hour = SESSIONS.find(ses.upper()) if len(ses) == 1 else -1
+    if hour < 0:
+        raise ValueError(f"invalid session letter: {ses!r} (expected A–X)")
+    return hour
+
+
+def date_sessions(date: datetime, session: str | None = None) -> list[tuple[int, int, str]]:
+    """Return the L6 archive sessions of a UTC calendar date.
+
+    The archive buckets data by UTC hour, so the date is used directly — no
+    GPS-time round trip, hence no leap-second or hour-boundary ambiguity.
+
+    Args:
+        date: UTC date (time-of-day is ignored).
+        session: Session letter A–X (case-insensitive), or ``None`` for the
+            whole day.
+
+    Returns:
+        List of (year, doy, session_letter) tuples: one entry for a given
+        session letter, 24 entries for a whole day.
+
+    Raises:
+        ValueError: If ``session`` is not a valid session letter.
+    """
+    doy = date.timetuple().tm_yday
+    letters = SESSIONS if session is None else SESSIONS[ses_to_hour(session)]
+    return [(date.year, doy, s) for s in letters]
+
+
 def l6_sessions(week: int, tow_start: float, tow_end: float) -> list[tuple[int, int, str]]:
     """Return the L6 archive sessions (year, doy, letter) covering a run.
 
@@ -101,8 +178,7 @@ def l6_sessions(week: int, tow_start: float, tow_end: float) -> list[tuple[int, 
     t = t_start.replace(minute=0, second=0, microsecond=0)
     while t <= t_end:
         doy = t.timetuple().tm_yday
-        letter = chr(ord("A") + t.hour)
-        entry = (t.year, doy, letter)
+        entry = (t.year, doy, SESSIONS[t.hour])
         if entry not in sessions:
             sessions.append(entry)
         t += timedelta(hours=1)
@@ -134,6 +210,7 @@ if __name__ == "__main__":
     for c in CASES:
         t0 = tow_to_utc(c["gps_week"], c["tow_start"])
         t1 = tow_to_utc(c["gps_week"], c["tow_end"])
+        assert utc_to_tow(t0) == (c["gps_week"], c["tow_start"]), "tow/utc round trip"
         dur = (c["tow_end"] - c["tow_start"]) / 60
         sess = l6_sessions(c["gps_week"], c["tow_start"], c["tow_end"])
         print(

@@ -111,12 +111,31 @@ cd scripts/benchmark
 python download_l6.py --mode both
 ```
 
-This downloads the CLAS L6D and MADOCA L6E files for all six runs into
-`data/benchmark/l6/`.  Use `--dry-run` to preview the URLs without downloading.
+This downloads, for all six runs into `data/benchmark/l6/`, the CLAS L6D file
+plus — for MADOCA-PPP — the L6E SSR file (first available PRN of 204/205/206/
+207/209/210/211) and every available L6D ionospheric-augmentation file
+(PRN 200/201).  Use `--dry-run` to preview the URLs without downloading.
+
+To fetch a date outside the benchmark cases, use `--datetime` with a UTC date
+and an optional session letter (A–X, one per UTC hour):
+
+```bash
+python download_l6.py --datetime 2026-07-25A   # one hourly session
+python download_l6.py --datetime 2026-07-25    # all 24 sessions of the day
+```
 
 > **`single` mode needs no correction data** — it uses only `rover.obs` +
 > `base.nav` (broadcast ephemeris). Skip this step and run
 > `run_benchmark.py --mode single --skip-download`.
+
+Three of the six runs (`tokyo_run3`, `nagoya_run1`, `nagoya_run3`) cross a UTC
+hour boundary and therefore need two hourly sessions per stream.  `mrtk post`
+cannot read those as a sequence — it keeps only the first L6E file, and it
+treats each CLAS `.l6` file as a separate transmit-pattern channel
+([#316](https://github.com/h-shiono/MRTKLIB/issues/316)) — so `run_benchmark.py`
+concatenates the sessions of each stream into `data/benchmark/l6/merged/`
+before invoking it.  The merged files are regenerated whenever a source
+session is newer, and can be deleted at any time.
 
 Options:
 
@@ -125,6 +144,7 @@ Options:
 | `--l6-dir DIR` | `data/benchmark/l6` | Where to store L6 files |
 | `--mode clas\|madoca\|both` | `both` | Which correction type |
 | `--case ID[,ID...]` | all | Restrict to specific run IDs |
+| `--datetime YYYY-MM-DD[S]` | — | UTC date (+ optional session letter) instead of the cases; mutually exclusive with `--case` |
 | `--dry-run` | off | Print URLs without downloading |
 
 ### Step 2 — Run the benchmark
@@ -166,11 +186,9 @@ python compare_ppc.py \
 
 ---
 
-## v0.3.3 Benchmark Results
+## Solution Quality Tiers
 
-Results recorded on MRTKLIB v0.3.3, GNSS-only (no IMU), `--skip-epochs 60`.
-
-### Solution Quality Tiers
+Shared by every results section below.
 
 CLAS and RTK produce integer-fix solutions and are broken down into three tiers.
 MADOCA-PPP never produces an integer fix and is reported as a single **PPP** tier.
@@ -187,9 +205,26 @@ MADOCA-PPP never produces an integer fix and is reported as a single **PPP** tie
 - FIX / FF rows: fraction of that tier among all matched epochs
 - PPP row: fraction of epochs with 2D horizontal error < 30 cm
 
+**`<30cm` column:** fraction of *that row's own* N epochs with 2D horizontal
+error below 30 cm.  On the FIX row it answers "of the epochs that claimed an
+integer fix, how many were actually right", so its complement is the **misfix
+rate** — a Q=4 epoch beyond 30 cm is a wrong fix, not a degraded one.  The
+per-case progress line prints that complement directly as `misfix=`.  The column
+was added in v0.7.7, so the earlier tables below do not carry it.
+
 **TTFF column:**
 - CLAS / RTK: first epoch of a ≥30-consecutive Q=4 run (shown on FIX row)
 - MADOCA: first epoch of a ≥30-consecutive sub-30 cm run (shown on PPP row)
+
+---
+
+## v0.3.3 Benchmark Results
+
+Results recorded on MRTKLIB v0.3.3, GNSS-only (no IMU), `--skip-epochs 60`.
+
+> The current numbers are in [v0.7.7 Benchmark Results](#v077-benchmark-results).
+> Everything from here to that section is kept as the historical record the
+> later comparisons are measured against.
 
 ### Nagoya
 
@@ -604,6 +639,165 @@ horizontal error over fixed epochs.
   arguably where it matters most (stream gaps and slips make real-time the
   reset-prone regime the seed targets). The numbers above are post-processing;
   the real-time effect has not yet been separately benchmarked.
+
+---
+
+## v0.7.7 Benchmark Results
+
+Full re-run of all six cases × three modes on the current code, in a single
+pass.  This is the first table to carry the `<30cm` column, and the first since
+the benchmark harness bug described below was fixed.
+
+### Environment
+
+| | |
+|---|---|
+| Binary | `mrtk (MRTKLIB ver.0.7.7 git v0.7.7-8-g31511dd)` |
+| Platform | macOS 26.5.2, Apple M3 (arm64) |
+| BLAS / LAPACK | Accelerate (default; **not** a `MRTK_DETERMINISTIC_BLAS` build) |
+| Command | `run_benchmark.py --mode all --skip-download --skip-epochs 60 --force` |
+| Configs | `conf/benchmark/{clas,madoca,rtk}.toml` + `{nagoya,tokyo}.toml`, untuned |
+
+On this data two runs with identical arguments agree to within the last digit
+of latitude/longitude (≈0.2 mm on ~10% of epochs — the known macOS/Accelerate
+floating-point nondeterminism) and every statistic below is unchanged between
+runs.  That is *not* a general guarantee: ambiguity resolution is a threshold
+decision, so a build where fixes sit near the ratio test can flip epochs.  Use
+a `MRTK_DETERMINISTIC_BLAS` build (OpenBLAS LP64, single-threaded) when exact
+reproducibility matters.
+
+### Nagoya
+
+| Case | Mode | Tier | N | nSV | Rate% | `<30cm` | RMS 2D | 1σ (68%) | 95% | TTFF (s) |
+|------|------|------|--:|----:|------:|--------:|-------:|---------:|----:|---------:|
+| nagoya_run1 | CLAS   | FIX |  4 059 | 10.1 | 53.9% | 13.3% |   0.995 m | 0.648 m |  1.162 m |    0 |
+|             |        | FF  |  6 727 |  9.2 | 89.4% | 12.3% |  14.061 m | 1.111 m | 13.114 m |    — |
+|             |        | ALL |  7 525 |  8.6 |     — | 11.0% |  40.073 m | 1.161 m | 49.030 m |    — |
+| nagoya_run1 | MADOCA | PPP |  6 347 | 12.8 |  2.0% |  2.0% |  11.178 m | 3.220 m | 14.813 m | 1089 |
+| nagoya_run1 | RTK    | FIX |  2 103 | 19.0 | 28.9% | 98.7% |   1.002 m | 0.112 m |  0.145 m |  799 |
+|             |        | FF  |  7 213 | 16.8 | 99.0% | 65.5% |   6.129 m | 0.397 m |  5.732 m |    — |
+|             |        | ALL |  7 283 | 16.7 |     — | 64.9% |  21.171 m | 0.408 m |  6.389 m |    — |
+| nagoya_run2 | CLAS   | FIX |  3 194 | 11.3 | 34.0% |  2.5% |   2.372 m | 0.486 m |  1.241 m |    0 |
+|             |        | FF  |  8 338 |  8.8 | 88.8% |  3.3% | 375.042 m | 3.653 m | 35.311 m |    — |
+|             |        | ALL |  9 390 |  8.4 |     — |  2.9% | 426.142 m | 7.316 m | 60.785 m |    — |
+| nagoya_run2 | MADOCA | PPP |  7 493 | 11.9 |  0.2% |  0.2% |  39.302 m | 2.967 m | 19.450 m |    — |
+| nagoya_run2 | RTK    | FIX |    695 | 23.0 |  7.4% | 91.9% |   1.849 m | 0.083 m |  3.315 m |    0 |
+|             |        | FF  |  9 274 | 15.3 | 99.4% | 24.1% |   6.888 m | 3.690 m | 11.765 m |    — |
+|             |        | ALL |  9 332 | 15.3 |     — | 23.9% |  16.616 m | 3.693 m | 11.793 m |    — |
+| nagoya_run3 | CLAS   | FIX |    761 | 10.0 | 14.8% | 71.9% |   2.145 m | 0.286 m |  7.602 m |    8 |
+|             |        | FF  |  4 619 |  7.6 | 89.8% | 18.9% |   9.832 m | 8.329 m | 20.464 m |    — |
+|             |        | ALL |  5 141 |  7.4 |     — | 17.1% |  20.877 m | 8.647 m | 20.780 m |    — |
+| nagoya_run3 | MADOCA | PPP |  4 487 | 10.7 |  2.1% |  2.1% |   3.141 m | 2.817 m |  5.731 m |  852 |
+| nagoya_run3 | RTK    | FIX |     27 |  8.0 |  0.5% | 18.5% |   2.049 m | 2.656 m |  2.755 m |    — |
+|             |        | FF  |  5 095 | 13.2 | 99.1% |  3.6% |   4.721 m | 4.133 m |  8.807 m |    — |
+|             |        | ALL |  5 139 | 13.1 |     — |  3.6% |   4.722 m | 4.155 m |  8.798 m |    — |
+
+### Tokyo
+
+| Case | Mode | Tier | N | nSV | Rate% | `<30cm` | RMS 2D | 1σ (68%) | 95% | TTFF (s) |
+|------|------|------|--:|----:|------:|--------:|-------:|---------:|----:|---------:|
+| tokyo_run1 | CLAS   | FIX |  3 844 | 12.0 | 32.4% | 88.0% |   3.346 m | 0.118 m |  1.660 m |    0 |
+|            |        | FF  | 10 614 |  9.9 | 89.4% | 36.2% | 496.925 m | 4.980 m | 44.407 m |    — |
+|            |        | ALL | 11 867 |  9.5 |     — | 32.4% | 614.175 m | 8.515 m | 56.104 m |    — |
+| tokyo_run1 | MADOCA | PPP |  3 084 | 12.9 | 16.6% | 16.6% |   1.825 m | 0.979 m |  1.957 m |    0 |
+| tokyo_run1 | RTK    | FIX |    396 | 15.3 |  3.4% | 85.6% |   2.068 m | 0.038 m |  6.242 m | 1840 |
+|            |        | FF  | 11 268 | 16.0 | 96.7% |  5.5% |   6.639 m | 6.796 m | 13.897 m |    — |
+|            |        | ALL | 11 657 | 15.5 |     — |  5.3% |  17.026 m | 6.719 m | 13.847 m |    — |
+| tokyo_run2 | CLAS   | FIX |  4 392 | 11.3 | 48.3% | 80.5% |   2.546 m | 0.099 m |  7.782 m |    0 |
+|            |        | FF  |  8 164 |  9.8 | 89.8% | 49.5% |  10.046 m | 1.723 m | 12.535 m |    — |
+|            |        | ALL |  9 091 |  9.2 |     — | 44.5% | 495.580 m | 3.022 m | 19.223 m |    — |
+| tokyo_run2 | MADOCA | PPP |  8 159 | 13.7 |  6.0% |  6.0% |   2.893 m | 1.181 m |  4.579 m |  464 |
+| tokyo_run2 | RTK    | FIX |  1 640 | 22.5 | 18.3% | 88.9% |  77.658 m | 0.013 m |240.842 m |  213 |
+|            |        | FF  |  8 475 | 18.5 | 94.4% | 36.9% |  47.381 m | 7.396 m | 56.789 m |    — |
+|            |        | ALL |  8 982 | 17.5 |     — | 37.7% |  47.646 m | 6.818 m | 57.057 m |    — |
+| tokyo_run3 | CLAS   | FIX |  8 899 | 12.6 | 58.4% | 93.6% |   0.972 m | 0.055 m |  0.479 m |    0 |
+|            |        | FF  | 13 996 | 11.3 | 91.8% | 63.7% |  11.484 m | 0.522 m | 20.050 m |    — |
+|            |        | ALL | 15 241 | 10.7 |     — | 58.6% |  48.709 m | 1.018 m | 25.905 m |    — |
+| tokyo_run3 | MADOCA | PPP | 14 370 | 14.4 | 11.2% | 11.2% |   3.348 m | 1.289 m |  8.840 m |   26 |
+| tokyo_run3 | RTK    | FIX |  2 602 | 24.4 | 17.3% | 98.3% |   1.867 m | 0.011 m |  0.064 m |  335 |
+|            |        | FF  | 14 626 | 21.3 | 97.4% | 31.7% |  56.934 m | 5.991 m | 20.338 m |    — |
+|            |        | ALL | 15 022 | 20.8 |     — | 31.0% | 106.597 m | 6.388 m | 22.078 m |    — |
+
+### How to read these numbers
+
+**Part of the CLAS and MADOCA gain is a harness fix, not an algorithm gain.**
+Three runs — `tokyo_run3`, `nagoya_run1`, `nagoya_run3` — cross a UTC hour
+boundary and therefore need two hourly L6 archive sessions.  Until
+[#316](https://github.com/h-shiono/MRTKLIB/issues/316) /
+[#317](https://github.com/h-shiono/MRTKLIB/pull/317), `mrtk post` silently used
+only the first session, so those runs lost every correction at the boundary and
+their published numbers covered a fraction of the drive.  Concatenating the
+sessions restores them (e.g. tokyo_run3 MADOCA 2 855 → 14 430 epochs, tokyo_run3
+CLAS fix 14.0% → 58.5%).  Attribute that part to the harness, not to the
+engines.  The other three runs are single-session and were never affected.
+
+**MADOCA is the control.** On those three unaffected runs the numbers reproduce
+the v0.3.3 / v0.4.2 record almost exactly — tokyo_run1 `<30cm` 16.6% → 16.6% and
+RMS 1.825 → 1.825 m, nagoya_run2 39.299 → 39.302 m, tokyo_run2 2.894 → 2.893 m.
+Across four minor releases that stability shows the dataset, truth file, epoch
+matching and metric code are unchanged, which is what makes the comparisons on
+the other two modes meaningful.
+
+**CLAS improved across the board.** Fix rate is up on every case against the
+v0.4.2 record (tokyo_run3 7.4% → 58.4%, tokyo_run2 21.7% → 48.3%, nagoya_run1
+17.0% → 53.9%), consistent with the v0.7.x PPP-RTK parity work — with the
+harness caveat above applying to three of them.
+
+**CLAS fixed-epoch accuracy in Nagoya is a long-standing limitation, not a
+regression.** The `<30cm` column makes it visible for the first time (nagoya_run1
+13.3%, nagoya_run2 2.5%), but v0.3.3 already recorded fixed-tier 1σ of 0.402 m
+and 0.717 m on those runs against 0.648 m and 0.486 m today — the same regime.
+RTK on the same data holds 0.112 m and 0.083 m, so this is specific to the CLAS
+path in that area.
+
+!!! note "The RTK rows above carry the #318 regression — see the corrected table below"
+
+    The RTK numbers in the v0.7.7 tables were produced with rover-side
+    cycle-slip detection silently disabled: since v0.6.10 the SPP TDCP
+    snapshot in `pntpos()` overwrote the `ssat` previous-phase bookkeeping
+    every epoch, so `detslp_ll()` / `detslp_dop()` skipped every rover
+    satellite (`timediff < DTTOL`).  Undetected slips carried integer-cycle
+    phase-bias errors into fix-and-hold — the tokyo_run2 false-fix tail
+    (1.3 cm 1σ / 240 m 95%) is the same mode v0.4.0 eliminated, returned.
+    Root cause and fix in
+    [#318](https://github.com/h-shiono/MRTKLIB/issues/318).  CLAS and
+    MADOCA never read those slots in the affected way and are unaffected
+    (verified metric-identical with the fix).  The corrected RTK results
+    follow.
+
+### RTK re-run after the #318 slip-detection fix
+
+Same environment, data and configuration as the v0.7.7 run above; binary is
+develop plus the #318 fix (`ver.0.7.7 git v0.7.7-13-g2a052cf`).  CLAS and
+MADOCA rows are unchanged by the fix (NMEA differences are the known
+Accelerate last-digit noise only), so only RTK is re-recorded.  All six cases
+return to the v0.4.1 record; nagoya_run2 / nagoya_run3 / tokyo_run1 match it
+to the millimetre, and the tokyo_run2 fixed tier is again clean (misfix
+11.1% → 0.6%, 95% 240.8 m → 0.15 m).  The remaining tokyo_run2 RMS 2D of
+6.27 m comes from ~11 residual misfix epochs that the v0.4.1 *tag rebuilt on
+this machine* also produces (20.4% / 6.27 m) — the 0.079 m in the recorded
+v0.4.1 table is single-run Accelerate luck, not a remaining engine gap.
+
+| Case | Mode | Tier | N | nSV | Rate% | `<30cm` | RMS 2D | 1σ (68%) | 95% | TTFF (s) |
+|------|------|------|--:|----:|------:|--------:|-------:|---------:|----:|---------:|
+| nagoya_run1 | RTK | FIX |  1 992 | 18.6 | 27.4% | 95.7% |  0.404 m | 0.112 m |  0.169 m |  797 |
+|             |     | FF  |  7 210 | 16.8 | 99.0% | 67.2% |  4.231 m | 0.365 m |  2.457 m |    — |
+|             |     | ALL |  7 283 | 16.7 |     — | 66.5% | 12.112 m | 0.389 m |  2.470 m |    — |
+| nagoya_run2 | RTK | FIX |  2 643 | 16.7 | 28.3% | 72.9% |  1.014 m | 0.175 m |  0.928 m |    0 |
+|             |     | FF  |  9 288 | 15.3 | 99.4% | 51.9% |  3.538 m | 0.793 m | 12.510 m |    — |
+|             |     | ALL |  9 342 | 15.2 |     — | 51.6% |  3.534 m | 0.805 m | 12.507 m |    — |
+| nagoya_run3 | RTK | FIX |    520 | 16.5 | 10.1% | 75.6% |  0.716 m | 0.135 m |  1.488 m |   74 |
+|             |     | FF  |  5 095 | 13.2 | 99.1% | 24.9% |  4.174 m | 3.679 m |  8.893 m |    — |
+|             |     | ALL |  5 139 | 13.1 |     — | 24.7% |  4.187 m | 3.694 m |  8.873 m |    — |
+| tokyo_run1  | RTK | FIX |    342 | 15.6 |  2.9% | 97.4% |  0.555 m | 0.026 m |  0.277 m | 1841 |
+|             |     | FF  | 11 280 | 16.0 | 95.8% |  5.7% | 10.802 m | 7.112 m | 20.569 m |    — |
+|             |     | ALL | 11 779 | 15.4 |     — |  5.6% | 15.121 m | 7.227 m | 21.025 m |    — |
+| tokyo_run2  | RTK | FIX |  1 835 | 22.5 | 20.4% | 99.4% |  6.271 m | 0.014 m |  0.153 m |  804 |
+|             |     | FF  |  8 481 | 18.5 | 94.3% | 44.5% | 18.985 m | 3.070 m | 50.452 m |    — |
+|             |     | ALL |  8 990 | 17.6 |     — | 45.0% | 27.204 m | 2.744 m | 50.448 m |    — |
+| tokyo_run3  | RTK | FIX |  4 183 | 25.5 | 27.7% | 99.9% |  0.084 m | 0.013 m |  0.038 m |  658 |
+|             |     | FF  | 14 641 | 21.7 | 97.0% | 54.3% |  7.168 m | 2.619 m | 14.304 m |    — |
+|             |     | ALL | 15 097 | 21.1 |     — | 53.4% |  8.014 m | 2.776 m | 14.367 m |    — |
 
 ---
 
