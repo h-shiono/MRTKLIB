@@ -699,7 +699,10 @@ static int raim_fde(const obsd_t* obs, int n, const double* rs, const double* dt
  * disagrees with the Doppler beyond thresdop after removing the common-mode
  * (receiver clock) offset — the single-receiver detector from demo5/detslp_dop,
  * kept SPP-local so PPP/RTK are untouched. ssat holds the previous epoch's
- * phase (pt/ph), populated by pntpos at the end of each epoch. */
+ * phase in the pntpos-private spt/sph slots, populated at the end of each
+ * pntpos call. pt[0]/ph[0] must NOT be used here: they belong to the engines'
+ * own slip detectors (detslp_ll/detslp_dop), and overwriting them from pntpos
+ * silently disabled rover slip detection in relative RTK (issue #318). */
 static void spp_detslp(const obsd_t* obs, int n, const ssat_t* ssat, double thresdop, int* slip) {
     double dph, dpt, tt, mean = 0.0, dif[MAXOBS] = {0};
     int i, sat, ndop = 0, valid[MAXOBS] = {0};
@@ -707,15 +710,15 @@ static void spp_detslp(const obsd_t* obs, int n, const ssat_t* ssat, double thre
     for (i = 0; i < n && i < MAXOBS; i++) {
         slip[i] = (obs[i].LLI[0] & 1) ? 1 : 0; /* loss-of-lock indicator */
         sat = obs[i].sat;
-        if (thresdop <= 0.0 || obs[i].L[0] == 0.0 || obs[i].D[0] == 0.0 || ssat[sat - 1].ph[0][0] == 0.0) {
+        if (thresdop <= 0.0 || obs[i].L[0] == 0.0 || obs[i].D[0] == 0.0 || ssat[sat - 1].sph[0] == 0.0) {
             continue;
         }
-        tt = timediff(obs[i].time, ssat[sat - 1].pt[0][0]);
+        tt = timediff(obs[i].time, ssat[sat - 1].spt[0]);
         if (fabs(tt) < DTTOL || fabs(tt) > 3.0) {
             continue;
         }
-        dph = (obs[i].L[0] - ssat[sat - 1].ph[0][0]) / tt; /* phase rate (cyc/s) */
-        dpt = -obs[i].D[0];                                /* Doppler-predicted rate */
+        dph = (obs[i].L[0] - ssat[sat - 1].sph[0]) / tt; /* phase rate (cyc/s) */
+        dpt = -obs[i].D[0];                              /* Doppler-predicted rate */
         dif[i] = dph - dpt;
         valid[i] = 1; /* explicit validity — dif can legitimately be 0.0 */
         if (fabs(dif[i]) < 3.0 * thresdop) {
@@ -759,11 +762,11 @@ static int resdop(const obsd_t* obs, int n, const double* rs, const double* dts,
         /* measured range rate (cyc/s) and its Std (m/s): TDCP primary, Doppler fallback */
         use = 0;
         meas = sig = 0.0;
-        if (tdcp && ssat && slip && !slip[i] && obs[i].L[0] != 0.0 && ssat[sat - 1].ph[0][0] != 0.0) {
-            tt = timediff(obs[i].time, ssat[sat - 1].pt[0][0]);
+        if (tdcp && ssat && slip && !slip[i] && obs[i].L[0] != 0.0 && ssat[sat - 1].sph[0] != 0.0) {
+            tt = timediff(obs[i].time, ssat[sat - 1].spt[0]);
             if (fabs(tt) >= DTTOL && fabs(tt) <= 3.0) {
-                meas = (obs[i].L[0] - ssat[sat - 1].ph[0][0]) / tt; /* == dph (cyc/s) */
-                sig = ERR_TDCP;                                     /* phase-rate Std (m/s) */
+                meas = (obs[i].L[0] - ssat[sat - 1].sph[0]) / tt; /* == dph (cyc/s) */
+                sig = ERR_TDCP;                                   /* phase-rate Std (m/s) */
                 use = 1;
             }
         }
@@ -957,10 +960,14 @@ int pntpos(mrtk_ctx_t* ctx, const obsd_t* obs, int n, const nav_t* nav, const pr
             ssat[obs[i].sat - 1].azel[1] = azel_[1 + i * 2];
             ssat[obs[i].sat - 1].snr[0] = obs[i].SNR[0];
             /* #116 P4: store carrier phase for next-epoch TDCP / slip detection
-             * (unconditional — keep continuity even for this epoch's unused sats) */
+             * (unconditional — keep continuity even for this epoch's unused sats).
+             * Private spt/sph slots: writing pt[0]/ph[0] here clobbered the
+             * engines' previous-phase bookkeeping every epoch, disabling rover
+             * detslp_ll/detslp_dop in relative RTK and detslp_dop in PPP
+             * (issue #318). */
             for (f = 0; f < NFREQ; f++) {
-                ssat[obs[i].sat - 1].ph[0][f] = obs[i].L[f];
-                ssat[obs[i].sat - 1].pt[0][f] = obs[i].time;
+                ssat[obs[i].sat - 1].sph[f] = obs[i].L[f];
+                ssat[obs[i].sat - 1].spt[f] = obs[i].time;
             }
             if (!vsat[i]) {
                 continue;

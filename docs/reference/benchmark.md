@@ -750,18 +750,54 @@ and 0.717 m on those runs against 0.648 m and 0.486 m today — the same regime.
 RTK on the same data holds 0.112 m and 0.083 m, so this is specific to the CLAS
 path in that area.
 
-!!! warning "RTK is under investigation — do not read these numbers as achievable performance"
+!!! note "The RTK rows above carry the #318 regression — see the corrected table below"
 
-    Kinematic RTK has regressed against the v0.4.1 record on all six cases, and
-    the fixed-tier *tail* rather than its median: tokyo_run2 keeps a 1.3 cm 1σ
-    while its 95th percentile is 240 m, i.e. ~11% of the epochs reporting Q=4
-    are wrong fixes.  This is the same false-fix mode that v0.4.0 eliminated
-    (17.993 m → 0.095 m) and v0.4.1 held at 0.079 m.  Integer-fix availability
-    has also dropped sharply on nagoya_run3 (10.1% → 0.5%) and nagoya_run2
-    (28.3% → 7.4%).  Tracked in
-    [#318](https://github.com/h-shiono/MRTKLIB/issues/318); the three RTK
-    parameters v0.4.0 introduced were verified to survive the TOML migration, so
-    the cause is not that config drift.
+    The RTK numbers in the v0.7.7 tables were produced with rover-side
+    cycle-slip detection silently disabled: since v0.6.10 the SPP TDCP
+    snapshot in `pntpos()` overwrote the `ssat` previous-phase bookkeeping
+    every epoch, so `detslp_ll()` / `detslp_dop()` skipped every rover
+    satellite (`timediff < DTTOL`).  Undetected slips carried integer-cycle
+    phase-bias errors into fix-and-hold — the tokyo_run2 false-fix tail
+    (1.3 cm 1σ / 240 m 95%) is the same mode v0.4.0 eliminated, returned.
+    Root cause and fix in
+    [#318](https://github.com/h-shiono/MRTKLIB/issues/318).  CLAS and
+    MADOCA never read those slots in the affected way and are unaffected
+    (verified metric-identical with the fix).  The corrected RTK results
+    follow.
+
+### RTK re-run after the #318 slip-detection fix
+
+Same environment, data and configuration as the v0.7.7 run above; binary is
+develop plus the #318 fix (`ver.0.7.7 git v0.7.7-13-g2a052cf`).  CLAS and
+MADOCA rows are unchanged by the fix (NMEA differences are the known
+Accelerate last-digit noise only), so only RTK is re-recorded.  All six cases
+return to the v0.4.1 record; nagoya_run2 / nagoya_run3 / tokyo_run1 match it
+to the millimetre, and the tokyo_run2 fixed tier is again clean (misfix
+11.1% → 0.6%, 95% 240.8 m → 0.15 m).  The remaining tokyo_run2 RMS 2D of
+6.27 m comes from ~11 residual misfix epochs that the v0.4.1 *tag rebuilt on
+this machine* also produces (20.4% / 6.27 m) — the 0.079 m in the recorded
+v0.4.1 table is single-run Accelerate luck, not a remaining engine gap.
+
+| Case | Mode | Tier | N | nSV | Rate% | `<30cm` | RMS 2D | 1σ (68%) | 95% | TTFF (s) |
+|------|------|------|--:|----:|------:|--------:|-------:|---------:|----:|---------:|
+| nagoya_run1 | RTK | FIX |  1 992 | 18.6 | 27.4% | 95.7% |  0.404 m | 0.112 m |  0.169 m |  797 |
+|             |     | FF  |  7 210 | 16.8 | 99.0% | 67.2% |  4.231 m | 0.365 m |  2.457 m |    — |
+|             |     | ALL |  7 283 | 16.7 |     — | 66.5% | 12.112 m | 0.389 m |  2.470 m |    — |
+| nagoya_run2 | RTK | FIX |  2 643 | 16.7 | 28.3% | 72.9% |  1.014 m | 0.175 m |  0.928 m |    0 |
+|             |     | FF  |  9 288 | 15.3 | 99.4% | 51.9% |  3.538 m | 0.793 m | 12.510 m |    — |
+|             |     | ALL |  9 342 | 15.2 |     — | 51.6% |  3.534 m | 0.805 m | 12.507 m |    — |
+| nagoya_run3 | RTK | FIX |    520 | 16.5 | 10.1% | 75.6% |  0.716 m | 0.135 m |  1.488 m |   74 |
+|             |     | FF  |  5 095 | 13.2 | 99.1% | 24.9% |  4.174 m | 3.679 m |  8.893 m |    — |
+|             |     | ALL |  5 139 | 13.1 |     — | 24.7% |  4.187 m | 3.694 m |  8.873 m |    — |
+| tokyo_run1  | RTK | FIX |    342 | 15.6 |  2.9% | 97.4% |  0.555 m | 0.026 m |  0.277 m | 1841 |
+|             |     | FF  | 11 280 | 16.0 | 95.8% |  5.7% | 10.802 m | 7.112 m | 20.569 m |    — |
+|             |     | ALL | 11 779 | 15.4 |     — |  5.6% | 15.121 m | 7.227 m | 21.025 m |    — |
+| tokyo_run2  | RTK | FIX |  1 835 | 22.5 | 20.4% | 99.4% |  6.271 m | 0.014 m |  0.153 m |  804 |
+|             |     | FF  |  8 481 | 18.5 | 94.3% | 44.5% | 18.985 m | 3.070 m | 50.452 m |    — |
+|             |     | ALL |  8 990 | 17.6 |     — | 45.0% | 27.204 m | 2.744 m | 50.448 m |    — |
+| tokyo_run3  | RTK | FIX |  4 183 | 25.5 | 27.7% | 99.9% |  0.084 m | 0.013 m |  0.038 m |  658 |
+|             |     | FF  | 14 641 | 21.7 | 97.0% | 54.3% |  7.168 m | 2.619 m | 14.304 m |    — |
+|             |     | ALL | 15 097 | 21.1 |     — | 53.4% |  8.014 m | 2.776 m | 14.367 m |    — |
 
 ---
 
