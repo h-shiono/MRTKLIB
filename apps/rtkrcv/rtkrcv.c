@@ -2143,7 +2143,7 @@ int mrtk_run(int argc, char** argv) {
         }
     }
 
-    /* heap-allocate rtksvr_t (~972 MB) to avoid BSS bloat */
+    /* heap-allocate rtksvr_t (~51 MB) to avoid BSS bloat */
     svr = (rtksvr_t*)calloc(1, sizeof(rtksvr_t));
     if (!svr) {
         fprintf(stderr, "error: rtksvr_t allocation failed\n");

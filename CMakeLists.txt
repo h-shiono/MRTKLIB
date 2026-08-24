@@ -316,6 +316,18 @@ add_test(NAME utest_has_mt1 COMMAND utest_has_mt1
          WORKING_DIRECTORY ${_UTEST_DIR})
 set_tests_properties(utest_has_mt1 PROPERTIES LABELS "utest")
 
+# RTCM local-correction lazy-allocation test (issue #295). Drives the public
+# rtcm_lclblk()/encode/decode path for RTCM3 types 2001-2016 (no regression
+# test feeds these messages); same explicit registration as utest_has_rs
+# (source name is utest_lclblk.c, not t_*.c).
+add_executable(utest_lclblk ${_UTEST_DIR}/utest_lclblk.c)
+# Override global -ansi (=C90): this test uses C11 (P-01).
+target_compile_options(utest_lclblk PRIVATE -std=c11)
+target_link_libraries(utest_lclblk PRIVATE mrtklib)
+add_test(NAME utest_lclblk COMMAND utest_lclblk
+         WORKING_DIRECTORY ${_UTEST_DIR})
+set_tests_properties(utest_lclblk PROPERTIES LABELS "utest")
+
 # NTRIP v2 chunked codec test (header-only, no library dependency)
 add_executable(t_ntrip ${_UTEST_DIR}/t_ntrip.c)
 # Override global -ansi (=C90) for this target, same as mrtklib target.

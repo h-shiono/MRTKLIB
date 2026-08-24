@@ -77,7 +77,7 @@ typedef struct {                            /* RTCM control struct type */
     uint32_t nmsg2[100];                    /* message count of RTCM 2 (1-99:1-99,0:other) */
     uint32_t nmsg3[400];                    /* message count of RTCM 3 (1-299:1001-1299,300-329:4070-4099,0:ohter) */
     char opt[256];                          /* RTCM dependent options */
-    lclblock_t lclblk;                      /* output of iono/trop corrections */
+    lclblock_t* lclblk;                     /* iono/trop corrections; lazily allocated (RTCM3 msgs 2001-2016) */
 } rtcm_t;
 
 /*============================================================================
@@ -96,6 +96,13 @@ int init_rtcm(rtcm_t* rtcm);
  * @param[in,out] rtcm  RTCM control struct
  */
 void free_rtcm(rtcm_t* rtcm);
+
+/**
+ * @brief Get the local correction block, lazily allocating it on first use.
+ * @param[in,out] rtcm  RTCM control struct
+ * @return Local correction block (NULL: memory allocation error).
+ */
+lclblock_t* rtcm_lclblk(rtcm_t* rtcm);
 
 /**
  * @brief Input RTCM 2 message from stream (byte-by-byte).
