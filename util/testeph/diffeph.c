@@ -126,7 +126,7 @@ int main(int argc, char **argv)
 {
     FILE *fp=NULL;
     nav_t nav={0},nav2={0};
-    rtcm_t rtcm;
+    static rtcm_t rtcm; /* zero-init (BSS); rtcm_t must be zeroed before init_rtcm() and is too large for the stack */
     lex_t lex={0};
     gtime_t t0,time;
     double ep0[]={2000,1,1,0,0,0},tspan=24.0,tint=300,pos[]={0};

@@ -27,7 +27,9 @@ preset, NFREQ=5, all constellations): `rtcm_t` 314.4 → 7.5 MB, `rtksvr_t`
 RSS **808 MiB → 84 MiB (−89.5 %)** — memory stops being the binding
 constraint on solvers per host. **Zero positioning change**: outside the
 inserted allocation guards the migration is byte-identical (verified by
-reverse-rewrite diff), and the full regression suite is green. Also fixed on
+reverse-rewrite diff), and the regression gate matches the
+develop baseline — 121 tests with the single documented environment-only
+failure (`madocalib_pppar_ion_check`, LAPACK tolerance). Also fixed on
 the way: `strconvnew()` allocated `strconv_t` with `malloc`, so
 `strconvfree()` freed an uninitialized `lclblk` pointer (latent UB, now
 `calloc`). Behavior note: decoded local-correction blocks no longer survive a
