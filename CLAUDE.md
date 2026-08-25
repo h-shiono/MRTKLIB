@@ -55,10 +55,11 @@ See [`docs/releases/changelog.md`](docs/releases/changelog.md) for the full hist
 | v0.7.6 | TOML configuration redesign (taxonomy by consumer, deprecation aliases + unknown-key warning, dead keys removed, option-slot collision fixes, CI-gated config reference) + IGS PPP-AR receiver bias / unbias gate + CLAS periodic filter reset |
 | v0.7.7 | CLAS dual-channel transmit-pattern merge (#303/#309) — PPP-RTK engine merges both L6 patterns (selection byte-identical to upstream; +0.94 sats/epoch), OR-semantics fetch with graceful degradation, RT merge on by default (pattern-keyed demux), merge-sensitive regressions |
 | v0.7.8 | Kinematic-RTK slip-detection regression fix (#318) — v0.6.10 SPP TDCP snapshot clobbered ssat ph[0]/pt[0], silently disabling rover detslp_ll/detslp_dop in relpos; fix = pntpos-private spt/sph fields, RTK back at the v0.4.1 record on all 6 PPC cases, CLAS/MADOCA unchanged; benchmark harness: hourly L6 session join + per-tier `<30cm` misfix column (#316/#317) |
+| v0.7.9 | Memory footprint (#295) — `lclblock_t` (~307 MB) lazily heap-allocated in `rtcm_t` (314→7.5 MB; `rtksvr_t` 972→51 MB; `mrtk run` startup RSS 808→84 MiB, −89.5 %); latent strconvnew UB fix; first RTCM3 2001–2016 coverage (`utest_lclblk`); no positioning change |
 
 ### Test Status
 
-Run `cd build && ctest --output-on-failure` to get current counts. Last known (v0.7.8): 120 tests, 119 passing — the failure is the perennial env one (`madocalib_pppar_ion_check` LAPACK-vs-reference ~1.6 cm vs 0.5 cm tol); `rtkrcv_rt` (headless RT replay) also fails in some environments. Both reproduce on a clean `develop` build and are unrelated to code changes. RT CLAS replay tests are timing-sensitive: they can false-fail under CPU contention but pass in isolation. The claslib/madocalib fixtures extract and then delete files under `tests/data/` — never run the PPC benchmark concurrently with ctest in the same tree.
+Run `cd build && ctest --output-on-failure` to get current counts. Last known (v0.7.9): 121 tests, 120 passing — the failure is the perennial env one (`madocalib_pppar_ion_check` LAPACK-vs-reference ~1.6 cm vs 0.5 cm tol); `rtkrcv_rt` (headless RT replay) also fails in some environments. Both reproduce on a clean `develop` build and are unrelated to code changes. RT CLAS replay tests are timing-sensitive: they can false-fail under CPU contention but pass in isolation. The claslib/madocalib fixtures extract and then delete files under `tests/data/` — never run the PPC benchmark concurrently with ctest in the same tree.
 
 ---
 
