@@ -48,17 +48,22 @@ static int fails = 0;
 
 /* (1) fresh-struct invariants ---------------------------------------------- */
 static void test_fresh_struct(void) {
-    rtcm_t* r = (rtcm_t*)calloc(1, sizeof(rtcm_t));    /* never stack-allocate rtcm_t (~103 MB) */
+    rtcm_t* r = (rtcm_t*)calloc(1, sizeof(rtcm_t));    /* never stack-allocate rtcm_t (~7.5 MB) */
     stat_t* stat = (stat_t*)calloc(1, sizeof(stat_t)); /* stat_t ~4.8 MB: heap too */
     lclblock_t* blk;
+    int ok;
 
     printf("--- test_fresh_struct\n");
     if (!r || !stat) {
         printf("FAIL: calloc rtcm_t/stat_t\n");
         fails++;
-        return;
+        goto cleanup;
     }
-    CHECK(init_rtcm(r) == 1, "init_rtcm succeeds");
+    ok = init_rtcm(r);
+    CHECK(ok == 1, "init_rtcm succeeds");
+    if (ok != 1) {
+        goto cleanup;
+    }
     CHECK(r->lclblk == NULL, "init_rtcm leaves lclblk NULL");
     CHECK(block2stat(r, stat) == 0, "block2stat with NULL lclblk returns 0");
     CHECK(encode_lcltrop(r, 2001) == 0, "encode_lcltrop with NULL lclblk returns 0");
@@ -74,6 +79,7 @@ static void test_fresh_struct(void) {
     free_rtcm(r); /* double-free safety: all pointers were NULLed above */
     CHECK(r->lclblk == NULL, "second free_rtcm is safe");
 
+cleanup:
     free(stat);
     free(r);
 }
@@ -93,15 +99,19 @@ static void test_trop_roundtrip(void) {
     sitetrp_t* st;
     trp_t* dtrp;
     double zhd, trp_in;
-    int i, ret = 0, mid_ok = 1;
+    int i, ret = 0, mid_ok = 1, ok;
 
     printf("--- test_trop_roundtrip\n");
     if (!enc || !dec || !stat) {
         printf("FAIL: calloc rtcm_t/stat_t\n");
         fails++;
-        return;
+        goto cleanup;
     }
-    CHECK(init_rtcm(enc) == 1 && init_rtcm(dec) == 1, "init_rtcm enc+dec");
+    ok = init_rtcm(enc) == 1 && init_rtcm(dec) == 1;
+    CHECK(ok, "init_rtcm enc+dec");
+    if (!ok) {
+        goto cleanup;
+    }
     enc->time = t0;
 
     /* build a minimal valid trop block: grid type, bn=1204 (38N/136E),
@@ -163,8 +173,12 @@ static void test_trop_roundtrip(void) {
     CHECK(fabs(stat->strp[0].trpd.trp[0] - trp_in) < 2.0 * TRP_DET_LSB, "block2stat trop value matches");
 
 cleanup:
-    free_rtcm(enc);
-    free_rtcm(dec);
+    if (enc) {
+        free_rtcm(enc);
+    }
+    if (dec) {
+        free_rtcm(dec);
+    }
     free(stat);
     free(enc);
     free(dec);
