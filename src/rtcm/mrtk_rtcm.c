@@ -84,6 +84,11 @@ int init_rtcm(rtcm_t* rtcm) {
     rtcm->nav.geph = NULL;
     rtcm->nav.pppiono = NULL;
 
+    /* lclblk is deliberately left untouched: the struct must be zero-initialized
+     * before the first init_rtcm() call (all callers use calloc/memset), and an
+     * existing allocation is preserved across re-init to match the legacy
+     * embedded-array semantics (init_rtcm never cleared lclblk) */
+
     /* reallocate memory for observation and ephemeris buffer */
     if (!(rtcm->obs.data = (obsd_t*)malloc(sizeof(obsd_t) * MAXOBS)) ||
         !(rtcm->nav.eph = (eph_t*)malloc(sizeof(eph_t) * MAXSAT * 2)) ||
@@ -123,6 +128,19 @@ void free_rtcm(rtcm_t* rtcm) {
     free(rtcm->nav.geph);
     rtcm->nav.geph = NULL;
     rtcm->nav.ng = 0;
+    free(rtcm->lclblk);
+    rtcm->lclblk = NULL;
+}
+/* get local correction block --------------------------------------------------
+ * return the local correction block, lazily allocating it on first use
+ * args   : rtcm_t *rtcm     IO  rtcm control struct
+ * return : local correction block (NULL: memory allocation error)
+ *-----------------------------------------------------------------------------*/
+lclblock_t* rtcm_lclblk(rtcm_t* rtcm) {
+    if (!rtcm->lclblk) {
+        rtcm->lclblk = (lclblock_t*)calloc(1, sizeof(lclblock_t));
+    }
+    return rtcm->lclblk;
 }
 /* input RTCM 2 message from stream --------------------------------------------
  * fetch next RTCM 2 message and input a message from byte stream

@@ -82,8 +82,9 @@ Several core types are too large for the stack or for static arrays:
 
 | Type | Approximate size |
 |------|-----------------|
-| `rtksvr_t` | ~972 MB |
-| `rtcm_t` | ~103 MB |
+| `rtksvr_t` | ~51 MB |
+| `rtcm_t` | ~7.5 MB |
+| `lclblock_t` | ~307 MB (lazily heap-allocated inside `rtcm_t`; see P-13) |
 | `osb_t` | ~700 KB |
 | `clas_corr_t` | ~352 KB |
 
@@ -123,6 +124,29 @@ When iterating satellites for `satpos()` / `ephpos()` calls, gate the loop
 against the constellation allow-list you actually use. For example,
 CLAS-based code paths process only GPS / GAL / QZS; passing a stale or
 corrupted GLONASS satellite through `ephpos()` is unnecessary and risky.
+
+### P-13 — `rtcm_t.lclblk` is a lazily-allocated pointer; upstream embeds it by value
+
+MRTKLIB stores the RTCM3 local-correction block as a pointer member
+(`lclblock_t* lclblk`) inside `rtcm_t`, allocated on first use: the block is
+~307 MB while the rest of `rtcm_t` is ~7.5 MB, and most workloads never
+process the local-correction messages (2001–2016) that populate it. Upstream
+MALIB (`rtklib.h`) still embeds `lclblock_t lclblk;` by value, so upstream
+code in `rtcm3lcl.c`, `lclcmn.c`, and `lclcmbcmn.c` accesses members as
+`rtcm->lclblk.`.
+
+When cherry-picking hunks from those files during an upstream sync, adapt
+them mechanically:
+
+- `rtcm->lclblk.` → `rtcm->lclblk->`
+- On write/decode paths, call `rtcm_lclblk(rtcm)` first — it allocates the
+  block on first use and returns NULL on allocation failure.
+- On read paths, guard with a NULL check: an unallocated block simply means
+  no local-correction message has been decoded yet.
+
+An unadapted hunk fails to compile (member access on a pointer), but a hunk
+rewritten only `.` → `->` compiles cleanly and dereferences NULL at runtime
+on read paths.
 
 ---
 
