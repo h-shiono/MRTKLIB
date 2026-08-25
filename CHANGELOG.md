@@ -7,11 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Changed
+## [v0.7.9] - 2026-08-25
 
-- perf(rtcm): lazy heap allocation of `lclblock_t` — `rtcm_t` shrinks
-  ~314 MB → ~7.5 MB (`rtksvr_t` ~972 MB → ~51 MB), reducing `mrtk run` RSS
-  ([#295](https://github.com/h-shiono/MRTKLIB/issues/295)).
+**Memory footprint: `rtcm_t` shrinks 314 MB → 7.5 MB — a real-time solver now
+runs in tens of MB instead of ~1.2 GB.** `rtcm_t` embedded the MADOCA
+local-correction block (`lclblock_t`, ~307 MB — 97.6 % of the struct, dominated
+by `istat[MAXBLK][MAXTRPSTA]`) by value. Every `mrtk run` server paid it three
+times (`rtksvr_t.rtcm[3]`), every stream converter twice more
+(`strconv_t.rtcm`/`.out`), yet only the local-correction feature (RTCM3 message
+types 2001–2016) ever touches it. The block is now lazily heap-allocated on
+the first local-correction message (`rtcm_lclblk()`); decoders allocate on
+demand, encoders and `block2stat()` treat a missing block exactly like the
+legacy all-zeros state, and `free_rtcm()` releases it
+([#295](https://github.com/h-shiono/MRTKLIB/issues/295), reported with
+production measurements from a containerized CLAS deployment;
+[PR #323](https://github.com/h-shiono/MRTKLIB/pull/323)). Results (default
+preset, NFREQ=5, all constellations): `rtcm_t` 314.4 → 7.5 MB, `rtksvr_t`
+971.7 → 51.1 MB, `strconv_t` 635.8 → 22.1 MB; measured `mrtk run` startup peak
+RSS **808 MiB → 84 MiB (−89.5 %)** — memory stops being the binding
+constraint on solvers per host. **Zero positioning change**: outside the
+inserted allocation guards the migration is byte-identical (verified by
+reverse-rewrite diff), and the regression gate matches the
+develop baseline — 121 tests with the single documented environment-only
+failure (`madocalib_pppar_ion_check`, LAPACK tolerance). Also fixed on
+the way: `strconvnew()` allocated `strconv_t` with `malloc`, so
+`strconvfree()` freed an uninitialized `lclblk` pointer (latent UB, now
+`calloc`). Behavior note: decoded local-correction blocks no longer survive a
+server restart — the legacy code kept the stale array and re-stamped stale
+blocks with the current time. New `utest_lclblk` adds the first direct
+coverage of the 2001–2016 encode/decode path. External embedders of `rtcm_t`
+must rebuild (struct layout change); upstream-sync adaptation notes are in
+`docs/dev/pitfalls-public.md` P-13.
 
 ## [v0.7.8] - 2026-08-04
 

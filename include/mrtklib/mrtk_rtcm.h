@@ -88,6 +88,8 @@ typedef struct {                            /* RTCM control struct type */
  * @brief Initialize RTCM control struct.
  * @param[out] rtcm  RTCM control struct
  * @return Status (1:ok, 0:memory allocation error)
+ * @note The struct must be zero-initialized (calloc/memset) before the first
+ *       call; an existing lclblk allocation is preserved across re-init.
  */
 int init_rtcm(rtcm_t* rtcm);
 

@@ -118,6 +118,9 @@ static void test_trop_roundtrip(void) {
      * 16-grid pitch, single grid point (mask bit 0) */
     lcl = rtcm_lclblk(enc);
     CHECK(lcl != NULL, "encoder rtcm_lclblk");
+    if (!lcl) {
+        goto cleanup;
+    }
     bi = &lcl->tblkinf[0];
     bi->btype = 0; /* BTYPE_GRID */
     bi->bn = 1204;
