@@ -579,6 +579,9 @@ extern void sta_sel_iono(const gtime_t gt, const stat_t* stat, lclblock_t* lslbl
 extern void output_lclcmb(rtcm_t* rtcm, int btype, struct stream_tag* ostr) {
     int i, j, basemt;
 
+    if (!rtcm->lclblk) {
+        return;
+    }
     if (btype == BTYPE_GRID) {
         basemt = 2001;
     } else if (btype == BTYPE_STA) {
@@ -587,14 +590,14 @@ extern void output_lclcmb(rtcm_t* rtcm, int btype, struct stream_tag* ostr) {
         return;
     }
 
-    for (i = 0; i < rtcm->lclblk.tnum; i++) {
-        rtcm->lclblk.outtn = i;
+    for (i = 0; i < rtcm->lclblk->tnum; i++) {
+        rtcm->lclblk->outtn = i;
         gen_rtcm3(rtcm, basemt, 0, 0);
         strwrite(ostr, rtcm->buff, rtcm->nbyte);
     }
 
-    for (i = 0; i < rtcm->lclblk.inum; i++) {
-        rtcm->lclblk.outin = i;
+    for (i = 0; i < rtcm->lclblk->inum; i++) {
+        rtcm->lclblk->outin = i;
         for (j = basemt + 1; j <= basemt + 5; j++) {
             gen_rtcm3(rtcm, j, 0, 0);
             strwrite(ostr, rtcm->buff, rtcm->nbyte);

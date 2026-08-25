@@ -52,7 +52,7 @@ static int nsysrb, nsysrbmax;
 static rawbias_t* satrb;
 static rawbias_t* sysrb;
 static gtime_t st = {0}, et = {0};
-static rtcm_t* rtcm;      /* rtcm control struct (heap, ~103MB) */
+static rtcm_t* rtcm;      /* rtcm control struct (heap per policy, ~7.5MB) */
 static int selsiggps = 0; /* 0:L1C/A-L2P,1:L1C/A-L2C,2:L1C/A-L5 */
 static int selsigqzs = 0; /* 0:L1C-L5,1:L1C/A-L2C */
 static int selsigcmp = 0; /* 0:B1-B3,1:B1C-B2a */
@@ -862,7 +862,7 @@ int mrtk_bias(int argc, char** argv) {
     char staname[32] = "";
     mrtk_ctx_t* ctx;
 
-    /* Allocate rtcm_t on heap (~103MB) to avoid bloating BSS */
+    /* Allocate rtcm_t on heap (~7.5MB) to avoid bloating BSS */
     rtcm = (rtcm_t*)calloc(1, sizeof(rtcm_t));
     if (!rtcm) {
         fprintf(stderr, "error: rtcm_t allocation failed\n");

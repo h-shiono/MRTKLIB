@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- perf(rtcm): lazy heap allocation of `lclblock_t` — `rtcm_t` shrinks
+  ~314 MB → ~7.5 MB (`rtksvr_t` ~972 MB → ~51 MB), reducing `mrtk run` RSS
+  ([#295](https://github.com/h-shiono/MRTKLIB/issues/295)).
+
 ## [v0.7.8] - 2026-08-04
 
 **Kinematic RTK: rover cycle-slip detection restored (regression since

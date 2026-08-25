@@ -79,7 +79,7 @@ Focus areas, in priority order:
 Hard rules. No exceptions, no matter how reasonable an action seems in context.
 
 - **NEVER alter GNSS algorithms, matrix operations, or physical constants** during structural / refactoring work unless explicitly instructed.
-- **NEVER create `rtcm_t` on the stack or in static arrays** — it is ~103 MB. Always heap-allocate with `calloc`. See §7.1 for the size table of other large structs.
+- **NEVER create `rtcm_t` on the stack or in static arrays** — it is ~7.5 MB (its ~307 MB `lclblock_t` is now lazily heap-allocated). Always heap-allocate with `calloc`. See §7.1 for the size table of other large structs.
 - **NEVER mark a task complete without running `ctest --output-on-failure`** and confirming all tests pass.
 - **NEVER assume upstream library behavior** — read the actual source when integrating.
 - **NEVER silently swallow a test tolerance change** — flag it to the user with the numerical delta.
@@ -190,11 +190,14 @@ Run `./build/mrtk --help` for the current full list and per-subcommand help via 
 
 | Type | Approximate size |
 |------|-----------------|
-| `rtksvr_t` | ~972 MB |
-| `rtcm_t` | ~103 MB |
+| `rtksvr_t` | ~51 MB |
+| `rtcm_t` | ~7.5 MB |
+| `lclblock_t` | ~307 MB (lazily heap-allocated inside `rtcm_t` only when RTCM3 local-correction messages 2001–2016 are processed) |
 | `has_t` | ~1.6 MB |
 | `osb_t` | ~700 KB |
 | `clas_corr_t` | ~352 KB |
+
+Sizes measured with the default preset (NFREQ=5, NEXOBS=5, all constellations, MAXSAT=221).
 
 Never stack-allocate or place these in static arrays. Use `calloc()` and pass by pointer. For multiple instances, use an array of pointers (not an array of structs).
 

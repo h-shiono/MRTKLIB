@@ -75,7 +75,8 @@ extern strconv_t* strconvnew(int itype, int otype, const char* msgs, int staid, 
     char buff[1024], *p;
     int msg;
 
-    if (!(conv = (strconv_t*)malloc(sizeof(strconv_t)))) return NULL;
+    /* zero-init is required by the rtcm_t.lclblk ownership contract */
+    if (!(conv = (strconv_t*)calloc(1, sizeof(strconv_t)))) return NULL;
 
     conv->nmsg = 0;
     if (!msgs || strlen(msgs) >= sizeof(buff)) {

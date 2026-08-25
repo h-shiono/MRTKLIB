@@ -1373,7 +1373,7 @@ int mrtk_cssr2rtcm3(int argc, char** argv) {
     /* ── Allocate large structures ── */
     clas = (clas_ctx_t*)calloc(1, sizeof(clas_ctx_t));
     nav = (nav_t*)calloc(1, sizeof(nav_t));
-    rtcm = (rtcm_t*)calloc(1, sizeof(rtcm_t)); /* ~103MB */
+    rtcm = (rtcm_t*)calloc(1, sizeof(rtcm_t)); /* ~7.5MB; large structs stay heap-allocated */
     obsdata = (obsd_t*)calloc(MAXOBS, sizeof(obsd_t));
     osr = (clas_osrd_t*)calloc(MAXOBS, sizeof(clas_osrd_t));
     if (!clas || !nav || !rtcm || !obsdata || !osr) {
