@@ -144,6 +144,74 @@ static int parse_sig_remap_key(const char* key, int* sys, uint8_t* code) {
     return *code != CODE_NONE;
 }
 
+/* signal exclusion table (CLAS codes dropped from the RTCM3 output) */
+static sig_remap_t sig_exclude[MAX_SIG_REMAP]; /* .to unused */
+static int n_sig_exclude = 0;
+
+/**
+ * @brief Drop excluded signals from observations before RTCM3 encoding.
+ *
+ * Clears every obs slot whose (system, code) matches an [cssr2rtcm3]
+ * exclude_signals entry. Codes are matched before [signal_remap] renaming,
+ * so entries use the CLAS-native codes as broadcast in ST1 (e.g. G5X, E5X).
+ */
+static void apply_sig_exclude(obs_t* obs) {
+    int i, j, k, sys;
+    if (n_sig_exclude <= 0) return;
+    for (i = 0; i < obs->n; i++) {
+        sys = satsys(obs->data[i].sat, NULL);
+        for (j = 0; j < NFREQ + NEXOBS; j++) {
+            if (obs->data[i].code[j] == 0) continue;
+            for (k = 0; k < n_sig_exclude; k++) {
+                if (sig_exclude[k].sys == sys && sig_exclude[k].from == obs->data[i].code[j]) {
+                    obs->data[i].code[j] = 0;
+                    obs->data[i].P[j] = 0.0;
+                    obs->data[i].L[j] = 0.0;
+                    obs->data[i].D[j] = 0.0f;
+                    obs->data[i].SNR[j] = 0;
+                    obs->data[i].LLI[j] = 0;
+                    break;
+                }
+            }
+        }
+    }
+}
+
+/**
+ * @brief Load exclude_signals from the [cssr2rtcm3] section.
+ *
+ * Parses a value like ["G5X", "J5X", "E5X"] — each token is a system letter
+ * plus a RINEX obs code, the same key format as [signal_remap].
+ */
+static void parse_sig_exclude(const char* val) {
+    char tok[16];
+    int sys, len;
+    uint8_t code;
+    const char* p = val;
+
+    while (*p) {
+        while (*p && (*p == ',' || *p == ' ' || *p == '\t' || *p == '"' || *p == '[' || *p == ']' || *p == '\n' ||
+                      *p == '\r'))
+            p++;
+        for (len = 0; *p && *p != ',' && *p != '"' && *p != ']' && *p != ' ' && *p != '\t' && *p != '\n' &&
+                      *p != '\r' && len < (int)sizeof(tok) - 1;)
+            tok[len++] = *p++;
+        tok[len] = '\0';
+        if (!len) continue;
+        if (!parse_sig_remap_key(tok, &sys, &code)) {
+            fprintf(stderr, "exclude_signals: unknown signal '%s'\n", tok);
+            continue;
+        }
+        if (n_sig_exclude < MAX_SIG_REMAP) {
+            sig_exclude[n_sig_exclude].sys = sys;
+            sig_exclude[n_sig_exclude].from = code;
+            sig_exclude[n_sig_exclude].to = 0;
+            n_sig_exclude++;
+            fprintf(stderr, "exclude_signals: %s\n", tok);
+        }
+    }
+}
+
 /**
  * @brief Apply signal code remapping to observations before RTCM3 encoding.
  *
@@ -337,6 +405,11 @@ static void load_cssr2rtcm3_config(const char* conffile) {
         if (strncmp(p, "systems", 7) == 0) {
             char* eq = strchr(p, '=');
             if (eq) set_msm_systems(eq + 1);
+        }
+        /* exclude_signals = ["G5X", "J5X", "E5X"] → drop these CLAS signals */
+        if (strncmp(p, "exclude_signals", 15) == 0) {
+            char* eq = strchr(p, '=');
+            if (eq) parse_sig_exclude(eq + 1);
         }
     }
     fclose(fp);
@@ -1809,6 +1882,9 @@ int mrtk_cssr2rtcm3(int argc, char** argv) {
                         }
                     }
                     t_osr = tickget();
+
+                    /* drop excluded signals (matched on CLAS-native codes) */
+                    apply_sig_exclude(&obs);
 
                     /* remap signal codes to match receiver tracking */
                     apply_sig_remap(&obs);

@@ -394,6 +394,7 @@ Key parameters:
 | `ionosphere` | `est-adaptive` | Adaptive ionospheric estimation |
 | `cssr_grid` | `clas_grid.def` | CLAS grid definition file |
 | `l6d_elmin` | `10.0` (deg) | Minimum elevation for QZS L6D satellite auto-selection. The selector picks the QZS satellite with the highest elevation above this threshold and fails over when the active satellite drops below it or stops broadcasting. |
+| `exclude_signals` | (none) | CLAS signals to drop from the RTCM3 MSM output, e.g. `["G5X", "J5X", "E5X"]` to restrict the stream to the L1/L2 set. Keys use the `[signal_remap]` format and match CLAS-native codes (before remapping). By default every signal CLAS broadcasts biases for is emitted (GPS L1C/L2X/L2W/L5X, Galileo E1X/E5aX, QZS L1C/L2X/L5X). |
 
 ## Test Results
 

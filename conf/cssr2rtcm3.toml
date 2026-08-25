@@ -45,6 +45,14 @@ systems = ["GPS", "Galileo", "QZSS"]
 #   0 or omitted = elevation-dependent (25 + 20·sin(el) dB-Hz)
 #   >0           = fixed value in dB-Hz (mosaic-CLAS uses 50)
 snr_fixed = 50.0
+# Signals to drop from the RTCM3 MSM output. Keys use the same format as
+# [signal_remap] (system letter + RINEX obs code) and match the CLAS-native
+# codes broadcast in ST1, i.e. before [signal_remap] renaming is applied.
+# Example below removes every L5-band signal (GPS L5, QZS L5, Galileo E5a),
+# restricting the output to the L1/L2 set a mosaic-CLAS-class receiver uses.
+# Note: G04/G23-class satellites broadcast only L1C+L5X biases; dropping G5X
+# leaves them single-frequency.
+# exclude_signals = ["G5X", "J5X", "E5X"]
 # L6D satellite auto-selection: minimum elevation angle (degrees).
 # cssr2rtcm3 watches all QZS satellites broadcasting L6D and selects the one
 # with the highest elevation. When the selected satellite drops below this
