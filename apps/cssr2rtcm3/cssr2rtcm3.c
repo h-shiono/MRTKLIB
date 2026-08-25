@@ -1709,6 +1709,11 @@ int mrtk_cssr2rtcm3(int argc, char** argv) {
                     update_corrections(clas, nav, 0);
                 }
             }
+            /* Legacy mode has no PVT blocks; without this the PVT-triggered
+             * output gate below never opens and the tool emits nothing
+             * (file replay per the usage examples produced 0 epochs). The
+             * interval check below still paces the actual output rate. */
+            pvt_trigger = 1;
         }
 
         /* L6 ch2 input (legacy mode only — SBF mode is single-stream) */
