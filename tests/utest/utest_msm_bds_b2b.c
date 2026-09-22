@@ -57,6 +57,9 @@ static int fails = 0;
 #define TOL_L 2E-3  /* MSM7 fine phase-range 2^-31 ms = 0.14 mm (compared in metres) */
 #define TOL_SNR 0.1 /* MSM7 CNR resolution 1/16 dB-Hz */
 #define NSLOT (NFREQ + NEXOBS)
+/* the BDS-3 record uses obs slots 0..3 (2I + 7D/7P/7Z); refuse to build on a
+ * preset whose obsd_t arrays are narrower rather than write past them */
+_Static_assert(NSLOT >= 4, "utest_msm_bds_b2b needs NFREQ + NEXOBS >= 4");
 
 /* MSM header bit offsets in a framed type-1127 message, from decode_msm_head():
  * 24 (frame header) +12 msg no +12 staid +30 BDS TOW +1 sync +3 IODS
@@ -85,6 +88,11 @@ typedef struct {
 
 /* fill one encoder slot from a msig_t */
 static void set_sig(obsd_t* d, int slot, const msig_t* s) {
+    if (slot < 0 || slot >= NSLOT) {
+        printf("FAIL: set_sig slot %d out of range (NSLOT=%d)\n", slot, NSLOT);
+        fails++;
+        return;
+    }
     d->code[slot] = s->code;
     d->P[slot] = s->P;
     d->L[slot] = s->L;
