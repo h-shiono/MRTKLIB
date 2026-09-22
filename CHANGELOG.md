@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+**BDS-3 B2b (`7D`/`7P`/`7Z`) MSM signal IDs restored — RTCM3 signal IDs
+25–27 were silently dropped in both directions.** `msm_sig_cmp[32]`, the
+BeiDou MSM signal-ID → RINEX code table in `src/rtcm/mrtk_rtcm3.c`, is
+byte-identical to the MALIB parent and left IDs 25–27 empty; RTCM 10403.3
+Amendment 2 assigns those IDs to the BDS-3 B2b signals, so every B2b cell
+in a live MSM stream was dropped by the decoder with only a level-2 trace
+(`unknown signal id=N`). The RTCM3 encoder's `to_sigid()` in
+`src/rtcm/mrtk_rtcm3e.c` dispatches to the same table, so RTCM3 output
+re-encoded from SBF / NovAtel / BINEX input (whose decoders already emit
+`CODE_L7D`) also lost B2b
+([#333](https://github.com/h-shiono/MRTKLIB/issues/333), reported by
+@philippebourcier with RENAG / mosaic-X5 field comparisons). The fix adds
+the three missing entries. New `utest_msm_bds_b2b` — the first MSM
+encode→decode round-trip coverage for BDS B2b (related
+[#296](https://github.com/h-shiono/MRTKLIB/issues/296)) — fails on the old
+table and passes on the new one. **Slot behaviour note:** the MSM decoder's
+`sigindex()` applies the per-band code priority (B2b band: `7D > 7I > 7Q >
+7X`, `src/data/mrtk_obs.c`) across the signal list of each message, so `7D`
+now takes the B2 slot (index 2) and, in a message that also carries BDS-2
+`7I`, `7I` moves to an extended slot — the same placement the RINEX reader
+(`set_index()`) already produces for `C7D`/`C7I` from the same receiver, so
+RTCM input now matches the RINEX path. Positioning use of B2b is tracked in
+[#189](https://github.com/h-shiono/MRTKLIB/issues/189)/[#234](https://github.com/h-shiono/MRTKLIB/issues/234).
+No positioning change in the existing regression suite (no bundled stream
+carries BDS MSM).
+
 ## [v0.7.9] - 2026-08-25
 
 **Memory footprint: `rtcm_t` shrinks 314 MB → 7.5 MB — a real-time solver now

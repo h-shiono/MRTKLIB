@@ -232,6 +232,17 @@ the signal as a different band, producing meter-level pseudorange errors.
 The correct per-constellation tables live in `src/rtcm/mrtk_rtcm3.c`
 (`msm_sig_gps[]`, `msm_sig_gal[]`, etc.).
 
+The same tables back the encoder as well: `to_sigid()` in
+`src/rtcm/mrtk_rtcm3e.c` performs the reverse lookup against the identical
+constellation tables, so a missing entry drops the signal in both
+directions — decode and encode — with no error: the decoder emits only a
+level-2 trace (`unknown signal id=N`), the encoder's `to_sigid()` returns 0
+and skips the cell silently. The tables encode a specific RTCM amendment's ID
+assignments and must be revisited as amendments add signals;
+[#333](https://github.com/h-shiono/MRTKLIB/issues/333) is one instance,
+where BDS-3 B2b (`7D`/`7P`/`7Z`) IDs 25–27 were left empty since the
+original MALIB import predates their assignment in RTCM 10403.3 Amendment 2.
+
 ### P-24 — MSM encoder treats `code[j] != 0` as "satellite present"
 
 The MSM7 encoder (`encode_msm_head` / `gen_msm_index` in
