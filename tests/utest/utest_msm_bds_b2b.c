@@ -18,6 +18,14 @@
  *       are searched in all NFREQ+NEXOBS slots of the record: sigindex()
  *       assigns primary vs extended slots by code priority, which is not
  *       part of the contract under test.
+ *   (4) wire-ID conformance: the encoded MSM header signal mask is inspected
+ *       directly, so the test pins 7D/7P/7Z to RTCM signal IDs 25/26/27 (and
+ *       2I/7I to 2/14) independently of the shared msm_sig_cmp[] table. The
+ *       combined frame checks the ID set (bits 2/14/25/26/27 set, popcount 5,
+ *       24/28/29 clear, satellite mask == {6,21}); one-signal frames then
+ *       check that each code alone sets exactly its own ID bit, so a swapped
+ *       table entry (7D<->7P) fails here even though the symmetric round-trip
+ *       and the combined-frame ID set would both still pass.
  *
  * Note: the phase comparison relies on the encoder's integer-cycle offset
  * (rtcm->cp) staying 0, which holds when LLI==0 and |L*lambda-rrng| < 1171 m;
@@ -29,6 +37,7 @@
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include "mrtklib/rtklib.h"
 
@@ -49,6 +58,22 @@ static int fails = 0;
 #define TOL_SNR 0.1 /* MSM7 CNR resolution 1/16 dB-Hz */
 #define NSLOT (NFREQ + NEXOBS)
 
+/* MSM header bit offsets in a framed type-1127 message, from decode_msm_head():
+ * 24 (frame header) +12 msg no +12 staid +30 BDS TOW +1 sync +3 IODS
+ * +7 time_s +2 clk_str +2 clk_ext +1 smooth +3 tint_s = 97 */
+#define SATMASK_OFF 97  /* 64-bit satellite mask: bit (prn-1) set <=> PRN present */
+#define SIGMASK_OFF 161 /* 32-bit signal mask: bit (id-1) set <=> signal ID present */
+
+/* RTCM 10403.3 table 3.5-108 (+ Amendment 2 B2b) signal IDs pinned by this test */
+static const struct {
+    int id;
+    uint8_t code;
+    const char* name;
+} wire_ids[] = {
+    {2, CODE_L2I, "2I"}, {14, CODE_L7I, "7I"}, {25, CODE_L7D, "7D"}, {26, CODE_L7P, "7P"}, {27, CODE_L7Z, "7Z"},
+};
+#define NWIRE ((int)(sizeof(wire_ids) / sizeof(wire_ids[0])))
+
 typedef struct {
     int sat;
     uint8_t code;
@@ -66,6 +91,24 @@ static void set_sig(obsd_t* d, int slot, const msig_t* s) {
     d->D[slot] = 0.0f;
     d->LLI[slot] = 0;
     d->SNR[slot] = (uint16_t)(s->snr / SNR_UNIT + 0.5);
+}
+
+/* 1-based mask member test and set-bit count over an MSM header mask */
+static int mask_bit(const uint8_t* buff, int off, int idx1) { return (int)getbitu(buff, off + idx1 - 1, 1); }
+
+static int mask_popcount(const uint8_t* buff, int off, int nbits) {
+    int j, n = 0;
+    for (j = 0; j < nbits; j++) {
+        n += (int)getbitu(buff, off + j, 1);
+    }
+    return n;
+}
+
+static gtime_t test_epoch(void) {
+    /* mid-week epoch: BDS MSM epoch is BDT (GPST-14 s), so a week-start epoch
+     * would exercise the adjweek() wrap instead of the signal table */
+    double ep[] = {2025, 6, 3, 12, 0, 0.0};
+    return epoch2time(ep);
 }
 
 static const obsd_t* find_sat(const obs_t* obs, int sat) {
@@ -110,10 +153,7 @@ static void check_sig(const obs_t* obs, const msig_t* s) {
 static void test_msm7_bds_roundtrip(void) {
     rtcm_t* enc = (rtcm_t*)calloc(1, sizeof(rtcm_t)); /* never stack-allocate rtcm_t (~7.5 MB) */
     rtcm_t* dec = (rtcm_t*)calloc(1, sizeof(rtcm_t));
-    /* mid-week epoch: BDS MSM epoch is BDT (GPST-14 s), so a week-start epoch
-     * would exercise the adjweek() wrap instead of the signal table */
-    double ep[] = {2025, 6, 3, 12, 0, 0.0};
-    gtime_t t0 = epoch2time(ep);
+    gtime_t t0 = test_epoch();
     double f2 = code2freq(SYS_CMP, CODE_L2I, 0), f7 = code2freq(SYS_CMP, CODE_L7I, 0);
     int c21 = satno(SYS_CMP, 21), c06 = satno(SYS_CMP, 6);
     /* P: ~2.2e7 m, a few metres apart; L: P*f/c minus a few cycles (iono-like) */
@@ -127,6 +167,7 @@ static void test_msm7_bds_roundtrip(void) {
     };
     msig_t s[6];
     obsd_t* d;
+    char msg[128];
     int i, ret = 0, mid_ok = 1, ok, ncomplete = 0;
 
     printf("--- test_msm7_bds_roundtrip (NFREQ=%d NEXOBS=%d)\n", NFREQ, NEXOBS);
@@ -172,6 +213,19 @@ static void test_msm7_bds_roundtrip(void) {
     CHECK(getbitu(enc->buff, 24, 12) == 1127, "message number field is 1127");
     printf("info: encoded %d bytes\n", enc->nbyte);
 
+    /* wire-ID conformance: read the MSM header masks straight off the frame */
+    for (i = 0; i < NWIRE; i++) {
+        snprintf(msg, sizeof(msg), "wire: signal mask bit for ID %d (%s) set", wire_ids[i].id, wire_ids[i].name);
+        CHECK(mask_bit(enc->buff, SIGMASK_OFF, wire_ids[i].id), msg);
+    }
+    CHECK(mask_popcount(enc->buff, SIGMASK_OFF, 32) == 5, "wire: signal mask popcount == 5 (no other ID set)");
+    CHECK(!mask_bit(enc->buff, SIGMASK_OFF, 24), "wire: signal mask bit for ID 24 (5X) clear");
+    CHECK(!mask_bit(enc->buff, SIGMASK_OFF, 28), "wire: signal mask bit for ID 28 (unassigned) clear");
+    CHECK(!mask_bit(enc->buff, SIGMASK_OFF, 29), "wire: signal mask bit for ID 29 (unassigned) clear");
+    CHECK(mask_bit(enc->buff, SATMASK_OFF, 6), "wire: satellite mask bit for PRN 6 set");
+    CHECK(mask_bit(enc->buff, SATMASK_OFF, 21), "wire: satellite mask bit for PRN 21 set");
+    CHECK(mask_popcount(enc->buff, SATMASK_OFF, 64) == 2, "wire: satellite mask popcount == 2");
+
     /* feed byte-by-byte into a fresh decoder */
     dec->time = t0; /* approximate time to resolve the GPS week */
     for (i = 0; i < enc->nbyte; i++) {
@@ -208,8 +262,58 @@ cleanup:
     free(dec);
 }
 
+/* one-signal frames: each code alone must set exactly its own signal-ID bit.
+ * The combined frame above only pins the ID *set*: with 7D and 7P swapped in
+ * msm_sig_cmp[] bits 25 and 26 are both still set, and the symmetric
+ * round-trip cannot see the swap either. */
+static void test_msm7_bds_wire_ids(void) {
+    rtcm_t* enc = (rtcm_t*)calloc(1, sizeof(rtcm_t)); /* never stack-allocate rtcm_t (~7.5 MB) */
+    gtime_t t0 = test_epoch();
+    int c21 = satno(SYS_CMP, 21);
+    char msg[128];
+    int i;
+
+    printf("--- test_msm7_bds_wire_ids\n");
+    if (!enc) {
+        printf("FAIL: calloc rtcm_t\n");
+        fails++;
+        return;
+    }
+    if (init_rtcm(enc) != 1) {
+        printf("FAIL: init_rtcm enc\n");
+        fails++;
+        free(enc);
+        return;
+    }
+    enc->staid = 1234;
+    for (i = 0; i < NWIRE; i++) {
+        obsd_t* d = &enc->obs.data[0];
+        msig_t s = {c21, wire_ids[i].code, 22000000.0, 0.0, 40.0, wire_ids[i].name};
+        s.L = s.P * code2freq(SYS_CMP, s.code, 0) / CLIGHT - 3.0;
+
+        memset(d, 0, sizeof(*d));
+        enc->time = d->time = t0;
+        d->sat = c21;
+        set_sig(d, 0, &s);
+        enc->obs.n = 1;
+
+        snprintf(msg, sizeof(msg), "wire: %s-only frame encodes as 1127", wire_ids[i].name);
+        CHECK(gen_rtcm3(enc, 1127, 0, 0) == 1 && getbitu(enc->buff, 24, 12) == 1127, msg);
+        snprintf(msg, sizeof(msg), "wire: %s-only frame sets signal mask bit for ID %d", wire_ids[i].name,
+                 wire_ids[i].id);
+        CHECK(mask_bit(enc->buff, SIGMASK_OFF, wire_ids[i].id), msg);
+        snprintf(msg, sizeof(msg), "wire: %s-only frame signal mask popcount == 1", wire_ids[i].name);
+        CHECK(mask_popcount(enc->buff, SIGMASK_OFF, 32) == 1, msg);
+        snprintf(msg, sizeof(msg), "wire: %s-only frame satellite mask == {PRN 21}", wire_ids[i].name);
+        CHECK(mask_bit(enc->buff, SATMASK_OFF, 21) && mask_popcount(enc->buff, SATMASK_OFF, 64) == 1, msg);
+    }
+    free_rtcm(enc);
+    free(enc);
+}
+
 int main(void) {
     test_msm7_bds_roundtrip();
+    test_msm7_bds_wire_ids();
 
     if (fails) {
         printf("utest_msm_bds_b2b: %d check(s) FAILED\n", fails);
