@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.7.10] - 2026-09-22
+
 **BDS-3 B2b (`7D`/`7P`/`7Z`) MSM signal IDs restored — RTCM3 signal IDs
 25–27 were silently dropped in both directions.** `msm_sig_cmp[32]`, the
 BeiDou MSM signal-ID → RINEX code table in `src/rtcm/mrtk_rtcm3.c`, is
