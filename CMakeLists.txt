@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.15)
-project(MRTKLIB VERSION 0.7.9 LANGUAGES C)
+project(MRTKLIB VERSION 0.7.10 LANGUAGES C)
 
 # ── Version header generation ─────────────────────────────────────────────────
 set(MRTKLIB_VERSION_MAJOR ${PROJECT_VERSION_MAJOR})
@@ -327,6 +327,15 @@ target_link_libraries(utest_lclblk PRIVATE mrtklib)
 add_test(NAME utest_lclblk COMMAND utest_lclblk
          WORKING_DIRECTORY ${_UTEST_DIR})
 set_tests_properties(utest_lclblk PROPERTIES LABELS "utest")
+
+# RTCM3 MSM BDS B2b round-trip test (issue #333 / #296)
+add_executable(utest_msm_bds_b2b ${_UTEST_DIR}/utest_msm_bds_b2b.c)
+# Override global -ansi (=C90): this test uses C11 (P-01).
+target_compile_options(utest_msm_bds_b2b PRIVATE -std=c11)
+target_link_libraries(utest_msm_bds_b2b PRIVATE mrtklib)
+add_test(NAME utest_msm_bds_b2b COMMAND utest_msm_bds_b2b
+         WORKING_DIRECTORY ${_UTEST_DIR})
+set_tests_properties(utest_msm_bds_b2b PROPERTIES LABELS "utest")
 
 # NTRIP v2 chunked codec test (header-only, no library dependency)
 add_executable(t_ntrip ${_UTEST_DIR}/t_ntrip.c)
