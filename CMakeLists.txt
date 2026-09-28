@@ -594,12 +594,17 @@ set_tests_properties(madocalib_pppar PROPERTIES
 # tolerance = ~1.3x that, rounded up. Accuracy is gated by the *_abs_check tests.
 set(_PPPAR_TOL     0.020)
 set(_PPPAR_ION_TOL 0.050)
+# PPP-AR integer-fix rate (Q=1 only), one-sided: fixing more often than
+# upstream passes. Measured worst drop across backends: -3.39 % (4 of 118
+# epochs, pppar_ion); 5 % allows 5 epochs.
+set(_PPPAR_FIX_DROP 5.0)
 
 add_test(NAME madocalib_pppar_check
     COMMAND ${Python3_EXECUTABLE} ${_COMPARE_POS}
         ${_MDLDATA}/madocalib_MIZU_20250401-0000.pppar.pos
         ${CMAKE_BINARY_DIR}/out_madocalib_pppar.pos
         --tolerance ${_PPPAR_TOL}
+        --fix-q 1 --max-fix-drop ${_PPPAR_FIX_DROP}
 )
 set_tests_properties(madocalib_pppar_check PROPERTIES
     DEPENDS           madocalib_pppar
@@ -630,6 +635,7 @@ add_test(NAME madocalib_pppar_003_check
         ${_MDLDATA}/madocalib_MIZU_20250401-0000.pppar_003.pos
         ${CMAKE_BINARY_DIR}/out_madocalib_pppar_003.pos
         --tolerance 0.005
+        --fix-q 1 --max-fix-drop ${_PPPAR_FIX_DROP}
 )
 set_tests_properties(madocalib_pppar_003_check PROPERTIES
     DEPENDS           madocalib_pppar_003
@@ -663,6 +669,7 @@ add_test(NAME madocalib_pppar_ion_check
         ${_MDLDATA}/madocalib_MIZU_20250401-0000.pppar_ion.pos
         ${CMAKE_BINARY_DIR}/out_madocalib_pppar_ion.pos
         --tolerance ${_PPPAR_ION_TOL}
+        --fix-q 1 --max-fix-drop ${_PPPAR_FIX_DROP}
 )
 set_tests_properties(madocalib_pppar_ion_check PROPERTIES
     DEPENDS           madocalib_pppar_ion
