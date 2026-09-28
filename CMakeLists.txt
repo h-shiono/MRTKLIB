@@ -195,7 +195,7 @@ if(LAPACK_FOUND)
         target_compile_definitions(mrtklib PRIVATE MRTK_DETERMINISTIC_BLAS)
         message(STATUS "Reproducible numerics: OpenBLAS forced to a single thread at startup.")
     endif()
-    message(STATUS "LAPACK found and enabled for fast matrix operations.")
+    message(STATUS "Matrix backend: LAPACK/BLAS (${LAPACK_LIBRARIES})")
 elseif(MRTK_DETERMINISTIC_BLAS)
     message(FATAL_ERROR
         "MRTK_DETERMINISTIC_BLAS=ON but OpenBLAS LAPACK was not found. "
@@ -203,6 +203,7 @@ elseif(MRTK_DETERMINISTIC_BLAS)
         "-DCMAKE_PREFIX_PATH=<openblas-prefix>.")
 else()
     message(WARNING "LAPACK not found. Falling back to internal (slower) matrix math.")
+    message(STATUS "Matrix backend: internal LU")
 endif()
 
 # ── mrtk (unified CLI) ────────────────────────────────────────────────────────

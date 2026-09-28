@@ -60,9 +60,11 @@ jobs:
     # The rtkrcv_rt test is excluded here (-LE realtime) because it requires
     # ~90s of file-stream replay; run it locally or in a dedicated slow-test job.
     #
-    # -j4 matches the 4-vCPU runner. BLAS is pinned to one thread per process so
-    # the four parallel test processes fill the cores without oversubscription,
-    # and PPP-AR results stay deterministic (no reduction-order tolerance flake).
+    # -j4 matches the 4-vCPU runner. No BLAS/LAPACK is installed, so MRTKLIB
+    # uses its internal LU solver, the same backend the MADOCA upstream
+    # references are generated with (#302). The thread pins below only take
+    # effect if a BLAS provider is added: they keep one BLAS thread per test
+    # process so -j4 does not oversubscribe the cores.
     - name: Run PPP / SPP regression tests
       env:
         OPENBLAS_NUM_THREADS: 1
