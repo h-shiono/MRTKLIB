@@ -60,7 +60,7 @@ See [`docs/releases/changelog.md`](docs/releases/changelog.md) for the full hist
 
 ### Test Status
 
-Run `cd build && ctest --output-on-failure` to get current counts. Last known (v0.7.10): 122 tests, 121 passing — the failure is the perennial env one (`madocalib_pppar_ion_check` LAPACK-vs-reference ~1.6 cm vs 0.5 cm tol); `rtkrcv_rt` (headless RT replay) also fails in some environments. Both reproduce on a clean `develop` build and are unrelated to code changes. RT CLAS replay tests are timing-sensitive: they can false-fail under CPU contention but pass in isolation. The claslib/madocalib fixtures extract and then delete files under `tests/data/` — never run the PPC benchmark concurrently with ctest in the same tree.
+Run `cd build && ctest --output-on-failure` to get current counts. Last known (v0.7.10): 125 tests, all passing (#302 made the MADOCA parity tolerances build-independent; `rtkrcv_rt`'s earlier spurious failures were the macOS mktemp harness bug fixed in #194). RT CLAS replay tests are timing-sensitive: they can false-fail under CPU contention but pass in isolation. The claslib/madocalib fixtures extract and then delete files under `tests/data/` — never run the PPC benchmark concurrently with ctest in the same tree.
 
 ---
 
@@ -205,7 +205,7 @@ Never stack-allocate or place these in static arrays. Use `calloc()` and pass by
 
 ### 7.2 LAPACK vs embedded LU solver
 
-MRTKLIB links system LAPACK; upstream MADOCALIB uses an embedded LU solver. Expect ~1.5–3.8 cm numerical differences in PPP-AR solutions. Test tolerances are adjusted accordingly — **never tighten without explicit sign-off**.
+MRTKLIB links system LAPACK when found; upstream MADOCALIB (and the MADOCA test references) use the embedded LU solver. Expect up to ~1.6 cm (pppar) / ~3.8 cm (pppar_ion) differences in PPP-AR vs upstream across backends, from fix decisions flipping at marginal epochs. The parity tolerances are sized for that and are the same in every build; the `*_abs_check` tests gate accuracy (#302). **Never change these tolerances without explicit sign-off.**
 
 ### 7.3 `pppiono_t` design
 
