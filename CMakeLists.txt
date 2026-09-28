@@ -586,16 +586,14 @@ set_tests_properties(madocalib_pppar PROPERTIES
     LABELS            "regression;madocalib;pppar"
 )
 
-# The reference .pos files were generated with upstream MADOCALIB built with LAPACK.
-# Without LAPACK, MRTKLIB falls back to the internal LU solver (same as upstream default),
-# which diverges ~1.5–3.8 cm from the LAPACK reference. Use wider tolerances in that case.
-if(LAPACK_FOUND)
-    set(_PPPAR_TOL     0.008)
-    set(_PPPAR_ION_TOL 0.005)
-else()
-    set(_PPPAR_TOL     0.020)
-    set(_PPPAR_ION_TOL 0.040)
-endif()
+# Upstream-parity tolerances are the same in every build (#302). The references
+# come from upstream's internal-LU build; MRTKLIB's matrix backend (internal LU,
+# Accelerate, OpenBLAS) shifts results at ULP level, which flips PPP-AR fix
+# decisions at marginal epochs of this dataset (one flip is 17-24 cm). Measured
+# worst case across the three backends: pppar 1.56 cm, pppar_ion 3.80 cm;
+# tolerance = ~1.3x that, rounded up. Accuracy is gated by the *_abs_check tests.
+set(_PPPAR_TOL     0.020)
+set(_PPPAR_ION_TOL 0.050)
 
 add_test(NAME madocalib_pppar_check
     COMMAND ${Python3_EXECUTABLE} ${_COMPARE_POS}
