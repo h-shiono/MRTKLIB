@@ -677,19 +677,39 @@ set_tests_properties(madocalib_pppar_ion_check PROPERTIES
     LABELS            "regression;madocalib;pppar"
 )
 
-# ── Absolute accuracy check: PPP-AR vs SINEX MIZU true coordinate ─────────────
-# Reference: IGS weekly SINEX (GPS week 2383, 2025/09/08-09/14) for MIZU station.
-# Evaluation: 2D horizontal 1σ and 95th-percentile against ITRF true coordinate.
-#   --use-2d: PPP vertical accuracy is troposphere-model-limited (~20 cm typical);
-#             2D horizontal (~4 cm) is the meaningful absolute accuracy metric.
-# Pass: metric < tolerance  OR  metric < SINEX formal precision (0.54 mm).
-# Convergence: skip first 60 epochs (30 min, 30-s interval) to discard transient.
-set(_SINEX_MIZU ${_MDLDATA}/IGS0OPSSNX_20252500000_07D_07D_SOL.SNX.gz)
+# ── Absolute accuracy checks: MADOCA-PPP vs SINEX MIZU true coordinate ─────────
+# Upstream-parity checks above confirm the port; these measure accuracy, which
+# stays meaningful when MRTKLIB diverges from (or improves on) upstream (#302).
+# Reference: IGS weekly SINEX, GPS week 2360 (2025/03/30-04/05), which contains
+#   the 2025/04/01 data epoch, so no velocity propagation is needed. MIZU-only
+#   extract of IGS0OPSSNX_20250890000_07D_07D_SOL.SNX.gz.
+# Evaluation: 2D horizontal 1σ and 95th percentile after the first 60 epochs
+#   (30 min convergence). PPP vertical is troposphere-limited, so 2D is used.
+# Tolerance: ~2x the worst 2D 95th percentile measured across internal LU /
+#   Accelerate / OpenBLAS builds, rounded up to the cm:
+#     ppp 24.4 cm, pppar 2.66 cm, pppar_003 3.65 cm, pppar_ion 2.75 cm.
+set(_SINEX_MIZU ${_MDLDATA}/IGS0OPSSNX_20250890000_07D_07D_SOL_MIZU.snx)
+add_test(NAME madocalib_ppp_abs_check
+    COMMAND ${Python3_EXECUTABLE} ${_COMPARE_POS_ABS}
+        --sinex ${_SINEX_MIZU}
+        --station MIZU
+        --tolerance 0.50
+        --skip-epochs 60
+        --use-2d
+        ${CMAKE_BINARY_DIR}/out_madocalib_ppp.pos
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+set_tests_properties(madocalib_ppp_abs_check PROPERTIES
+    DEPENDS           madocalib_ppp
+    FIXTURES_REQUIRED madocalib_data
+    LABELS            "absolute;madocalib;ppp"
+)
+
 add_test(NAME madocalib_pppar_abs_check
     COMMAND ${Python3_EXECUTABLE} ${_COMPARE_POS_ABS}
         --sinex ${_SINEX_MIZU}
         --station MIZU
-        --tolerance 0.100
+        --tolerance 0.06
         --skip-epochs 60
         --use-2d
         ${CMAKE_BINARY_DIR}/out_madocalib_pppar.pos
@@ -697,6 +717,38 @@ add_test(NAME madocalib_pppar_abs_check
 )
 set_tests_properties(madocalib_pppar_abs_check PROPERTIES
     DEPENDS           madocalib_pppar
+    FIXTURES_REQUIRED madocalib_data
+    LABELS            "absolute;madocalib;pppar"
+)
+
+add_test(NAME madocalib_pppar_003_abs_check
+    COMMAND ${Python3_EXECUTABLE} ${_COMPARE_POS_ABS}
+        --sinex ${_SINEX_MIZU}
+        --station MIZU
+        --tolerance 0.08
+        --skip-epochs 60
+        --use-2d
+        ${CMAKE_BINARY_DIR}/out_madocalib_pppar_003.pos
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+set_tests_properties(madocalib_pppar_003_abs_check PROPERTIES
+    DEPENDS           madocalib_pppar_003
+    FIXTURES_REQUIRED madocalib_data
+    LABELS            "absolute;madocalib;pppar"
+)
+
+add_test(NAME madocalib_pppar_ion_abs_check
+    COMMAND ${Python3_EXECUTABLE} ${_COMPARE_POS_ABS}
+        --sinex ${_SINEX_MIZU}
+        --station MIZU
+        --tolerance 0.06
+        --skip-epochs 60
+        --use-2d
+        ${CMAKE_BINARY_DIR}/out_madocalib_pppar_ion.pos
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+set_tests_properties(madocalib_pppar_ion_abs_check PROPERTIES
+    DEPENDS           madocalib_pppar_ion
     FIXTURES_REQUIRED madocalib_data
     LABELS            "absolute;madocalib;pppar"
 )
