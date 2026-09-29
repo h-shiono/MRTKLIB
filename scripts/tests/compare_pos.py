@@ -8,6 +8,7 @@ Usage:
     python compare_pos.py ref.pos test.pos
     python compare_pos.py ref.pos test.pos --tolerance 0.01
     python compare_pos.py ref.pos test.pos --tolerance 0.005 --plot
+    python compare_pos.py ref.pos test.pos --fix-q 1 --max-fix-drop 5.0
 """
 
 import argparse
@@ -73,13 +74,14 @@ def parse_pos(filepath):
     return data
 
 
-def compute_metrics(ref_data, test_data, skip_epochs=0):
+def compute_metrics(ref_data, test_data, skip_epochs=0, fix_q=(1, 6)):
     """Compute ENU error metrics between matched epochs.
 
     Args:
         ref_data: Parsed .pos data from parse_pos() for the reference file.
         test_data: Parsed .pos data from parse_pos() for the test file.
         skip_epochs: Number of initial epochs to skip (convergence transient).
+        fix_q: Q values counted towards the fix rate.
 
     Returns:
         Dict of metrics (ENU errors, 3D RMS, fix rates, etc.), or None if
@@ -123,14 +125,19 @@ def compute_metrics(ref_data, test_data, skip_epochs=0):
     rms_n = np.sqrt(np.mean(enu_errors[:, 1] ** 2))
     rms_u = np.sqrt(np.mean(enu_errors[:, 2] ** 2))
 
-    # Fix rate: Q=1 (fix) or Q=6 (PPP) are considered "valid solution"
-    ref_fix = sum(1 for q in ref_q_list if q in (1, 6))
-    test_fix = sum(1 for q in test_q_list if q in (1, 6))
-    ref_fix_rate = ref_fix / n * 100.0 if n > 0 else 0.0
-    test_fix_rate = test_fix / n * 100.0 if n > 0 else 0.0
+    # Fix rate over the reference timeline, not the intersection: the solver
+    # writes no line for an epoch without a solution, so a test epoch that is
+    # missing must count as not fixed or losing solutions would go unseen.
+    ref_keys = sorted(ref_data.keys())[skip_epochs:]
+    ref_fix = sum(1 for key in ref_keys if ref_data[key][3] in fix_q)
+    test_fix = sum(1 for key in ref_keys if key in test_data and test_data[key][3] in fix_q)
+    n_missing = sum(1 for key in ref_keys if key not in test_data)
+    ref_fix_rate = ref_fix / len(ref_keys) * 100.0
+    test_fix_rate = test_fix / len(ref_keys) * 100.0
 
     return {
         "n_common": n,
+        "n_missing": n_missing,
         "n_ref_total": len(ref_data),
         "n_test_total": len(test_data),
         "rms_3d": rms_3d,
@@ -217,9 +224,22 @@ def main():
         help="Number of initial epochs to skip for convergence transient",
     )
     parser.add_argument(
+        "--fix-q",
+        default="1,6",
+        help="Comma-separated Q values counted as fixed (default: 1,6 = any valid "
+        "PPP solution; use 1 to measure PPP-AR integer fixes)",
+    )
+    parser.add_argument(
+        "--max-fix-drop",
+        type=float,
+        default=1.0,
+        help="Maximum allowed fix-rate drop vs reference in percent (default: 1.0)",
+    )
+    parser.add_argument(
         "--plot", action="store_true", help="Generate comparison plot (compare_result.png)"
     )
     args = parser.parse_args()
+    fix_q = tuple(int(q) for q in args.fix_q.split(","))
 
     # Parse files
     print(f"Reference : {args.ref}")
@@ -249,7 +269,7 @@ def main():
         return 1
 
     # Compute metrics
-    metrics = compute_metrics(ref_data, test_data, skip_epochs=args.skip_epochs)
+    metrics = compute_metrics(ref_data, test_data, skip_epochs=args.skip_epochs, fix_q=fix_q)
     if metrics is None:
         print("FAIL: No common epochs between reference and test", file=sys.stderr)
         return 1
@@ -257,7 +277,8 @@ def main():
     # Report
     print(
         f"Epochs    : {metrics['n_common']} common "
-        f"(ref={metrics['n_ref_total']}, test={metrics['n_test_total']})"
+        f"(ref={metrics['n_ref_total']}, test={metrics['n_test_total']}, "
+        f"missing from test={metrics['n_missing']})"
     )
     print()
     print("  ENU RMS Error:")
@@ -267,7 +288,7 @@ def main():
     print(f"    3D    : {metrics['rms_3d'] * 100:8.3f} cm")
     print(f"    3D Max: {metrics['max_3d'] * 100:8.3f} cm")
     print()
-    print("  Fix Rate (Q=1 or Q=6):")
+    print(f"  Fix Rate (Q in {{{args.fix_q}}}):")
     print(f"    Reference : {metrics['ref_fix_rate']:6.2f}%")
     print(f"    Test      : {metrics['test_fix_rate']:6.2f}%")
     fix_delta = metrics["test_fix_rate"] - metrics["ref_fix_rate"]
@@ -288,9 +309,10 @@ def main():
     else:
         print(f"PASS: 3D RMS ({metrics['rms_3d']:.6f} m) < tolerance ({args.tolerance:.6f} m)")
 
-    # Criterion 2: Fix rate not degraded by more than 1.0%
-    if fix_delta < -1.0:
-        print(f"FAIL: Fix rate degraded by {fix_delta:.2f}% (threshold: -1.0%)")
+    # Criterion 2: fix rate not degraded beyond --max-fix-drop (one-sided, so
+    # an implementation that fixes more often than the reference still passes)
+    if fix_delta < -args.max_fix_drop:
+        print(f"FAIL: Fix rate degraded by {fix_delta:.2f}% (threshold: -{args.max_fix_drop:.1f}%)")
         passed = False
     else:
         print(f"PASS: Fix rate delta ({fix_delta:+.2f}%) within threshold")
