@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.7.11] - 2026-09-29
+
 **MADOCA regression tests: build-independent upstream parity plus absolute
 accuracy for every case
 ([#302](https://github.com/h-shiono/MRTKLIB/issues/302)).**
@@ -35,7 +37,12 @@ this dataset (one flip is 17–24 cm). MRTKLIB itself had not regressed
   week-2383 file five months after the data (MIZU moved 2.26 cm in
   between): `ppp` 0.50 m, `pppar` 0.100 → 0.06 m, `pppar_003` 0.08 m,
   `pppar_ion` 0.06 m (2D, after 60 epochs).
-- Configure prints the matrix backend in use.
+- The fix rate is computed over the reference timeline, so an epoch missing
+  from the test output counts as not fixed (the solver writes no line for an
+  epoch without a solution).
+- CI pins the regression job to the internal LU backend
+  (`-DCMAKE_DISABLE_FIND_PACKAGE_LAPACK=TRUE`); configure prints the matrix
+  backend in use.
 
 ## [v0.7.10] - 2026-09-22
 
