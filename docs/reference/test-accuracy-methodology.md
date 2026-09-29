@@ -41,8 +41,8 @@ bash tests/data/madocalib/generate_reference_madocalib.sh
 The script records the upstream version, backend, flags, compiler and
 platform in `tests/data/madocalib/reference_provenance.txt`.
 
-Internal LU is platform-independent and is what CI builds (it installs no
-BLAS). Vendor BLAS/LAPACK output (Accelerate, OpenBLAS) shifts at ULP level
+Internal LU is platform-independent and is what the CI regression job builds
+(it configures with `-DCMAKE_DISABLE_FIND_PACKAGE_LAPACK=TRUE`). Vendor BLAS/LAPACK output (Accelerate, OpenBLAS) shifts at ULP level
 with the provider and OS/toolchain version, which flips PPP-AR fix decisions
 at marginal epochs of this dataset; a single flip is 17–24 cm. The parity
 tolerances below absorb that spread so they hold in every build ([#302](https://github.com/h-shiono/MRTKLIB/issues/302)).

@@ -50,8 +50,11 @@ jobs:
     - name: Install Python dependencies
       run: pip install numpy
 
+    # Pin the matrix backend to MRTKLIB's internal LU solver, the backend the
+    # MADOCA upstream references are generated with (#302), instead of whatever
+    # LAPACK the runner image happens to provide.
     - name: Configure
-      run: cmake --preset default
+      run: cmake --preset default -DCMAKE_DISABLE_FIND_PACKAGE_LAPACK=TRUE
 
     - name: Build
       run: cmake --build build
@@ -60,11 +63,10 @@ jobs:
     # The rtkrcv_rt test is excluded here (-LE realtime) because it requires
     # ~90s of file-stream replay; run it locally or in a dedicated slow-test job.
     #
-    # -j4 matches the 4-vCPU runner. No BLAS/LAPACK is installed, so MRTKLIB
-    # uses its internal LU solver, the same backend the MADOCA upstream
-    # references are generated with (#302). The thread pins below only take
-    # effect if a BLAS provider is added: they keep one BLAS thread per test
-    # process so -j4 does not oversubscribe the cores.
+    # -j4 matches the 4-vCPU runner. LAPACK discovery is disabled at configure,
+    # so MRTKLIB runs its internal LU solver; the thread pins below only matter
+    # if that is ever changed to a BLAS provider (one BLAS thread per test
+    # process keeps -j4 from oversubscribing the cores).
     - name: Run PPP / SPP regression tests
       env:
         OPENBLAS_NUM_THREADS: 1
