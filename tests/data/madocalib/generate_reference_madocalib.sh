@@ -13,6 +13,11 @@ set -euo pipefail
 #   Phase 2 — Build madocalib binaries
 #     Builds rnx2rtkp and cssr2ssr from upstream/madocalib/app/consapp/ source.
 #     These are the ORIGINAL madocalib binaries used to generate golden reference.
+#     They are built as upstream ships them: internal LU solver, no -DLAPACK.
+#     That backend is platform-independent and is what CI (no BLAS) builds, so
+#     the MRTKLIB parity checks compare like with like there. Do not add
+#     -DLAPACK: vendor BLAS/LAPACK output shifts with OS/toolchain updates and
+#     flips PPP-AR fix decisions at marginal epochs (#302).
 #
 #   Phase 3 — Generate golden reference using madocalib binaries
 #     Runs madocalib's rnx2rtkp and cssr2ssr for all test scenarios:
@@ -276,11 +281,12 @@ done
 MDCL_CONFDIR="${MDCL_BUILDDIR}/conf"
 mkdir -p "$MDCL_CONFDIR"
 
-# Use MRTKLIB's conf files (they are faithful copies of madocalib's
-# sample configs with only file-rcvantfile path adjusted)
-CONF_PPP="conf/madocalib/rnx2rtkp.toml"
-CONF_PPPAR="conf/madocalib/rnx2rtkp_pppar.toml"
-CONF_PPPAR_IONO="conf/madocalib/rnx2rtkp_pppar_iono.toml"
+# Upstream rnx2rtkp reads key = value .conf only (it cannot parse MRTKLIB's
+# TOML). These are madocalib's sample configs with only file-rcvantfile
+# adjusted; conf/madocalib/*.toml are their MRTKLIB equivalents.
+CONF_PPP="${DATADIR}/upstream_conf/rnx2rtkp.conf"
+CONF_PPPAR="${DATADIR}/upstream_conf/rnx2rtkp_pppar.conf"
+CONF_PPPAR_IONO="${DATADIR}/upstream_conf/rnx2rtkp_pppar_iono.conf"
 
 # Helper to run madocalib's rnx2rtkp and verify
 run_madocalib_rnx2rtkp() {
@@ -341,6 +347,22 @@ echo "  ${DATADIR}/madocalib_2025091A.204.l6.txt"
 # Clean up extracted files
 rm -f "$OBS" "$NAV" "$L6E1" "$L6E2" "$L6E1_003" "$L6E2_003" \
       "$L6D1" "$L6D2" "$ATX"
+
+# Record how the references were produced, so a later regeneration can be
+# checked against the same environment.
+VER_LINE=$(grep -E '#define (VER_MADOCALIB|PATCH_LEVEL)' "${MDCL_SRC}/rtklib.h" | awk '{print $2"="$3}' | tr -d '"' | tr '\n' ' ' | sed 's/ $//')
+{
+    echo "# Provenance of the madocalib_*.pos / *.rtcm3 / *.l6.txt references."
+    echo "# Written by generate_reference_madocalib.sh; do not edit by hand."
+    echo "generated : $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    echo "upstream  : ${VER_LINE}"
+    echo "upstream commit : $(git -C "$UPSTREAM" rev-parse HEAD 2>/dev/null || echo unknown)$( [[ -n "$(git -C "$UPSTREAM" status --porcelain --untracked-files=no 2>/dev/null)" ]] && echo ' (local modifications)')"
+    echo "backend   : internal LU (no -DLAPACK)"
+    echo "cflags    : ${MDCL_CFLAGS}"
+    echo "compiler  : $(cc --version 2>&1 | head -1)"
+    echo "platform  : $(uname -sm) $(uname -r)"
+} > "${DATADIR}/reference_provenance.txt"
+echo "  ${DATADIR}/reference_provenance.txt"
 
 echo "=== Phase 3 complete ==="
 echo "Reference data generated successfully."

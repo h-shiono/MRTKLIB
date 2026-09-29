@@ -7,6 +7,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.7.11] - 2026-09-29
+
+**MADOCA regression tests: build-independent upstream parity plus absolute
+accuracy for every case
+([#302](https://github.com/h-shiono/MRTKLIB/issues/302)).**
+`madocalib_pppar_ion_check` failed on every LAPACK build while CI (no BLAS)
+ran an 8× looser tolerance selected by `LAPACK_FOUND`. The cause was not
+nondeterminism: the `pppar` / `pppar_ion` references came from an upstream
+Accelerate build that no longer reproduces on the current toolchain, and
+any matrix-backend change flips PPP-AR fix decisions at marginal epochs of
+this dataset (one flip is 17–24 cm). MRTKLIB itself had not regressed
+(0.236 cm vs a same-backend upstream build).
+
+- References: all MADOCALIB references now come from upstream as shipped
+  (internal LU, no `-DLAPACK`). `generate_reference_madocalib.sh` was
+  passing MRTKLIB TOML to upstream `rnx2rtkp`; it now uses upstream-format
+  configs in `tests/data/madocalib/upstream_conf/` and writes
+  `reference_provenance.txt`. `pp` / `pppar_003` are unchanged;
+  `pppar` / `pppar_ion` moved by 1.51 / 3.78 cm (3D RMS).
+- Parity tolerances are the same in every build: `madocalib_pppar_check`
+  0.020 m, `madocalib_pppar_ion_check` 0.050 m (others unchanged).
+- The PPP-AR parity checks now gate the integer-fix rate (Q = 1, at most
+  −5 %, one-sided). The previous criterion counted float PPP as fixed and
+  could not see a fix→float regression. `compare_pos.py` gains `--fix-q`
+  and `--max-fix-drop`.
+- Absolute checks for all four MADOCA cases against a MIZU-only extract of
+  the week-2360 IGS SINEX (contains the data epoch), replacing the 15 MB
+  week-2383 file five months after the data (MIZU moved 2.26 cm in
+  between): `ppp` 0.50 m, `pppar` 0.100 → 0.06 m, `pppar_003` 0.08 m,
+  `pppar_ion` 0.06 m (2D, after 60 epochs).
+- The fix rate is computed over the reference timeline, so an epoch missing
+  from the test output counts as not fixed (the solver writes no line for an
+  epoch without a solution).
+- CI pins the regression job to the internal LU backend
+  (`-DCMAKE_DISABLE_FIND_PACKAGE_LAPACK=TRUE`); configure prints the matrix
+  backend in use.
+
 ## [v0.7.10] - 2026-09-22
 
 **BDS-3 B2b (`7D`/`7P`/`7Z`) MSM signal IDs restored — RTCM3 signal IDs

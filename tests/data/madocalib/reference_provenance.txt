@@ -1,0 +1,9 @@
+# Provenance of the madocalib_*.pos / *.rtcm3 / *.l6.txt references.
+# Written by generate_reference_madocalib.sh; do not edit by hand.
+generated : 2026-09-29T10:13:35Z
+upstream  : VER_MADOCALIB=2.0 PATCH_LEVEL=b34
+upstream commit : 80910043f01d9aa0b2b593390b2686f7b5231f51
+backend   : internal LU (no -DLAPACK)
+cflags    : -Wall -O3 -ansi -pedantic -Iupstream/madocalib/src -DTRACE -DENAGLO -DENAQZS -DENAGAL -DENACMP -DENAIRN -DNFREQ=5 -DNEXOBS=5 -g
+compiler  : Apple clang version 21.0.0 (clang-2100.3.34.2)
+platform  : Darwin arm64 25.6.0
