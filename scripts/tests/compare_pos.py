@@ -87,9 +87,13 @@ def compute_metrics(ref_data, test_data, skip_epochs=0, fix_q=(1, 6)):
         Dict of metrics (ENU errors, 3D RMS, fix rates, etc.), or None if
         there are no common epochs.
     """
-    common_keys = sorted(set(ref_data.keys()) & set(test_data.keys()))
-    if skip_epochs > 0:
-        common_keys = common_keys[skip_epochs:]
+    # One convergence cutoff, taken on the reference timeline, for both the ENU
+    # metrics and the fix rate, so they cover the same time window even when
+    # the test output lacks early epochs.
+    ref_keys = sorted(ref_data.keys())[skip_epochs:]
+    if not ref_keys:
+        return None
+    common_keys = [key for key in ref_keys if key in test_data]
     if not common_keys:
         return None
 
@@ -128,7 +132,6 @@ def compute_metrics(ref_data, test_data, skip_epochs=0, fix_q=(1, 6)):
     # Fix rate over the reference timeline, not the intersection: the solver
     # writes no line for an epoch without a solution, so a test epoch that is
     # missing must count as not fixed or losing solutions would go unseen.
-    ref_keys = sorted(ref_data.keys())[skip_epochs:]
     ref_fix = sum(1 for key in ref_keys if ref_data[key][3] in fix_q)
     test_fix = sum(1 for key in ref_keys if key in test_data and test_data[key][3] in fix_q)
     n_missing = sum(1 for key in ref_keys if key not in test_data)
@@ -194,8 +197,9 @@ def plot_results(metrics, output_path="compare_result.png"):
     ax2.set_ylabel("Q flag")
     ax2.set_xlabel("Epoch")
     ax2.set_title(
-        f"Q Flag (Ref fix rate: {metrics['ref_fix_rate']:.1f}%, "
-        f"Test fix rate: {metrics['test_fix_rate']:.1f}%)"
+        f"Q Flag, common epochs only (fix rate over reference timeline: "
+        f"ref {metrics['ref_fix_rate']:.1f}%, test {metrics['test_fix_rate']:.1f}%, "
+        f"{metrics['n_missing']} epochs missing from test)"
     )
     ax2.legend(loc="upper right")
     ax2.grid(True, alpha=0.3)

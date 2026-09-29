@@ -38,7 +38,7 @@ Regenerate with:
 ```sh
 bash tests/data/madocalib/generate_reference_madocalib.sh
 ```
-The script records the upstream version, backend, flags, compiler and
+The script records the upstream version and commit, backend, flags, compiler and
 platform in `tests/data/madocalib/reference_provenance.txt`.
 
 Internal LU is platform-independent and is what the CI regression job builds

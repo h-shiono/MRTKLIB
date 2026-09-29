@@ -51,7 +51,7 @@ internal LU, Accelerate and OpenBLAS:
    passing MRTKLIB TOML to upstream `rnx2rtkp` (which reads only `key = value`
    `.conf`); upstream-format configs are restored in
    `tests/data/madocalib/upstream_conf/`, and each regeneration writes
-   `reference_provenance.txt` (upstream version, backend, flags, compiler,
+   `reference_provenance.txt` (upstream version and commit, backend, flags, compiler,
    platform). `pp` / `pppar_003` are byte-identical; `pppar` / `pppar_ion`
    moved by 1.51 / 3.78 cm (3D RMS).
 2. **Parity tolerances are the same in every build** — the `LAPACK_FOUND`
