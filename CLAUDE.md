@@ -60,7 +60,7 @@ See [`docs/releases/changelog.md`](docs/releases/changelog.md) for the full hist
 
 ### Test Status
 
-Run `cd build && ctest --output-on-failure` to get current counts. Last known (v0.7.10): 125 tests, all passing (#302 made the MADOCA parity tolerances build-independent; `rtkrcv_rt`'s earlier spurious failures were the macOS mktemp harness bug fixed in #194). RT CLAS replay tests are timing-sensitive: they can false-fail under CPU contention but pass in isolation. The claslib/madocalib fixtures extract and then delete files under `tests/data/` — never run the PPC benchmark concurrently with ctest in the same tree.
+Run `cd build && ctest --output-on-failure` to get current counts. Last known (unreleased `develop`, after #302): 125 tests, all passing (#302 made the MADOCA parity tolerances build-independent; `rtkrcv_rt`'s earlier spurious failures were the macOS mktemp harness bug fixed in #194). RT CLAS replay tests are timing-sensitive: they can false-fail under CPU contention but pass in isolation. The claslib/madocalib fixtures extract and then delete files under `tests/data/` — never run the PPC benchmark concurrently with ctest in the same tree.
 
 ---
 

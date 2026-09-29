@@ -591,7 +591,7 @@ set_tests_properties(madocalib_pppar PROPERTIES
 # come from upstream's internal-LU build; MRTKLIB's matrix backend (internal LU,
 # Accelerate, OpenBLAS) shifts results at ULP level, which flips PPP-AR fix
 # decisions at marginal epochs of this dataset (one flip is 17-24 cm). Measured
-# worst case across the three backends: pppar 1.56 cm, pppar_ion 3.80 cm;
+# worst case across the three backends: pppar 1.56 cm, pppar_ion 3.40 cm;
 # tolerance = ~1.3x that, rounded up. Accuracy is gated by the *_abs_check tests.
 set(_PPPAR_TOL     0.020)
 set(_PPPAR_ION_TOL 0.050)
