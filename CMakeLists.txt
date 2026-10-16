@@ -928,6 +928,58 @@ set_tests_properties(claslib_ppp_rtk_abs_check PROPERTIES
     LABELS            "absolute;claslib;ppp-rtk"
 )
 
+# ── CLAS PPP-RTK 2023 dataset: .l6d input + upstream 0.9.0 parity (#351) ─────
+# Data: 2023/02/13 09:00-10:00 (claslib 0.9.0 CMA sample), 0627044J.bnx +
+# 2023044J.l6d + 2023044J.l6e from claslib_cma_testdata.tar.gz (#350).
+# Exercises mrtk post recognition of .l6d (CLAS by frame header) and .l6e
+# (ignored in CLAS mode until CMA, #353/#354). Reference: ref_L6_AUTH_noauth.nmea
+# = upstream claslib 0.9.0 rnx2rtkp on the same inputs without .l6e (CMA off).
+add_test(NAME claslib_cma_setup
+    COMMAND bash -c "tar xzf \"${_CLSDATA}/claslib_cma_testdata.tar.gz\" -C \"${_CLSDATA}\" \
+        0627044J.bnx 2023044J.l6d 2023044J.l6e"
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+set_tests_properties(claslib_cma_setup PROPERTIES
+    FIXTURES_SETUP  claslib_cma_data
+    TIMEOUT         60
+    LABELS          "regression;claslib"
+)
+add_test(NAME claslib_cma_cleanup
+    COMMAND bash -c "rm -f ${_CLSDATA}/0627044J.bnx ${_CLSDATA}/2023044J.l6d ${_CLSDATA}/2023044J.l6e"
+)
+set_tests_properties(claslib_cma_cleanup PROPERTIES
+    FIXTURES_CLEANUP claslib_cma_data
+    LABELS           "regression;claslib"
+)
+
+add_test(NAME claslib_ppp_rtk_2023
+    COMMAND $<TARGET_FILE:mrtk> post
+        -k ${CMAKE_SOURCE_DIR}/conf/claslib/rnx2rtkp.toml
+        -ts 2023/02/13 09:00:00 -te 2023/02/13 09:59:59 -ti 1
+        -o ${CMAKE_BINARY_DIR}/out_claslib_ppp_rtk_2023.nmea
+        ${_CLSDATA}/0627044J.bnx
+        ${_CLSDATA}/2023044J.l6d
+        ${_CLSDATA}/2023044J.l6e
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+set_tests_properties(claslib_ppp_rtk_2023 PROPERTIES
+    FIXTURES_REQUIRED "claslib_data;claslib_cma_data"
+    TIMEOUT           300
+    LABELS            "regression;claslib;ppp-rtk"
+)
+
+add_test(NAME claslib_ppp_rtk_2023_check
+    COMMAND ${Python3_EXECUTABLE} ${_COMPARE_NMEA}
+        ${_CLSDATA}/ref_L6_AUTH_noauth.nmea
+        ${CMAKE_BINARY_DIR}/out_claslib_ppp_rtk_2023.nmea
+        --tolerance 0.10
+)
+set_tests_properties(claslib_ppp_rtk_2023_check PROPERTIES
+    DEPENDS           claslib_ppp_rtk_2023
+    FIXTURES_REQUIRED claslib_data
+    LABELS            "regression;claslib;ppp-rtk"
+)
+
 # ── CLAS PPP-RTK periodic filter reset (#264) ────────────────────────────────
 # reset_interval overlay forces a full reset every 600 s over the 1 h window
 # (5 resets). -x 3 writes the trace next to the output; the checker asserts the

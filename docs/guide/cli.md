@@ -36,6 +36,17 @@ mrtk post [options] obsfile navfile [navfile...] [l6file...]
 | `-?`, `--help` | Show help (`-h` is the fix-and-hold AR flag here, **not** help) |
 
 L6E/L6D correction files are passed as additional positional inputs after the navigation file(s).
+They are recognised by extension:
+
+| Extension | Content | Used as |
+|-----------|---------|---------|
+| `*.200.l6`, `*.201.l6` | MADOCA-PPP L6D wide-area ionosphere (PRN 200/201) | ionospheric corrections (any mode) |
+| `.l6` | CLAS L6D or MADOCA-PPP L6E | CLAS in CLAS / PPP-RTK modes, otherwise MADOCA-PPP L6E |
+| `.l6d` | QZSS L6D | ionosphere if named `*.200.l6d` / `*.201.l6d` or if its first frame is a MADOCA-PPP ionosphere frame; otherwise CLAS (CLAS / PPP-RTK modes only, ignored with a warning in other modes) |
+| `.l6e` | QZSS L6E | MADOCA-PPP L6E; in CLAS / PPP-RTK modes reserved for CLAS CMA authentication and ignored with a warning (not supported yet) |
+
+The extensions are case-insensitive (`.L6`, `.L6D`, `.L6E`). L6 files are never
+read as RINEX.
 
 **Examples:**
 
@@ -52,6 +63,9 @@ mrtk post --config conf/claslib/rnx2rtkp.toml obs.obs nav.nav clas.l6
 # CLAS PPP-RTK (dual channel)
 mrtk post --config conf/claslib/rnx2rtkp.toml obs.obs nav.nav \
   clas_ch1.l6 clas_ch2.l6
+
+# CLAS PPP-RTK with claslib-style .l6d input
+mrtk post --config conf/claslib/rnx2rtkp.toml obs.bnx 2023044J.l6d
 ```
 
 ---
