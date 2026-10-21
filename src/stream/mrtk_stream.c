@@ -1629,7 +1629,9 @@ static int rspntrip_s(ntrip_t* ntrip, char* msg) {
     ntrip->buff[ntrip->nb] = '\0';
     tracet(NULL, 5, "rspntrip_s: n=%d buff=\n%s\n", ntrip->nb, ntrip->buff);
 
-    if ((p = strstr((char*)ntrip->buff, NTRIP_RSP_OK_SVR))) { /* v1 ok */
+    /* HTTP status/header text may contain "OK\r\n" too. Let the HTTP parser
+     * finish the headers and select v2 before enabling chunked output. */
+    if (strncmp((char*)ntrip->buff, "HTTP/", 5) && (p = strstr((char*)ntrip->buff, NTRIP_RSP_OK_SVR))) { /* v1 ok */
         q = (char*)ntrip->buff;
         p += strlen(NTRIP_RSP_OK_SVR);
         ntrip->nb -= (int)(p - q);

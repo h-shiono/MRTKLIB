@@ -348,6 +348,12 @@ add_test(NAME utest_t_ntrip COMMAND t_ntrip
          WORKING_DIRECTORY ${_UTEST_DIR})
 set_tests_properties(utest_t_ntrip PROPERTIES LABELS "utest")
 
+add_executable(utest_ntrip_server_response ${_UTEST_DIR}/utest_ntrip_server_response.c)
+target_compile_options(utest_ntrip_server_response PRIVATE -std=c11)
+target_link_libraries(utest_ntrip_server_response PRIVATE mrtklib)
+add_test(NAME utest_ntrip_server_response COMMAND utest_ntrip_server_response)
+set_tests_properties(utest_ntrip_server_response PROPERTIES LABELS "utest")
+
 # ── RINEX 4 test data fixture (decompress BRD400 NAV) ────────────────────────
 set(_RINEX4_DIR ${CMAKE_SOURCE_DIR}/tests/data/rinex4)
 set(_BRD400_GZ  ${_RINEX4_DIR}/BRD400DLR_S_20260680000_01D_MN.rnx.gz)
