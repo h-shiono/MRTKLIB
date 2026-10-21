@@ -330,6 +330,12 @@ add_test(NAME utest_lclblk COMMAND utest_lclblk
 set_tests_properties(utest_lclblk PROPERTIES LABELS "utest")
 
 # RTCM3 MSM BDS B2b round-trip test (issue #333 / #296)
+add_executable(utest_navic_l5_tgd tests/utest/utest_navic_l5_tgd.c)
+target_compile_options(utest_navic_l5_tgd PRIVATE -std=c11)
+target_link_libraries(utest_navic_l5_tgd PRIVATE mrtklib)
+add_test(NAME utest_navic_l5_tgd COMMAND utest_navic_l5_tgd)
+set_tests_properties(utest_navic_l5_tgd PROPERTIES LABELS "utest")
+
 add_executable(utest_msm_bds_b2b ${_UTEST_DIR}/utest_msm_bds_b2b.c)
 # Override global -ansi (=C90): this test uses C11 (P-01).
 target_compile_options(utest_msm_bds_b2b PRIVATE -std=c11)
