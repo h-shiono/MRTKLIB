@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **RT replay tests through QZSS L6 handovers
+  ([#372](https://github.com/h-shiono/MRTKLIB/issues/372)).** Six
+  `rtkrcv_handover_*` ctests replay the `handover-v1` dataset with
+  `mrtk run`: NEO-D9C UBX L6 as a correction stream next to mosaic-G5 SBF
+  observations (2 channels, through the pattern-keyed demux), and mosaic-CLAS
+  single-stream with `l6_merge = 0` (all three handovers) and `= 1` (pattern
+  1 → 2). `scripts/tests/check_handover.py` gates behaviour, not RMS: no
+  solution freeze, fix before the handover, fix held again within a per-case
+  limit (the loss is typically ~30 s late, when the old satellite's
+  corrections age out), bounded non-fixed epochs, satellite count. Configs
+  come from `tests/data/handover/rtkrcv_handover.toml.in`;
+  `run_rtkrcv_test.sh` accepts an expected line count instead of a
+  reference file. Found while measuring: #389 (single-channel 195 → 199
+  outage ~80 s) and #390 (`l6_merge = 1` worse after a single-channel
+  pattern change).
+
 - **QZSS L6 handover dataset
   ([#372](https://github.com/h-shiono/MRTKLIB/issues/372)).** New test
   dataset `handover-v1` (release asset, #386): five 15-minute windows around
