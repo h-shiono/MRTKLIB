@@ -267,6 +267,9 @@ static int ubx_sig(int sys, int sigid) {
         if (sigid == 6) {
             return CODE_L7Q; /* E5bQ */
         }
+        if (sigid == 8) {
+            return CODE_L6B; /* E6B (X20) */
+        }
     } else if (sys == SYS_QZS) {
         if (sigid == 0) {
             return CODE_L1C; /* L1C/A */
@@ -295,6 +298,15 @@ static int ubx_sig(int sys, int sigid) {
         }
         if (sigid == 3) {
             return CODE_L7I; /* B2I D2 */
+        }
+        if (sigid == 4) {
+            return CODE_L6I; /* B3I (X20) */
+        }
+        if (sigid == 5) {
+            return CODE_L1P; /* B1C pilot (X20) */
+        }
+        if (sigid == 7) {
+            return CODE_L5P; /* B2a pilot (X20) */
         }
     } else if (sys == SYS_SBS) {
         if (sigid == 0) {

@@ -427,6 +427,12 @@ set_tests_properties(utest_t_rinex4 PROPERTIES
 
 # ── Python-based comparison tool ─────────────────────────────────────────────
 find_package(Python3 COMPONENTS Interpreter)
+if(Python3_Interpreter_FOUND)
+    add_test(NAME ubx_x20_signals
+        COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/scripts/tests/check_ubx_x20.py
+            $<TARGET_FILE:mrtk>)
+    set_tests_properties(ubx_x20_signals PROPERTIES LABELS "regression;ubx" TIMEOUT 40)
+endif()
 set(_COMPARE_POS      ${CMAKE_SOURCE_DIR}/scripts/tests/compare_pos.py)
 set(_COMPARE_POS_ABS  ${CMAKE_SOURCE_DIR}/scripts/tests/compare_pos_abs.py)
 set(_COMPARE_NMEA_ABS ${CMAKE_SOURCE_DIR}/scripts/tests/compare_nmea_abs.py)
