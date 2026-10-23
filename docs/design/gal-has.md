@@ -248,7 +248,9 @@ The struct keeps its own `ssr_t ssr[MAXSAT]` (like `rtcm_t`) so callers copy to
 
 ### 11.1 Bundled regression test data
 
-`tests/data/has/has_testdata.tar.gz` (~2.1 MB gz) bundles
+The dataset `has-v1` (~2.2 MB gz; a release asset of
+[h-shiono/mrtklib-data](https://github.com/h-shiono/mrtklib-data) since #386,
+previously `tests/data/has/has_testdata.tar.gz` in this repository) holds
 `G5P3162a_15m.sbf`: a block-filtered, 15-minute-trimmed slice of the full-hour
 mosaic-G5 capture `G5P3162a.sbf` (2026/06/10 23:59:31 → 00:14:30 GPST, TOW
 window [345571000, 346471000) ms). It is produced by

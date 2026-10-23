@@ -280,6 +280,16 @@ endif()
 # Skip slow rtkrcv test: ctest --test-dir build -LE realtime
 enable_testing()
 
+# Large test datasets: release assets of h-shiono/mrtklib-data, fetched and
+# SHA256-verified by the ctest fixtures that need them (#386).
+include(${CMAKE_SOURCE_DIR}/cmake/MrtkTestData.cmake)
+include(${CMAKE_SOURCE_DIR}/tests/data/datasets.cmake)
+add_test(NAME dataset_fetch_selftest
+    COMMAND ${CMAKE_COMMAND} -DFETCH=${CMAKE_SOURCE_DIR}/cmake/fetch_dataset.cmake
+        -DWORK=${CMAKE_BINARY_DIR}/dataset_fetch_selftest
+        -P ${CMAKE_SOURCE_DIR}/cmake/test_fetch_dataset.cmake)
+set_tests_properties(dataset_fetch_selftest PROPERTIES TIMEOUT 60 LABELS "utest")
+
 # ── Unit tests ───────────────────────────────────────────────────────────────
 set(_UTEST_DIR ${CMAKE_SOURCE_DIR}/tests/utest)
 set(_UTEST_SOURCES
@@ -2247,7 +2257,8 @@ set_tests_properties(igsrts_ppp_check PROPERTIES
 #         A strict before/after-trim equivalence proof (.has byte-identity,
 #         identical obs records, bit-identical PPP solutions over the common
 #         window) backs the trim -- see docs/design/gal-has.md §11.
-# Archive: tests/data/has/has_testdata.tar.gz  (G5P3162a_15m.sbf, ~2.1 MB gz)
+# Dataset: has-v1 (release asset of h-shiono/mrtklib-data, #386;
+#          G5P3162a_15m.sbf, ~2.2 MB gz)
 #
 # Pipeline: SBF --l6extract--> .has  (HAS pages)
 #           SBF --convert----> RINEX obs/nav
@@ -2262,11 +2273,8 @@ set(_HASDATA      ${CMAKE_SOURCE_DIR}/tests/data/has)
 set(_CHECK_HASPPP ${CMAKE_SOURCE_DIR}/scripts/tests/check_has_ppp.py)
 set(_HAS_REF_XYZ  -3961905.2046 3348992.8024 3698212.4790)
 
-# ── Fixture: extract / clean HAS test data archive ────────────────────────────
-add_test(NAME has_setup
-    COMMAND bash -c "tar xzf ${_HASDATA}/has_testdata.tar.gz -C ${_HASDATA}"
-    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-)
+# ── Fixture: fetch / extract / clean the HAS dataset ──────────────────────────
+mrtk_dataset_setup_test(has_setup has-v1 ${_HASDATA})
 set_tests_properties(has_setup PROPERTIES
     FIXTURES_SETUP  has_data
     TIMEOUT         30

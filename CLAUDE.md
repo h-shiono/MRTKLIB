@@ -86,6 +86,7 @@ Hard rules. No exceptions, no matter how reasonable an action seems in context.
 - **NEVER mark a task complete without running `ctest --output-on-failure`** and confirming all tests pass.
 - **NEVER assume upstream library behavior** — read the actual source when integrating.
 - **NEVER silently swallow a test tolerance change** — flag it to the user with the numerical delta.
+- **NEVER commit test data of 1 MB or more** — large datasets are release assets of `h-shiono/mrtklib-data`, pinned in `tests/data/datasets.cmake` (#386). **Never replace a published asset**; a changed dataset is a new `<name>-v<N+1>`.
 - **NEVER push to `main` directly** — all changes go through a feature branch.
 - **NEVER commit changes without an explicit user request.** "Looks good, ship it" or equivalent is required.
 - **NEVER skip pre-commit hooks** (`--no-verify`, `--no-gpg-sign`) or bypass signing. Hook failures must be root-caused, not bypassed.
