@@ -14,6 +14,8 @@ not RMS:
   --recover s of it (fix loss is often delayed by ~30 s, when the old
   satellite's corrections age out, so "first fix again" is not enough);
 - outage: at most --max-nonfix non-fixed epochs after the handover;
+  epochs are taken on the 1 Hz timeline of the window, so an epoch without
+  a solution (nothing is written for SOLQ_NONE) counts as not fixed;
 - satellites: median satellite count of the fixed epochs after the
   handover >= --min-nsat.
 
@@ -26,6 +28,7 @@ Usage:
 
 import argparse
 import json
+import math
 import statistics
 import sys
 
@@ -54,15 +57,21 @@ def metrics(rows, start, end, ho, pre=120.0):
     t = [r[0] for r in rows]
     m["first"], m["last"] = t[0] - start, t[-1] - end
     m["max_gap"] = max([b - a for a, b in zip(t, t[1:])] + [t[0] - start, end - 1 - t[-1]])
-    pre = [q for tt, q, _ in rows if ho - pre <= tt < ho]
-    m["pre_fix_rate"] = sum(q == 4 for q in pre) / len(pre) if pre else 0.0
+    # 1 Hz timeline of the window: an epoch without a solution (no output is
+    # written for SOLQ_NONE) counts as not fixed, so dropped epochs cannot hide
+    # an outage behind a small gap
+    sol = {round(tt): (q, n) for tt, q, n in rows}
+    line = [(s_, *sol.get(s_, (0, 0))) for s_ in range(math.ceil(start), math.ceil(end))]
+    before = [q for s_, q, _ in line if ho - pre <= s_ < ho]
+    m["pre_fix_rate"] = sum(q == 4 for q in before) / len(before) if before else 0.0
     # recovery: the fix loss caused by a handover is often delayed (~30 s,
     # when the old satellite's corrections age out), so recovery is measured
     # to the end of the last non-fixed run after the handover: 0 if fix is
     # held throughout, else (last non-fixed epoch + 1 s) - handover
-    after = [r for r in rows if r[0] >= ho]
-    nonfix = [tt for tt, q, _ in after if q != 4]
+    after = [r for r in line if r[0] >= ho]
+    nonfix = [s_ for s_, q, _ in after if q != 4]
     m["nonfix_epochs"] = len(nonfix)
+    m["missing_after"] = sum(s_ not in sol for s_, _, _ in after)
     m["recovery"] = (nonfix[-1] + 1.0 - ho) if nonfix else 0.0
     m["fix_rate_after"] = sum(q == 4 for _, q, _ in after) / len(after) if after else 0.0
     nsat = [n for _, q, n in after if q == 4]
@@ -98,8 +107,12 @@ def selftest(args):
     """Synthetic 900 s run, handover at 600 s: each defect must trip its gate."""
     start, end, ho = 0.0, 900.0, 600.0
 
-    def run(q=lambda t: 4, n=15, drop=(0, 0)):
-        return [(float(t), q(t), n) for t in range(900) if not drop[0] <= t < drop[1]]
+    def run(q=lambda t: 4, n=15, drop=(0, 0), drop_odd=(0, 0)):
+        return [
+            (float(t), q(t), n)
+            for t in range(900)
+            if not drop[0] <= t < drop[1] and not (drop_odd[0] <= t < drop_odd[1] and t % 2)
+        ]
 
     cases = [
         (
@@ -110,6 +123,8 @@ def selftest(args):
         ("60 s gap (freeze)", run(drop=(700, 760)), "freeze"),
         ("solutions stop 100 s early", run(drop=(800, 900)), "freeze"),
         ("long outage", run(q=lambda t: 5 if 630 <= t < 800 else 4), "non-fixed"),
+        ("short but late outage", run(q=lambda t: 5 if 750 <= t < 755 else 4), "not held again"),
+        ("every other epoch missing, +40 .. +160 s", run(drop_odd=(640, 760)), "not held again"),
         ("no fix before the handover", run(q=lambda t: 1 if t < 600 else 4), "before the handover"),
         ("too few satellites", run(n=6), "satellites"),
     ]
