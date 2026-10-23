@@ -2365,3 +2365,29 @@ set_tests_properties(has_ppp_check PROPERTIES
     FIXTURES_REQUIRED has_data
     LABELS            "regression;has;ppp"
 )
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# QZSS L6 handover regression (#372)
+# ═══════════════════════════════════════════════════════════════════════════════
+# Dataset: handover-v1 (release asset of h-shiono/mrtklib-data, #386), five
+# 15-min windows around CLAS L6 satellite handovers (DOY 2026-286): NEO-D9C
+# UBX L6 (2 ch) + mosaic-G5 SBF observations, and mosaic-CLAS SBF (1 ch).
+# Built by scripts/tests/make_handover_fixtures.py; provenance in
+# tests/data/handover/README.md. Extracted into the build tree (not the
+# source tree), so no cleanup fixture is needed.
+set(_HODATA ${CMAKE_BINARY_DIR}/tests/data/handover)
+
+mrtk_dataset_setup_test(handover_setup handover-v1 ${_HODATA})
+set_tests_properties(handover_setup PROPERTIES
+    FIXTURES_SETUP handover_data
+    LABELS         "regression;handover"
+)
+
+# Dataset integrity: sizes, time tags, per-channel L6 PRN runs vs the manifest.
+add_test(NAME handover_dataset_check
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/scripts/tests/check_handover_dataset.py ${_HODATA})
+set_tests_properties(handover_dataset_check PROPERTIES
+    FIXTURES_REQUIRED handover_data
+    TIMEOUT           60
+    LABELS            "regression;handover"
+)
