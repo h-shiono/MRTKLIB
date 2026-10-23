@@ -113,9 +113,38 @@ cmake --build build -j
 cd build && ctest --output-on-failure
 ```
 
-All 62 tests must pass before you open a PR. If your change makes a test
+All tests must pass before you open a PR. If your change makes a test
 fail intentionally, update the test in the same commit and explain why in
 the commit message.
+
+#### Test datasets
+
+Large regression datasets are not part of this repository. They are release
+assets of [h-shiono/mrtklib-data](https://github.com/h-shiono/mrtklib-data),
+pinned by SHA256 in `tests/data/datasets.cmake`, and the ctest fixtures fetch
+them on first use (network needed once). They are cached in
+`~/.cache/mrtklib-data` (or `$XDG_CACHE_HOME/mrtklib-data`; override with
+`-DMRTK_TEST_DATA_CACHE=<dir>`), shared by all build directories.
+
+```bash
+cmake --build build --target fetch-test-data   # optional: fetch everything now
+```
+
+Offline: download the `<name-vN>.tar.gz` assets listed in
+`tests/data/datasets.cmake` elsewhere and configure with
+`-DMRTK_TEST_DATA_DIR=<dir>`.
+
+Adding or changing a dataset:
+
+- Do not commit files of 1 MB or more under `tests/`. Small fixtures (unit
+  tests) stay in the repository.
+- Build the asset with `scripts/tests/make_dataset_asset.py <name-vN> <outdir>
+  <files...>`; it is reproducible and prints the `datasets.cmake` line.
+- Attach the files to your PR or link them; the maintainer publishes the
+  release. Releases are immutable: a changed dataset is a new `<name-vN+1>`,
+  never a replaced asset.
+- Document the provenance (source capture, time window, processing) next to
+  the consuming tests.
 
 #### Editor setup (optional, VS Code)
 

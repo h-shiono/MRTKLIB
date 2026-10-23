@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **Test datasets move to release assets
+  ([#386](https://github.com/h-shiono/MRTKLIB/issues/386)).** Large
+  regression datasets are published as immutable release assets of
+  [h-shiono/mrtklib-data](https://github.com/h-shiono/mrtklib-data), pinned
+  by SHA256 in `tests/data/datasets.cmake`, and fetched by the ctest
+  fixtures on first use into `~/.cache/mrtklib-data`
+  (`-DMRTK_TEST_DATA_CACHE`, offline: `-DMRTK_TEST_DATA_DIR`). New build
+  target `fetch-test-data`. Configure and build stay offline. The Galileo HAS
+  dataset is the first one moved (`has-v1`; payload byte-identical); the
+  other datasets follow one per PR. New ctest `dataset_fetch_selftest`.
+
 - **`mrtk l6extract` output file names changed
   ([#362](https://github.com/h-shiono/MRTKLIB/issues/362)).** QZSS L6
   frames are now written to `{prefix}.{PRN}.l6d` / `{prefix}.{PRN}.l6e`
