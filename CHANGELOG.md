@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **QZSS L6 handover dataset
+  ([#372](https://github.com/h-shiono/MRTKLIB/issues/372)).** New test
+  dataset `handover-v1` (release asset, #386): five 15-minute windows around
+  CLAS L6 satellite handovers (NEO-D9C UBX L6 + mosaic-G5 SBF observations;
+  mosaic-CLAS SBF, including both transmit-pattern changes), with synthetic
+  file-stream time tags for synchronised `mrtk run` replay. Built by
+  `scripts/tests/make_handover_fixtures.py` (new `scripts/tests/ubx_filter.py`;
+  `sbf_filter.py` now also returns per-block tag records). New ctests
+  `handover_setup` / `handover_dataset_check`; the RT and post-processing
+  handover tests follow.
+
 - **Test datasets move to release assets
   ([#386](https://github.com/h-shiono/MRTKLIB/issues/386)).** Large
   regression datasets are published as immutable release assets of
