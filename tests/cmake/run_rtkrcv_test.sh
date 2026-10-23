@@ -4,10 +4,12 @@
 # a reference file (≥90% threshold).  Used by CTest for the rt-PPP regression.
 #
 # Usage:
-#   bash run_rtkrcv_test.sh <binary> <subcmd> <project_root> <reference_pos> \
+#   bash run_rtkrcv_test.sh <binary> <subcmd> <project_root> <reference_pos|N> \
 #        [playback_speed] [conf_file] [port] [max_timeout] [save_output] \
 #        [toml_overrides]
 #
+# reference_pos  reference solution file, or a number: the expected count of
+#                data lines (for tests gated by a separate check step).
 # save_output    copy the produced solution file here so a follow-up CTest
 #                step can compare it (the working copy lives in /tmp and is
 #                removed on exit).
@@ -174,7 +176,11 @@ fi
 
 # Count data lines (exclude % headers)
 out_lines=$(grep -v '^%' "$OUTPUT" | grep -c '[0-9]' || true)
-ref_lines=$(grep -v '^%' "$REFERENCE" | grep -c '[0-9]' || true)
+if [[ "$REFERENCE" =~ ^[0-9]+$ ]]; then
+    ref_lines=$REFERENCE
+else
+    ref_lines=$(grep -v '^%' "$REFERENCE" | grep -c '[0-9]' || true)
+fi
 threshold=$(( ref_lines * 90 / 100 ))
 
 echo "  data lines: output=$out_lines  reference=$ref_lines  threshold=$threshold"

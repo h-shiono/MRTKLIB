@@ -2397,3 +2397,80 @@ set_tests_properties(handover_dataset_check PROPERTIES
     TIMEOUT           60
     LABELS            "regression;handover"
 )
+
+# ── RT replay through the handover (mrtk run, x10) ────────────────────────────
+# One config per case is generated from tests/data/handover/rtkrcv_handover.toml.in
+# with the dataset paths. D9C cases: G5 SBF rover + D9C UBX L6 as the correction
+# stream (UBX, so frames go through the pattern-keyed demux, #197; a "clas"
+# stream would bypass it), shipped l6_merge = 1. MCLA cases: one SBF stream with
+# observations and L6, l6_merge = 0 (single-channel relock path) for all three,
+# plus mcla_e with l6_merge = 1 (pattern 1 -> 2 takes the second channel).
+# The harness gate is only "solutions were written" (900 expected epochs); the
+# _check step gates freeze / recovery / fix rate / satellites (RT replay is not
+# bit-reproducible, so no RMS). Thresholds: see the per-test comments.
+set(_HO_TEMPLATE ${CMAKE_SOURCE_DIR}/tests/data/handover/rtkrcv_handover.toml.in)
+set(_CHECK_HO    ${CMAKE_SOURCE_DIR}/scripts/tests/check_handover.py)
+
+function(_handover_rt name case port rover corr overrides check_args)
+    if(corr)
+        set(HO_CORR_TYPE file)
+        set(HO_CORR "${_HODATA}/${corr}::T::x10")
+        set(HO_CORR_FMT ubx)
+    else()
+        set(HO_CORR_TYPE off)
+        set(HO_CORR "")
+        set(HO_CORR_FMT "")
+    endif()
+    set(HO_ROVER ${_HODATA}/${rover})
+    set(_conf ${CMAKE_BINARY_DIR}/handover/rtkrcv_handover_${name}.toml)
+    configure_file(${_HO_TEMPLATE} ${_conf} @ONLY)
+    set(_out ${CMAKE_BINARY_DIR}/out_rtkrcv_handover_${name}.nmea)
+    add_test(NAME rtkrcv_handover_${name}
+        COMMAND bash ${_TESTCMAKE}/run_rtkrcv_test.sh
+            $<TARGET_FILE:mrtk> run ${CMAKE_SOURCE_DIR} 900 10 ${_conf} ${port} 300 ${_out} "${overrides}"
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+    set_tests_properties(rtkrcv_handover_${name} PROPERTIES
+        FIXTURES_REQUIRED "handover_data;claslib_data"
+        RUN_SERIAL        TRUE
+        TIMEOUT           420
+        LABELS            "regression;realtime;handover;claslib")
+    separate_arguments(_args UNIX_COMMAND "${check_args}")
+    add_test(NAME rtkrcv_handover_${name}_check
+        COMMAND ${Python3_EXECUTABLE} ${_CHECK_HO} ${_out} ${_HODATA}/handover_manifest.json ${case} ${_args})
+    set_tests_properties(rtkrcv_handover_${name}_check PROPERTIES
+        DEPENDS           rtkrcv_handover_${name}
+        FIXTURES_REQUIRED handover_data
+        LABELS            "regression;realtime;handover;claslib")
+endfunction()
+
+# Thresholds (check_handover.py): from 3 replays per case (measured
+# 2026-10-23; recovery = last non-fixed epoch after the handover + 1 s):
+#   case          non-fix  recovery  nsat(median)   gate: recover / max-nonfix / min-nsat
+#   d9c_m            33     37.5 s      15                 60 s / 50 / 12
+#   d9c_s             8     39.5 s      16                 60 s / 20 / 13
+#   mcla_a           83    110.0 s      15                165 s / 125 / 12
+#   mcla_e            0      0          14                 30 s / 10 / 11
+#   mcla_o            0      0          13                 30 s / 10 / 10
+#   mcla_e_merge     32     65.0 s      14                100 s / 50 / 11
+# Fix loss is typically delayed ~30 s (the old satellite's corrections age
+# out). All cases: no gap > 5 s (freeze), fix rate >= 0.9 over the 120 s
+# before the handover. mcla_a's long outage (#389) and mcla_e being worse
+# with l6_merge = 1 (#390) are tracked separately; tighten these gates when
+# they are fixed.
+_handover_rt(d9c_m        d9c_m  52011 G5P3286m_15m.sbf D9C1286m_15m.ubx ""
+    "--recover 60 --max-nonfix 50 --min-nsat 12")
+_handover_rt(d9c_s        d9c_s  52012 G5P3286s_15m.sbf D9C1286s_15m.ubx ""
+    "--recover 60 --max-nonfix 20 --min-nsat 13")
+_handover_rt(mcla_a       mcla_a 52013 MCLA286a_15m.sbf "" "l6_merge=0"
+    "--recover 165 --max-nonfix 125 --min-nsat 12")
+_handover_rt(mcla_e       mcla_e 52014 MCLA286e_15m.sbf "" "l6_merge=0"
+    "--recover 30 --max-nonfix 10 --min-nsat 11")
+_handover_rt(mcla_o       mcla_o 52015 MCLA286o_15m.sbf "" "l6_merge=0"
+    "--recover 30 --max-nonfix 10 --min-nsat 10")
+_handover_rt(mcla_e_merge mcla_e 52016 MCLA286e_15m.sbf "" "l6_merge=1"
+    "--recover 100 --max-nonfix 50 --min-nsat 11")
+
+# The checker itself: synthetic solutions with a 60 s gap, a long outage and
+# too few satellites must fail; a clean one must pass.
+add_test(NAME handover_checker_selftest COMMAND ${Python3_EXECUTABLE} ${_CHECK_HO} --selftest)
+set_tests_properties(handover_checker_selftest PROPERTIES LABELS "utest;handover")
