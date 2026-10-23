@@ -3,9 +3,11 @@
 
 For every file in ``handover_manifest.json``: the size matches; the ``.tag``
 is well formed (60-byte header text, header tick = first record on the GPST
-ms-of-week axis, monotonic ticks, monotonic file offsets ending at the file
-size); and the per-channel L6 PRN runs recomputed from the data (no PRN
-interleaving, one handover per case) equal the manifest.
+ms-of-week axis) and its records equal the ones recomputed from the data
+(SBF block TOW / UBX NAV-PVT iTOW per record, record end offsets), so a tag
+that would release the file at the wrong pace fails; and the per-channel L6
+PRN runs recomputed from the data (no PRN interleaving, one handover per
+case) equal the manifest.
 
 Usage:
     check_handover_dataset.py DATASET_DIR
@@ -18,9 +20,29 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import make_handover_fixtures as mhf  # noqa: E402
+import ubx_filter  # noqa: E402
 
 
-def check_tag(path, size, t0_expect):
+def data_records(name, data):
+    """[(tow_ms, end offset)] per record, recomputed from the slice itself."""
+    if name.endswith(".ubx"):
+        out, pos = [], 0
+        for itow, _, _, msg in ubx_filter.timed_messages(data):
+            pos += len(msg)
+            out.append((itow, pos))
+        return out
+    out, i, n = [], 0, len(data)
+    while i + 8 <= n:
+        length = struct.unpack_from("<H", data, i + 6)[0]
+        if data[i : i + 2] != b"$@" or length < 8 or length % 4 or i + length > n:
+            i += 1
+            continue
+        out.append((struct.unpack_from("<I", data, i + 8)[0], i + length))
+        i += length
+    return out
+
+
+def check_tag(path, size, t0_expect, records):
     with open(path, "rb") as fp:
         tag = fp.read()
     errs = []
@@ -39,6 +61,19 @@ def check_tag(path, size, t0_expect):
         errs.append("ticks not monotonic from 0")
     if any(b <= a for a, b in zip(pos, pos[1:])) or pos[-1] != size:
         errs.append(f"offsets not increasing to file size ({pos[-1]} vs {size})")
+    # records must match the data: tick = (record TOW - header tick), kept
+    # monotonic as the writer does; offset = end of the record
+    want, last = [], 0
+    for tow, end in records:
+        last = max(last, tow - t0)
+        want.append((last, end))
+    if recs != want:
+        k = next(
+            (j for j, (a, b) in enumerate(zip(recs, want)) if a != b), min(len(recs), len(want))
+        )
+        errs.append(
+            f"records differ from the data at record {k} ({len(recs)} vs {len(want)} records)"
+        )
     return errs
 
 
@@ -55,15 +90,16 @@ def main():
         errs = []
         for name, f in e["files"].items():
             path = os.path.join(d, name)
-            size = os.path.getsize(path)
+            with open(path, "rb") as fp:
+                data = fp.read()
+            size = len(data)
             if size != f["bytes"]:
                 errs.append(f"{name}: {size} bytes, manifest {f['bytes']}")
-            errs += [
-                f"{name}.tag: {x}" for x in check_tag(path + ".tag", size, f["tag_start_tow_ms"])
-            ]
+            tag_errs = check_tag(
+                path + ".tag", size, f["tag_start_tow_ms"], data_records(name, data)
+            )
+            errs += [f"{name}.tag: {x}" for x in tag_errs]
             if f["l6"]:
-                with open(path, "rb") as fp:
-                    data = fp.read()
                 if name.endswith(".ubx"):
                     seqs = mhf.ubx_l6_prns(data)
                 else:

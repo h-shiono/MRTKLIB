@@ -39,8 +39,9 @@ def messages(data):
             return
         length = struct.unpack_from("<H", data, i + 4)[0]
         end = i + 8 + length
-        if end > n:
-            return
+        if end > n:  # damaged length or false sync: keep searching
+            i += 2
+            continue
         msg = data[i:end]
         if checksum(msg[2:-2]) == msg[-2:]:
             yield msg[2], msg[3], msg

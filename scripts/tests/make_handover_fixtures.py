@@ -88,8 +88,20 @@ def write_tag(path, records, week):
     return t0
 
 
+def sbf_crc_ok(blk):
+    """SBF block CRC-16-CCITT (poly 0x1021, init 0) over bytes 4.. of the block."""
+    crc = 0
+    for byte in blk[4:]:
+        crc ^= byte << 8
+        for _ in range(8):
+            crc = ((crc << 1) ^ 0x1021) if crc & 0x8000 else (crc << 1)
+            crc &= 0xFFFF
+    return crc == struct.unpack_from("<H", blk, 2)[0]
+
+
 def sbf_l6_prns(data):
-    """[(tow_ms, header PRN)] for SBF QZSRawL6 (4069) blocks with CRC/parity OK."""
+    """[(tow_ms, header PRN)] for SBF QZSRawL6 (4069) blocks that the decoder
+    accepts: valid block CRC and L6 parity flag set."""
     out, i, n = [], 0, len(data)
     while True:
         i = data.find(b"$@", i)
@@ -100,7 +112,7 @@ def sbf_l6_prns(data):
         if length < 8 or length % 4 or i + length > n:
             i += 1
             continue
-        if bid == 4069 and length >= 272 and data[i + 15]:
+        if bid == 4069 and length >= 272 and data[i + 15] and sbf_crc_ok(data[i : i + length]):
             out.append((struct.unpack_from("<I", data, i + 8)[0], data[i + 27]))  # frame byte 4
         i += length
 
