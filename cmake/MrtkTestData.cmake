@@ -9,7 +9,9 @@
 #       Register a dataset (tests/data/datasets.cmake).
 #   mrtk_dataset_setup_test(<test> <name-vN> <dest-dir>)
 #       Add a ctest that fetches, verifies and extracts the dataset into
-#       <dest-dir>; give it FIXTURES_SETUP like any other setup test.
+#       <dest-dir>; give it FIXTURES_SETUP like any other setup test. Its
+#       timeout (MRTK_TEST_DATA_TIMEOUT) allows a first, uncached download;
+#       do not override it with an extraction-only limit.
 #   fetch-test-data (build target)
 #       Fetch every registered dataset into the cache in advance.
 
@@ -19,6 +21,9 @@ set(MRTK_TEST_DATA_CACHE ""
     CACHE PATH "Test dataset download cache (empty: \$XDG_CACHE_HOME or ~/.cache, /mrtklib-data)")
 set(MRTK_TEST_DATA_DIR ""
     CACHE PATH "Directory of pre-downloaded test dataset assets, used before the network")
+
+set(MRTK_TEST_DATA_TIMEOUT 600
+    CACHE STRING "Timeout (s) of a dataset setup test, including the first download")
 
 set(_MRTK_FETCH_DATASET ${CMAKE_CURRENT_LIST_DIR}/fetch_dataset.cmake)
 add_custom_target(fetch-test-data)
@@ -50,4 +55,5 @@ function(mrtk_dataset_setup_test test name dest)
             "-DCACHE_DIR=${MRTK_TEST_DATA_CACHE}" "-DLOCAL_DIR=${MRTK_TEST_DATA_DIR}"
             -DDEST=${dest}
             -P ${_MRTK_FETCH_DATASET})
+    set_tests_properties(${test} PROPERTIES TIMEOUT ${MRTK_TEST_DATA_TIMEOUT})
 endfunction()

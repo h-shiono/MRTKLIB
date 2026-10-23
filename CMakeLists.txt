@@ -2277,7 +2277,6 @@ set(_HAS_REF_XYZ  -3961905.2046 3348992.8024 3698212.4790)
 mrtk_dataset_setup_test(has_setup has-v1 ${_HASDATA})
 set_tests_properties(has_setup PROPERTIES
     FIXTURES_SETUP  has_data
-    TIMEOUT         30
     LABELS          "regression;has"
 )
 
