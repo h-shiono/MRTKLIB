@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **Post-processing tests through QZSS L6 handovers
+  ([#372](https://github.com/h-shiono/MRTKLIB/issues/372)).** Five
+  `post_handover_*` ctests run the `handover-v1` windows through
+  `mrtk convert` + `mrtk l6extract` + per-channel concatenation of the
+  per-PRN `.l6d` files (time order from `handover_manifest.json`) +
+  `mrtk post` (`scripts/tests/run_handover_post.py`, config
+  `tests/data/handover/rnx2rtkp_handover.toml.in`), gated by
+  `check_handover.py`. They run in CI (not `realtime`). Post-processing holds
+  fix through the handovers where the RT replays lose it for ~30–80 s;
+  #389 now tracks that RT-only fix loss.
+
 - **RT replay tests through QZSS L6 handovers
   ([#372](https://github.com/h-shiono/MRTKLIB/issues/372)).** Six
   `rtkrcv_handover_*` ctests replay the `handover-v1` dataset with
