@@ -2454,9 +2454,9 @@ endfunction()
 #   mcla_e_merge     32     65.0 s      14                100 s / 50 / 11
 # Fix loss is typically delayed ~30 s (the old satellite's corrections age
 # out). All cases: no gap > 5 s (freeze), fix rate >= 0.9 over the 120 s
-# before the handover. mcla_a's long outage (#389) and mcla_e being worse
-# with l6_merge = 1 (#390) are tracked separately; tighten these gates when
-# they are fixed.
+# before the handover. The RT fix losses that post-processing does not show
+# (d9c_m, d9c_s, mcla_a; #389) and mcla_e being worse with l6_merge = 1
+# (#390) are tracked separately; tighten these gates when they are fixed.
 _handover_rt(d9c_m        d9c_m  52011 G5P3286m_15m.sbf D9C1286m_15m.ubx ""
     "--recover 60 --max-nonfix 50 --min-nsat 12")
 _handover_rt(d9c_s        d9c_s  52012 G5P3286s_15m.sbf D9C1286s_15m.ubx ""
@@ -2474,3 +2474,45 @@ _handover_rt(mcla_e_merge mcla_e 52016 MCLA286e_15m.sbf "" "l6_merge=1"
 # too few satellites must fail; a clean one must pass.
 add_test(NAME handover_checker_selftest COMMAND ${Python3_EXECUTABLE} ${_CHECK_HO} --selftest)
 set_tests_properties(handover_checker_selftest PROPERTIES LABELS "utest;handover")
+
+# ── Post-processing through the handover (mrtk post) ──────────────────────────
+# scripts/tests/run_handover_post.py: mrtk convert (obs/nav) + mrtk l6extract
+# (per-PRN .l6d, #362) + per-channel concatenation in the time order of
+# handover_manifest.json + mrtk post. D9C: two channels, l6_merge = 1;
+# mosaic-CLAS: one channel, l6_merge = 0. Post-processing is deterministic
+# per build; the gates are the same behavioural ones as the RT replays.
+set(_HO_POST_TEMPLATE ${CMAKE_SOURCE_DIR}/tests/data/handover/rnx2rtkp_handover.toml.in)
+set(_RUN_HO_POST      ${CMAKE_SOURCE_DIR}/scripts/tests/run_handover_post.py)
+
+function(_handover_post case l6_merge check_args)
+    set(HO_L6_MERGE ${l6_merge})
+    set(_conf ${CMAKE_BINARY_DIR}/handover/rnx2rtkp_handover_${case}.toml)
+    configure_file(${_HO_POST_TEMPLATE} ${_conf} @ONLY)
+    set(_out ${CMAKE_BINARY_DIR}/out_post_handover_${case}.nmea)
+    add_test(NAME post_handover_${case}
+        COMMAND ${Python3_EXECUTABLE} ${_RUN_HO_POST} $<TARGET_FILE:mrtk> ${_HODATA} ${case} ${_conf}
+            ${CMAKE_BINARY_DIR}/handover/post_${case} ${_out}
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+    set_tests_properties(post_handover_${case} PROPERTIES
+        FIXTURES_REQUIRED "handover_data;claslib_data"
+        TIMEOUT           300
+        LABELS            "regression;handover;claslib;ppp-rtk")
+    separate_arguments(_args UNIX_COMMAND "${check_args}")
+    add_test(NAME post_handover_${case}_check
+        COMMAND ${Python3_EXECUTABLE} ${_CHECK_HO} ${_out} ${_HODATA}/handover_manifest.json ${case} ${_args})
+    set_tests_properties(post_handover_${case}_check PROPERTIES
+        DEPENDS           post_handover_${case}
+        FIXTURES_REQUIRED handover_data
+        LABELS            "regression;handover;claslib;ppp-rtk")
+endfunction()
+
+# Thresholds: measured 2026-10-23 (2 runs, identical): non-fixed epochs after
+# the handover d9c_m 0, d9c_s 0, mcla_a 5 (float, +106 .. +110 s; recovery
+# 111 s), mcla_e 0, mcla_o 0. Post-processing holds fix where the RT replays
+# lose it for ~30-80 s (#389). Margins allow for AR flips on other matrix
+# backends (CI uses the internal LU solver).
+_handover_post(d9c_m  1 "--recover 30 --max-nonfix 10 --min-nsat 12")
+_handover_post(d9c_s  1 "--recover 30 --max-nonfix 10 --min-nsat 13")
+_handover_post(mcla_a 0 "--recover 165 --max-nonfix 20 --min-nsat 12")
+_handover_post(mcla_e 0 "--recover 30 --max-nonfix 10 --min-nsat 11")
+_handover_post(mcla_o 0 "--recover 30 --max-nonfix 10 --min-nsat 10")
