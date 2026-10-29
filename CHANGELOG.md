@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **Handover tests: correct antenna and absolute accuracy
+  ([#372](https://github.com/h-shiono/MRTKLIB/issues/372)).** The DOY
+  2026-286 captures use a TOPCON CR-G5 without radome (`TPSCR.G5 NONE`), not
+  the ZED-F9P's Trimble Zephyr 2; the RT and post configs and
+  `tests/data/handover/README.md` are corrected. New
+  `post_handover_*_abs_check` (3D 1σ ≤ 0.25 m after 120 epochs) against the
+  antenna reference point from a 24 h static PPP-AR with CODE MGEX finals
+  (JAXA finals agree within 1.5 cm); provenance in the README.
+
 - **Post-processing tests through QZSS L6 handovers
   ([#372](https://github.com/h-shiono/MRTKLIB/issues/372)).** Five
   `post_handover_*` ctests run the `handover-v1` windows through

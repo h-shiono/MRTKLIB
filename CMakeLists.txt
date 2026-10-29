@@ -2508,7 +2508,8 @@ endfunction()
 
 # Thresholds: measured 2026-10-23 (2 runs, identical): non-fixed epochs after
 # the handover d9c_m 0, d9c_s 0, mcla_a 5 (float, +106 .. +110 s; recovery
-# 111 s), mcla_e 0, mcla_o 0. Post-processing holds fix where the RT replays
+# 111 s), mcla_e 0, mcla_o 0. With the corrected antenna (TPSCR.G5 NONE,
+# 2026-10-29) mcla_a has 0 as well; the gates are unchanged. Post-processing holds fix where the RT replays
 # lose it for ~30-80 s (#389). Margins allow for AR flips on other matrix
 # backends (CI uses the internal LU solver).
 _handover_post(d9c_m  1 "--recover 30 --max-nonfix 10 --min-nsat 12")
@@ -2516,3 +2517,22 @@ _handover_post(d9c_s  1 "--recover 30 --max-nonfix 10 --min-nsat 13")
 _handover_post(mcla_a 0 "--recover 165 --max-nonfix 20 --min-nsat 12")
 _handover_post(mcla_e 0 "--recover 30 --max-nonfix 10 --min-nsat 11")
 _handover_post(mcla_o 0 "--recover 30 --max-nonfix 10 --min-nsat 10")
+
+# Absolute accuracy of the post-processed windows vs the CR-G5 antenna
+# reference point (tests/data/handover/README.md: 24 h static PPP-AR with CODE
+# MGEX finals, DOY 2026-286; JAXA finals agree within 1.5 cm). Measured
+# (2026-10-29, after the 120-epoch convergence skip), 3D 1 sigma / 95 %:
+# d9c_m 4.2 / 4.7 cm, d9c_s 14.3 / 15.7, mcla_a 12.8 / 14.6, mcla_e 11.2 / 12.3,
+# mcla_o 5.4 / 7.1 (mostly vertical). Tolerance 0.25 m 3D 1 sigma for all
+# (largest measured + ~10 cm), as for the F9P case.
+set(_HO_TRUTH_LLH 35.666341805,139.792211221,59.7614)
+foreach(_case d9c_m d9c_s mcla_a mcla_e mcla_o)
+    add_test(NAME post_handover_${_case}_abs_check
+        COMMAND ${Python3_EXECUTABLE} ${_COMPARE_NMEA_ABS}
+            --llh ${_HO_TRUTH_LLH} --use-3d --skip-epochs 120 --tolerance 0.25
+            ${CMAKE_BINARY_DIR}/out_post_handover_${_case}.nmea
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+    set_tests_properties(post_handover_${_case}_abs_check PROPERTIES
+        DEPENDS post_handover_${_case}
+        LABELS  "regression;handover;claslib;ppp-rtk")
+endforeach()

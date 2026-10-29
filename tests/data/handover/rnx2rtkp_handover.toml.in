@@ -2,8 +2,8 @@
 #
 # Template; CMake (configure_file, @ONLY) writes one config per case into the
 # build tree. Based on conf/claslib/rnx2rtkp.toml (CLAS PPP-RTK, GPS/Galileo/
-# QZSS) with the antenna of the DOY 2026-286 captures (TRM55971.00 NONE, the
-# ECJ02 point) and l6_merge per case. Auxiliary files come from the claslib
+# QZSS) with the antenna of the DOY 2026-286 captures (TOPCON CR-G5 without
+# radome, TPSCR.G5 NONE) and l6_merge per case. Auxiliary files come from the claslib
 # dataset (claslib_data fixture), relative to the source tree.
 #
 # MRTKLIB Configuration (TOML v1.0.0)
@@ -115,7 +115,7 @@ pva_forgetting = 0.3  # forgetting factor of pos/vel/acc (0.0~1.0)
 pva_gain = 1.0        # adaptive Filter gain in pos/vel/acc
 
 [antenna.rover]
-type = "TRM55971.00     NONE" # antenna of the DOY 2026-286 captures
+type = "TPSCR.G5        NONE" # antenna of the DOY 2026-286 captures (CR-G5, no radome)
 position_type = "single"      # (0:llh,1:xyz,2:single,3:posfile,4:rinexhead,5:rtcm)
 delta_e = 0.0                 # (m)
 delta_n = 0.0                 # (m)
