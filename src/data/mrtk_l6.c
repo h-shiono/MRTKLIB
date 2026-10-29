@@ -122,28 +122,39 @@ extern l6_service_t l6_file_service(const char* file) {
     l6_header_t hdr;
     uint8_t* buf;
     FILE* fp;
-    size_t n, i;
+    size_t n, i, keep;
 
     if (!(fp = fopen(file, "rb"))) {
         return L6_SVC_UNKNOWN;
     }
-    if (!(buf = (uint8_t*)malloc(L6_FILE_SCAN_BYTES))) {
+    if (!(buf = (uint8_t*)malloc(L6_FILE_SCAN_BYTES + L6_FRAME_LEN))) {
         fclose(fp);
         return L6_SVC_UNKNOWN;
     }
-    n = fread(buf, 1, L6_FILE_SCAN_BYTES, fp);
-    fclose(fp);
-
-    for (i = 0; i + L6_FRAME_LEN <= n; i++) {
-        if (!l6_parse_header(buf + i, &hdr)) {
-            continue;
+    /* read in chunks until the first classifiable frame or the end of the
+     * file: a long run of null messages must not hide the service. "keep"
+     * bytes of the previous chunk are carried over so a frame that straddles
+     * two chunks is still seen. */
+    keep = 0;
+    while (svc == L6_SVC_UNKNOWN && (n = fread(buf + keep, 1, L6_FILE_SCAN_BYTES, fp)) > 0) {
+        n += keep;
+        for (i = 0; i + L6_FRAME_LEN <= n; i++) {
+            if (!l6_parse_header(buf + i, &hdr)) {
+                continue;
+            }
+            if (hdr.svc != L6_SVC_NULL && hdr.svc != L6_SVC_UNKNOWN) {
+                svc = hdr.svc;
+                break;
+            }
+            i += L6_FRAME_LEN - 1; /* null / reserved frame: skip to the next one */
         }
-        if (hdr.svc != L6_SVC_NULL && hdr.svc != L6_SVC_UNKNOWN) {
-            svc = hdr.svc;
+        if (svc != L6_SVC_UNKNOWN) {
             break;
         }
-        i += L6_FRAME_LEN - 1; /* null / reserved frame: skip to the next one */
+        keep = n - i < L6_FRAME_LEN ? n - i : 0; /* partial frame at the end */
+        memmove(buf, buf + n - keep, keep);
     }
+    fclose(fp);
     free(buf);
     return svc;
 }

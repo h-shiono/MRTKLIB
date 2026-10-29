@@ -963,7 +963,7 @@ static void combres(FILE* fp, const prcopt_t* popt, const solopt_t* sopt) {
     }
 }
 /* read prec ephemeris, sbas data, tec grid and open rtcm --------------------*/
-static void readpreceph(char** infile, int n, const prcopt_t* prcopt, nav_t* nav, sbs_t* sbs) {
+static void readpreceph(char** infile, int n, const prcopt_t* prcopt, nav_t* nav, sbs_t* sbs, gtime_t ts) {
     seph_t seph0 = {0};
     int i;
     char* ext;
@@ -1061,7 +1061,9 @@ static void readpreceph(char** infile, int n, const prcopt_t* prcopt, nav_t* nav
     /* QZSS L6 files (.l6 / .l6d / .l6e): MADOCA-PPP iono L6D, CLAS L6D, MADOCA-PPP L6E.
      * Legacy .l6: *.200.l6 / *.201.l6 are iono, others CLAS in CLAS mode, else L6E.
      * .l6d: iono by name (*.200.l6d / *.201.l6d) or by the first frame header,
-     *       otherwise CLAS (CLAS mode only).
+     *       otherwise CLAS (CLAS mode only). A time-keyword path (%Y ...) is
+     *       expanded at the session start for the content check only; the
+     *       template itself is kept for the per-epoch file switching.
      * .l6e: MADOCA-PPP L6E; in CLAS mode reserved for CLAS CMA (not yet used). */
     {
         int nf_l6d = 0, nf_clas = 0;
@@ -1079,7 +1081,13 @@ static void readpreceph(char** infile, int n, const prcopt_t* prcopt, nav_t* nav
             ext = strrchr(infile[i], '.');
             iono = !is_l6e && ext - infile[i] >= 4 && (!strncmp(ext - 4, ".200", 4) || !strncmp(ext - 4, ".201", 4));
             if (is_l6d && !iono) {
-                iono = l6_file_service(infile[i]) == L6_SVC_MADOCA_IONO;
+                char probe[1024];
+                if (strchr(infile[i], '%') && ts.time) {
+                    reppath(infile[i], probe, ts, "", "");
+                } else {
+                    snprintf(probe, sizeof(probe), "%s", infile[i]);
+                }
+                iono = l6_file_service(probe) == L6_SVC_MADOCA_IONO;
             }
             if (iono) { /* MADOCA-PPP L6D iono (PRN 200/201) — always detected */
                 if (nf_l6d < MIONO_MAX_PRN) {
@@ -1819,7 +1827,7 @@ static int execses_b(mrtk_ctx_t* ctx, gtime_t ts, gtime_t te, double ti, const p
     trace(ctx, 3, "execses_b: n=%d outfile=%s\n", n, outfile);
 
     /* read prec ephemeris and sbas data */
-    readpreceph(infile, n, popt, &navs, &sbss);
+    readpreceph(infile, n, popt, &navs, &sbss, ts);
 
     for (i = 0; i < n; i++) {
         if (strstr(infile[i], "%b")) {

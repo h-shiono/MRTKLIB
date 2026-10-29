@@ -738,6 +738,30 @@ set_tests_properties(madocalib_pppar_ion PROPERTIES
     LABELS            "regression;madocalib;pppar"
 )
 
+# The same run with the ionosphere files as generically named .l6d inputs
+# given as time-keyword paths: mrtk post must expand the template at the
+# session start to classify them by content (they are MADOCA iono), and the
+# solution must equal the legacy *.200/201.l6 run (Greptile on PR #397).
+add_test(NAME madocalib_pppar_ion_l6d_template
+    COMMAND bash -c "d=\"$1/l6d_template\" && rm -rf \"$d\" && mkdir -p \"$d\" && \
+        cp \"$2/2025091A.200.l6\" \"$d/ionoA_2025091.l6d\" && \
+        cp \"$2/2025091A.201.l6\" \"$d/ionoB_2025091.l6d\" && \
+        \"$0\" post -k conf/madocalib/rnx2rtkp_pppar_iono.toml \
+            -ts 2025/04/01 0:00:00 -te 2025/04/01 0:59:30 -ti 30 -o \"$d/out.pos\" \
+            \"$2/MIZU00JPN_R_20250910000_01D_30S_MO.obs\" \"$2/BRDM00DLR_S_20250910000_01D_MN.rnx\" \
+            \"$2/2025091A.204.l6\" \"$2/2025091A.206.l6\" \
+            \"$d/ionoA_%Y%n.l6d\" \"$d/ionoB_%Y%n.l6d\" && \
+        diff <(grep -v '^%' \"$1/out_madocalib_pppar_ion.pos\") <(grep -v '^%' \"$d/out.pos\") >/dev/null"
+        $<TARGET_FILE:mrtk> ${CMAKE_BINARY_DIR} ${_MDLDATA}
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+set_tests_properties(madocalib_pppar_ion_l6d_template PROPERTIES
+    DEPENDS           madocalib_pppar_ion
+    FIXTURES_REQUIRED madocalib_data
+    TIMEOUT           180
+    LABELS            "regression;madocalib;pppar"
+)
+
 add_test(NAME madocalib_pppar_ion_check
     COMMAND ${Python3_EXECUTABLE} ${_COMPARE_POS}
         ${_MDLDATA}/madocalib_MIZU_20250401-0000.pppar_ion.pos

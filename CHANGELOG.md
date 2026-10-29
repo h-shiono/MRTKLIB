@@ -55,6 +55,16 @@ guards (#347, #348, #364), and an interim fix for TOML `save` (#342).
   `utest_l6_header`, `utest_l6_route` and `claslib_ppp_rtk_2023` (upstream
   claslib 0.9.0 parity with CMA off, 3D RMS 3.0 cm).
 
+- `mrtk post` `.l6d` classification fixes (found in the v0.7.12 release
+  review): a time-keyword path (`%Y%n…`) is expanded at the session start
+  for the content check, so a generically named MADOCA ionosphere `.l6d`
+  template is no longer ignored outside CLAS mode; and `l6_file_service()`
+  reads the file until the first classifiable frame instead of only the first
+  64 KB, so a long leading run of null messages no longer hides the service.
+  New ctest `madocalib_pppar_ion_l6d_template` (solution identical to the
+  legacy `*.200/201.l6` run; the old code ignored both files) and
+  `utest_l6_header` cases across the read-chunk boundary.
+
 - **`mrtk l6extract` output file names changed
   ([#362](https://github.com/h-shiono/MRTKLIB/issues/362)).** QZSS L6
   frames are now written to `{prefix}.{PRN}.l6d` / `{prefix}.{PRN}.l6e`
