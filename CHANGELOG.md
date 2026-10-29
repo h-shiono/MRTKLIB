@@ -7,63 +7,53 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-- **Handover tests: correct antenna and absolute accuracy
-  ([#372](https://github.com/h-shiono/MRTKLIB/issues/372)).** The DOY
-  2026-286 captures use a TOPCON CR-G5 without radome (`TPSCR.G5 NONE`), not
-  the ZED-F9P's Trimble Zephyr 2; the RT and post configs and
-  `tests/data/handover/README.md` are corrected. New
-  `post_handover_*_abs_check` (3D 1σ ≤ 0.25 m after 120 epochs) against the
-  antenna reference point from a 24 h static PPP-AR with CODE MGEX finals
-  (JAXA finals agree within 1.5 cm); provenance in the README.
+## [v0.7.12] - 2026-10-29
 
-- **Post-processing tests through QZSS L6 handovers
-  ([#372](https://github.com/h-shiono/MRTKLIB/issues/372)).** Five
-  `post_handover_*` ctests run the `handover-v1` windows through
-  `mrtk convert` + `mrtk l6extract` + per-channel concatenation of the
-  per-PRN `.l6d` files (time order from `handover_manifest.json`) +
-  `mrtk post` (`scripts/tests/run_handover_post.py`, config
-  `tests/data/handover/rnx2rtkp_handover.toml.in`), gated by
-  `check_handover.py`. They run in CI (not `realtime`). Post-processing holds
-  fix through the handovers where the RT replays lose it for ~30–80 s;
-  #389 now tracks that RT-only fix loss.
+**QZSS L6 service routing.** QZSS L6 frames are now classified by their
+header (vendor ID + MADOCA service ID) everywhere — UBX, SBF, raw streams,
+`mrtk post` — instead of by PRN or receiver container, fixing lost QZS5
+(PRN 197) CLAS frames, MADOCA iono frames in the CLAS demux, and MADOCA SSR
+overwriting CLAS ([#351](https://github.com/h-shiono/MRTKLIB/issues/351)).
+`mrtk l6extract` names its output by header PRN
+(`{prefix}.{PRN}.l6d` / `.l6e`; **file names change**, #362), CLAS drops L6
+null messages (#344), and the first QZSS L6 **handover regression tests**
+cover real-time replay (including the single-channel relock path) and
+post-processing with absolute accuracy (#372). Large test datasets move to
+release assets of [h-shiono/mrtklib-data](https://github.com/h-shiono/mrtklib-data)
+(#386). Also: stream fixes (`SO_REUSEADDR` #367, serial write count #343,
+**64-bit byte counters with a public API change** #368), claslib 0.9.0
+guards (#347, #348, #364), and an interim fix for TOML `save` (#342).
 
-- **RT replay tests through QZSS L6 handovers
-  ([#372](https://github.com/h-shiono/MRTKLIB/issues/372)).** Six
-  `rtkrcv_handover_*` ctests replay the `handover-v1` dataset with
-  `mrtk run`: NEO-D9C UBX L6 as a correction stream next to mosaic-G5 SBF
-  observations (2 channels, through the pattern-keyed demux), and mosaic-CLAS
-  single-stream with `l6_merge = 0` (all three handovers) and `= 1` (pattern
-  1 → 2). `scripts/tests/check_handover.py` gates behaviour, not RMS: no
-  solution freeze, fix before the handover, fix held again within a per-case
-  limit (the loss is typically ~30 s late, when the old satellite's
-  corrections age out), bounded non-fixed epochs, satellite count. Configs
-  come from `tests/data/handover/rtkrcv_handover.toml.in`;
-  `run_rtkrcv_test.sh` accepts an expected line count instead of a
-  reference file. Found while measuring: #389 (single-channel 195 → 199
-  outage ~80 s) and #390 (`l6_merge = 1` worse after a single-channel
-  pattern change).
+### QZSS L6 routing and decoding
 
-- **QZSS L6 handover dataset
-  ([#372](https://github.com/h-shiono/MRTKLIB/issues/372)).** New test
-  dataset `handover-v1` (release asset, #386): five 15-minute windows around
-  CLAS L6 satellite handovers (NEO-D9C UBX L6 + mosaic-G5 SBF observations;
-  mosaic-CLAS SBF, including both transmit-pattern changes), with synthetic
-  file-stream time tags for synchronised `mrtk run` replay. Built by
-  `scripts/tests/make_handover_fixtures.py` (new `scripts/tests/ubx_filter.py`;
-  `sbf_filter.py` now also returns per-block tag records). New ctests
-  `handover_setup` / `handover_dataset_check`; the RT and post-processing
-  handover tests follow.
+- **QZSS L6 frames are classified by their header, not by PRN or receiver
+  container ([#351](https://github.com/h-shiono/MRTKLIB/issues/351),
+  epic [#356](https://github.com/h-shiono/MRTKLIB/issues/356)).** New
+  `include/mrtklib/mrtk_l6.h` / `src/data/mrtk_l6.c`: one stateless parser
+  for the 49-bit L6 header (`l6_parse_header()`); the service comes from the
+  vendor ID and the MADOCA correction service ID (IS-QZSS-L6-008,
+  IS-QZSS-MDC-004, IS-QZSS-SAS-001), never from the PRN. It replaces six
+  duplicated header extractions ([PR #366](https://github.com/h-shiono/MRTKLIB/pull/366),
+  no behaviour change). On top of it, UBX and SBF L6 frames are routed by
+  service ([PR #369](https://github.com/h-shiono/MRTKLIB/pull/369)):
+  - UBX (NEO-D9C) MADOCA-PPP ionospheric frames (L6D PRN 200/201) no longer
+    enter the CLAS demux (return 16); with `l6_merge = 0` an iono PRN could
+    hold the CLAS channel.
+  - SBF no longer treats **PRN 197 (QZS5, CLAS since IS-QZSS-MDC rev 002)**
+    as ionospheric, so QZS5 CLAS frames are no longer lost (also reaches
+    `mrtk cssr2rtcm3`).
+  - CLAS inputs skip MADOCA-PPP / QZNMA / reserved-vendor frames.
+  - `format = "l6e"` in CLAS / PPP-RTK mode no longer overwrites CLAS SSR
+    with MADOCA SSR.
+  - QZNMA frames get their own return code **17** (for the future CLAS CMA
+    consumer, #353).
 
-- **Test datasets move to release assets
-  ([#386](https://github.com/h-shiono/MRTKLIB/issues/386)).** Large
-  regression datasets are published as immutable release assets of
-  [h-shiono/mrtklib-data](https://github.com/h-shiono/mrtklib-data), pinned
-  by SHA256 in `tests/data/datasets.cmake`, and fetched by the ctest
-  fixtures on first use into `~/.cache/mrtklib-data`
-  (`-DMRTK_TEST_DATA_CACHE`, offline: `-DMRTK_TEST_DATA_DIR`). New build
-  target `fetch-test-data`. Configure and build stay offline. The Galileo HAS
-  dataset is the first one moved (`has-v1`; payload byte-identical); the
-  other datasets follow one per PR. New ctest `dataset_fetch_selftest`.
+  `mrtk post` accepts the claslib 0.9.0 extensions `.l6d` (routed by content:
+  CLAS, or MADOCA iono for PRN 200/201) and `.l6e` (MADOCA-PPP L6E; reserved
+  for CLAS CMA in CLAS mode), and no longer hands L6 files to the RINEX reader
+  ([PR #370](https://github.com/h-shiono/MRTKLIB/pull/370)). New tests
+  `utest_l6_header`, `utest_l6_route` and `claslib_ppp_rtk_2023` (upstream
+  claslib 0.9.0 parity with CMA off, 3D RMS 3.0 cm).
 
 - **`mrtk l6extract` output file names changed
   ([#362](https://github.com/h-shiono/MRTKLIB/issues/362)).** QZSS L6
@@ -81,6 +71,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     the L6E PRN (205).
   Frames with a bad L6 preamble are skipped and counted in the summary.
   Galileo HAS `.has` output is unchanged.
+
 - **CLAS: L6 null messages are dropped
   ([#344](https://github.com/h-shiono/MRTKLIB/issues/344)).** A null
   message (message type ID 0, alert flag 1, data all `0xAA`; IS-QZSS-L6-008
@@ -95,31 +86,82 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `claslib_l6_null_drop_*` insert synthetic null frames into the 2019 and
   2025 CLAS files and require `mrtk dump` output identical to the clean
   file; `utest_l6_route` covers the receiver paths.
+
 - RINEX 2 navigation: QZSS PRNs 98/99 (J198/J199) were read as GPS and
   dropped; the 2-digit QZSS extension range is now 93..99 as in claslib
   0.9.0 ([#347](https://github.com/h-shiono/MRTKLIB/issues/347)). New unit
   test `utest_t_rinex2_qzs`.
+
 - CLAS: `clas_update_global()` skips a signal mode outside 1..`MAXCODE`
   instead of indexing the bias arrays with it (defensive, as claslib 0.9.0;
   [#348](https://github.com/h-shiono/MRTKLIB/issues/348)).
+
 - u-blox: the `-OUT_QZSSL6` debug counter of UBX-RXM-QZSSL6 no longer writes
   out of bounds for svId ≥ 16
   ([#364](https://github.com/h-shiono/MRTKLIB/issues/364)).
-- `mrtk relay` / `mrtk run`: server sockets (`tcpsvr://`, UDP server) now
-  set `SO_REUSEADDR`, so a restart while a client is still connected no
-  longer fails with "stream server start error" for ~60 s. The
-  `SVR_REUSEADDR` define was set on the `mrtk` executable, but the code that
-  checks it is in the library
-  ([#367](https://github.com/h-shiono/MRTKLIB/issues/367)). New ctest
-  `stream_tcpsvr_rebind`.
-- Serial streams: `strwrite()` returned 0 for every successful serial write,
-  so the `mrtk run` console showed 0 output bytes/bps for serial outputs and
-  write-only serial outputs never became active. `writeserial()` now returns
-  the bytes written; a full output buffer (`EAGAIN`) or a short write no
-  longer marks the port as failed
-  ([#343](https://github.com/h-shiono/MRTKLIB/issues/343)). The
-  `strwrite()` doc now states the byte-count return. New unit test
-  `utest_stream_serial` (pseudo-terminal pair).
+
+### Tests and test data
+
+- **Test datasets move to release assets
+  ([#386](https://github.com/h-shiono/MRTKLIB/issues/386)).** Large
+  regression datasets are published as immutable release assets of
+  [h-shiono/mrtklib-data](https://github.com/h-shiono/mrtklib-data), pinned
+  by SHA256 in `tests/data/datasets.cmake`, and fetched by the ctest
+  fixtures on first use into `~/.cache/mrtklib-data`
+  (`-DMRTK_TEST_DATA_CACHE`, offline: `-DMRTK_TEST_DATA_DIR`). New build
+  target `fetch-test-data`. Configure and build stay offline. The Galileo HAS
+  dataset is the first one moved (`has-v1`; payload byte-identical); the
+  other datasets follow one per PR. New ctest `dataset_fetch_selftest`.
+
+- **QZSS L6 handover dataset
+  ([#372](https://github.com/h-shiono/MRTKLIB/issues/372)).** New test
+  dataset `handover-v1` (release asset, #386): five 15-minute windows around
+  CLAS L6 satellite handovers (NEO-D9C UBX L6 + mosaic-G5 SBF observations;
+  mosaic-CLAS SBF, including both transmit-pattern changes), with synthetic
+  file-stream time tags for synchronised `mrtk run` replay. Built by
+  `scripts/tests/make_handover_fixtures.py` (new `scripts/tests/ubx_filter.py`;
+  `sbf_filter.py` now also returns per-block tag records). New ctests
+  `handover_setup` / `handover_dataset_check`; the RT and post-processing
+  handover tests follow.
+
+- **RT replay tests through QZSS L6 handovers
+  ([#372](https://github.com/h-shiono/MRTKLIB/issues/372)).** Six
+  `rtkrcv_handover_*` ctests replay the `handover-v1` dataset with
+  `mrtk run`: NEO-D9C UBX L6 as a correction stream next to mosaic-G5 SBF
+  observations (2 channels, through the pattern-keyed demux), and mosaic-CLAS
+  single-stream with `l6_merge = 0` (all three handovers) and `= 1` (pattern
+  1 → 2). `scripts/tests/check_handover.py` gates behaviour, not RMS: no
+  solution freeze, fix before the handover, fix held again within a per-case
+  limit (the loss is typically ~30 s late, when the old satellite's
+  corrections age out), bounded non-fixed epochs, satellite count. Configs
+  come from `tests/data/handover/rtkrcv_handover.toml.in`;
+  `run_rtkrcv_test.sh` accepts an expected line count instead of a
+  reference file. Found while measuring: #389 (single-channel 195 → 199
+  outage ~80 s) and #390 (`l6_merge = 1` worse after a single-channel
+  pattern change).
+
+- **Post-processing tests through QZSS L6 handovers
+  ([#372](https://github.com/h-shiono/MRTKLIB/issues/372)).** Five
+  `post_handover_*` ctests run the `handover-v1` windows through
+  `mrtk convert` + `mrtk l6extract` + per-channel concatenation of the
+  per-PRN `.l6d` files (time order from `handover_manifest.json`) +
+  `mrtk post` (`scripts/tests/run_handover_post.py`, config
+  `tests/data/handover/rnx2rtkp_handover.toml.in`), gated by
+  `check_handover.py`. They run in CI (not `realtime`). Post-processing holds
+  fix through the handovers where the RT replays lose it for ~30–80 s;
+  #389 now tracks that RT-only fix loss.
+
+- **Handover tests: correct antenna and absolute accuracy
+  ([#372](https://github.com/h-shiono/MRTKLIB/issues/372)).** The DOY
+  2026-286 captures use a TOPCON CR-G5 without radome (`TPSCR.G5 NONE`), not
+  the ZED-F9P's Trimble Zephyr 2; the RT and post configs and
+  `tests/data/handover/README.md` are corrected. New
+  `post_handover_*_abs_check` (3D 1σ ≤ 0.25 m after 120 epochs) against the
+  antenna reference point from a 24 h static PPP-AR with CODE MGEX finals
+  (JAXA finals agree within 1.5 cm); provenance in the README.
+
+### Streams and configuration
+
 - **Stream byte counters are 64-bit (public API change,
   [#368](https://github.com/h-shiono/MRTKLIB/issues/368)).** The
   `mrtk relay` status line went negative after 2 GiB and wrapped at 4 GiB
@@ -132,6 +174,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   console `stream` command now reads the counters through `strsum()` (under
   the stream lock) and prints them as unsigned 64-bit values, as does the
   `mrtk relay` status line. New unit test `utest_stream_bytes`.
+
+- `mrtk relay` / `mrtk run`: server sockets (`tcpsvr://`, UDP server) now
+  set `SO_REUSEADDR`, so a restart while a client is still connected no
+  longer fails with "stream server start error" for ~60 s. The
+  `SVR_REUSEADDR` define was set on the `mrtk` executable, but the code that
+  checks it is in the library
+  ([#367](https://github.com/h-shiono/MRTKLIB/issues/367)). New ctest
+  `stream_tcpsvr_rebind`.
+
+- Serial streams: `strwrite()` returned 0 for every successful serial write,
+  so the `mrtk run` console showed 0 output bytes/bps for serial outputs and
+  write-only serial outputs never became active. `writeserial()` now returns
+  the bytes written; a full output buffer (`EAGAIN`) or a short write no
+  longer marks the port as failed
+  ([#343](https://github.com/h-shiono/MRTKLIB/issues/343)). The
+  `strwrite()` doc now states the byte-count return. New unit test
+  `utest_stream_serial` (pseudo-terminal pair).
+
 - `saveopts()` now returns an error for a `.toml` file in append mode
   instead of reporting success without writing anything. In the `mrtk run`
   console, `save <file>.toml` therefore reports "options save error" instead
