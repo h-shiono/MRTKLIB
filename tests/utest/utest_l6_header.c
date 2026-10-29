@@ -237,6 +237,7 @@ static void test_real_frames(void) {
 }
 
 /* (6) l6_file_service(): service of an L6 frame file from its content */
+#define NNULL 300 /* leading null messages: 75000 B > L6_FILE_SCAN_BYTES */
 static int write_file(const char* path, const uint8_t* const* frames, int n, int junk) {
     static const uint8_t pad[L6_RAW_LEN - L6_FRAME_LEN] = {0};
     FILE* fp = fopen(path, "wb");
@@ -286,6 +287,21 @@ static void test_file_service(void) {
 
     fr[0] = buf + L6_FRAME_LEN; /* MADOCA after junk bytes */
     CHECK(write_file(path, fr, 1, 1000) && l6_file_service(path) == L6_SVC_MADOCA, "file: preamble found after junk");
+
+    /* a long leading run of null messages: 300 x 250 B crosses the
+     * L6_FILE_SCAN_BYTES read chunk, with frames straddling the boundary */
+    {
+        static const uint8_t* many[NNULL + 1];
+        int k;
+        for (k = 0; k < NNULL; k++) many[k] = null;
+        many[NNULL] = buf + 2 * L6_FRAME_LEN; /* MADOCA iono */
+        CHECK(write_file(path, many, NNULL + 1, 0) && l6_file_service(path) == L6_SVC_MADOCA_IONO,
+              "file: iono after 300 null messages (beyond the first read chunk)");
+        CHECK(write_file(path, many, NNULL + 1, 123) && l6_file_service(path) == L6_SVC_MADOCA_IONO,
+              "file: same with 123 junk bytes (other chunk alignment)");
+        CHECK(write_file(path, many, NNULL, 0) && l6_file_service(path) == L6_SVC_UNKNOWN,
+              "file: null messages only -> UNKNOWN");
+    }
 
     CHECK(write_file(path, fr, 0, 0) && l6_file_service(path) == L6_SVC_UNKNOWN, "file: empty -> UNKNOWN");
     remove(path);
