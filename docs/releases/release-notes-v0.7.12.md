@@ -133,7 +133,7 @@ and `handover-v1`. The remaining in-tree datasets move in follow-up PRs, one dat
 
 ### Test status
 
-Full suite `ctest -j1`: **170 / 170** (macOS, Accelerate). RT replay tests are
+Full suite `ctest -j1`: **171 / 171** (macOS, Accelerate). RT replay tests are
 timing-sensitive and can false-fail under CPU contention (for example with
 another `mrtk run` on the same machine); re-run them in isolation.
 
