@@ -1,6 +1,6 @@
 /*------------------------------------------------------------------------------
  * t_toml.c : unit test for the TOML loader deprecation aliases and unknown-key
- *            detection (#286).
+ *            detection (#286), and the TOML saveopts() append error (#342).
  *
  * Uses explicit failure returns (not assert) so the checks run even in
  * NDEBUG builds where assert() is a no-op (see #277).
@@ -14,6 +14,7 @@
 
 #define FIXTURE "t_toml_fixture.toml"
 #define CAPTURE "t_toml_stderr.txt"
+#define SAVED "t_toml_saved.toml"
 
 static int fail = 0;
 
@@ -130,7 +131,14 @@ int main(void) {
     expect(capture_count("unknown key [positioning].elevaton_mask") == 1,
            "unknown-key sweep runs once for an unchanged file loaded twice");
 
+    /* saveopts(): TOML has no append mode. A request must fail, not report
+     * success with nothing written (#342: rtkrcv "save x.toml" lost every
+     * positioning option). Overwrite mode still works. */
+    expect(saveopts(SAVED, "w", NULL, sysopts) == 1, "saveopts .toml overwrite succeeds");
+    expect(saveopts(SAVED, "a", NULL, sysopts) == 0, "saveopts .toml append reports an error");
+
     remove(FIXTURE);
     remove(CAPTURE);
+    remove(SAVED);
     return fail;
 }

@@ -1090,10 +1090,11 @@ static int decode_bdsraw(raw_t* raw) {
 /* decode SBF QZS C/A subframe -----------------------------------------------*/
 static int decode_qzsrawl1ca(raw_t* raw) { return decode_rawca(raw, SYS_QZS); }
 /* decode SBF QZS L6 message (QZSRawL6 / QZSRawL6D / QZSRawL6E) ---------------
- * Parses the shared QZSRawL6x header + 250-byte L6 frame, then dispatches on
- * the SBF Source field: L6E (MADOCA-PPP) is decoded inline, L6D (CLAS) returns
- * 10 for the caller's CLAS redirect. Handles both the legacy generic block
- * (4069, mosaic-CLAS) and the signal-split blocks (4270/4271, mosaic-G5).
+ * Parses the shared QZSRawL6x header + 250-byte L6 frame and routes it by the
+ * L6 header service (decode_qzss_l6frame): 10 CLAS frame for the caller's
+ * redirect, 15 MADOCA-PPP SSR decoded, 16 MADOCA-PPP iono frame, 17 QZNMA
+ * frame. Handles both the legacy generic block (4069, mosaic-CLAS) and the
+ * signal-split blocks (4270/4271, mosaic-G5).
  *---------------------------------------------------------------------------*/
 static int decode_qzsrawl6(raw_t* raw, rtcm_t* rtcm) {
     gtime_t time;
@@ -1145,30 +1146,15 @@ static int decode_qzsrawl6(raw_t* raw, rtcm_t* rtcm) {
 
     memcpy(rtcm->buff, buff, 250);
 
-    /* Route by the SBF Source field (SBF ref: 1=QZSS L6D, 2=QZSS L6E).
-     * mosaic-CLAS carries both signals under QZSRawL6 (4069); mosaic-G5
-     * pre-splits into QZSRawL6D (4270, Source=1) / QZSRawL6E (4271, Source=2).
-     * L6D (CLAS) -> return 10 so the caller redirects the frame to the CLAS
-     * decoder. L6E and Source=0/Unknown fall through to the MADOCA-PPP decoder,
-     * which self-rejects non-L6E content by vendor ID. */
-    if (source == 1) {
-        raw->ephsat = sat; /* CLAS satellite for redirect / cssr2rtcm3 filtering */
-        /* MADOCA-PPP wide-area ionospheric augmentation rides on L6D PRN 200/201
-         * ([1] Table 3-1, "Technology Demonstration"; 197 reserved for test) and
-         * is disjoint from CLAS (PRN 193-199). Return a dedicated code so rtksvr
-         * routes it to the L6D iono decoder instead of the CLAS redirect. */
-        if (prn == 200 || prn == 201 || prn == 197) {
-            return 16; /* MADOCA-PPP iono L6D frame ready */
-        }
-        return 10; /* CLAS L6D frame ready (skip MADOCA decoder) */
+    /* Route by the L6 header (vendor ID + CSID), not by the SBF Source field
+     * or the satellite PRN: L6E PRNs time-multiplex MADOCA-PPP and QZNMA, and
+     * PRN 197 carries CLAS (IS-QZSS-MDC rev 002), not MADOCA iono. Source
+     * (1=L6D, 2=L6E) only decides the legacy handling of null messages. */
+    ret = decode_qzss_l6frame(rtcm, source == 1);
+    if (ret == 10 || ret == 16) {
+        raw->ephsat = sat; /* L6D satellite for redirect / cssr2rtcm3 filtering */
     }
-    ret = decode_qzss_l6emsg(rtcm);
-
-    /* Remap "L6E SSR decoded" (10) to a dedicated code (15) so consumers that
-     * read 10 as "L6D frame ready for CLAS redirect" (rtksvr redirect block,
-     * cssr2rtcm3) do not misroute MADOCA L6E. rtksvr applies code 15 via
-     * update_ssr when not in CLAS/PPP-RTK mode; cssr2rtcm3 ignores it. */
-    return ret == 10 ? 15 : ret;
+    return ret;
 }
 /* decode SBF NavIC/IRNSS subframe -------------------------------------------*/
 static int decode_navicraw(raw_t* raw) {

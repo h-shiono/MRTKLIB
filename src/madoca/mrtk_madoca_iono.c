@@ -34,6 +34,7 @@
 
 #include "mrtklib/mrtk_bits.h"
 #include "mrtklib/mrtk_const.h"
+#include "mrtklib/mrtk_l6.h"
 #include "mrtklib/mrtk_nav.h"
 #include "mrtklib/mrtk_ppp.h"
 #include "mrtklib/mrtk_trace.h"
@@ -50,11 +51,6 @@ extern gtime_t utc2gpst(gtime_t t);
 extern gtime_t timeget(void);
 
 /* constants -----------------------------------------------------------------*/
-
-#define L6PREAMB 0x1ACFFC1Du /* QZSS L6 message preamble */
-#define L6BYTELEN 218        /* QZSS L6 message byte length w/o R-S CODE */
-#define L6HEAD_BITLEN 49     /* L6 message header bit length */
-#define L6DATA_BITLEN 1695   /* L6 message data part bit length */
 
 #define MIONO_MAX_FRAME 40 /* dependent on Length of Correction Messages */
 
@@ -76,15 +72,15 @@ extern gtime_t timeget(void);
 #define SQR(x) ((x) * (x))
 
 typedef struct {
-    gtime_t gt;                                /* current Epoch Time 1s */
-    int mgfid;                                 /* current Msg. Gen. Facility ID */
-    uint8_t buff[L6BYTELEN * MIONO_MAX_FRAME]; /* L6D Message */
-    int ibuff;                                 /* indicate the end of buff */
-    int maxframe;                              /* set framelen[first subtype] */
-    int frame;                                 /* frame counter */
-    int tow0;                                  /* for Hourly Epoch Time 1s */
-    int ep0;                                   /* for Hourly Epoch Time 1s regresses check */
-    int iod;                                   /* IOD SSR */
+    gtime_t gt;                                   /* current Epoch Time 1s */
+    int mgfid;                                    /* current Msg. Gen. Facility ID */
+    uint8_t buff[L6_FRAME_LEN * MIONO_MAX_FRAME]; /* L6D Message */
+    int ibuff;                                    /* indicate the end of buff */
+    int maxframe;                                 /* set framelen[first subtype] */
+    int frame;                                    /* frame counter */
+    int tow0;                                     /* for Hourly Epoch Time 1s */
+    int ep0;                                      /* for Hourly Epoch Time 1s regresses check */
+    int iod;                                      /* IOD SSR */
 } miono_t;
 
 static miono_t _miono[MIONO_MAX_PRN] = {{0}};
@@ -325,54 +321,44 @@ static int decode_miono_correction(miono_t* mi, miono_region_t* re, int i, int a
  *-----------------------------------------------------------------------------*/
 extern int decode_qzss_l6dmsg(mdcl6d_t* mdcl6d) {
     unsigned int preamb, prn, type, alert, vid, mgfid, csid, anme, si;
+    l6_header_t hdr;
+    const l6_prn_info_t* info;
     int i = 0, j, imax, n, ibuff, mn, apply, ret, optprn;
     char* str;
     uint8_t mask;
     unsigned int corlen, narea;
 
     /* decode L6 message header (49 bits) */
-    preamb = getbitu(mdcl6d->buff, i, 32);
-    i += 32; /* Preamble */
-    prn = getbitu(mdcl6d->buff, i, 8);
-    i += 8;                             /* PRN */
-    type = getbitu(mdcl6d->buff, i, 8); /* L6 Msg. Type ID */
-    vid = getbitu(mdcl6d->buff, i, 3);
-    i += 3; /* Vendor ID(2:MADOCA-PPP) */
-    mgfid = getbitu(mdcl6d->buff, i, 2);
-    i += 2; /* Msg. Gen. Facility ID */
-    csid = getbitu(mdcl6d->buff, i, 1);
-    i += 1; /* Correction Service ID */
-    anme = getbitu(mdcl6d->buff, i, 1);
-    i += 1; /* Applicable Nav. Msg. Ext. */
-    si = getbitu(mdcl6d->buff, i, 1);
-    i += 1; /* Subframe Indicator */
-    alert = getbitu(mdcl6d->buff, i, 1);
-    i += 1; /* Alert Flag */
+    l6_parse_header(mdcl6d->buff, &hdr);
+    preamb = hdr.preamble;
+    prn = hdr.prn;
+    type = hdr.msgid;  /* L6 Msg. Type ID */
+    vid = hdr.vid;     /* Vendor ID(2:MADOCA-PPP) */
+    mgfid = hdr.fac;   /* Msg. Gen. Facility ID(0-1:Hitachi-Ota,2-3:Kobe) */
+    csid = hdr.csid;   /* Correction Service ID(0:Clock/Ephemeris,1:Iono) */
+    anme = hdr.anme;   /* Applicable Nav. Msg. Ext.(0:Default,1:CNAV/CNAV2) */
+    si = hdr.sf_ind;   /* Subframe Indicator(0:others,1:First Data) */
+    alert = hdr.alert; /* Alert Flag(1:Alert) */
+    i = L6_HEADER_BITS;
 
     (void)type;
     (void)csid;
     (void)anme; /* suppress unused warnings */
 
-    switch (prn) { /* ref [1] Table 3-1 */
-        case 200:
-            j = 0;
-            break;
-        case 201:
-            j = 1;
-            break;
-        case 197:
-            j = 2;
-            break; /* for test */
-        default:
-            trace(NULL, 3, "decode_qzss_l6dmsg: invalid prn=%d\n", prn);
-            return -1;
+    /* decoder slot from the L6 PRN table (PRN 200/201, ref [1] Table 3-1;
+     * PRN 197 was reassigned to CLAS in IS-QZSS-MDC rev 002) */
+    info = l6_prn_info((int)prn);
+    j = info ? info->iono_slot : -1;
+    if (j < 0) {
+        trace(NULL, 3, "decode_qzss_l6dmsg: invalid prn=%d\n", prn);
+        return -1;
     }
 
     trace(NULL, 3,
           "decode_qzss_l6dmsg: %s,preamb=0x%08X,prn=%d,type=0x%X(vid=%d,mgfid=%d,csid=%d,anme=%d,si=%d),alert=%d\n",
           time_str(_miono[j].gt, 3), preamb, prn, type, vid, mgfid, csid, anme, si, alert);
 
-    if (preamb != L6PREAMB) {
+    if (preamb != L6_PREAMBLE) {
         trace(NULL, 2, "decode_qzss_l6dmsg: %s,invalid preamb=0x%08X\n", time_str(_miono[j].gt, 3), preamb);
         return -1;
     }
@@ -409,7 +395,7 @@ extern int decode_qzss_l6dmsg(mdcl6d_t* mdcl6d) {
         if (mn == MIONO_MT_COV) {
             corlen = getbitu(mdcl6d->buff, i + 54, 16); /* Length of Correction Messages */
             narea = getbitu(mdcl6d->buff, i + 70, 5);   /* No. of Area */
-            _miono[j].maxframe = (75 + narea * 45 + corlen) / L6DATA_BITLEN + 1;
+            _miono[j].maxframe = (75 + narea * 45 + corlen) / L6_DATA_BITS + 1;
             trace(NULL, 3, "decode_qzss_l6dmsg: %s,mn=%d,maxframe=%d,corlen=%d,narea=%d\n", time_str(_miono[j].gt, 3),
                   mn, _miono[j].maxframe, corlen, narea);
             _miono[j].frame = 0;
@@ -469,7 +455,7 @@ extern int decode_qzss_l6dmsg(mdcl6d_t* mdcl6d) {
     _miono[j].buff[ibuff++] |= (unsigned char)getbitu(mdcl6d->buff, i, n);
     i += n;
 
-    while (i < L6HEAD_BITLEN + L6DATA_BITLEN) {
+    while (i < L6_HEADER_BITS + L6_DATA_BITS) {
         _miono[j].buff[ibuff++] = (unsigned char)getbitu(mdcl6d->buff, i, 8);
         i += 8;
     }
@@ -482,7 +468,7 @@ extern int decode_qzss_l6dmsg(mdcl6d_t* mdcl6d) {
     ret = 10; /* input MADOCA-PPP iono. messages */
     i = 0;
     imax = 0;
-    while (i < L6DATA_BITLEN * _miono[j].maxframe) {
+    while (i < L6_DATA_BITS * _miono[j].maxframe) {
         mn = getbitu(_miono[j].buff, i, 12);
         i += 12; /* Message Number */
         i += 4;  /* Message Sub Type ID(skip) */
@@ -558,7 +544,7 @@ extern int input_qzssl6d(mdcl6d_t* mdcl6d, const uint8_t data) {
     }
     mdcl6d->buff[mdcl6d->nbyte++] = data;
 
-    if (mdcl6d->nbyte < L6BYTELEN) {
+    if (mdcl6d->nbyte < L6_FRAME_LEN) {
         return 0;
     }
 

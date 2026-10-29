@@ -70,12 +70,14 @@ typedef struct stream_tag { /* stream type */
     int type;               /* type (STR_???) */
     int mode;               /* mode (STR_MODE_?) */
     int state;              /* state (-1:error,0:close,1:open) */
-    uint32_t inb, inr;      /* input bytes/rate */
-    uint32_t outb, outr;    /* output bytes/rate */
+    uint64_t inb;           /* input bytes */
+    uint32_t inr;           /* input rate (bps) */
+    uint64_t outb;          /* output bytes */
+    uint32_t outr;          /* output rate (bps) */
     uint32_t tick_i;        /* input tick tick */
     uint32_t tick_o;        /* output tick */
     uint32_t tact;          /* active tick */
-    uint32_t inbt, outbt;   /* input/output bytes at tick */
+    uint64_t inbt, outbt;   /* input/output bytes at tick */
     rtk_lock_t lock;        /* lock flag */
     void* port;             /* type dependent port control struct */
     char path[MAXSTRPATH];  /* stream path */
@@ -178,7 +180,8 @@ int strread(stream_t* stream, uint8_t* buff, int n);
  * @param[in,out] stream  stream struct
  * @param[in]     buff    data buffer
  * @param[in]     n       data length (bytes)
- * @return status (0:error,1:ok)
+ * @return bytes written (0: nothing written or error; some stream types
+ *         return -1 on error)
  */
 int strwrite(stream_t* stream, uint8_t* buff, int n);
 
@@ -208,12 +211,12 @@ int strstatx(stream_t* stream, char* msg);
 /**
  * @brief Get stream statistics summary.
  * @param[in]  stream  stream struct
- * @param[out] inb     input bytes
- * @param[out] inr     input rate (bps)
- * @param[out] outb    output bytes
- * @param[out] outr    output rate (bps)
+ * @param[out] inb     input bytes (NULL: not output)
+ * @param[out] inr     input rate (bps) (NULL: not output)
+ * @param[out] outb    output bytes (NULL: not output)
+ * @param[out] outr    output rate (bps) (NULL: not output)
  */
-void strsum(stream_t* stream, int* inb, int* inr, int* outb, int* outr);
+void strsum(stream_t* stream, uint64_t* inb, int* inr, uint64_t* outb, int* outr);
 
 /**
  * @brief Set stream options.
@@ -280,7 +283,16 @@ void strsvrinit(strsvr_t* svr, int nout);
 int strsvrstart(strsvr_t* svr, int* opts, int* strs, char** paths, char** logs, strconv_t** conv, char** cmds,
                 char** cmds_priodic, const double* nmeapos);
 void strsvrstop(strsvr_t* svr, char** cmds);
-void strsvrstat(strsvr_t* svr, int* stat, int* log_stat, int* byte, int* bps, char* msg);
+/**
+ * @brief Get stream server status.
+ * @param[in]  svr       stream server
+ * @param[out] stat      status of each stream [svr->nstr]
+ * @param[out] log_stat  status of each stream log [svr->nstr]
+ * @param[out] byte      bytes received (stream 0) / sent (others) [svr->nstr]
+ * @param[out] bps       bit rate received / sent [svr->nstr]
+ * @param[out] msg       status messages
+ */
+void strsvrstat(strsvr_t* svr, int* stat, int* log_stat, uint64_t* byte, int* bps, char* msg);
 strconv_t* strconvnew(int itype, int otype, const char* msgs, int staid, int stasel, const char* opt);
 void strconvfree(strconv_t* conv);
 

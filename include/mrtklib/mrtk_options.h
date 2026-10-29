@@ -105,7 +105,8 @@ int loadopts(const char* file, opt_t* opts);
 /**
  * @brief Save options to file.
  * @param[in] file     Options file
- * @param[in] mode     Write mode ("w":overwrite, "a":append)
+ * @param[in] mode     Write mode ("w":overwrite, "a":append; append is not
+ *                     supported for a .toml file and returns 0)
  * @param[in] comment  Header comment (NULL: no comment)
  * @param[in] opts     Options table (terminated with name="")
  * @return Status (1:ok, 0:error)

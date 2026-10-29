@@ -22,6 +22,7 @@
 
 #include "mrtklib/mrtk_bits.h"
 #include "mrtklib/mrtk_const.h"
+#include "mrtklib/mrtk_l6.h"
 #include "mrtklib/mrtk_trace.h"
 
 /* local system constants (duplicated to avoid rtklib.h dependency) ----------*/
@@ -44,11 +45,7 @@ extern char* time_str(gtime_t t, int n);
 
 /* constants -----------------------------------------------------------------*/
 
-#define L6PREAMB 0x1ACFFC1Du /* QZSS L6 message preamble */
-#define L6BYTELEN 218        /* QZSS L6 message byte length w/o R-S CODE */
-#define L6HEAD_BITLEN 49     /* L6 message header bit length */
-#define L6DATA_BITLEN 1695   /* L6 message data part bit length */
-#define L6DATA_BYTELEN 212   /* L6 message data part byte length */
+#define L6DATA_BYTELEN 212 /* L6 message data part byte length */
 
 #define RTCM_MN_CSSR 4073 /* Compact SSR message number */
 
@@ -679,34 +676,29 @@ static int decode_mcssr_ura(mcssr_t* mc, ssr_t* ssr, int i, int apply) {
  *-----------------------------------------------------------------------------*/
 extern int decode_qzss_l6emsg(rtcm_t* rtcm) {
     unsigned int preamb, prn, type, alert, vid, mgfid, csid, anme, si;
+    l6_header_t hdr;
     int i = 0, n, ibuff, mn, st, apply, ret, optprn;
     char* str;
     uint8_t mask;
 
     /* decode L6 message header (49 bits) */
-    preamb = getbitu(rtcm->buff, i, 32);
-    i += 32; /* Preamble */
-    prn = getbitu(rtcm->buff, i, 8);
-    i += 8;                           /* PRN */
-    type = getbitu(rtcm->buff, i, 8); /* L6 Msg. Type ID */
-    vid = getbitu(rtcm->buff, i, 3);
-    i += 3; /* Vendor ID(2:MADOCA-PPP) */
-    mgfid = getbitu(rtcm->buff, i, 2);
-    i += 2; /* Msg. Gen. Facility ID(0-1:Hitachi-Ota,2-3:Kobe) */
-    csid = getbitu(rtcm->buff, i, 1);
-    i += 1; /* Correction Service ID(0:Clock/Ephemeris) */
-    anme = getbitu(rtcm->buff, i, 1);
-    i += 1; /* Applicable Nav. Msg. Ext.(0:Default,1:CNAV/CNAV2) */
-    si = getbitu(rtcm->buff, i, 1);
-    i += 1; /* Subframe Indicator(0:others,1:First Data) */
-    alert = getbitu(rtcm->buff, i, 1);
-    i += 1; /* Alert Flag(1:Alert) */
+    l6_parse_header(rtcm->buff, &hdr);
+    preamb = hdr.preamble;
+    prn = hdr.prn;
+    type = hdr.msgid;  /* L6 Msg. Type ID */
+    vid = hdr.vid;     /* Vendor ID(2:MADOCA-PPP) */
+    mgfid = hdr.fac;   /* Msg. Gen. Facility ID(0-1:Hitachi-Ota,2-3:Kobe) */
+    csid = hdr.csid;   /* Correction Service ID(0:Clock/Ephemeris,1:Iono) */
+    anme = hdr.anme;   /* Applicable Nav. Msg. Ext.(0:Default,1:CNAV/CNAV2) */
+    si = hdr.sf_ind;   /* Subframe Indicator(0:others,1:First Data) */
+    alert = hdr.alert; /* Alert Flag(1:Alert) */
+    i = L6_HEADER_BITS;
 
     trace(NULL, 3,
           "decode_qzss_l6emsg : %s,preamb=0x%08X,prn=%d,type=0x%X(vid=%d,mgfid=%d,csid=%d,anme=%d,si=%d),alert=%d\n",
           time_str(_mcssr[_mcssr_ch].gt, 3), preamb, prn, type, vid, mgfid, csid, anme, si, alert);
 
-    if (preamb != L6PREAMB) {
+    if (preamb != L6_PREAMBLE) {
         trace(NULL, 2, "decode_qzss_l6emsg : %s,invalid preamb=0x%08X\n", time_str(_mcssr[_mcssr_ch].gt, 3), preamb);
         return -1;
     }
@@ -808,7 +800,7 @@ extern int decode_qzss_l6emsg(rtcm_t* rtcm) {
     }
     _mcssr[_mcssr_ch].buff[ibuff++] |= (unsigned char)getbitu(rtcm->buff, i, n);
     i += n;
-    while (i < L6HEAD_BITLEN + L6DATA_BITLEN) {
+    while (i < L6_HEADER_BITS + L6_DATA_BITS) {
         _mcssr[_mcssr_ch].buff[ibuff++] = (unsigned char)getbitu(rtcm->buff, i, 8);
         i += 8;
     }
@@ -820,7 +812,7 @@ extern int decode_qzss_l6emsg(rtcm_t* rtcm) {
 
     ret = 10; /* input ssr messages */
     i = 0;
-    while (i < L6DATA_BITLEN * _mcssr[_mcssr_ch].maxframe) {
+    while (i < L6_DATA_BITS * _mcssr[_mcssr_ch].maxframe) {
         mn = getbitu(_mcssr[_mcssr_ch].buff, i, 12);
         i += 12; /* Message Number */
         if (mn != RTCM_MN_CSSR) {
@@ -928,7 +920,7 @@ extern int input_qzssl6e(rtcm_t* rtcm, const uint8_t data) {
     }
     rtcm->buff[rtcm->nbyte++] = data;
 
-    if (rtcm->nbyte < L6BYTELEN) {
+    if (rtcm->nbyte < L6_FRAME_LEN) {
         return 0;
     }
 

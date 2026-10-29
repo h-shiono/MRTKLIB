@@ -40,6 +40,7 @@
 #include "mrtklib/mrtk_foundation.h"
 #include "mrtklib/mrtk_geoid.h"
 #include "mrtklib/mrtk_ionex.h"
+#include "mrtklib/mrtk_l6.h"
 #include "mrtklib/mrtk_lambda.h"
 #include "mrtklib/mrtk_madoca.h"
 #include "mrtklib/mrtk_madoca_local_comb.h"

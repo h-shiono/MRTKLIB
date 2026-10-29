@@ -21,6 +21,8 @@
 
 #include "mrtklib/mrtk_bits.h"
 #include "mrtklib/mrtk_eph.h"
+#include "mrtklib/mrtk_l6.h"
+#include "mrtklib/mrtk_madoca.h"
 #include "mrtklib/mrtk_nav.h"
 #include "mrtklib/mrtk_obs.h"
 #include "mrtklib/mrtk_rtcm.h"
@@ -1654,6 +1656,41 @@ extern int decode_frame(const uint8_t* buff, eph_t* eph, alm_t* alm, double* ion
         return 0;
     }
     return 1;
+}
+/* route a QZSS L6 frame from a receiver container (UBX/SBF) ----------------*/
+extern int decode_qzss_l6frame(rtcm_t* rtcm, int is_l6d) {
+    l6_header_t hdr;
+    int ret;
+
+    l6_parse_header(rtcm->buff, &hdr);
+    if (!l6_service_expected(&hdr)) {
+        trace(NULL, 3, "L6 frame: prn=%d service=%s not nominal for this PRN\n", hdr.prn, l6_service_name(hdr.svc));
+    }
+    switch (hdr.svc) {
+        case L6_SVC_CLAS:
+            return 10;
+        case L6_SVC_MADOCA_IONO:
+            return 16;
+        case L6_SVC_QZNMA:
+            return 17;
+        case L6_SVC_MADOCA:
+            /* remap "L6E SSR decoded" (10) so it is not read as a CLAS frame */
+            ret = decode_qzss_l6emsg(rtcm);
+            return ret == 10 ? 15 : ret;
+        case L6_SVC_NULL:
+            /* L6D: dropped, so it never reaches the CLAS demux (msgid 0 would
+             * read as transmit pattern 0) nor the iono decoder (#344).
+             * L6E: the MADOCA decoder sees the alert flag and returns -1
+             * without clearing corrections (IS-QZSS-MDC-004 5.4.2). */
+            if (is_l6d) {
+                trace(NULL, 2, "L6 frame: null message prn=%d dropped\n", hdr.prn);
+                return 0;
+            }
+            ret = decode_qzss_l6emsg(rtcm);
+            return ret == 10 ? 15 : ret;
+        default:
+            return 0;
+    }
 }
 /* initialize receiver raw data control ----------------------------------------
  * initialize receiver raw data control struct and reallocate observation and

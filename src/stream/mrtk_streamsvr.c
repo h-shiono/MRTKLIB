@@ -752,12 +752,12 @@ extern void strsvrstop(strsvr_t* svr, char** cmds) {
  * args   : strsvr_t *svr    IO  stream sever struct
  *          int    *stat     O   stream status
  *          int    *log_stat O   log status
- *          int    *byte     O   bytes received/sent
+ *          uint64_t *byte   O   bytes received/sent
  *          int    *bps      O   bitrate received/sent
  *          char   *msg      O   messages
  * return : none
  *-----------------------------------------------------------------------------*/
-extern void strsvrstat(strsvr_t* svr, int* stat, int* log_stat, int* byte, int* bps, char* msg) {
+extern void strsvrstat(strsvr_t* svr, int* stat, int* log_stat, uint64_t* byte, int* bps, char* msg) {
     char s[MAXSTRMSG] = "", *p = msg;
     int i, bps_in;
 

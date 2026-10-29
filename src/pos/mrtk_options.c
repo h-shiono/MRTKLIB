@@ -515,12 +515,14 @@ extern int saveopts(const char* file, const char* mode, const char* comment, con
 
     trace(NULL, 3, "saveopts: file=%s mode=%s\n", file, mode);
 
-    /* detect .toml extension — TOML save does not support append mode */
+    /* detect .toml extension — TOML save does not support append mode. Report
+     * it as an error: a skipped append left the file without these options
+     * while the caller reported success (#342) */
     ext = strrchr(file, '.');
     if (ext && strcmp(ext, ".toml") == 0) {
         if (mode && strcmp(mode, "a") == 0) {
-            trace(NULL, 2, "saveopts: TOML append not supported, skipping (%s)\n", file);
-            return 1; /* not an error — caller likely already wrote with "w" */
+            trace(NULL, 1, "saveopts: TOML append not supported (%s)\n", file);
+            return 0;
         }
         return saveopts_toml(file, comment, opts);
     }

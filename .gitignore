@@ -19,6 +19,9 @@ site/
 # Python virtual environments
 scripts/.venv/
 
+# Test data extracted by the dataset fixtures (#386)
+tests/data/has/
+
 # Test data extracted from tests/data/malib/MALIB_OSS_data.tar.gz
 # (extracted by ctest fixture; cleaned up automatically, but guarded here)
 tests/data/malib/MALIB_OSS_data_*.sbf

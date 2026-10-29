@@ -36,6 +36,7 @@
  *           2017/05/26  1.17 add input format tersus
  *           2020/11/30  1.18 support api change strsvrstart(),strsvrstat()
  */
+#include <inttypes.h>
 #include <signal.h>
 #include <unistd.h>
 
@@ -248,7 +249,8 @@ int mrtk_relay(int argc, char** argv) {
     char *ant[] = {"", "", ""}, *rcv[] = {"", "", ""}, *logfile = "";
     int i, j, n = 0, dispint = 5000, trlevel = 0, opts[] = {10000, 10000, 2000, 32768, 10, 0, 30, 0};
     int types[MAXSTR] = {STR_FILE, STR_FILE}, stat[MAXSTR] = {0}, log_stat[MAXSTR] = {0};
-    int byte[MAXSTR] = {0}, bps[MAXSTR] = {0}, fmts[MAXSTR] = {0}, sta = 0;
+    int bps[MAXSTR] = {0}, fmts[MAXSTR] = {0}, sta = 0;
+    uint64_t byte[MAXSTR] = {0};
     mrtk_ctx_t* ctx = NULL;
 
     /* translate --long flags to their -short aliases before parsing */
@@ -397,7 +399,8 @@ int mrtk_relay(int argc, char** argv) {
         /* show stream server status */
         for (i = 0, p = buff; i < MAXSTR; i++) p += sprintf(p, "%c", ss[stat[i] + 1]);
 
-        fprintf(stderr, "%s [%s] %10d B %7d bps %s\n", time_str(utc2gpst(timeget()), 0), buff, byte[0], bps[0], strmsg);
+        fprintf(stderr, "%s [%s] %10" PRIu64 " B %7d bps %s\n", time_str(utc2gpst(timeget()), 0), buff, byte[0], bps[0],
+                strmsg);
 
         sleepms(dispint);
     }

@@ -56,6 +56,8 @@ def filter_sbf(data, keep_ids, start_tow, end_tow):
     i = 0
     seen = {}  # id -> count seen
     kept = {}  # id -> count kept
+    records = []  # (tow_ms, end offset in out) per kept block, for time tags
+    wnc = None  # week number of the first kept block
     n_notset = 0
     while i < n - 8:
         if data[i] != SBF_SYNC1 or data[i + 1] != SBF_SYNC2:
@@ -78,8 +80,11 @@ def filter_sbf(data, keep_ids, start_tow, end_tow):
             elif start_tow <= tow < end_tow:
                 out += data[i : i + length]
                 kept[bid] = kept.get(bid, 0) + 1
+                records.append((tow, len(out)))
+                if wnc is None:
+                    wnc = struct.unpack_from("<H", data, i + 12)[0]
         i += length
-    stats = {"seen": seen, "kept": kept, "notset_dropped": n_notset}
+    stats = {"seen": seen, "kept": kept, "notset_dropped": n_notset, "records": records, "wnc": wnc}
     return bytes(out), stats
 
 

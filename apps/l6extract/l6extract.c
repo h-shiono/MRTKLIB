@@ -7,7 +7,10 @@
  *
  * description : Extracts L6D (CLAS) and/or L6E (MADOCA) raw 250-byte frames
  *               from Septentrio SBF or u-blox UBX binary files, writing
- *               per-PRN/per-type .l6 files compatible with clas_input_cssrf().
+ *               per-PRN {prefix}.{PRN}.l6d / .l6e files that mrtk post reads.
+ *               The signal (L6D/L6E) and PRN come from the L6 frame header,
+ *               not from the receiver container (SBF block ID / Source /
+ *               SVID, UBX svId / message type), see IS-QZSS-L6-008 4.1.2.
  *
  *               For SBF input it also extracts Galileo HAS pages from
  *               GALRawCNAV blocks (block ID 4024) into a single .has file in
@@ -24,6 +27,7 @@
 #include <strings.h> /* strcasecmp */
 
 #include "mrtklib/mrtk_cli.h"
+#include "mrtklib/mrtk_l6.h"
 
 /* byte extraction macros (little-endian, matching RTKLIB convention) */
 #define U1(p) ((uint8_t)(p)[0])
@@ -34,18 +38,19 @@
 #define L6_FRAME_LEN 250    /* L6 payload size (bytes) */
 #define SBF_SYNC_1 0x24     /* '$' */
 #define SBF_SYNC_2 0x40     /* '@' */
-#define SBF_QZSRAWL6 4069   /* SBF block ID: QZSRawL6 (L6E) */
-#define SBF_QZSRAWL6D 4270  /* SBF block ID: QZSRawL6D (L6D) */
-#define SBF_QZSRAWL6E 4271  /* SBF block ID: QZSRawL6E (L6E, mosaic-G5) */
+#define SBF_QZSRAWL6 4069   /* SBF block ID: QZSRawL6 (L6D or L6E) */
+#define SBF_QZSRAWL6D 4270  /* SBF block ID: QZSRawL6D (mosaic-G5) */
+#define SBF_QZSRAWL6E 4271  /* SBF block ID: QZSRawL6E (mosaic-G5) */
 #define SBF_GALRAWCNAV 4024 /* SBF block ID: GALRawCNAV (E6-B C/NAV / HAS) */
 #define UBX_SYNC_1 0xB5
 #define UBX_SYNC_2 0x62
 #define UBX_RXM_QZSSL6_CLS 0x02
 #define UBX_RXM_QZSSL6_ID 0x73
 
-#define MINPRNQZS 193
-#define MAX_QZS_PRN 17    /* J193..J209 (L6D uses J193..J202, L6E J203..J209) */
-#define L6E_PRN_OFFSET 10 /* mosaic-G5 numbers L6E PRNs 10 above the L6D PRN */
+/* L6 header PRNs: L6D 193..202, L6E 203..212 (L6E PRN = L6D PRN + 10) */
+#define MIN_L6_PRN 193
+#define MIN_L6E_PRN 203
+#define MAX_L6_PRN 20
 
 /* Galileo HAS constants */
 #define GAL_SVID_OFFSET 70        /* GAL PRN = SVID - 70 */
@@ -69,12 +74,13 @@ typedef struct {
 } l6_output_t;
 
 /* global state */
-static l6_output_t out[2][MAX_QZS_PRN]; /* [L6_D/L6_E][prn-MINPRNQZS] */
+static l6_output_t out[2][MAX_L6_PRN]; /* [L6_D/L6_E][prn-MIN_L6_PRN] */
 static char prefix[256] = "l6";
 static int filter_l6d = 0; /* -l6d flag */
 static int filter_l6e = 0; /* -l6e flag */
 static int total_frames = 0;
 static int total_skipped = 0;
+static int total_badhdr = 0;
 
 /* Galileo HAS state (SBF GALRawCNAV → single .has file) */
 static int has_enable = 1; /* HAS extraction on by default (disable: -no-has) */
@@ -88,16 +94,18 @@ static int has_prn_count[MAX_GAL_PRN]; /* per-PRN valid record count */
 
 /* ---- output file management ---- */
 
-static int prn_index(int prn) {
-    int idx = prn - MINPRNQZS;
-    if (idx < 0 || idx >= MAX_QZS_PRN) return -1;
-    return idx;
-}
-
-static int write_frame(int prn, int type, const uint8_t* data) {
+/* write one 250-byte frame to {prefix}.{PRN}.l6d|l6e by its L6 header */
+static int write_frame(const uint8_t* data) {
+    l6_header_t h;
     l6_output_t* o;
-    int idx = prn_index(prn);
-    if (idx < 0) return -1;
+    int idx, type;
+
+    if (!l6_parse_header(data, &h) || h.prn < MIN_L6_PRN || h.prn >= MIN_L6_PRN + MAX_L6_PRN) {
+        total_badhdr++;
+        return 0;
+    }
+    idx = h.prn - MIN_L6_PRN;
+    type = h.prn >= MIN_L6E_PRN ? L6_E : L6_D;
 
     /* check filter */
     if (filter_l6d && type != L6_D) return 0;
@@ -107,7 +115,7 @@ static int write_frame(int prn, int type, const uint8_t* data) {
 
     /* open file on first frame */
     if (!o->fp) {
-        snprintf(o->path, sizeof(o->path), "%s_J%d_%s.l6", prefix, prn, type == L6_D ? "l6d" : "l6e");
+        snprintf(o->path, sizeof(o->path), "%s.%d.%s", prefix, h.prn, type == L6_D ? "l6d" : "l6e");
         o->fp = fopen(o->path, "wb");
         if (!o->fp) {
             fprintf(stderr, "Error: cannot open %s\n", o->path);
@@ -127,7 +135,7 @@ static int write_frame(int prn, int type, const uint8_t* data) {
 static void close_all(void) {
     int t, i;
     for (t = 0; t < 2; t++) {
-        for (i = 0; i < MAX_QZS_PRN; i++) {
+        for (i = 0; i < MAX_L6_PRN; i++) {
             if (out[t][i].fp) fclose(out[t][i].fp);
         }
     }
@@ -146,9 +154,9 @@ static void print_stats(void) {
     fprintf(stderr, "  %-6s %-5s %8s %10s  %s\n", "------", "-----", "--------", "----------", "----");
 
     for (t = 0; t < 2; t++) {
-        for (i = 0; i < MAX_QZS_PRN; i++) {
+        for (i = 0; i < MAX_L6_PRN; i++) {
             if (out[t][i].count > 0) {
-                fprintf(stderr, "  J%-5d %-5s %8d %10d  %s\n", i + MINPRNQZS, t == L6_D ? "L6D" : "L6E",
+                fprintf(stderr, "  %-6d %-5s %8d %10d  %s\n", i + MIN_L6_PRN, t == L6_D ? "L6D" : "L6E",
                         out[t][i].count, out[t][i].count * L6_FRAME_LEN, out[t][i].path);
                 any = 1;
             }
@@ -158,7 +166,8 @@ static void print_stats(void) {
     if (!any) {
         fprintf(stderr, "  (no L6 frames found)\n");
     }
-    fprintf(stderr, "\n  Total: %d frames extracted, %d skipped (parity/status error)\n", total_frames, total_skipped);
+    fprintf(stderr, "\n  Total: %d frames extracted, %d skipped (parity/status error), %d skipped (bad L6 header)\n",
+            total_frames, total_skipped, total_badhdr);
 }
 
 static void print_has_stats(void) {
@@ -311,8 +320,7 @@ static int process_sbf(FILE* fp) {
     uint8_t* block = NULL;
     uint8_t payload[L6_FRAME_LEN];
     uint16_t id, len;
-    uint8_t svid, parity;
-    int type, prn;
+    uint8_t parity;
     int c, synced = 0;
 
     while (1) {
@@ -360,29 +368,20 @@ static int process_sbf(FILE* fp) {
             continue;
         }
 
-        /* check for L6 blocks (4069/4271 = L6E, 4270 = L6D) */
+        /* L6 blocks. The block ID, Source and SVID are not used for the
+         * signal or PRN: 4069 (mosaic-CLAS) carries L6D with Source = 1, and
+         * 4271 (mosaic-G5) carries the L6D satellite's SVID. */
         if (id != SBF_QZSRAWL6 && id != SBF_QZSRAWL6D && id != SBF_QZSRAWL6E) continue;
         if (len < 272) continue;
 
-        type = (id == SBF_QZSRAWL6D) ? L6_D : L6_E;
-        svid = U1(block + 14);
         parity = U1(block + 15);
-        prn = svid - 180 + MINPRNQZS - 1;
-
-        /* mosaic-G5 QZSRawL6E (4271) carries the same SVID as the L6D block;
-         * its L6E stream is published under a PRN offset by +10 (J204/J205/J209
-         * for J194/J195/J199) to match the MADOCA .l6 PRN convention. */
-        if (id == SBF_QZSRAWL6E) prn += L6E_PRN_OFFSET;
-
-        if (prn < MINPRNQZS || prn >= MINPRNQZS + MAX_QZS_PRN) continue;
-
         if (parity == 0) {
             total_skipped++;
             continue;
         }
 
         sbf_extract_l6_payload(block, payload);
-        write_frame(prn, type, payload);
+        write_frame(payload);
     }
 
     free(block);
@@ -396,7 +395,7 @@ static int process_ubx(FILE* fp) {
     uint8_t* msg = NULL;
     uint8_t cls;
     uint16_t len;
-    int prn, mtyp, stat, type;
+    int stat;
     int c, synced = 0;
 
     while (1) {
@@ -440,19 +439,12 @@ static int process_ubx(FILE* fp) {
         if (cls != UBX_RXM_QZSSL6_CLS || hdr[3] != UBX_RXM_QZSSL6_ID) continue;
         if (len < 264) continue; /* minimum: 14 header + 250 payload */
 
-        prn = U1(msg + 1) + 192;
-        mtyp = (U2(msg + 10) >> 10) & 1; /* 0=L6D, 1=L6E */
         stat = (U2(msg + 10) >> 12) & 3; /* 1=error-free */
-
-        if (prn < MINPRNQZS || prn >= MINPRNQZS + MAX_QZS_PRN) continue;
-
         if (stat != 1) {
             total_skipped++;
             continue;
         }
-
-        type = (mtyp == 0) ? L6_D : L6_E;
-        write_frame(prn, type, msg + 14);
+        write_frame(msg + 14);
     }
 
     free(msg);
@@ -488,13 +480,16 @@ static void print_usage(void) {
         "  -in, --input  FILE     Input SBF or UBX binary file (required)",
         "  -r   FORMAT            Receiver format: sbf, ubx (auto-detect)",
         "  -o,  --output PREFIX   Output file prefix                  [\"l6\"]",
-        "  -l6d                   Extract L6D frames only (CLAS)",
-        "  -l6e                   Extract L6E frames only (MADOCA)",
+        "  -l6d                   Extract L6D frames only (CLAS, MADOCA iono)",
+        "  -l6e                   Extract L6E frames only (MADOCA, QZNMA)",
         "  -no-has                Disable Galileo HAS extraction",
         "  -h,  --help            Show this help",
         "",
         "Output files:",
-        "  {prefix}_J{PRN}_{l6d|l6e}.l6  Concatenated 250-byte QZSS L6 frames.",
+        "  {prefix}.{PRN}.l6d            Concatenated 250-byte QZSS L6 frames,",
+        "  {prefix}.{PRN}.l6e            one file per L6 signal. Signal and PRN",
+        "                                (L6D 193-202, L6E 203-212) come from",
+        "                                the L6 frame header.",
         "  {input-basename}.has          Galileo HAS pages from SBF GALRawCNAV",
         "                                (block 4024), 64-byte records per",
         "                                docs/design/gal-has.md §3, all PRNs in",

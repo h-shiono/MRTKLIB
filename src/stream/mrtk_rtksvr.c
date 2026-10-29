@@ -22,6 +22,7 @@
 
 #include "mrtklib/mrtk_coords.h"
 #include "mrtklib/mrtk_eph.h"
+#include "mrtklib/mrtk_l6.h"
 #include "mrtklib/mrtk_madoca.h"
 #include "mrtklib/mrtk_madoca_local_corr.h"
 #include "mrtklib/mrtk_mat.h"
@@ -325,6 +326,22 @@ static void update_lcl(rtksvr_t* svr, int index) {
 
     svr->nmsg[index][11]++;
 }
+/* SSR ownership of nav.ssr_ch[0] ---------------------------------------------
+ * In CLAS/PPP-RTK mode the CLAS decoder owns nav->ssr_ch[0]: MADOCA-PPP SSR
+ * must not overwrite the CLAS biases, whether it comes from a mixed UBX/SBF
+ * L6D+L6E stream (code 15) or a raw L6E stream (STRFMT_L6E, code 10). In
+ * PPP/MADOCA mode svr->clas is NULL and MADOCA SSR is applied like any other
+ * ssr_ch[0] source; RTCM3 SSR (code 10) is applied in every mode.
+ *-----------------------------------------------------------------------------*/
+extern int rtksvr_ssr_applicable(const rtksvr_t* svr, int index, int ret) {
+    if (!svr->clas) {
+        return 1;
+    }
+    if (ret == 15) {
+        return 0;
+    }
+    return !(ret == 10 && svr->format[index] == STRFMT_L6E);
+}
 /* update rtk server struct --------------------------------------------------*/
 static void update_svr(rtksvr_t* svr, int ret, obs_t* obs, nav_t* nav, int ephsat, int ephset, sbsmsg_t* sbsmsg,
                        int index, int iobs) {
@@ -342,14 +359,10 @@ static void update_svr(rtksvr_t* svr, int ret, obs_t* obs, nav_t* nav, int ephsa
         update_antpos(svr, index);
     } else if (ret == 7) { /* dgps correction */
         svr->nmsg[index][5]++;
-    } else if (ret == 10) { /* ssr message */
-        update_ssr(svr, index);
-    } else if (ret == 15) { /* MADOCA L6E SSR (raw SBF/UBX) */
-        /* Apply only outside CLAS/PPP-RTK mode: there the CLAS decoder owns
-         * nav->ssr_ch[0], so a mixed mosaic-G5 stream (L6D + L6E) must not let
-         * MADOCA L6E overwrite the CLAS biases. In PPP/MADOCA mode svr->clas is
-         * NULL and the L6E SSR is applied like any other ssr_ch[0] source. */
-        if (!svr->clas) update_ssr(svr, index);
+    } else if (ret == 10 || ret == 15) { /* ssr message / MADOCA L6E SSR (raw SBF/UBX) */
+        if (rtksvr_ssr_applicable(svr, index, ret)) update_ssr(svr, index);
+    } else if (ret == 17) { /* QZNMA L6 frame (UBX/SBF): no consumer until CMA (#353) */
+        svr->nmsg[index][8]++;
     } else if (ret == 11) { /* stat message */
         update_stat(svr, index);
     } else if (ret == 12) { /* local message */
@@ -476,44 +489,39 @@ static int decoderaw(rtksvr_t* svr, int index) {
         }
 #endif
         /* update rtk server (skip update_ssr for UBX/SBF L6 frame-ready codes:
-         * ret=10 means "L6D payload ready for CLAS redirect" and ret=16 means
-         * "L6D payload ready for MADOCA-PPP iono", neither is a decoded SSR) */
+         * ret=10 means "CLAS L6 frame ready for redirect" and ret=16 means
+         * "MADOCA-PPP iono L6 frame ready", neither is a decoded SSR) */
         if (ret > 0 &&
             !((ret == 10 || ret == 16) && (svr->format[index] == STRFMT_UBX || svr->format[index] == STRFMT_SEPT))) {
             update_svr(svr, ret, obs, nav, ephsat, ephset, sbsmsg, index, fobs);
         }
-        /* redirect L6 payload to CLAS decoder (UBX/L6E/SBF → CLAS path) */
-        if (svr->clas && ret == 10 &&
-            (svr->format[index] == STRFMT_UBX || svr->format[index] == STRFMT_L6E ||
-             svr->format[index] == STRFMT_SEPT)) {
+        /* redirect a CLAS L6 frame to the CLAS decoder (UBX/SBF → CLAS path).
+         * Raw L6D byte streams use STRFMT_CLAS above; STRFMT_L6E carries
+         * MADOCA-PPP only (CLAS is broadcast on L6D only). */
+        if (svr->clas && ret == 10 && (svr->format[index] == STRFMT_UBX || svr->format[index] == STRFMT_SEPT)) {
             int k, ch, cret, max_cret = 0;
 
-            if (svr->format[index] == STRFMT_UBX || svr->format[index] == STRFMT_SEPT) {
-                /* UBX/SBF: a multi-channel L6 receiver (e.g. u-blox D9C, 2ch)
-                 * interleaves L6D frames from several QZS PRNs in one stream.
-                 * Route each frame to a CLAS channel keyed by transmit pattern,
-                 * keeping each channel locked to a single active PRN so subframe
-                 * assembly stays coherent across a satellite handover (#197).
-                 * ch<0 means the frame is from a non-active PRN — drop it so the
-                 * locked channel's subframe stream is not corrupted by mixing. */
-                int prn = svr->rtcm[index].buff[4];
-                int ptn = (svr->rtcm[index].buff[5] & 0x06) >> 1;
-                /* current rover observation time drives the demux re-lock
-                 * timeout. The rover decodes into raw[0] (receiver-raw formats)
-                 * or rtcm[0] (RTCM2/3); pick whichever is fresher so the clock
-                 * advances for RTCM3 rovers too — otherwise the timeout never
-                 * fires and a set satellite's stale lock is never released (#205). */
-                gtime_t now = svr->raw[0].time;
-                if (!now.time || (svr->rtcm[0].time.time && timediff(svr->rtcm[0].time, now) > 0)) {
-                    now = svr->rtcm[0].time;
-                }
-                ch = clas_route_l6frame(svr->clas, prn, ptn, svr->rtk.opt.l6mrg, now);
-                if (ch < 0) {
-                    continue;
-                }
-            } else {
-                /* L6E: use stream index mapping (separate streams per channel) */
-                ch = (index == 1) ? 1 : 0;
+            /* UBX/SBF: a multi-channel L6 receiver (e.g. u-blox D9C, 2ch)
+             * interleaves L6D frames from several QZS PRNs in one stream.
+             * Route each frame to a CLAS channel keyed by transmit pattern,
+             * keeping each channel locked to a single active PRN so subframe
+             * assembly stays coherent across a satellite handover (#197).
+             * ch<0 means the frame is from a non-active PRN — drop it so the
+             * locked channel's subframe stream is not corrupted by mixing. */
+            l6_header_t hdr;
+            l6_parse_header(svr->rtcm[index].buff, &hdr);
+            /* current rover observation time drives the demux re-lock
+             * timeout. The rover decodes into raw[0] (receiver-raw formats)
+             * or rtcm[0] (RTCM2/3); pick whichever is fresher so the clock
+             * advances for RTCM3 rovers too — otherwise the timeout never
+             * fires and a set satellite's stale lock is never released (#205). */
+            gtime_t now = svr->raw[0].time;
+            if (!now.time || (svr->rtcm[0].time.time && timediff(svr->rtcm[0].time, now) > 0)) {
+                now = svr->rtcm[0].time;
+            }
+            ch = clas_route_l6frame(svr->clas, hdr.prn, hdr.ptn, svr->rtk.opt.l6mrg, now);
+            if (ch < 0) {
+                continue;
             }
 
             trace(NULL, 3, "L6 redirect: fmt=%d ch=%d prn=%d index=%d\n", svr->format[index], ch,
@@ -570,11 +578,12 @@ static int decoderaw(rtksvr_t* svr, int index) {
         /* route an L6D MADOCA-PPP ionospheric frame (SBF/UBX, ret==16) to the
          * per-PRN iono decoder; on a completed message copy the decoded region
          * into nav.pppiono->re[rid], exactly as update_qzssl6d() does in
-         * mrtk_postpos.c. PRN 200/201 carry the wide-area iono augmentation
-         * (197 reserved for test); the L6 header PRN is at frame byte 4. */
+         * mrtk_postpos.c. The decoder slot comes from the L6 PRN table
+         * (PRN 200/201); the L6 header PRN is at frame byte 4. */
         if (svr->mdciono && ret == 16 && (svr->format[index] == STRFMT_UBX || svr->format[index] == STRFMT_SEPT)) {
             int prn = svr->rtcm[index].buff[4];
-            int j = (prn == 200) ? 0 : (prn == 201) ? 1 : (prn == 197) ? 2 : -1;
+            const l6_prn_info_t* info = l6_prn_info(prn);
+            int j = info ? info->iono_slot : -1;
             if (j >= 0) {
                 int k, a, s;
                 /* lazily anchor the GPST week from the freshest stream time so a

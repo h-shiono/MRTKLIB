@@ -62,6 +62,7 @@
 #include <arpa/inet.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <inttypes.h>
 #include <netdb.h>
 #include <netinet/in.h>
 #include <netinet/tcp.h>
@@ -1277,7 +1278,8 @@ static void prstream(vt_t* vt) {
                          "",      "",      "",      "",     "stat", "l6e", "clas"};
     const char* sol[] = {"llh", "xyz", "enu", "nmea", "stat", "-"};
     stream_t stream[9];
-    int i, format[9] = {0};
+    uint64_t inb[9], outb[9];
+    int i, format[9] = {0}, inr[9], outr[9];
 
     trace(NULL, 4, "prstream:\n");
 
@@ -1295,13 +1297,20 @@ static void prstream(vt_t* vt) {
     format[8] = SOLF_LLH;
     rtksvrunlock(svr);
 
+    /* byte counts under the stream lock: they are 64-bit and updated by the
+     * stream's own reader/writer, not under svr->lock (#368) */
+    for (i = 0; i < 8; i++) {
+        strsum(svr->stream + i, inb + i, inr + i, outb + i, outr + i);
+    }
+    strsum(&moni, inb + 8, inr + 8, outb + 8, outr + 8);
+
     vt_printf(vt, "\n%s%-12s %-8s %-5s %s %10s %7s %10s %7s %-24s %s%s\n", ESC_BOLD, "Stream", "Type", "Fmt", "S",
               "In-byte", "In-bps", "Out-byte", "Out-bps", "Path", "Message", ESC_RESET);
     for (i = 0; i < 9; i++) {
-        vt_printf(vt, "%-12s %-8s %-5s %s %10d %7d %10d %7d %-24.24s %s\n", ch[i], type[stream[i].type],
-                  i < 3 ? fmt[format[i]] : (i < 5 || i == 8 ? sol[format[i]] : "-"),
-                  stream[i].state < 0 ? "E" : (stream[i].state ? "C" : "-"), stream[i].inb, stream[i].inr,
-                  stream[i].outb, stream[i].outr, stream[i].path, stream[i].msg);
+        vt_printf(vt, "%-12s %-8s %-5s %s %10" PRIu64 " %7d %10" PRIu64 " %7d %-24.24s %s\n", ch[i],
+                  type[stream[i].type], i < 3 ? fmt[format[i]] : (i < 5 || i == 8 ? sol[format[i]] : "-"),
+                  stream[i].state < 0 ? "E" : (stream[i].state ? "C" : "-"), inb[i], inr[i], outb[i], outr[i],
+                  stream[i].path, stream[i].msg);
     }
 }
 /* print ssr correction ------------------------------------------------------*/

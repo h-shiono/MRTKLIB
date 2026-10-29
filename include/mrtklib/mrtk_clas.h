@@ -40,6 +40,7 @@ extern "C" {
 
 #include "mrtklib/mrtk_bits.h"
 #include "mrtklib/mrtk_foundation.h"
+#include "mrtklib/mrtk_l6.h"
 #include "mrtklib/mrtk_nav.h"
 #include "mrtklib/mrtk_rtkpos.h" /* rtk_t, ssat_t, sol_t, prcopt_t (for OSR functions) */
 #include "mrtklib/mrtk_time.h"
@@ -146,8 +147,8 @@ extern "C" {
  * L6 Frame Constants
  *===========================================================================*/
 
-#define L6FRMPREAMB 0x1ACFFC1DU /* L6 frame preamble (4 bytes) */
-#define BLEN_MSG 218            /* L6 subframe length (bytes) */
+#define L6FRMPREAMB L6_PREAMBLE /* L6 frame preamble (4 bytes) */
+#define BLEN_MSG L6_FRAME_LEN   /* L6 subframe length (bytes) */
 
 /*============================================================================
  * CSSR Week Reference Indices

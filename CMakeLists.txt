@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.15)
-project(MRTKLIB VERSION 0.7.11 LANGUAGES C)
+project(MRTKLIB VERSION 0.7.12 LANGUAGES C)
 
 # ── Version header generation ─────────────────────────────────────────────────
 set(MRTKLIB_VERSION_MAJOR ${PROJECT_VERSION_MAJOR})
@@ -83,6 +83,7 @@ add_library(mrtklib STATIC
     src/data/mrtk_fcb.c
     src/data/mrtk_sbas.c
     src/data/mrtk_rcvraw.c
+    src/data/mrtk_l6.c
     src/data/rcv/mrtk_rcv_binex.c
     src/data/rcv/mrtk_rcv_crescent.c
     src/data/rcv/mrtk_rcv_javad.c
@@ -142,6 +143,10 @@ target_compile_options(mrtklib PRIVATE -std=c11)
 target_compile_definitions(mrtklib PUBLIC
     ENAGLO ENAGAL ENAQZS ENACMP ENAIRN NFREQ=5 NEXOBS=5 TRACE
 )
+# Server sockets (tcpsvr/udpsvr in mrtk_stream.c) set SO_REUSEADDR so a
+# restarted relay/run can rebind while an old connection is in FIN-WAIT-2
+# (#367). The #ifdef is in the library, so the define must be on mrtklib.
+target_compile_definitions(mrtklib PRIVATE SVR_REUSEADDR)
 target_link_libraries(mrtklib PUBLIC m)
 if(UNIX AND NOT APPLE)
     target_link_libraries(mrtklib PUBLIC rt)
@@ -223,7 +228,6 @@ add_executable(mrtk
     apps/l6extract/l6extract.c
 )
 target_include_directories(mrtk PRIVATE apps/rtkrcv)
-target_compile_definitions(mrtk PRIVATE SVR_REUSEADDR)
 target_link_libraries(mrtk PRIVATE mrtklib pthread)
 target_link_options(mrtk PRIVATE $<$<OR:$<PLATFORM_ID:Linux>,$<PLATFORM_ID:FreeBSD>>:-rdynamic>)
 
@@ -276,12 +280,22 @@ endif()
 # Skip slow rtkrcv test: ctest --test-dir build -LE realtime
 enable_testing()
 
+# Large test datasets: release assets of h-shiono/mrtklib-data, fetched and
+# SHA256-verified by the ctest fixtures that need them (#386).
+include(${CMAKE_SOURCE_DIR}/cmake/MrtkTestData.cmake)
+include(${CMAKE_SOURCE_DIR}/tests/data/datasets.cmake)
+add_test(NAME dataset_fetch_selftest
+    COMMAND ${CMAKE_COMMAND} -DFETCH=${CMAKE_SOURCE_DIR}/cmake/fetch_dataset.cmake
+        -DWORK=${CMAKE_BINARY_DIR}/dataset_fetch_selftest
+        -P ${CMAKE_SOURCE_DIR}/cmake/test_fetch_dataset.cmake)
+set_tests_properties(dataset_fetch_selftest PROPERTIES TIMEOUT 60 LABELS "utest")
+
 # ── Unit tests ───────────────────────────────────────────────────────────────
 set(_UTEST_DIR ${CMAKE_SOURCE_DIR}/tests/utest)
 set(_UTEST_SOURCES
     t_atmos t_clas_route t_coord t_freqidx t_geoid t_gloeph t_ionex
     t_lambda t_matrix t_misc t_obsdef t_ppp t_preceph
-    t_rinex t_rinex4 t_sigcfg_decode t_time t_toml
+    t_rinex t_rinex2_qzs t_rinex4 t_sigcfg_decode t_time t_toml
     # t_tle excluded: tle_pos() implementation not yet in library
 )
 foreach(test IN LISTS _UTEST_SOURCES)
@@ -338,6 +352,44 @@ add_test(NAME utest_msm_bds_b2b COMMAND utest_msm_bds_b2b
          WORKING_DIRECTORY ${_UTEST_DIR})
 set_tests_properties(utest_msm_bds_b2b PROPERTIES LABELS "utest")
 
+# QZSS L6 frame header parsing / service classification (issue #351).
+# l6_frames.bin: one real 218-byte frame per service (CLAS, MADOCA, MADOCA
+# iono, QZNMA) from mosaic-G5 SBF captures (scripts/tests/extract_l6_frames.py).
+add_executable(utest_l6_header ${_UTEST_DIR}/utest_l6_header.c)
+# Override global -ansi (=C90): this test uses C11 (P-01).
+target_compile_options(utest_l6_header PRIVATE -std=c11)
+target_link_libraries(utest_l6_header PRIVATE mrtklib)
+add_test(NAME utest_l6_header COMMAND utest_l6_header
+         WORKING_DIRECTORY ${_UTEST_DIR})
+set_tests_properties(utest_l6_header PROPERTIES LABELS "utest")
+
+# QZSS L6 frame routing in the UBX/SBF decoders (issue #351 PR-B). Fixtures
+# tests/utest/l6route_*: short real SBF/UBX slices plus re-wrapped real frames
+# (scripts/tests/make_l6_route_fixtures.py).
+add_executable(utest_l6_route ${_UTEST_DIR}/utest_l6_route.c)
+# Override global -ansi (=C90): this test uses C11 (P-01).
+target_compile_options(utest_l6_route PRIVATE -std=c11)
+target_link_libraries(utest_l6_route PRIVATE mrtklib)
+add_test(NAME utest_l6_route COMMAND utest_l6_route
+         WORKING_DIRECTORY ${_UTEST_DIR})
+set_tests_properties(utest_l6_route PROPERTIES LABELS "utest")
+
+# Serial stream write byte count over a pseudo-terminal pair (#343).
+add_executable(utest_stream_serial ${_UTEST_DIR}/utest_stream_serial.c)
+# Override global -ansi (=C90): this test uses C11 (P-01).
+target_compile_options(utest_stream_serial PRIVATE -std=c11)
+target_link_libraries(utest_stream_serial PRIVATE mrtklib)
+add_test(NAME utest_stream_serial COMMAND utest_stream_serial)
+set_tests_properties(utest_stream_serial PROPERTIES TIMEOUT 30 LABELS "utest;stream")
+
+# 64-bit stream byte counters through strsum() (#368).
+add_executable(utest_stream_bytes ${_UTEST_DIR}/utest_stream_bytes.c)
+# Override global -ansi (=C90): this test uses C11 (P-01).
+target_compile_options(utest_stream_bytes PRIVATE -std=c11)
+target_link_libraries(utest_stream_bytes PRIVATE mrtklib)
+add_test(NAME utest_stream_bytes COMMAND utest_stream_bytes)
+set_tests_properties(utest_stream_bytes PROPERTIES LABELS "utest;stream")
+
 # NTRIP v2 chunked codec test (header-only, no library dependency)
 add_executable(t_ntrip ${_UTEST_DIR}/t_ntrip.c)
 # Override global -ansi (=C90) for this target, same as mrtklib target.
@@ -375,10 +427,31 @@ set_tests_properties(utest_t_rinex4 PROPERTIES
 
 # ── Python-based comparison tool ─────────────────────────────────────────────
 find_package(Python3 COMPONENTS Interpreter)
+if(Python3_Interpreter_FOUND)
+    add_test(NAME ubx_x20_signals
+        COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/scripts/tests/check_ubx_x20.py
+            $<TARGET_FILE:mrtk>)
+    set_tests_properties(ubx_x20_signals PROPERTIES LABELS "regression;ubx" TIMEOUT 40)
+endif()
 set(_COMPARE_POS      ${CMAKE_SOURCE_DIR}/scripts/tests/compare_pos.py)
 set(_COMPARE_POS_ABS  ${CMAKE_SOURCE_DIR}/scripts/tests/compare_pos_abs.py)
 set(_COMPARE_NMEA_ABS ${CMAKE_SOURCE_DIR}/scripts/tests/compare_nmea_abs.py)
 set(_CHECK_SCATTER    ${CMAKE_SOURCE_DIR}/scripts/tests/check_pos_scatter.py)
+
+# mrtk l6extract output names {prefix}.{PRN}.l6d|l6e and frame counts on the
+# tests/utest/l6route_* fixtures: signal and PRN come from the L6 header, not
+# the receiver container (#362).
+add_test(NAME l6extract_names
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/scripts/tests/check_l6extract.py
+        $<TARGET_FILE:mrtk> ${_UTEST_DIR} ${CMAKE_BINARY_DIR}/l6extract_names)
+set_tests_properties(l6extract_names PROPERTIES TIMEOUT 60 LABELS "utest")
+
+# tcpsvr rebind after a restart with a client still connected: SO_REUSEADDR
+# must reach the library's server sockets (#367).
+add_test(NAME stream_tcpsvr_rebind
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/scripts/tests/check_tcpsvr_rebind.py
+        $<TARGET_FILE:mrtk>)
+set_tests_properties(stream_tcpsvr_rebind PROPERTIES TIMEOUT 60 LABELS "utest;stream")
 
 # ── Regression test data ─────────────────────────────────────────────────────
 set(_TESTDATA  ${CMAKE_SOURCE_DIR}/tests/data/malib)
@@ -665,6 +738,30 @@ set_tests_properties(madocalib_pppar_ion PROPERTIES
     LABELS            "regression;madocalib;pppar"
 )
 
+# The same run with the ionosphere files as generically named .l6d inputs
+# given as time-keyword paths: mrtk post must expand the template at the
+# session start to classify them by content (they are MADOCA iono), and the
+# solution must equal the legacy *.200/201.l6 run (Greptile on PR #397).
+add_test(NAME madocalib_pppar_ion_l6d_template
+    COMMAND bash -c "d=\"$1/l6d_template\" && rm -rf \"$d\" && mkdir -p \"$d\" && \
+        cp \"$2/2025091A.200.l6\" \"$d/ionoA_2025091.l6d\" && \
+        cp \"$2/2025091A.201.l6\" \"$d/ionoB_2025091.l6d\" && \
+        \"$0\" post -k conf/madocalib/rnx2rtkp_pppar_iono.toml \
+            -ts 2025/04/01 0:00:00 -te 2025/04/01 0:59:30 -ti 30 -o \"$d/out.pos\" \
+            \"$2/MIZU00JPN_R_20250910000_01D_30S_MO.obs\" \"$2/BRDM00DLR_S_20250910000_01D_MN.rnx\" \
+            \"$2/2025091A.204.l6\" \"$2/2025091A.206.l6\" \
+            \"$d/ionoA_%Y%n.l6d\" \"$d/ionoB_%Y%n.l6d\" && \
+        diff <(grep -v '^%' \"$1/out_madocalib_pppar_ion.pos\") <(grep -v '^%' \"$d/out.pos\") >/dev/null"
+        $<TARGET_FILE:mrtk> ${CMAKE_BINARY_DIR} ${_MDLDATA}
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+set_tests_properties(madocalib_pppar_ion_l6d_template PROPERTIES
+    DEPENDS           madocalib_pppar_ion
+    FIXTURES_REQUIRED madocalib_data
+    TIMEOUT           180
+    LABELS            "regression;madocalib;pppar"
+)
+
 add_test(NAME madocalib_pppar_ion_check
     COMMAND ${Python3_EXECUTABLE} ${_COMPARE_POS}
         ${_MDLDATA}/madocalib_MIZU_20250401-0000.pppar_ion.pos
@@ -856,6 +953,26 @@ set_tests_properties(claslib_cleanup PROPERTIES
     LABELS           "regression;claslib"
 )
 
+# ── CLAS L6 null messages are dropped (#344) ─────────────────────────────────
+# No capture contains a null message: synthetic null frames are inserted into
+# the real 2019 (1 ch) and 2025 (ch1) L6 files at every subframe position, and
+# mrtk dump must decode them byte-identically to the clean file.
+foreach(_l6 2019239Q:sept_2019239 2025157U_ch1:0627157U)
+    string(REPLACE ":" ";" _l6 ${_l6})
+    list(GET _l6 0 _l6file)
+    list(GET _l6 1 _l6nav)
+    add_test(NAME claslib_l6_null_drop_${_l6file}
+        COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/scripts/tests/check_l6_null_drop.py
+            $<TARGET_FILE:mrtk> ${_CLSDATA}/${_l6file}.l6 ${_CLSDATA}/${_l6nav}.nav
+            ${CMAKE_BINARY_DIR}/claslib_l6_null_drop
+    )
+    set_tests_properties(claslib_l6_null_drop_${_l6file} PROPERTIES
+        FIXTURES_REQUIRED claslib_data
+        TIMEOUT           60
+        LABELS            "regression;claslib"
+    )
+endforeach()
+
 # ── rnx2rtkp CLAS PPP-RTK regression (L6, RINEX obs) ─────────────────────────
 # Data: 2019/08/27 16:00-17:00, 0627239Q.obs + sept_2019239.nav + 2019239Q.l6
 # Reference: ref_L6.nmea (upstream claslib output)
@@ -903,6 +1020,58 @@ set_tests_properties(claslib_ppp_rtk_abs_check PROPERTIES
     DEPENDS           claslib_ppp_rtk
     FIXTURES_REQUIRED claslib_data
     LABELS            "absolute;claslib;ppp-rtk"
+)
+
+# ── CLAS PPP-RTK 2023 dataset: .l6d input + upstream 0.9.0 parity (#351) ─────
+# Data: 2023/02/13 09:00-10:00 (claslib 0.9.0 CMA sample), 0627044J.bnx +
+# 2023044J.l6d + 2023044J.l6e from claslib_cma_testdata.tar.gz (#350).
+# Exercises mrtk post recognition of .l6d (CLAS by frame header) and .l6e
+# (ignored in CLAS mode until CMA, #353/#354). Reference: ref_L6_AUTH_noauth.nmea
+# = upstream claslib 0.9.0 rnx2rtkp on the same inputs without .l6e (CMA off).
+add_test(NAME claslib_cma_setup
+    COMMAND bash -c "tar xzf \"${_CLSDATA}/claslib_cma_testdata.tar.gz\" -C \"${_CLSDATA}\" \
+        0627044J.bnx 2023044J.l6d 2023044J.l6e"
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+set_tests_properties(claslib_cma_setup PROPERTIES
+    FIXTURES_SETUP  claslib_cma_data
+    TIMEOUT         60
+    LABELS          "regression;claslib"
+)
+add_test(NAME claslib_cma_cleanup
+    COMMAND bash -c "rm -f ${_CLSDATA}/0627044J.bnx ${_CLSDATA}/2023044J.l6d ${_CLSDATA}/2023044J.l6e"
+)
+set_tests_properties(claslib_cma_cleanup PROPERTIES
+    FIXTURES_CLEANUP claslib_cma_data
+    LABELS           "regression;claslib"
+)
+
+add_test(NAME claslib_ppp_rtk_2023
+    COMMAND $<TARGET_FILE:mrtk> post
+        -k ${CMAKE_SOURCE_DIR}/conf/claslib/rnx2rtkp.toml
+        -ts 2023/02/13 09:00:00 -te 2023/02/13 09:59:59 -ti 1
+        -o ${CMAKE_BINARY_DIR}/out_claslib_ppp_rtk_2023.nmea
+        ${_CLSDATA}/0627044J.bnx
+        ${_CLSDATA}/2023044J.l6d
+        ${_CLSDATA}/2023044J.l6e
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+set_tests_properties(claslib_ppp_rtk_2023 PROPERTIES
+    FIXTURES_REQUIRED "claslib_data;claslib_cma_data"
+    TIMEOUT           300
+    LABELS            "regression;claslib;ppp-rtk"
+)
+
+add_test(NAME claslib_ppp_rtk_2023_check
+    COMMAND ${Python3_EXECUTABLE} ${_COMPARE_NMEA}
+        ${_CLSDATA}/ref_L6_AUTH_noauth.nmea
+        ${CMAKE_BINARY_DIR}/out_claslib_ppp_rtk_2023.nmea
+        --tolerance 0.10
+)
+set_tests_properties(claslib_ppp_rtk_2023_check PROPERTIES
+    DEPENDS           claslib_ppp_rtk_2023
+    FIXTURES_REQUIRED claslib_data
+    LABELS            "regression;claslib;ppp-rtk"
 )
 
 # ── CLAS PPP-RTK periodic filter reset (#264) ────────────────────────────────
@@ -2118,7 +2287,8 @@ set_tests_properties(igsrts_ppp_check PROPERTIES
 #         A strict before/after-trim equivalence proof (.has byte-identity,
 #         identical obs records, bit-identical PPP solutions over the common
 #         window) backs the trim -- see docs/design/gal-has.md §11.
-# Archive: tests/data/has/has_testdata.tar.gz  (G5P3162a_15m.sbf, ~2.1 MB gz)
+# Dataset: has-v1 (release asset of h-shiono/mrtklib-data, #386;
+#          G5P3162a_15m.sbf, ~2.2 MB gz)
 #
 # Pipeline: SBF --l6extract--> .has  (HAS pages)
 #           SBF --convert----> RINEX obs/nav
@@ -2133,14 +2303,10 @@ set(_HASDATA      ${CMAKE_SOURCE_DIR}/tests/data/has)
 set(_CHECK_HASPPP ${CMAKE_SOURCE_DIR}/scripts/tests/check_has_ppp.py)
 set(_HAS_REF_XYZ  -3961905.2046 3348992.8024 3698212.4790)
 
-# ── Fixture: extract / clean HAS test data archive ────────────────────────────
-add_test(NAME has_setup
-    COMMAND bash -c "tar xzf ${_HASDATA}/has_testdata.tar.gz -C ${_HASDATA}"
-    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-)
+# ── Fixture: fetch / extract / clean the HAS dataset ──────────────────────────
+mrtk_dataset_setup_test(has_setup has-v1 ${_HASDATA})
 set_tests_properties(has_setup PROPERTIES
     FIXTURES_SETUP  has_data
-    TIMEOUT         30
     LABELS          "regression;has"
 )
 
@@ -2229,3 +2395,168 @@ set_tests_properties(has_ppp_check PROPERTIES
     FIXTURES_REQUIRED has_data
     LABELS            "regression;has;ppp"
 )
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# QZSS L6 handover regression (#372)
+# ═══════════════════════════════════════════════════════════════════════════════
+# Dataset: handover-v1 (release asset of h-shiono/mrtklib-data, #386), five
+# 15-min windows around CLAS L6 satellite handovers (DOY 2026-286): NEO-D9C
+# UBX L6 (2 ch) + mosaic-G5 SBF observations, and mosaic-CLAS SBF (1 ch).
+# Built by scripts/tests/make_handover_fixtures.py; provenance in
+# tests/data/handover/README.md. Extracted into the build tree (not the
+# source tree), so no cleanup fixture is needed.
+set(_HODATA ${CMAKE_BINARY_DIR}/tests/data/handover)
+
+mrtk_dataset_setup_test(handover_setup handover-v1 ${_HODATA})
+set_tests_properties(handover_setup PROPERTIES
+    FIXTURES_SETUP handover_data
+    LABELS         "regression;handover"
+)
+
+# Dataset integrity: sizes, time tags, per-channel L6 PRN runs vs the manifest.
+add_test(NAME handover_dataset_check
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/scripts/tests/check_handover_dataset.py ${_HODATA})
+set_tests_properties(handover_dataset_check PROPERTIES
+    FIXTURES_REQUIRED handover_data
+    TIMEOUT           60
+    LABELS            "regression;handover"
+)
+
+# ── RT replay through the handover (mrtk run, x10) ────────────────────────────
+# One config per case is generated from tests/data/handover/rtkrcv_handover.toml.in
+# with the dataset paths. D9C cases: G5 SBF rover + D9C UBX L6 as the correction
+# stream (UBX, so frames go through the pattern-keyed demux, #197; a "clas"
+# stream would bypass it), shipped l6_merge = 1. MCLA cases: one SBF stream with
+# observations and L6, l6_merge = 0 (single-channel relock path) for all three,
+# plus mcla_e with l6_merge = 1 (pattern 1 -> 2 takes the second channel).
+# The harness gate is only "solutions were written" (900 expected epochs); the
+# _check step gates freeze / recovery / fix rate / satellites (RT replay is not
+# bit-reproducible, so no RMS). Thresholds: see the per-test comments.
+set(_HO_TEMPLATE ${CMAKE_SOURCE_DIR}/tests/data/handover/rtkrcv_handover.toml.in)
+set(_CHECK_HO    ${CMAKE_SOURCE_DIR}/scripts/tests/check_handover.py)
+
+function(_handover_rt name case port rover corr overrides check_args)
+    if(corr)
+        set(HO_CORR_TYPE file)
+        set(HO_CORR "${_HODATA}/${corr}::T::x10")
+        set(HO_CORR_FMT ubx)
+    else()
+        set(HO_CORR_TYPE off)
+        set(HO_CORR "")
+        set(HO_CORR_FMT "")
+    endif()
+    set(HO_ROVER ${_HODATA}/${rover})
+    set(_conf ${CMAKE_BINARY_DIR}/handover/rtkrcv_handover_${name}.toml)
+    configure_file(${_HO_TEMPLATE} ${_conf} @ONLY)
+    set(_out ${CMAKE_BINARY_DIR}/out_rtkrcv_handover_${name}.nmea)
+    add_test(NAME rtkrcv_handover_${name}
+        COMMAND bash ${_TESTCMAKE}/run_rtkrcv_test.sh
+            $<TARGET_FILE:mrtk> run ${CMAKE_SOURCE_DIR} 900 10 ${_conf} ${port} 300 ${_out} "${overrides}"
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+    set_tests_properties(rtkrcv_handover_${name} PROPERTIES
+        FIXTURES_REQUIRED "handover_data;claslib_data"
+        RUN_SERIAL        TRUE
+        TIMEOUT           420
+        LABELS            "regression;realtime;handover;claslib")
+    separate_arguments(_args UNIX_COMMAND "${check_args}")
+    add_test(NAME rtkrcv_handover_${name}_check
+        COMMAND ${Python3_EXECUTABLE} ${_CHECK_HO} ${_out} ${_HODATA}/handover_manifest.json ${case} ${_args})
+    set_tests_properties(rtkrcv_handover_${name}_check PROPERTIES
+        DEPENDS           rtkrcv_handover_${name}
+        FIXTURES_REQUIRED handover_data
+        LABELS            "regression;realtime;handover;claslib")
+endfunction()
+
+# Thresholds (check_handover.py): from 3 replays per case (measured
+# 2026-10-23; recovery = last non-fixed epoch after the handover + 1 s):
+#   case          non-fix  recovery  nsat(median)   gate: recover / max-nonfix / min-nsat
+#   d9c_m            33     37.5 s      15                 60 s / 50 / 12
+#   d9c_s             8     39.5 s      16                 60 s / 20 / 13
+#   mcla_a           83    110.0 s      15                165 s / 125 / 12
+#   mcla_e            0      0          14                 30 s / 10 / 11
+#   mcla_o            0      0          13                 30 s / 10 / 10
+#   mcla_e_merge     32     65.0 s      14                100 s / 50 / 11
+# Fix loss is typically delayed ~30 s (the old satellite's corrections age
+# out). All cases: no gap > 5 s (freeze), fix rate >= 0.9 over the 120 s
+# before the handover. The RT fix losses that post-processing does not show
+# (d9c_m, d9c_s, mcla_a; #389) and mcla_e being worse with l6_merge = 1
+# (#390) are tracked separately; tighten these gates when they are fixed.
+_handover_rt(d9c_m        d9c_m  52011 G5P3286m_15m.sbf D9C1286m_15m.ubx ""
+    "--recover 60 --max-nonfix 50 --min-nsat 12")
+_handover_rt(d9c_s        d9c_s  52012 G5P3286s_15m.sbf D9C1286s_15m.ubx ""
+    "--recover 60 --max-nonfix 20 --min-nsat 13")
+_handover_rt(mcla_a       mcla_a 52013 MCLA286a_15m.sbf "" "l6_merge=0"
+    "--recover 165 --max-nonfix 125 --min-nsat 12")
+_handover_rt(mcla_e       mcla_e 52014 MCLA286e_15m.sbf "" "l6_merge=0"
+    "--recover 30 --max-nonfix 10 --min-nsat 11")
+_handover_rt(mcla_o       mcla_o 52015 MCLA286o_15m.sbf "" "l6_merge=0"
+    "--recover 30 --max-nonfix 10 --min-nsat 10")
+_handover_rt(mcla_e_merge mcla_e 52016 MCLA286e_15m.sbf "" "l6_merge=1"
+    "--recover 100 --max-nonfix 50 --min-nsat 11")
+
+# The checker itself: synthetic solutions with a 60 s gap, a long outage and
+# too few satellites must fail; a clean one must pass.
+add_test(NAME handover_checker_selftest COMMAND ${Python3_EXECUTABLE} ${_CHECK_HO} --selftest)
+set_tests_properties(handover_checker_selftest PROPERTIES LABELS "utest;handover")
+
+# ── Post-processing through the handover (mrtk post) ──────────────────────────
+# scripts/tests/run_handover_post.py: mrtk convert (obs/nav) + mrtk l6extract
+# (per-PRN .l6d, #362) + per-channel concatenation in the time order of
+# handover_manifest.json + mrtk post. D9C: two channels, l6_merge = 1;
+# mosaic-CLAS: one channel, l6_merge = 0. Post-processing is deterministic
+# per build; the gates are the same behavioural ones as the RT replays.
+set(_HO_POST_TEMPLATE ${CMAKE_SOURCE_DIR}/tests/data/handover/rnx2rtkp_handover.toml.in)
+set(_RUN_HO_POST      ${CMAKE_SOURCE_DIR}/scripts/tests/run_handover_post.py)
+
+function(_handover_post case l6_merge check_args)
+    set(HO_L6_MERGE ${l6_merge})
+    set(_conf ${CMAKE_BINARY_DIR}/handover/rnx2rtkp_handover_${case}.toml)
+    configure_file(${_HO_POST_TEMPLATE} ${_conf} @ONLY)
+    set(_out ${CMAKE_BINARY_DIR}/out_post_handover_${case}.nmea)
+    add_test(NAME post_handover_${case}
+        COMMAND ${Python3_EXECUTABLE} ${_RUN_HO_POST} $<TARGET_FILE:mrtk> ${_HODATA} ${case} ${_conf}
+            ${CMAKE_BINARY_DIR}/handover/post_${case} ${_out}
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+    set_tests_properties(post_handover_${case} PROPERTIES
+        FIXTURES_REQUIRED "handover_data;claslib_data"
+        TIMEOUT           300
+        LABELS            "regression;handover;claslib;ppp-rtk")
+    separate_arguments(_args UNIX_COMMAND "${check_args}")
+    add_test(NAME post_handover_${case}_check
+        COMMAND ${Python3_EXECUTABLE} ${_CHECK_HO} ${_out} ${_HODATA}/handover_manifest.json ${case} ${_args})
+    set_tests_properties(post_handover_${case}_check PROPERTIES
+        DEPENDS           post_handover_${case}
+        FIXTURES_REQUIRED handover_data
+        LABELS            "regression;handover;claslib;ppp-rtk")
+endfunction()
+
+# Thresholds: measured 2026-10-23 (2 runs, identical): non-fixed epochs after
+# the handover d9c_m 0, d9c_s 0, mcla_a 5 (float, +106 .. +110 s; recovery
+# 111 s), mcla_e 0, mcla_o 0. With the corrected antenna (TPSCR.G5 NONE,
+# 2026-10-29) mcla_a has 0 as well; the gates are unchanged. Post-processing holds fix where the RT replays
+# lose it for ~30-80 s (#389). Margins allow for AR flips on other matrix
+# backends (CI uses the internal LU solver).
+_handover_post(d9c_m  1 "--recover 30 --max-nonfix 10 --min-nsat 12")
+_handover_post(d9c_s  1 "--recover 30 --max-nonfix 10 --min-nsat 13")
+_handover_post(mcla_a 0 "--recover 165 --max-nonfix 20 --min-nsat 12")
+_handover_post(mcla_e 0 "--recover 30 --max-nonfix 10 --min-nsat 11")
+_handover_post(mcla_o 0 "--recover 30 --max-nonfix 10 --min-nsat 10")
+
+# Absolute accuracy of the post-processed windows vs the CR-G5 antenna
+# reference point (tests/data/handover/README.md: 24 h static PPP-AR with CODE
+# MGEX finals, DOY 2026-286; JAXA finals agree within 1.5 cm). Measured
+# (2026-10-29, after the 120-epoch convergence skip), 3D 1 sigma / 95 %:
+# d9c_m 4.2 / 4.7 cm, d9c_s 14.3 / 15.7, mcla_a 12.8 / 14.6, mcla_e 11.2 / 12.3,
+# mcla_o 5.4 / 7.1 (mostly vertical). Tolerance 0.25 m 3D 1 sigma for all
+# (largest measured + ~10 cm), as for the F9P case.
+set(_HO_TRUTH_LLH 35.666341805,139.792211221,59.7614)
+foreach(_case d9c_m d9c_s mcla_a mcla_e mcla_o)
+    add_test(NAME post_handover_${_case}_abs_check
+        COMMAND ${Python3_EXECUTABLE} ${_COMPARE_NMEA_ABS}
+            --llh ${_HO_TRUTH_LLH} --use-3d --skip-epochs 120 --tolerance 0.25
+            ${CMAKE_BINARY_DIR}/out_post_handover_${_case}.nmea
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+    set_tests_properties(post_handover_${_case}_abs_check PROPERTIES
+        DEPENDS post_handover_${_case}
+        LABELS  "regression;handover;claslib;ppp-rtk")
+endforeach()
