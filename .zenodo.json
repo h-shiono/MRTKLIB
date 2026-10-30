@@ -3,7 +3,7 @@
   "access_right": "open",
   "license": "bsd-2-clause",
   "title": "MRTKLIB: Modernized RTKLIB for Next-Generation GNSS",
-  "description": "A modernized, thread-safe, modularized C11 library for standard and precise GNSS positioning (PPP, PPP-AR, PPP-RTK with QZSS CLAS/MADOCA), built on RTKLIB.",
+  "description": "A modern, thread-safe C11 GNSS positioning library built on RTKLIB, covering the open PPP / PPP-RTK correction services (QZSS CLAS and MADOCA-PPP, Galileo HAS, IGS products and real-time streams) in post-processing and real time.",
   "creators": [
     {
       "name": "Shiono, Hayato",
