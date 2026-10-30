@@ -19,6 +19,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   data: until BDS-2 / BDS-3 classification of PRN 1–18 follows the
   reassignment (next #401 step), every GNSS ID 3 satellite is still BDS-2.
 
+### Tests and test data
+
+- MDC-005 regression: MADOCALIB 2.2 sample (MIZU 2026/03/28, L6E PRN 207),
+  new dataset `madocalib_mdc005-v1`. PPP and PPP-AR are checked for parity
+  with upstream 2.2 (the internal-LU build is bit-identical) and for
+  absolute accuracy against the IGS week-2411 SINEX. Plus `utest_mcssr_bd3`,
+  a synthetic ST1/ST4/ST5 message that covers the undefined-bit skip.
+
 ## [v0.7.12] - 2026-10-29
 
 **QZSS L6 service routing.** QZSS L6 frames are now classified by their

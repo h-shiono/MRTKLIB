@@ -860,6 +860,107 @@ set_tests_properties(madocalib_pppar_ion_abs_check PROPERTIES
     LABELS            "absolute;madocalib;pppar"
 )
 
+# ── MADOCA-PPP IS-QZSS-MDC-005 (MADOCALIB 2.2 sample, #401) ───────────────────
+# Data: MIZU, 2026/03/28 Session A, L6E PRN 207 (MDC-005; GNSS ID 3 carries
+#       C09/C10) with upstream's *_BDSTEST RINEX (BeiDou PRN reassignment).
+# Dataset: madocalib_mdc005-v1 (release asset of h-shiono/mrtklib-data, #386).
+# References: upstream 2.2 rnx2rtkp, internal LU, sample.conf / sample_pppar.conf
+#   (tests/data/madocalib_mdc005/generate_reference_mdc005.sh). The internal-LU
+#   MRTKLIB build reproduces both bit-identically.
+set(_MDC5DATA ${CMAKE_SOURCE_DIR}/tests/data/madocalib_mdc005)
+set(_MDC5_IN
+    ${_MDC5DATA}/MIZU00JPN_R_20260870000_01H_30S_MO_BDSTEST.rnx
+    ${_MDC5DATA}/BRDC00IGS_R_20260870000_01D_MN_BDSTEST.rnx
+    ${_MDC5DATA}/2026087A.207.l6)
+set(_SINEX_MIZU_2411 ${_MDC5DATA}/IGS0OPSSNX_20260810000_07D_07D_SOL_MIZU.snx)
+
+mrtk_dataset_setup_test(madocalib_mdc005_setup madocalib_mdc005-v1 ${_MDC5DATA})
+set_tests_properties(madocalib_mdc005_setup PROPERTIES
+    FIXTURES_SETUP  madocalib_mdc005_data
+    LABELS          "regression;madocalib"
+)
+add_test(NAME madocalib_mdc005_cleanup
+    COMMAND bash -c "rm -f \
+        ${_MDC5DATA}/MIZU00JPN_R_20260870000_01H_30S_MO_BDSTEST.rnx \
+        ${_MDC5DATA}/BRDC00IGS_R_20260870000_01D_MN_BDSTEST.rnx \
+        ${_MDC5DATA}/2026087A.207.l6 \
+        ${_MDC5DATA}/igs20_2290_MIZU.atx"
+)
+set_tests_properties(madocalib_mdc005_cleanup PROPERTIES
+    FIXTURES_CLEANUP madocalib_mdc005_data
+    LABELS           "regression;madocalib"
+)
+
+# Upstream parity. PPP float: <0.2 mm on every backend. PPP-AR: the internal-LU
+# build matches upstream exactly; OpenBLAS / Accelerate flip AR decisions at a
+# few marginal epochs (3D RMS 5.74 / 6.54 cm, fix rate +1.7 / +2.5 %, same
+# mechanism as #302), tolerance ~1.3x the worst. Accuracy is gated by the
+# *_abs_check tests below.
+set(_MDC5_PPPAR_TOL 0.090)
+foreach(_case ppp pppar)
+    if(_case STREQUAL "ppp")
+        set(_conf rnx2rtkp_mdc005.toml)
+        set(_ref  pp)
+        set(_tol  0.005)
+    else()
+        set(_conf rnx2rtkp_pppar_mdc005.toml)
+        set(_ref  pppar)
+        set(_tol  ${_MDC5_PPPAR_TOL})
+    endif()
+    add_test(NAME madocalib_mdc005_${_case}
+        COMMAND $<TARGET_FILE:mrtk> post
+            -k ${CMAKE_SOURCE_DIR}/conf/madocalib/${_conf}
+            -ts 2026/03/28 0:00:00 -te 2026/03/28 0:59:30 -ti 30
+            -o ${CMAKE_BINARY_DIR}/out_madocalib_mdc005_${_case}.pos
+            ${_MDC5_IN}
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    )
+    set_tests_properties(madocalib_mdc005_${_case} PROPERTIES
+        FIXTURES_REQUIRED madocalib_mdc005_data
+        TIMEOUT           180
+        LABELS            "regression;madocalib;${_case}"
+    )
+    add_test(NAME madocalib_mdc005_${_case}_check
+        COMMAND ${Python3_EXECUTABLE} ${_COMPARE_POS}
+            ${_MDC5DATA}/madocalib_MIZU_20260328-0000.${_ref}.pos
+            ${CMAKE_BINARY_DIR}/out_madocalib_mdc005_${_case}.pos
+            --tolerance ${_tol}
+            --fix-q 1 --max-fix-drop ${_PPPAR_FIX_DROP}
+    )
+    set_tests_properties(madocalib_mdc005_${_case}_check PROPERTIES
+        DEPENDS           madocalib_mdc005_${_case}
+        FIXTURES_REQUIRED madocalib_mdc005_data
+        LABELS            "regression;madocalib;${_case}"
+    )
+endforeach()
+
+# Absolute accuracy vs IGS weekly SINEX, GPS week 2411 (2026/03/22-03/28,
+# contains the data epoch; MIZU-only extract). 2D 95th percentile after 60
+# epochs, measured on internal LU / OpenBLAS / Accelerate: ppp 7.10 cm,
+# pppar 1.39 cm; tolerance ~2x, rounded up to the cm.
+foreach(_case ppp pppar)
+    if(_case STREQUAL "ppp")
+        set(_tol 0.15)
+    else()
+        set(_tol 0.03)
+    endif()
+    add_test(NAME madocalib_mdc005_${_case}_abs_check
+        COMMAND ${Python3_EXECUTABLE} ${_COMPARE_POS_ABS}
+            --sinex ${_SINEX_MIZU_2411}
+            --station MIZU
+            --tolerance ${_tol}
+            --skip-epochs 60
+            --use-2d
+            ${CMAKE_BINARY_DIR}/out_madocalib_mdc005_${_case}.pos
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    )
+    set_tests_properties(madocalib_mdc005_${_case}_abs_check PROPERTIES
+        DEPENDS           madocalib_mdc005_${_case}
+        FIXTURES_REQUIRED madocalib_mdc005_data
+        LABELS            "absolute;madocalib;${_case}"
+    )
+endforeach()
+
 # ── cssr2ssr regression (not yet ported) ─────────────────────────────────────
 # TODO: cssr2ssr binary is not yet integrated into MRTKLIB.
 #       When ported, add:
