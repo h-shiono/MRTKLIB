@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### MADOCA-PPP
+
+- **IS-QZSS-MDC-005: BeiDou signal masks in GNSS ID 3** (MADOCALIB 2.2,
+  [#401](https://github.com/h-shiono/MRTKLIB/issues/401)). Since the BeiDou
+  PRN reassignment of April 2026, MDC-005 may send BDS-3 satellites on
+  PRN 1–18 in GNSS ID 3; their code / phase biases are now read with the
+  BDS-3 (GNSS ID 7) signal table. A signal mask bit undefined in the table
+  in use is skipped. Before, it indexed `cbias[-1]` / `pbias[-1]` (an
+  out-of-bounds stack write, confirmed under ASan). No change on current
+  data: until BDS-2 / BDS-3 classification of PRN 1–18 follows the
+  reassignment (next #401 step), every GNSS ID 3 satellite is still BDS-2.
+
 ## [v0.7.12] - 2026-10-29
 
 **QZSS L6 service routing.** QZSS L6 frames are now classified by their

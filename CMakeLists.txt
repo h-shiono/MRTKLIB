@@ -352,6 +352,15 @@ add_test(NAME utest_msm_bds_b2b COMMAND utest_msm_bds_b2b
          WORKING_DIRECTORY ${_UTEST_DIR})
 set_tests_properties(utest_msm_bds_b2b PROPERTIES LABELS "utest")
 
+# MADOCA-PPP L6E CSSR BeiDou GNSS ID 3 signal decode (issue #401, MDC-005).
+add_executable(utest_mcssr_bd3 ${_UTEST_DIR}/utest_mcssr_bd3.c)
+# Override global -ansi (=C90): this test uses C11 (P-01).
+target_compile_options(utest_mcssr_bd3 PRIVATE -std=c11)
+target_link_libraries(utest_mcssr_bd3 PRIVATE mrtklib)
+add_test(NAME utest_mcssr_bd3 COMMAND utest_mcssr_bd3
+         WORKING_DIRECTORY ${_UTEST_DIR})
+set_tests_properties(utest_mcssr_bd3 PROPERTIES LABELS "utest")
+
 # QZSS L6 frame header parsing / service classification (issue #351).
 # l6_frames.bin: one real 218-byte frame per service (CLAS, MADOCA, MADOCA
 # iono, QZNMA) from mosaic-G5 SBF captures (scripts/tests/extract_l6_frames.py).
