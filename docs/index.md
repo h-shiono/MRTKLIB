@@ -1,8 +1,8 @@
 # MRTKLIB: Modernized RTKLIB for Next-Generation GNSS
 
-**MRTKLIB** is a completely modernized, thread-safe, and modularized C11 library for standard and precise GNSS positioning.
+**MRTKLIB** is a modern, thread-safe C11 GNSS positioning library built on [RTKLIB](https://www.rtklib.com/), covering the **open PPP / PPP-RTK correction services** — QZSS CLAS and MADOCA-PPP, Galileo HAS, and IGS products and real-time streams — for both post-processing and real-time processing.
 
-It is designed to overcome the architectural limitations of the original legacy [RTKLIB](https://www.rtklib.com/), providing a robust foundation for next-generation GNSS applications.
+In the spirit of RTKLIB, it aims to be both a readable reference for how each service is applied and practical software for day-to-day and production use.
 
 <div class="grid cards" markdown>
 
@@ -51,9 +51,21 @@ It is designed to overcome the architectural limitations of the original legacy 
 - **Modern Build System** — Unified CMake with `find_package(LAPACK)` for hardware-accelerated matrix operations
 - **Domain-Driven Layout** — Source organized into `src/core/`, `src/pos/`, `src/rtcm/`, `src/models/`, etc.
 
-### QZSS Grand Integration
+### Supported Correction Services
 
-MRTKLIB unifies the fragmented QZSS augmentation ecosystem into a single, conflict-free library:
+| Service | Delivery | Modes | Post-Processing | Real-Time |
+|---------|----------|-------|:-:|:-:|
+| **QZSS CLAS** | L6D (CSSR) | PPP-RTK, VRS-RTK | :white_check_mark: | :white_check_mark: |
+| **QZSS MADOCA-PPP** | L6E + L6D wide-area iono | PPP, PPP-AR, PPP-AR + iono | :white_check_mark: | :white_check_mark: |
+| **Galileo HAS** | E6-B C/NAV | Float PPP | :white_check_mark: | :white_check_mark: |
+| **IGS products** | SP3 / CLK / Bias-SINEX | Float PPP, PPP-AR | :white_check_mark: | — |
+| **IGS-RTS** | RTCM-SSR over NTRIP | Float PPP | :white_check_mark: | :white_check_mark: |
+| **BeiDou PPP-B2b** | BDS-3 GEO B2b | PPP | planned | planned |
+| **SouthPAN PVS** | SouthPAN SBAS GEO | PPP | under evaluation | under evaluation |
+
+### Lineage
+
+MRTKLIB began by unifying the QZSS augmentation libraries into one code base on a modernized RTKLIB core; that integration is complete:
 
 | Component | Description | Status |
 |-----------|-------------|--------|
@@ -73,6 +85,15 @@ MRTKLIB unifies the fragmented QZSS augmentation ecosystem into a single, confli
 | VRS-RTK (CLAS) | :white_check_mark: | — |
 
 ---
+
+## Related Projects
+
+Ready-to-use packages for trying MRTKLIB without building it from source:
+
+| Project | Description |
+|---------|-------------|
+| **[mrtklib-docker-ui](https://github.com/h-shiono/mrtklib-docker-ui)** | Web UI for MRTKLIB in a Docker container — post-processing (`mrtk post`) and real-time positioning (`mrtk run`) from the browser, with TOML import / export and result visualization. No compilation required: `docker compose up`. |
+| **[mrtklib-quickstart](https://github.com/h-shiono/mrtklib-quickstart)** ([docs](https://h-shiono.github.io/mrtklib-quickstart/), 日本語 / English) | One-script quickstart for real-time MADOCA-PPP with a Septentrio mosaic-G5 receiver — configures the receiver, launches the Docker web UI, and includes teaching material for Windows / macOS / Linux. |
 
 ## Quick Start
 

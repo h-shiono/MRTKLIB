@@ -1,5 +1,5 @@
 site_name: MRTKLIB Documentation
-site_description: Modern RTKLIB — Unified GNSS Positioning Library
+site_description: Modern RTKLIB-based GNSS positioning library covering open PPP / PPP-RTK correction services
 site_url: https://h-shiono.github.io/MRTKLIB/
 repo_url: https://github.com/h-shiono/MRTKLIB
 repo_name: h-shiono/MRTKLIB
