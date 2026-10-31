@@ -97,6 +97,7 @@ nav:
     - "Quick Start: MADOCA-PPP": guide/quickstart-madoca-ppp.md
     - "Quick Start: Galileo HAS PPP": guide/quickstart-gal-has.md
     - "Quick Start: IGS-RTS PPP": guide/quickstart-igs-rts.md
+    - BeiDou PRN Reassignment: guide/beidou-prn-reassignment.md
     - NTRIP Streams: guide/ntrip.md
   - Hardware:
     - CLAS Positioning with mosaic-G5: hardware/cssr2rtcm3-mosaic-g5.md

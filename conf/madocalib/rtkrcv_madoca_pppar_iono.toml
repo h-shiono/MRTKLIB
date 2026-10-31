@@ -16,13 +16,15 @@
 # Replace the rover stream with your live receiver (serial://..., tcpcli://...).
 
 [positioning]
-mode = "ppp-kine"                                         # (6:ppp-kine,7:ppp-static)
-frequency = "l1+2+3+4"                                    # (1:l1,2:l1+2,3:l1+2+3,4:l1+2+3+4)
+mode = "ppp-kine"                   # (6:ppp-kine,7:ppp-static)
+frequency = "l1+2+3+4"              # (1:l1,2:l1+2,3:l1+2+3,4:l1+2+3+4)
 solution_type = "forward"
-elevation_mask = 10.0                                     # (deg)
+elevation_mask = 10.0               # (deg)
 dynamics = false
-satellite_ephemeris = "brdc+ssrapc"                       # MADOCA SSR = APC
+satellite_ephemeris = "brdc+ssrapc" # MADOCA SSR = APC
 excluded_sats = []
+# Live data: BDS-2 IGSO left on C09/C10 after the 2026-04 BeiDou PRN reassignment
+bds2_sats = ["C09", "C10"]
 systems = ["GPS", "GLONASS", "Galileo", "QZSS", "BeiDou"]
 correction = "qzs-madoca"                                 # must be set explicitly (shares brdc+ssrapc with igs-rts)
 

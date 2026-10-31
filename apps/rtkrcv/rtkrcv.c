@@ -2195,6 +2195,7 @@ int mrtk_run(int argc, char** argv) {
         fprintf(stderr, "no options file: %s. defaults used\n", file);
     }
     getsysopts(&prcopt, solopt, &filopt);
+    set_bdsopt(&prcopt, 1);
 
     if (strlen(svr->nav.biapath) == 0 && strlen(filopt.bia) > 0) {
         strcpy(svr->nav.biapath, filopt.bia);

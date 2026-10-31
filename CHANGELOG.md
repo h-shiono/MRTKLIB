@@ -7,6 +7,66 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### MADOCA-PPP
+
+- **IS-QZSS-MDC-005: BeiDou signal masks in GNSS ID 3** (MADOCALIB 2.2,
+  [#401](https://github.com/h-shiono/MRTKLIB/issues/401)). Since the BeiDou
+  PRN reassignment of April 2026, MDC-005 may send BDS-3 satellites on
+  PRN 1–18 in GNSS ID 3; their code / phase biases are now read with the
+  BDS-3 (GNSS ID 7) signal table. A signal mask bit undefined in the table
+  in use is skipped. Before, it indexed `cbias[-1]` / `pbias[-1]` (an
+  out-of-bounds stack write, confirmed under ASan).
+- **ST4 / ST5 cell mask kept in step after a skipped cell.** A cell skipped
+  as undefined (or for an unsupported satellite) left the cell-mask cursor on
+  that cell; with a sparse cell mask the decoder then read a bias for an
+  absent cell and every later bias of the message was shifted. MADOCALIB 2.2
+  has the same loop; MRTKLIB now advances the cursor on every cell. No change
+  on the bundled data (outputs byte-identical).
+
+### BeiDou PRN reassignment
+
+- **BDS-2 / BDS-3 classification of PRN 1–18 is now configured, not inferred
+  from the PRN** (MADOCALIB 2.2, [#401](https://github.com/h-shiono/MRTKLIB/issues/401)).
+  Between 2026-04-10 and 04-21 BeiDou moved BDS-3 satellites onto PRN 1–18
+  (C01–C08, C11–C14). Two BDS-2 IGSO satellites remain, on C09 and C10. The
+  BDS-3 IGSO satellites moved from C38–C40 to C06–C08, and C38–C40 are now
+  MEO. MRTKLIB treated every PRN below 19 as BDS-2, so current data used the
+  wrong signal model, clock group and PPP-AR grouping for those satellites.
+  - New `[positioning] bds2_sats` (legacy `pos2-bds2prn`): the BDS-2
+    satellites in PRN 1–18. Default: none (as MADOCALIB 2.2).
+  - New `[ambiguity_resolution] bds3_igso_sats` (legacy `pos2-bds3igso`): the
+    BDS-3 IGSO satellites, which PPP-AR never takes as the reference. Default
+    `C06-C08`; it replaces the hard-coded C38–C40.
+  - `mrtk post` and `mrtk run` warn when BeiDou is enabled and `bds2_sats` is
+    not set. `bds2_sats = []` states "no BDS-2" and silences the warning.
+    A malformed entry (`C09x`, `C09-C10-C11`) or a list longer than 255
+    characters is rejected with a warning, not partly applied.
+  - Bundled configurations are pinned to their data. Pre-reassignment data
+    (MADOCALIB 2.0 sample, PPC / GSDC benchmarks) uses `C01-C18` / `C38-C40`;
+    live and post-April data uses `C09, C10`.
+  - New guide: [BeiDou PRN Reassignment](docs/guide/beidou-prn-reassignment.md).
+
+  **Migration.** If your configuration enables BeiDou, add `bds2_sats`:
+  `["C09", "C10"]` for data after 2026-04-21, `["C01-C18"]` (plus
+  `bds3_igso_sats = ["C38-C40"]` for PPP-AR) for data before 2026-04-10.
+  `prcopt_t` gains `bds2prn`, `bds3igso` and `bds2prn_set` (appended; ABI
+  change for external drivers). New API: `set_bds2prn()`, `is_bds2prn()`,
+  `set_bds3igso()`, `is_bds3igso()`, `bds_gen()`, `set_bdsopt()`.
+
+### Tests and test data
+
+- MDC-005 regression: MADOCALIB 2.2 sample (MIZU 2026/03/28, L6E PRN 207),
+  new dataset `madocalib_mdc005-v1`. PPP and PPP-AR are checked for parity
+  with upstream 2.2 (the internal-LU build is bit-identical to upstream on
+  the same platform) and for absolute accuracy against the IGS week-2411
+  SINEX. Parity tolerances: PPP 0.16 m, PPP-AR 0.090 m. The references are
+  macOS upstream output; upstream built on Linux differs from them by up to
+  3D RMS 12.07 cm (PPP float, still converging), so the tolerances cover
+  the platform difference and the absolute checks gate accuracy. Plus `utest_mcssr_bd3`,
+  a synthetic ST1/ST4/ST5 message that covers the undefined-bit skip, the
+  GNSS ID 3 BDS-3 decode, and the BeiDou generation API. `utest_t_toml`
+  covers `bds2_sats` / `bds3_igso_sats` and the "not set" flag.
+
 ## [v0.7.12] - 2026-10-29
 
 **QZSS L6 service routing.** QZSS L6 frames are now classified by their
