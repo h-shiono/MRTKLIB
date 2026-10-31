@@ -22,6 +22,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   absent cell and every later bias of the message was shifted. MADOCALIB 2.2
   has the same loop; MRTKLIB now advances the cursor on every cell. No change
   on the bundled data (outputs byte-identical).
+- **ST4 / ST5 no longer store biases for an unsupported satellite**
+  ([#402](https://github.com/h-shiono/MRTKLIB/issues/402)). A masked
+  satellite that `satno()` rejects (sat 0, e.g. a GPS PRN above 32) had its
+  code / phase biases written to `ssr[-1]`, over the `rtcm_t` members before
+  `ssr[]`. Its cells are still read, then skipped, as ST2 / ST3 / ST7 already
+  did. Inherited from MADOCALIB (2.1 and 2.2).
 
 ### BeiDou PRN reassignment
 
