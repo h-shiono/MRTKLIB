@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.7.13] - 2026-10-31
+
+**MADOCALIB 2.2 sync: the BeiDou PRN reassignment.** Between 2026-04-10 and
+04-21 BeiDou moved BDS-3 satellites onto PRN 1–18 and the BDS-3 IGSO
+satellites from C38–C40 to C06–C08; MRTKLIB treated every PRN below 19 as
+BDS-2. The BDS-2 / BDS-3 split is now configured — `[positioning] bds2_sats`
+and `[ambiguity_resolution] bds3_igso_sats`, defaults as MADOCALIB 2.2 (no
+BDS-2, IGSO C06–C08), with a warning when BeiDou is enabled and `bds2_sats`
+is absent — and the MADOCA-PPP decoder reads BDS-3 satellites sent in GNSS
+ID 3 with the BDS-3 signal table (IS-QZSS-MDC-005)
+([#401](https://github.com/h-shiono/MRTKLIB/issues/401)). **Configurations
+that enable BeiDou should set `bds2_sats`** (`["C09", "C10"]` after
+2026-04-21, `["C01-C18"]` before 2026-04-10); bundled configurations are
+pinned to their data. `prcopt_t` gains three fields (ABI change). Also:
+three MADOCA ST4 / ST5 decoder faults (two still present in MADOCALIB 2.2),
+`mrtk bias -bds2prn` (#403), and an MDC-005 regression on the MADOCALIB 2.2
+sample.
+
 ### MADOCA-PPP
 
 - **IS-QZSS-MDC-005: BeiDou signal masks in GNSS ID 3** (MADOCALIB 2.2,
