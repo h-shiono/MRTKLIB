@@ -47,6 +47,7 @@ MAPPING: list[tuple[str, str, str, str]] = [
     ("pos1-sateph", "positioning", "satellite_ephemeris", "enum"),
     ("pos1-navsys", "positioning", "systems", "navsys"),
     ("pos1-exclsats", "positioning", "excluded_sats", "strlist"),
+    ("pos2-bds2prn", "positioning", "bds2_sats", "siglist"),
     ("pos1-signals", "positioning", "signals", "siglist"),
     ("pos1-robust", "positioning", "robust", "enum"),
     ("pos1-robustk0", "positioning", "robust_k0", "float"),
@@ -86,6 +87,7 @@ MAPPING: list[tuple[str, str, str, str]] = [
     ("pos2-gloarmode", "ambiguity_resolution", "glonass_ar", "enum"),
     ("pos2-bdsarmode", "ambiguity_resolution", "bds_ar", "bool"),
     ("pos2-qzsarmode", "ambiguity_resolution", "qzs_ar", "bool"),
+    ("pos2-bds3igso", "ambiguity_resolution", "bds3_igso_sats", "siglist"),
     ("pos2-arsys", "ambiguity_resolution", "systems", "int"),
     # ── ambiguity_resolution.thresholds ──────────────────────────────────────
     ("pos2-arthres", "ambiguity_resolution.thresholds", "ratio", "float"),

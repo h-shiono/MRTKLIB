@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.15)
-project(MRTKLIB VERSION 0.7.12 LANGUAGES C)
+project(MRTKLIB VERSION 0.7.13 LANGUAGES C)
 
 # ── Version header generation ─────────────────────────────────────────────────
 set(MRTKLIB_VERSION_MAJOR ${PROJECT_VERSION_MAJOR})
@@ -352,6 +352,15 @@ add_test(NAME utest_msm_bds_b2b COMMAND utest_msm_bds_b2b
          WORKING_DIRECTORY ${_UTEST_DIR})
 set_tests_properties(utest_msm_bds_b2b PROPERTIES LABELS "utest")
 
+# MADOCA-PPP L6E CSSR BeiDou GNSS ID 3 signal decode (issue #401, MDC-005).
+add_executable(utest_mcssr_bd3 ${_UTEST_DIR}/utest_mcssr_bd3.c)
+# Override global -ansi (=C90): this test uses C11 (P-01).
+target_compile_options(utest_mcssr_bd3 PRIVATE -std=c11)
+target_link_libraries(utest_mcssr_bd3 PRIVATE mrtklib)
+add_test(NAME utest_mcssr_bd3 COMMAND utest_mcssr_bd3
+         WORKING_DIRECTORY ${_UTEST_DIR})
+set_tests_properties(utest_mcssr_bd3 PROPERTIES LABELS "utest")
+
 # QZSS L6 frame header parsing / service classification (issue #351).
 # l6_frames.bin: one real 218-byte frame per service (CLAS, MADOCA, MADOCA
 # iono, QZNMA) from mosaic-G5 SBF captures (scripts/tests/extract_l6_frames.py).
@@ -528,6 +537,7 @@ add_test(NAME recvbias_rb
         -scb ${_TESTDATA}/2024235L.209.l6
         -pos -3961440.433,3308948.812,3734425.963
         -el 30
+        -bds2prn C01-C18
         -out ${CMAKE_BINARY_DIR}/out_rb.bia
         ${_TESTDATA}/MALIB_OSS_data_obsnav_240822-1100.obs
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
@@ -741,7 +751,12 @@ set_tests_properties(madocalib_pppar_ion PROPERTIES
 # The same run with the ionosphere files as generically named .l6d inputs
 # given as time-keyword paths: mrtk post must expand the template at the
 # session start to classify them by content (they are MADOCA iono), and the
-# solution must equal the legacy *.200/201.l6 run (Greptile on PR #397).
+# solution must match the legacy *.200/201.l6 run (Greptile on PR #397).
+# Checked directly (no "L6D file ignored" warning), by epoch set (same solution
+# epochs: compare_pos.py only compares shared epochs), and by solution, within
+# the pppar_ion tolerance rather than byte for byte: Accelerate varies run to run
+# (up to 0.08 cm 3D RMS over 6 runs, #404), while ignoring the iono files moves
+# the solution by 33 cm 3D RMS.
 add_test(NAME madocalib_pppar_ion_l6d_template
     COMMAND bash -c "d=\"$1/l6d_template\" && rm -rf \"$d\" && mkdir -p \"$d\" && \
         cp \"$2/2025091A.200.l6\" \"$d/ionoA_2025091.l6d\" && \
@@ -750,9 +765,13 @@ add_test(NAME madocalib_pppar_ion_l6d_template
             -ts 2025/04/01 0:00:00 -te 2025/04/01 0:59:30 -ti 30 -o \"$d/out.pos\" \
             \"$2/MIZU00JPN_R_20250910000_01D_30S_MO.obs\" \"$2/BRDM00DLR_S_20250910000_01D_MN.rnx\" \
             \"$2/2025091A.204.l6\" \"$2/2025091A.206.l6\" \
-            \"$d/ionoA_%Y%n.l6d\" \"$d/ionoB_%Y%n.l6d\" && \
-        diff <(grep -v '^%' \"$1/out_madocalib_pppar_ion.pos\") <(grep -v '^%' \"$d/out.pos\") >/dev/null"
-        $<TARGET_FILE:mrtk> ${CMAKE_BINARY_DIR} ${_MDLDATA}
+            \"$d/ionoA_%Y%n.l6d\" \"$d/ionoB_%Y%n.l6d\" 2>\"$d/stderr.log\" && \
+        ! grep -q 'L6D file ignored' \"$d/stderr.log\" && \
+        diff <(grep -v '^%' \"$1/out_madocalib_pppar_ion.pos\" | cut -c1-23) \
+             <(grep -v '^%' \"$d/out.pos\" | cut -c1-23) >/dev/null && \
+        \"$3\" \"$4\" \"$1/out_madocalib_pppar_ion.pos\" \"$d/out.pos\" \
+            --tolerance ${_PPPAR_ION_TOL} --fix-q 1 --max-fix-drop ${_PPPAR_FIX_DROP}"
+        $<TARGET_FILE:mrtk> ${CMAKE_BINARY_DIR} ${_MDLDATA} ${Python3_EXECUTABLE} ${_COMPARE_POS}
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
 )
 set_tests_properties(madocalib_pppar_ion_l6d_template PROPERTIES
@@ -850,6 +869,115 @@ set_tests_properties(madocalib_pppar_ion_abs_check PROPERTIES
     FIXTURES_REQUIRED madocalib_data
     LABELS            "absolute;madocalib;pppar"
 )
+
+# ── MADOCA-PPP IS-QZSS-MDC-005 (MADOCALIB 2.2 sample, #401) ───────────────────
+# Data: MIZU, 2026/03/28 Session A, L6E PRN 207 (MDC-005; GNSS ID 3 carries
+#       C09/C10) with upstream's *_BDSTEST RINEX (BeiDou PRN reassignment).
+# Dataset: madocalib_mdc005-v1 (release asset of h-shiono/mrtklib-data, #386).
+# References: upstream 2.2 rnx2rtkp, internal LU, sample.conf / sample_pppar.conf
+#   (tests/data/madocalib_mdc005/generate_reference_mdc005.sh). The internal-LU
+#   MRTKLIB build reproduces both bit-identically.
+set(_MDC5DATA ${CMAKE_SOURCE_DIR}/tests/data/madocalib_mdc005)
+set(_MDC5_IN
+    ${_MDC5DATA}/MIZU00JPN_R_20260870000_01H_30S_MO_BDSTEST.rnx
+    ${_MDC5DATA}/BRDC00IGS_R_20260870000_01D_MN_BDSTEST.rnx
+    ${_MDC5DATA}/2026087A.207.l6)
+set(_SINEX_MIZU_2411 ${_MDC5DATA}/IGS0OPSSNX_20260810000_07D_07D_SOL_MIZU.snx)
+
+mrtk_dataset_setup_test(madocalib_mdc005_setup madocalib_mdc005-v1 ${_MDC5DATA})
+set_tests_properties(madocalib_mdc005_setup PROPERTIES
+    FIXTURES_SETUP  madocalib_mdc005_data
+    LABELS          "regression;madocalib"
+)
+add_test(NAME madocalib_mdc005_cleanup
+    COMMAND bash -c "rm -f \
+        ${_MDC5DATA}/MIZU00JPN_R_20260870000_01H_30S_MO_BDSTEST.rnx \
+        ${_MDC5DATA}/BRDC00IGS_R_20260870000_01D_MN_BDSTEST.rnx \
+        ${_MDC5DATA}/2026087A.207.l6 \
+        ${_MDC5DATA}/igs20_2290_MIZU.atx"
+)
+set_tests_properties(madocalib_mdc005_cleanup PROPERTIES
+    FIXTURES_CLEANUP madocalib_mdc005_data
+    LABELS           "regression;madocalib"
+)
+
+# Upstream parity. The references come from upstream 2.2 built on macOS (Apple
+# clang). Built on Linux (gcc/glibc), upstream itself differs from them, and
+# MRTKLIB on Linux is bit-identical to that Linux upstream: the difference is
+# the platform, not the port. PPP float is still converging (sigma 1-3 m), so
+# last-bit differences grow to 3D RMS 12.07 cm on Linux (<0.2 mm across macOS
+# backends); tolerance ~1.3x. PPP-AR: the internal-LU macOS build matches
+# upstream exactly; OpenBLAS / Accelerate flip AR decisions at a few marginal
+# epochs (3D RMS 5.74 / 6.54 cm, fix rate +1.7 / +2.5 %, same mechanism as
+# #302), Linux 7.35 cm; tolerance ~1.3x the macOS worst. Accuracy is gated by
+# the *_abs_check tests below.
+set(_MDC5_PPP_TOL 0.16)
+set(_MDC5_PPPAR_TOL 0.090)
+foreach(_case ppp pppar)
+    if(_case STREQUAL "ppp")
+        set(_conf rnx2rtkp_mdc005.toml)
+        set(_ref  pp)
+        set(_tol  ${_MDC5_PPP_TOL})
+    else()
+        set(_conf rnx2rtkp_pppar_mdc005.toml)
+        set(_ref  pppar)
+        set(_tol  ${_MDC5_PPPAR_TOL})
+    endif()
+    add_test(NAME madocalib_mdc005_${_case}
+        COMMAND $<TARGET_FILE:mrtk> post
+            -k ${CMAKE_SOURCE_DIR}/conf/madocalib/${_conf}
+            -ts 2026/03/28 0:00:00 -te 2026/03/28 0:59:30 -ti 30
+            -o ${CMAKE_BINARY_DIR}/out_madocalib_mdc005_${_case}.pos
+            ${_MDC5_IN}
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    )
+    set_tests_properties(madocalib_mdc005_${_case} PROPERTIES
+        FIXTURES_REQUIRED madocalib_mdc005_data
+        TIMEOUT           180
+        LABELS            "regression;madocalib;${_case}"
+    )
+    add_test(NAME madocalib_mdc005_${_case}_check
+        COMMAND ${Python3_EXECUTABLE} ${_COMPARE_POS}
+            ${_MDC5DATA}/madocalib_MIZU_20260328-0000.${_ref}.pos
+            ${CMAKE_BINARY_DIR}/out_madocalib_mdc005_${_case}.pos
+            --tolerance ${_tol}
+            --fix-q 1 --max-fix-drop ${_PPPAR_FIX_DROP}
+            --max-missing 0
+    )
+    set_tests_properties(madocalib_mdc005_${_case}_check PROPERTIES
+        DEPENDS           madocalib_mdc005_${_case}
+        FIXTURES_REQUIRED madocalib_mdc005_data
+        LABELS            "regression;madocalib;${_case}"
+    )
+endforeach()
+
+# Absolute accuracy vs IGS weekly SINEX, GPS week 2411 (2026/03/22-03/28,
+# contains the data epoch; MIZU-only extract). 2D 95th percentile after 60
+# epochs, measured on macOS internal LU / OpenBLAS / Accelerate: ppp 7.10 cm,
+# pppar 1.39 cm (Linux internal LU: 6.00 / 1.38 cm); tolerance ~2x, rounded up
+# to the cm.
+foreach(_case ppp pppar)
+    if(_case STREQUAL "ppp")
+        set(_tol 0.15)
+    else()
+        set(_tol 0.03)
+    endif()
+    add_test(NAME madocalib_mdc005_${_case}_abs_check
+        COMMAND ${Python3_EXECUTABLE} ${_COMPARE_POS_ABS}
+            --sinex ${_SINEX_MIZU_2411}
+            --station MIZU
+            --tolerance ${_tol}
+            --skip-epochs 60
+            --use-2d
+            ${CMAKE_BINARY_DIR}/out_madocalib_mdc005_${_case}.pos
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    )
+    set_tests_properties(madocalib_mdc005_${_case}_abs_check PROPERTIES
+        DEPENDS           madocalib_mdc005_${_case}
+        FIXTURES_REQUIRED madocalib_mdc005_data
+        LABELS            "absolute;madocalib;${_case}"
+    )
+endforeach()
 
 # ── cssr2ssr regression (not yet ported) ─────────────────────────────────────
 # TODO: cssr2ssr binary is not yet integrated into MRTKLIB.

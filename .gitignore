@@ -22,6 +22,11 @@ scripts/.venv/
 # Test data extracted by the dataset fixtures (#386)
 tests/data/has/
 
+# Dataset madocalib_mdc005-v1 extracted by ctest (#401)
+tests/data/madocalib_mdc005/*.rnx
+tests/data/madocalib_mdc005/*.l6
+tests/data/madocalib_mdc005/igs20_2290_MIZU.atx
+
 # Test data extracted from tests/data/malib/MALIB_OSS_data.tar.gz
 # (extracted by ctest fixture; cleaned up automatically, but guarded here)
 tests/data/malib/MALIB_OSS_data_*.sbf

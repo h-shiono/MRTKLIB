@@ -2247,6 +2247,11 @@ extern void rtkinit(rtk_t* rtk, const prcopt_t* opt) {
     rtk->holdamb = 0;
     rtk->opt = *opt;
     rtk->sol.thres = (float)opt->thresar[0];
+
+    /* BeiDou generation of PRN 1-18 and BDS-3 IGSO (#401) */
+    if (!set_bdsopt(opt, 0)) {
+        errmsg(rtk, "invalid bds2_sats=%s or bds3_igso_sats=%s\n", opt->bds2prn, opt->bds3igso);
+    }
 }
 /* free rtk control ------------------------------------------------------------
  * free memory for rtk control struct
