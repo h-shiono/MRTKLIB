@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.15)
-project(MRTKLIB VERSION 0.7.12 LANGUAGES C)
+project(MRTKLIB VERSION 0.7.13 LANGUAGES C)
 
 # ── Version header generation ─────────────────────────────────────────────────
 set(MRTKLIB_VERSION_MAJOR ${PROJECT_VERSION_MAJOR})
@@ -942,6 +942,7 @@ foreach(_case ppp pppar)
             ${CMAKE_BINARY_DIR}/out_madocalib_mdc005_${_case}.pos
             --tolerance ${_tol}
             --fix-q 1 --max-fix-drop ${_PPPAR_FIX_DROP}
+            --max-missing 0
     )
     set_tests_properties(madocalib_mdc005_${_case}_check PROPERTIES
         DEPENDS           madocalib_mdc005_${_case}

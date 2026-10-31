@@ -240,6 +240,12 @@ def main():
         help="Maximum allowed fix-rate drop vs reference in percent (default: 1.0)",
     )
     parser.add_argument(
+        "--max-missing",
+        type=int,
+        default=None,
+        help="Maximum allowed number of reference epochs missing from test (default: no limit)",
+    )
+    parser.add_argument(
         "--plot", action="store_true", help="Generate comparison plot (compare_result.png)"
     )
     args = parser.parse_args()
@@ -320,6 +326,19 @@ def main():
         passed = False
     else:
         print(f"PASS: Fix rate delta ({fix_delta:+.2f}%) within threshold")
+
+    # Criterion 3: the RMS covers common epochs only, so a shortened run would
+    # pass criterion 1; for float PPP (no Q=1 in the reference) criterion 2
+    # does not see the loss either
+    if args.max_missing is not None:
+        if metrics["n_missing"] > args.max_missing:
+            print(
+                f"FAIL: {metrics['n_missing']} reference epochs missing from test "
+                f"(threshold: {args.max_missing})"
+            )
+            passed = False
+        else:
+            print(f"PASS: {metrics['n_missing']} reference epochs missing from test")
 
     if passed:
         print("\nRESULT: PASS")

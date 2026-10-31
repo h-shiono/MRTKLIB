@@ -186,7 +186,8 @@ static void check_sat(const rtcm_t* rtcm, const char* id, const uint8_t* codes, 
 }
 
 static void check_bds_gen(void) {
-    int prn;
+    static char longlist[1100];
+    int prn, i;
 
     CHECK(set_bds2prn(NULL) == 0 && satsys_bd2(satid2no("C09"), NULL) == SYS_CMP &&
               satsys_bd2(satid2no("C01"), NULL) == SYS_CMP,
@@ -207,6 +208,12 @@ static void check_bds_gen(void) {
           "trailing text / incomplete range rejected");
     CHECK(set_bds2prn("c09 C10") == 2 && bds_gen(9) == BDSGEN_2 && bds_gen(10) == BDSGEN_2,
           "space separator and lower-case c accepted");
+    for (i = 0; i < 255; i++) memcpy(longlist + 4 * i, "C09,", 4);
+    strcpy(longlist + 4 * 255, "C10"); /* 1023 chars: largest list parse_bdslist accepts */
+    CHECK(set_bds2prn(longlist) == 2 && bds_gen(10) == BDSGEN_2, "1023-char list applied in full");
+    strcpy(longlist + 4 * 255, "C09,C10"); /* 1027 chars: C10 beyond the parse buffer */
+    CHECK(set_bds2prn(longlist) == -1 && bds_gen(9) == BDSGEN_3 && bds_gen(10) == BDSGEN_3,
+          "over-long list rejected, not applied as a truncated prefix");
     CHECK(set_bds3igso(NULL) == 3 && is_bds3igso(6) && is_bds3igso(8) && !is_bds3igso(38),
           "BDS-3 IGSO default C06-C08");
     CHECK(set_bds3igso("C38-C40") == 3 && is_bds3igso(38) && is_bds3igso(40) && !is_bds3igso(6),
