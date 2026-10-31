@@ -64,7 +64,8 @@ sample.
   - `mrtk post` and `mrtk run` warn when BeiDou is enabled and `bds2_sats` is
     not set. `bds2_sats = []` states "no BDS-2" and silences the warning.
     A malformed entry (`C09x`, `C09-C10-C11`) or a list longer than 255
-    characters is rejected with a warning, not partly applied.
+    characters is rejected with a warning, not partly applied
+    (`mrtk bias -bds2prn`: a list over 1023 characters is an error).
   - Bundled configurations are pinned to their data. Pre-reassignment data
     (MADOCALIB 2.0 sample, PPC / GSDC benchmarks) uses `C01-C18` / `C38-C40`;
     live and post-April data uses `C09, C10`.

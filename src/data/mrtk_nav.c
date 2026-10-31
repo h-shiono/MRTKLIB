@@ -191,6 +191,9 @@ static int parse_bdslist(const char* str, int maxprn, uint8_t val, uint8_t* list
     char buff[1024], *p, *q;
     int prn1, prn2, prn, n = 0;
 
+    if (strlen(str) >= sizeof(buff)) { /* reject, never apply a truncated prefix */
+        return -1;
+    }
     snprintf(buff, sizeof(buff), "%s", str);
     for (p = strtok(buff, ", "); p; p = strtok(NULL, ", ")) {
         if (*p != 'C' && *p != 'c') {

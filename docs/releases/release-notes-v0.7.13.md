@@ -41,7 +41,8 @@ The PRN table and the rules for choosing a value are in the new
 - **List syntax.** Entries are satellite IDs or ranges, e.g. `["C09", "C10"]`
   or `["C01-C18"]`.
 - **Invalid lists.** A malformed entry or a list longer than 255 characters
-  is rejected with a warning. It is not partly applied.
+  is rejected with a warning. It is not partly applied. For
+  `mrtk bias -bds2prn` a list over 1023 characters is an error.
 - **The IGSO list replaces a hard-coded rule.** PPP-AR used C38–C40 as IGSO.
   The IGSO satellites are never taken as the PPP-AR reference satellite and
   are dropped first in partial AR.
