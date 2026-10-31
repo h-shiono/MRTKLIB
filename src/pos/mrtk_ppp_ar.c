@@ -137,6 +137,15 @@ static void get_wavelength(int sat, double* lam) {
         }
     }
 }
+/* BDS-3 IGSO satellite listed by set_bds3igso() (default C06-C08) ----------*/
+static int is_bds3_igso(int sat) {
+    int prn;
+
+    if (satsys_bd2(sat, &prn) != SYS_CMP) {
+        return 0;
+    }
+    return is_bds3igso(prn);
+}
 /* exclude satellite ---------------------------------------------------------*/
 static int exc_sat_sd(rtk_t* rtk, const obsd_t* obs, int exc, double el, int nf, int sys) {
     double elmask;
@@ -200,7 +209,7 @@ static int gen_sat_sd(rtk_t* rtk, const obsd_t* obs, int n, const int* exc, cons
             }
 
             /* exclude IGSO for reference satellite */
-            if (obs[j].sat == satid2no("C38") || obs[j].sat == satid2no("C39") || obs[j].sat == satid2no("C40")) {
+            if (is_bds3_igso(obs[j].sat)) {
                 continue;
             }
 
@@ -813,7 +822,7 @@ static int exc_sat_par(rtk_t* rtk, int* sat1, int* sat2, const double* el1, cons
         if (sys & SYS_BD2) {
             el -= offset;
         } else if (sys & SYS_CMP) {
-            if (sat1[i] == satid2no("C38") || sat1[i] == satid2no("C39") || sat1[i] == satid2no("C40")) {
+            if (is_bds3_igso(sat1[i])) {
                 el -= offset;
             }
         } else if (sys & SYS_QZS) {

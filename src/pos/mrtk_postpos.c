@@ -1945,6 +1945,10 @@ extern int postpos(mrtk_ctx_t* ctx, gtime_t ts, gtime_t te, double ti, double tu
 
     trace(ctx, 3, "postpos : ti=%.0f tu=%.0f n=%d outfile=%s\n", ti, tu, n, outfile);
 
+    /* BeiDou generation of PRN 1-18 and BDS-3 IGSO (#401): set before reading
+       files, since RINEX reading already depends on the generation */
+    set_bdsopt(popt, 1);
+
     /* open processing session */
     if (!openses(ctx, popt, sopt, fopt, &navs, &pcvss, &pcvsr)) {
         return -1;

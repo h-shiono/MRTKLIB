@@ -85,6 +85,11 @@ extern int satno(int sys, int prn) {
                 return 0;
             }
             return NSATGPS + NSATGLO + NSATGAL + NSATQZS + prn - MINPRNCMP + 1;
+        case SYS_BD2:
+            if (prn < MINPRNCMP || MINPRNBDS3 <= prn || !is_bds2prn(prn)) {
+                return 0;
+            }
+            return NSATGPS + NSATGLO + NSATGAL + NSATQZS + prn - MINPRNCMP + 1;
         case SYS_IRN:
             if (prn < MINPRNIRN || MAXPRNIRN < prn) {
                 return 0;
@@ -156,7 +161,7 @@ extern int satsys_bd2(int sat, int* prn) {
 
     sys = satsys(sat, &_prn);
 #ifdef ENACMP
-    if (sys == SYS_CMP && (_prn) < MINPRNBDS3) {
+    if (sys == SYS_CMP && is_bds2prn(_prn)) {
         sys = SYS_BD2;
     }
 #endif
@@ -165,6 +170,146 @@ extern int satsys_bd2(int sat, int* prn) {
         *prn = _prn;
     }
     return sys;
+}
+/* BeiDou generation of PRN 1-18 -----------------------------------------------
+ * Since the BeiDou PRN reassignment (2026-04-10 to 04-21) BDS-3 satellites are
+ * also on PRN 1-18, so the generation can no longer be told from the PRN. A PRN
+ * 1-18 is BDS-2 only when set_bds2prn() lists it; PRN >= MINPRNBDS3 is always
+ * BDS-3. Default (as upstream MADOCALIB 2.2): no BDS-2.
+ *-----------------------------------------------------------------------------*/
+#define NBDSTBL (MAXPRNCMP < 63 ? 64 : MAXPRNCMP + 1) /* table size, also valid when ENACMP is undefined */
+static uint8_t bdsgen_[NBDSTBL] = {0, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3};
+
+/* BDS-3 IGSO satellites, excluded from the PPP-AR reference satellite selection.
+ * Default C06-C08 (since the PRN reassignment; C38-C40 before it). */
+static uint8_t bds3igso_[NBDSTBL] = {0, 0, 0, 0, 0, 0, 1, 1, 1};
+
+/* parse a BeiDou satellite list ("C09,C10", "C01-C18", comma/space separated)
+ * into list[prn]=val for prn in [MINPRNCMP,maxprn]; return the number of
+ * satellites listed, or -1 on a malformed entry */
+static int parse_bdslist(const char* str, int maxprn, uint8_t val, uint8_t* list) {
+    char buff[1024], *p, *q;
+    int prn1, prn2, prn, n = 0;
+
+    if (strlen(str) >= sizeof(buff)) { /* reject, never apply a truncated prefix */
+        return -1;
+    }
+    snprintf(buff, sizeof(buff), "%s", str);
+    for (p = strtok(buff, ", "); p; p = strtok(NULL, ", ")) {
+        if (*p != 'C' && *p != 'c') {
+            return -1;
+        }
+        /* each number must consume its token: "C09x", "C09-C10-C11" are errors */
+        prn1 = (int)strtol(p + 1, &q, 10);
+        if (q == p + 1) {
+            return -1;
+        }
+        if (*q == '-') {
+            if (*(q + 1) != 'C' && *(q + 1) != 'c') {
+                return -1;
+            }
+            p = q + 2;
+            prn2 = (int)strtol(p, &q, 10);
+            if (q == p) {
+                return -1;
+            }
+        } else {
+            prn2 = prn1;
+        }
+        if (*q || prn1 < MINPRNCMP || prn2 > maxprn || prn1 > prn2) {
+            return -1;
+        }
+        for (prn = prn1; prn <= prn2; prn++) {
+            if (list[prn] != val) {
+                n++;
+            }
+            list[prn] = val;
+        }
+    }
+    return n;
+}
+extern int set_bds2prn(const char* str) {
+    uint8_t list[NBDSTBL] = {0};
+    int prn, n;
+
+    for (prn = MINPRNCMP; prn < MINPRNBDS3 && prn <= MAXPRNCMP; prn++) {
+        list[prn] = BDSGEN_3;
+    }
+    memcpy(bdsgen_, list, sizeof(bdsgen_));
+
+    if (!str || !*str) {
+        return 0;
+    }
+    if ((n = parse_bdslist(str, MINPRNBDS3 - 1, BDSGEN_2, list)) < 0) {
+        return -1;
+    }
+    memcpy(bdsgen_, list, sizeof(bdsgen_));
+    return n;
+}
+extern int is_bds2prn(int prn) { return bds_gen(prn) == BDSGEN_2; }
+
+extern int set_bds3igso(const char* str) {
+    uint8_t list[NBDSTBL] = {0};
+    int n;
+
+    memset(bds3igso_, 0, sizeof(bds3igso_));
+    bds3igso_[6] = bds3igso_[7] = bds3igso_[8] = 1;
+
+    if (!str || !*str) {
+        return 3;
+    }
+    if ((n = parse_bdslist(str, MAXPRNCMP, 1, list)) < 0) {
+        return -1;
+    }
+    memcpy(bds3igso_, list, sizeof(bds3igso_));
+    return n;
+}
+extern int is_bds3igso(int prn) {
+    if (prn < MINPRNCMP || MAXPRNCMP < prn) {
+        return 0;
+    }
+    return bds3igso_[prn];
+}
+extern int bds_gen(int prn) {
+    if (prn < MINPRNCMP || MAXPRNCMP < prn) {
+        return 0;
+    }
+    if (MINPRNBDS3 <= prn) {
+        return BDSGEN_3;
+    }
+    return bdsgen_[prn];
+}
+extern int set_bdsopt(const prcopt_t* opt, int warn) {
+    int stat = 1;
+
+    if (set_bds2prn(opt->bds2prn) < 0) {
+        trace(NULL, 1, "set_bdsopt: invalid bds2prn=%s (all BDS-3)\n", opt->bds2prn);
+        if (warn) {
+            fprintf(stderr,
+                    "warning : invalid [positioning] bds2_sats = \"%s\"; all BeiDou PRN 1-18 treated as BDS-3\n",
+                    opt->bds2prn);
+        }
+        stat = 0;
+    }
+    if (set_bds3igso(opt->bds3igso) < 0) {
+        trace(NULL, 1, "set_bdsopt: invalid bds3igso=%s (C06-C08)\n", opt->bds3igso);
+        if (warn) {
+            fprintf(stderr, "warning : invalid [ambiguity_resolution] bds3_igso_sats = \"%s\"; C06-C08 used\n",
+                    opt->bds3igso);
+        }
+        stat = 0;
+    }
+    /* the PRN reassignment left BDS-2 on C09/C10, so an unset list silently
+       misclassifies current data as well as pre-reassignment data */
+    if (warn && (opt->navsys & SYS_CMP) && !opt->bds2prn_set) {
+        fprintf(stderr,
+                "warning : BeiDou is enabled but [positioning] bds2_sats is not set, so every BeiDou PRN 1-18 is "
+                "treated as BDS-3.\n"
+                "          Set bds2_sats = [\"C09\", \"C10\"] for data after 2026-04-21, [\"C01-C18\"] for data "
+                "before 2026-04-10,\n"
+                "          or [] to silence this warning (see the BeiDou PRN Reassignment guide).\n");
+    }
+    return stat;
 }
 /* observation definition type for frequency mapping ---------------------------*/
 typedef struct {

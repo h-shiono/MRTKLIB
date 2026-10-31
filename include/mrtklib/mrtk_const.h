@@ -215,6 +215,8 @@ extern "C" {
 #ifndef SYS_BD2
 #define SYS_BD2 0x100 /* navigation system: BeiDou-2 */
 #endif
+#define BDSGEN_2 2 /* BeiDou generation: BDS-2 (bds_gen()) */
+#define BDSGEN_3 3 /* BeiDou generation: BDS-3 (bds_gen()) */
 #ifndef SYS_ALL
 #define SYS_ALL 0xFFF /* navigation system: all */
 #endif
