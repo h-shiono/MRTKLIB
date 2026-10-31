@@ -537,6 +537,7 @@ add_test(NAME recvbias_rb
         -scb ${_TESTDATA}/2024235L.209.l6
         -pos -3961440.433,3308948.812,3734425.963
         -el 30
+        -bds2prn C01-C18
         -out ${CMAKE_BINARY_DIR}/out_rb.bia
         ${_TESTDATA}/MALIB_OSS_data_obsnav_240822-1100.obs
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}

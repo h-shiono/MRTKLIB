@@ -163,3 +163,8 @@ unconditionally. To reproduce them, use `["C01-C18"]` / `["C38-C40"]`.
 
 The setting is process-wide. `mrtk post` applies it before reading the input
 files; `mrtk run` applies it when the server starts.
+
+`mrtk bias` reads no configuration file. Give the list on the command line
+with `-bds2prn` (`--bds2-sats`), e.g. `-bds2prn C09,C10`, the same option name
+as MADOCALIB 2.2's `cssr2ssr`. Without it, every PRN 1–18 satellite is BDS-3 and
+a warning is printed; `-bds2prn ""` states "no BDS-2".

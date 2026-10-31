@@ -50,6 +50,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Bundled configurations are pinned to their data. Pre-reassignment data
     (MADOCALIB 2.0 sample, PPC / GSDC benchmarks) uses `C01-C18` / `C38-C40`;
     live and post-April data uses `C09, C10`.
+  - `mrtk bias` gains `-bds2prn LIST` (`--bds2-sats`; the name of MADOCALIB
+    2.2's `cssr2ssr` option), since it reads no configuration file
+    ([#403](https://github.com/h-shiono/MRTKLIB/issues/403)). Without it,
+    PRN 1–18 is all BDS-3 and a warning is printed.
   - New guide: [BeiDou PRN Reassignment](docs/guide/beidou-prn-reassignment.md).
 
   **Migration.** If your configuration enables BeiDou, add `bds2_sats`:
