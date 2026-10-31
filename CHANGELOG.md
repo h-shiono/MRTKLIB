@@ -15,9 +15,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   PRN 1–18 in GNSS ID 3; their code / phase biases are now read with the
   BDS-3 (GNSS ID 7) signal table. A signal mask bit undefined in the table
   in use is skipped. Before, it indexed `cbias[-1]` / `pbias[-1]` (an
-  out-of-bounds stack write, confirmed under ASan). No change on current
-  data: until BDS-2 / BDS-3 classification of PRN 1–18 follows the
-  reassignment (next #401 step), every GNSS ID 3 satellite is still BDS-2.
+  out-of-bounds stack write, confirmed under ASan).
+
+### BeiDou PRN reassignment
+
+- **BDS-2 / BDS-3 classification of PRN 1–18 is now configured, not inferred
+  from the PRN** (MADOCALIB 2.2, [#401](https://github.com/h-shiono/MRTKLIB/issues/401)).
+  Between 2026-04-10 and 04-21 BeiDou moved BDS-3 satellites onto PRN 1–18
+  (C01–C08, C11–C14). Two BDS-2 IGSO satellites remain, on C09 and C10. The
+  BDS-3 IGSO satellites moved from C38–C40 to C06–C08, and C38–C40 are now
+  MEO. MRTKLIB treated every PRN below 19 as BDS-2, so current data used the
+  wrong signal model, clock group and PPP-AR grouping for those satellites.
+  - New `[positioning] bds2_sats` (legacy `pos2-bds2prn`): the BDS-2
+    satellites in PRN 1–18. Default: none (as MADOCALIB 2.2).
+  - New `[ambiguity_resolution] bds3_igso_sats` (legacy `pos2-bds3igso`): the
+    BDS-3 IGSO satellites, which PPP-AR never takes as the reference. Default
+    `C06-C08`; it replaces the hard-coded C38–C40.
+  - `mrtk post` and `mrtk run` warn when BeiDou is enabled and `bds2_sats` is
+    not set. `bds2_sats = []` states "no BDS-2" and silences the warning.
+  - Bundled configurations are pinned to their data. Pre-reassignment data
+    (MADOCALIB 2.0 sample, PPC / GSDC benchmarks) uses `C01-C18` / `C38-C40`;
+    live and post-April data uses `C09, C10`.
+  - New guide: [BeiDou PRN Reassignment](docs/guide/beidou-prn-reassignment.md).
+
+  **Migration.** If your configuration enables BeiDou, add `bds2_sats`:
+  `["C09", "C10"]` for data after 2026-04-21, `["C01-C18"]` (plus
+  `bds3_igso_sats = ["C38-C40"]` for PPP-AR) for data before 2026-04-10.
+  `prcopt_t` gains `bds2prn`, `bds3igso` and `bds2prn_set` (appended; ABI
+  change for external drivers). New API: `set_bds2prn()`, `is_bds2prn()`,
+  `set_bds3igso()`, `is_bds3igso()`, `bds_gen()`, `set_bdsopt()`.
 
 ### Tests and test data
 
@@ -25,7 +51,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   new dataset `madocalib_mdc005-v1`. PPP and PPP-AR are checked for parity
   with upstream 2.2 (the internal-LU build is bit-identical) and for
   absolute accuracy against the IGS week-2411 SINEX. Plus `utest_mcssr_bd3`,
-  a synthetic ST1/ST4/ST5 message that covers the undefined-bit skip.
+  a synthetic ST1/ST4/ST5 message that covers the undefined-bit skip, the
+  GNSS ID 3 BDS-3 decode, and the BeiDou generation API. `utest_t_toml`
+  covers `bds2_sats` / `bds3_igso_sats` and the "not set" flag.
 
 ## [v0.7.12] - 2026-10-29
 
