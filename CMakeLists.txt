@@ -891,17 +891,23 @@ set_tests_properties(madocalib_mdc005_cleanup PROPERTIES
     LABELS           "regression;madocalib"
 )
 
-# Upstream parity. PPP float: <0.2 mm on every backend. PPP-AR: the internal-LU
-# build matches upstream exactly; OpenBLAS / Accelerate flip AR decisions at a
-# few marginal epochs (3D RMS 5.74 / 6.54 cm, fix rate +1.7 / +2.5 %, same
-# mechanism as #302), tolerance ~1.3x the worst. Accuracy is gated by the
-# *_abs_check tests below.
+# Upstream parity. The references come from upstream 2.2 built on macOS (Apple
+# clang). Built on Linux (gcc/glibc), upstream itself differs from them, and
+# MRTKLIB on Linux is bit-identical to that Linux upstream: the difference is
+# the platform, not the port. PPP float is still converging (sigma 1-3 m), so
+# last-bit differences grow to 3D RMS 12.07 cm on Linux (<0.2 mm across macOS
+# backends); tolerance ~1.3x. PPP-AR: the internal-LU macOS build matches
+# upstream exactly; OpenBLAS / Accelerate flip AR decisions at a few marginal
+# epochs (3D RMS 5.74 / 6.54 cm, fix rate +1.7 / +2.5 %, same mechanism as
+# #302), Linux 7.35 cm; tolerance ~1.3x the macOS worst. Accuracy is gated by
+# the *_abs_check tests below.
+set(_MDC5_PPP_TOL 0.16)
 set(_MDC5_PPPAR_TOL 0.090)
 foreach(_case ppp pppar)
     if(_case STREQUAL "ppp")
         set(_conf rnx2rtkp_mdc005.toml)
         set(_ref  pp)
-        set(_tol  0.005)
+        set(_tol  ${_MDC5_PPP_TOL})
     else()
         set(_conf rnx2rtkp_pppar_mdc005.toml)
         set(_ref  pppar)
@@ -936,8 +942,9 @@ endforeach()
 
 # Absolute accuracy vs IGS weekly SINEX, GPS week 2411 (2026/03/22-03/28,
 # contains the data epoch; MIZU-only extract). 2D 95th percentile after 60
-# epochs, measured on internal LU / OpenBLAS / Accelerate: ppp 7.10 cm,
-# pppar 1.39 cm; tolerance ~2x, rounded up to the cm.
+# epochs, measured on macOS internal LU / OpenBLAS / Accelerate: ppp 7.10 cm,
+# pppar 1.39 cm (Linux internal LU: 6.00 / 1.38 cm); tolerance ~2x, rounded up
+# to the cm.
 foreach(_case ppp pppar)
     if(_case STREQUAL "ppp")
         set(_tol 0.15)

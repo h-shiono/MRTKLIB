@@ -57,8 +57,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - MDC-005 regression: MADOCALIB 2.2 sample (MIZU 2026/03/28, L6E PRN 207),
   new dataset `madocalib_mdc005-v1`. PPP and PPP-AR are checked for parity
-  with upstream 2.2 (the internal-LU build is bit-identical) and for
-  absolute accuracy against the IGS week-2411 SINEX. Plus `utest_mcssr_bd3`,
+  with upstream 2.2 (the internal-LU build is bit-identical to upstream on
+  the same platform) and for absolute accuracy against the IGS week-2411
+  SINEX. Parity tolerances: PPP 0.16 m, PPP-AR 0.090 m. The references are
+  macOS upstream output; upstream built on Linux differs from them by up to
+  3D RMS 12.07 cm (PPP float, still converging), so the tolerances cover
+  the platform difference and the absolute checks gate accuracy. Plus `utest_mcssr_bd3`,
   a synthetic ST1/ST4/ST5 message that covers the undefined-bit skip, the
   GNSS ID 3 BDS-3 decode, and the BeiDou generation API. `utest_t_toml`
   covers `bds2_sats` / `bds3_igso_sats` and the "not set" flag.
