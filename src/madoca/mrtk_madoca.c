@@ -560,7 +560,7 @@ static int decode_mcssr_cb(mcssr_t* mc, ssr_t* ssr, int i, int apply) {
                 }
             }
         }
-        if (apply) {
+        if (apply && sat > 0) { /* sat 0 (unsupported): cells read above, nothing to store */
             ssr[sat - 1].t0[4] = mc->gt;
             ssr[sat - 1].udi[4] = udint;
             ssr[sat - 1].iod[4] = iod;
@@ -634,7 +634,7 @@ static int decode_mcssr_pb(mcssr_t* mc, ssr_t* ssr, int i, int apply) {
                 }
             }
         }
-        if (apply) {
+        if (apply && sat > 0) { /* sat 0 (unsupported): cells read above, nothing to store */
             ssr[sat - 1].t0[5] = mc->gt;
             ssr[sat - 1].udi[5] = udint;
             ssr[sat - 1].iod[5] = iod;

@@ -22,6 +22,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   absent cell and every later bias of the message was shifted. MADOCALIB 2.2
   has the same loop; MRTKLIB now advances the cursor on every cell. No change
   on the bundled data (outputs byte-identical).
+- **ST4 / ST5 no longer store biases for an unsupported satellite**
+  ([#402](https://github.com/h-shiono/MRTKLIB/issues/402)). A masked
+  satellite that `satno()` rejects (sat 0, e.g. a GPS PRN above 32) had its
+  code / phase biases written to `ssr[-1]`, over the `rtcm_t` members before
+  `ssr[]`. Its cells are still read, then skipped, as ST2 / ST3 / ST7 already
+  did. Inherited from MADOCALIB (2.1 and 2.2).
 
 ### BeiDou PRN reassignment
 
@@ -44,6 +50,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Bundled configurations are pinned to their data. Pre-reassignment data
     (MADOCALIB 2.0 sample, PPC / GSDC benchmarks) uses `C01-C18` / `C38-C40`;
     live and post-April data uses `C09, C10`.
+  - `mrtk bias` gains `-bds2prn LIST` (`--bds2-sats`; the name of MADOCALIB
+    2.2's `cssr2ssr` option), since it reads no configuration file
+    ([#403](https://github.com/h-shiono/MRTKLIB/issues/403)). Without it,
+    PRN 1–18 is all BDS-3 and a warning is printed.
   - New guide: [BeiDou PRN Reassignment](docs/guide/beidou-prn-reassignment.md).
 
   **Migration.** If your configuration enables BeiDou, add `bds2_sats`:
@@ -66,6 +76,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   a synthetic ST1/ST4/ST5 message that covers the undefined-bit skip, the
   GNSS ID 3 BDS-3 decode, and the BeiDou generation API. `utest_t_toml`
   covers `bds2_sats` / `bds3_igso_sats` and the "not set" flag.
+- `madocalib_pppar_ion_l6d_template` no longer compares two runs byte for
+  byte, which failed intermittently on Accelerate
+  ([#404](https://github.com/h-shiono/MRTKLIB/issues/404)). It checks that no
+  `.l6d` input is reported as ignored, that the solution has the same epochs
+  as the legacy-name run, and compares it within the `pppar_ion` tolerance (Accelerate run-to-run:
+  up to 0.08 cm 3D RMS; iono files ignored: 33 cm).
 
 ## [v0.7.12] - 2026-10-29
 

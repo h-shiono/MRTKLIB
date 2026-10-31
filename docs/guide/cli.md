@@ -273,6 +273,7 @@ mrtk bias [options] obsfile navfile [l6file...]
 | `-out`, `--output FILE` | Output bias file (default: stdout) |
 | `-td Y/M/D` | Date (GPST, required) |
 | `-ts TSPAN` | Time span in **days** (not a start time) |
+| `-bds2prn`, `--bds2-sats LIST` | BDS-2 satellites in PRN 1–18, e.g. `C09,C10` (after 2026-04-21) or `C01-C18` (before 2026-04-10); `""` = none. Default none, with a warning. See [BeiDou PRN Reassignment](beidou-prn-reassignment.md) |
 | `-t`, `--trace LEVEL` | Trace level |
 | `-h`, `--help` | Show help |
 

@@ -10,6 +10,8 @@
  * The test synthesizes one 5-frame L6E message (ST1 mask, ST4 code bias,
  * ST5 phase bias) and feeds the frames to decode_qzss_l6emsg():
  *
+ *   GNSS ID 0, PRN 33, sigmask bits 0/1, no cell mask (2 cells)
+ *     satno() rejects it (GPS PRN > 32): an unsupported satellite, sat 0
  *   GNSS ID 3, C09, sigmask bits 0/3/6/9, no cell mask (4 cells)
  *     BDS-2 table: L2I, L6I, L7I, (undefined)
  *   GNSS ID 7, C19, sigmask bits 0/2/5/10, cell mask 1101 (3 cells)
@@ -27,6 +29,10 @@
  * C09 is BDS-3): the same GNSS ID 3 mask is read with the BDS-3 table, so C09
  * biases land on L2I, L6I, L7D, L1D (all four valid).
  * Run under ASan to also catch a regression of the [-1] write.
+ * In both passes the unsupported GPS PRN 33 must consume its cells without
+ * being stored: decode_mcssr_cb/pb used to write its biases to ssr[sat-1] =
+ * ssr[-1], which overlays the rtcm_t members before ssr[] (not an ASan
+ * error, so the test compares those bytes before and after, #402).
  *
  * Also checks the BeiDou generation API (set_bds2prn, satsys_bd2, satno,
  * set_bds3igso, bds_gen) the decode depends on.
@@ -89,6 +95,7 @@ static uint16_t sigbits(const int* idx, int n) {
     return m;
 }
 
+static const int g33_idx[] = {0, 1};
 static const int c09_idx[] = {0, 3, 6, 9};
 static const int c19_idx[] = {0, 2, 5, 10};
 #define C19_CELLMASK 0xD                      /* 1101: idx 5 has no cell */
@@ -103,7 +110,11 @@ static void build_message(void) {
     int k;
 
     put_head(1, TOW);
-    put(4, 2); /* number of GNSS */
+    put(4, 3); /* number of GNSS */
+    put(4, 0); /* GNSS ID 0: GPS */
+    put_svmask(33 - 1);
+    put(16, sigbits(g33_idx, 2));
+    put(1, 0);
     put(4, 3); /* GNSS ID 3: BDS */
     put_svmask(9 - 1);
     put(16, sigbits(c09_idx, 4));
@@ -115,10 +126,15 @@ static void build_message(void) {
     put(4, C19_CELLMASK);
 
     put_head(4, 0);
+    for (k = 0; k < 2; k++) put(11, 21u); /* PRN 33 */
     for (k = 0; k < 4; k++) put(11, (uint32_t)c09_cb[k]);
     for (k = 0; k < 3; k++) put(11, (uint32_t)c19_cb_tx[k]);
 
     put_head(5, 0);
+    for (k = 0; k < 2; k++) {
+        put(15, 31u); /* PRN 33 */
+        put(2, 0);
+    }
     for (k = 0; k < 4; k++) {
         put(15, (uint32_t)c09_pb[k]);
         put(2, 0);
@@ -199,9 +215,10 @@ static void check_bds_gen(void) {
 }
 
 static void run_pass(const char* bds2list, const uint8_t* c09_codes, int nc09) {
+    static unsigned char before[sizeof(ssr_t)];
     rtcm_t* rtcm;
     int n, ret = 0;
-    char buf[64];
+    char buf[96];
 
     if (!(rtcm = (rtcm_t*)calloc(1, sizeof(rtcm_t))) || !init_rtcm(rtcm)) {
         printf("FAIL: init_rtcm\n");
@@ -212,12 +229,15 @@ static void run_pass(const char* bds2list, const uint8_t* c09_codes, int nc09) {
     set_bds2prn(bds2list);
     set_mcssr_ch(0);
     init_mcssr(gpst2time(WEEK, TOW));
+    memcpy(before, (unsigned char*)rtcm->ssr - sizeof(ssr_t), sizeof(ssr_t)); /* what ssr[-1] overlays */
     for (n = 0; n < NFRAME; n++) {
         make_frame(rtcm, n);
         ret = decode_qzss_l6emsg(rtcm);
     }
     snprintf(buf, sizeof(buf), "bds2prn \"%s\": 5th frame completes the message (ret 10)", bds2list);
     CHECK(ret == 10, buf);
+    snprintf(buf, sizeof(buf), "bds2prn \"%s\": unsupported PRN 33 leaves the bytes before ssr[] intact", bds2list);
+    CHECK(!memcmp(before, (unsigned char*)rtcm->ssr - sizeof(ssr_t), sizeof(ssr_t)), buf);
 
     check_sat(rtcm, "C09", c09_codes, c09_cb, c09_pb, nc09);
     check_sat(rtcm, "C19", c19_codes, c19_cb, c19_pb, 2);
