@@ -15,12 +15,18 @@
  *   GNSS ID 7, C19, sigmask bits 0/10 (2 cells)
  *     BDS-3 table: L2I, L1P
  *
- * Checks (C09 classified BDS-2, i.e. the pre-#401 PRN<19 rule):
+ * Pass 1, set_bds2prn("C09") (C09 is BDS-2):
  *   (1) C09 code / phase biases land on L2I, L6I, L7I; the undefined fourth
  *       cell is skipped, so exactly three codes are valid.
  *   (2) C19 biases decode to the values written after the skipped cell, which
  *       proves the skipped cell still consumed its bits.
+ * Pass 2, set_bds2prn("") (default since the BeiDou PRN reassignment, #401;
+ * C09 is BDS-3): the same GNSS ID 3 mask is read with the BDS-3 table, so C09
+ * biases land on L2I, L6I, L7D, L1D (all four valid).
  * Run under ASan to also catch a regression of the [-1] write.
+ *
+ * Also checks the BeiDou generation API (set_bds2prn, satsys_bd2, satno,
+ * set_bds3igso, bds_gen) the decode depends on.
  *
  * Explicit CHECK macro (not assert) so it is robust under -DNDEBUG.
  *-----------------------------------------------------------------------------*/
@@ -136,6 +142,8 @@ static int nvalid(const int* v) {
     return n;
 }
 
+static const uint8_t c19_codes[] = {CODE_L2I, CODE_L1P};
+
 static void check_sat(const rtcm_t* rtcm, const char* id, const uint8_t* codes, const int* cb, const int* pb, int n) {
     const ssr_t* s = &rtcm->ssr[satid2no(id) - 1];
     char buf[128];
@@ -154,32 +162,70 @@ static void check_sat(const rtcm_t* rtcm, const char* id, const uint8_t* codes, 
     }
 }
 
-int main(void) {
-    static const uint8_t c09_codes[] = {CODE_L2I, CODE_L6I, CODE_L7I};
-    static const uint8_t c19_codes[] = {CODE_L2I, CODE_L1P};
+static void check_bds_gen(void) {
+    int prn;
+
+    CHECK(set_bds2prn(NULL) == 0 && satsys_bd2(satid2no("C09"), NULL) == SYS_CMP &&
+              satsys_bd2(satid2no("C01"), NULL) == SYS_CMP,
+          "default: no BDS-2, C01/C09 are BDS-3");
+    CHECK(satno(SYS_BD2, 9) == 0, "default: satno(SYS_BD2, 9) rejects a BDS-3 PRN");
+    CHECK(set_bds2prn("C09,C10") == 2 && satsys_bd2(satid2no("C09"), &prn) == SYS_BD2 && prn == 9 &&
+              satsys_bd2(satid2no("C10"), NULL) == SYS_BD2 && satsys_bd2(satid2no("C11"), NULL) == SYS_CMP,
+          "C09,C10: only C09/C10 are BDS-2");
+    CHECK(satno(SYS_BD2, 9) == satno(SYS_CMP, 9), "C09,C10: satno(SYS_BD2, 9) == satno(SYS_CMP, 9)");
+    CHECK(set_bds2prn("C01-C18") == 18 && bds_gen(1) == BDSGEN_2 && bds_gen(18) == BDSGEN_2 &&
+              bds_gen(19) == BDSGEN_3 && bds_gen(0) == 0 && bds_gen(64) == 0,
+          "C01-C18: legacy rule, PRN 19+ always BDS-3");
+    CHECK(set_bds2prn("C19") == -1 && satsys_bd2(satid2no("C09"), NULL) == SYS_CMP,
+          "C19 is rejected (PRN 19+ cannot be BDS-2) and leaves no BDS-2");
+    CHECK(set_bds2prn("G09") == -1 && set_bds2prn("C10-C05") == -1, "non-BeiDou / reversed range rejected");
+    CHECK(set_bds3igso(NULL) == 3 && is_bds3igso(6) && is_bds3igso(8) && !is_bds3igso(38),
+          "BDS-3 IGSO default C06-C08");
+    CHECK(set_bds3igso("C38-C40") == 3 && is_bds3igso(38) && is_bds3igso(40) && !is_bds3igso(6),
+          "BDS-3 IGSO C38-C40 replaces the default");
+    CHECK(set_bds3igso("X1") == -1 && is_bds3igso(7) && !is_bds3igso(39), "invalid IGSO list falls back to C06-C08");
+}
+
+static void run_pass(const char* bds2list, const uint8_t* c09_codes, int nc09) {
     rtcm_t* rtcm;
     int n, ret = 0;
+    char buf[64];
 
     if (!(rtcm = (rtcm_t*)calloc(1, sizeof(rtcm_t))) || !init_rtcm(rtcm)) {
         printf("FAIL: init_rtcm\n");
-        return 1;
+        fails++;
+        free(rtcm);
+        return;
     }
-    build_message();
-    CHECK(pos <= NFRAME * L6_DATA_BITS, "message fits in 5 data parts");
-
+    set_bds2prn(bds2list);
     set_mcssr_ch(0);
     init_mcssr(gpst2time(WEEK, TOW));
     for (n = 0; n < NFRAME; n++) {
         make_frame(rtcm, n);
         ret = decode_qzss_l6emsg(rtcm);
     }
-    CHECK(ret == 10, "5th frame completes the message (ret 10)");
+    snprintf(buf, sizeof(buf), "bds2prn \"%s\": 5th frame completes the message (ret 10)", bds2list);
+    CHECK(ret == 10, buf);
 
-    check_sat(rtcm, "C09", c09_codes, c09_cb, c09_pb, 3);
+    check_sat(rtcm, "C09", c09_codes, c09_cb, c09_pb, nc09);
     check_sat(rtcm, "C19", c19_codes, c19_cb, c19_pb, 2);
 
     free_rtcm(rtcm);
     free(rtcm);
+}
+
+int main(void) {
+    static const uint8_t c09_bd2[] = {CODE_L2I, CODE_L6I, CODE_L7I};
+    static const uint8_t c09_bd3[] = {CODE_L2I, CODE_L6I, CODE_L7D, CODE_L1D};
+
+    check_bds_gen();
+
+    build_message();
+    CHECK(pos <= NFRAME * L6_DATA_BITS, "message fits in 5 data parts");
+
+    run_pass("C09", c09_bd2, 3);
+    run_pass("", c09_bd3, 4);
+
     printf("%s (%d failure%s)\n", fails ? "FAILED" : "PASSED", fails, fails == 1 ? "" : "s");
     return fails ? 1 : 0;
 }

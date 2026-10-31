@@ -3,13 +3,15 @@
 # madocalib_mdc005_* regression tests (#401); same as rnx2rtkp_pppar.toml except receiver_atx.
 
 [positioning]
-mode = "ppp-kine"                                         # (6:ppp-kine,7:ppp-static)
-frequency = "l1+2+3+4"                                    # (1:l1,2:l1+2,3:l1+2+3,4:l1+2+3+4)
-solution_type = "forward"                                 # (0:forward)
-elevation_mask = 10.0                                     # (deg)
-dynamics = false                                          # (0:off,1:on)
-satellite_ephemeris = "brdc+ssrapc"                       # (0:brdc,1:precise,3:brdc+ssrapc,4:brdc+ssrcom)
-excluded_sats = []                                        # (prn ...)
+mode = "ppp-kine"                   # (6:ppp-kine,7:ppp-static)
+frequency = "l1+2+3+4"              # (1:l1,2:l1+2,3:l1+2+3,4:l1+2+3+4)
+solution_type = "forward"           # (0:forward)
+elevation_mask = 10.0               # (deg)
+dynamics = false                    # (0:off,1:on)
+satellite_ephemeris = "brdc+ssrapc" # (0:brdc,1:precise,3:brdc+ssrapc,4:brdc+ssrcom)
+excluded_sats = []                  # (prn ...)
+# as MADOCALIB 2.2 sample_pppar.conf (pos2-bds2prn)
+bds2_sats = ["C09", "C10"]
 systems = ["GPS", "GLONASS", "Galileo", "QZSS", "BeiDou"]
 
 [positioning.snr_mask]
