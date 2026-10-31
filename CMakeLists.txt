@@ -752,8 +752,9 @@ set_tests_properties(madocalib_pppar_ion PROPERTIES
 # given as time-keyword paths: mrtk post must expand the template at the
 # session start to classify them by content (they are MADOCA iono), and the
 # solution must match the legacy *.200/201.l6 run (Greptile on PR #397).
-# Checked directly (no "L6D file ignored" warning) and by solution, within the
-# pppar_ion tolerance rather than byte for byte: Accelerate varies run to run
+# Checked directly (no "L6D file ignored" warning), by epoch set (same solution
+# epochs: compare_pos.py only compares shared epochs), and by solution, within
+# the pppar_ion tolerance rather than byte for byte: Accelerate varies run to run
 # (up to 0.08 cm 3D RMS over 6 runs, #404), while ignoring the iono files moves
 # the solution by 33 cm 3D RMS.
 add_test(NAME madocalib_pppar_ion_l6d_template
@@ -766,6 +767,8 @@ add_test(NAME madocalib_pppar_ion_l6d_template
             \"$2/2025091A.204.l6\" \"$2/2025091A.206.l6\" \
             \"$d/ionoA_%Y%n.l6d\" \"$d/ionoB_%Y%n.l6d\" 2>\"$d/stderr.log\" && \
         ! grep -q 'L6D file ignored' \"$d/stderr.log\" && \
+        diff <(grep -v '^%' \"$1/out_madocalib_pppar_ion.pos\" | cut -c1-23) \
+             <(grep -v '^%' \"$d/out.pos\" | cut -c1-23) >/dev/null && \
         \"$3\" \"$4\" \"$1/out_madocalib_pppar_ion.pos\" \"$d/out.pos\" \
             --tolerance ${_PPPAR_ION_TOL} --fix-q 1 --max-fix-drop ${_PPPAR_FIX_DROP}"
         $<TARGET_FILE:mrtk> ${CMAKE_BINARY_DIR} ${_MDLDATA} ${Python3_EXECUTABLE} ${_COMPARE_POS}
