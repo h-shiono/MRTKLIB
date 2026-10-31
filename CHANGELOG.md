@@ -76,6 +76,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   a synthetic ST1/ST4/ST5 message that covers the undefined-bit skip, the
   GNSS ID 3 BDS-3 decode, and the BeiDou generation API. `utest_t_toml`
   covers `bds2_sats` / `bds3_igso_sats` and the "not set" flag.
+- `madocalib_pppar_ion_l6d_template` no longer compares two runs byte for
+  byte, which failed intermittently on Accelerate
+  ([#404](https://github.com/h-shiono/MRTKLIB/issues/404)). It checks that no
+  `.l6d` input is reported as ignored, and compares the solution with the
+  legacy-name run within the `pppar_ion` tolerance (Accelerate run-to-run:
+  up to 0.08 cm 3D RMS; iono files ignored: 33 cm).
 
 ## [v0.7.12] - 2026-10-29
 

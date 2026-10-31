@@ -751,7 +751,11 @@ set_tests_properties(madocalib_pppar_ion PROPERTIES
 # The same run with the ionosphere files as generically named .l6d inputs
 # given as time-keyword paths: mrtk post must expand the template at the
 # session start to classify them by content (they are MADOCA iono), and the
-# solution must equal the legacy *.200/201.l6 run (Greptile on PR #397).
+# solution must match the legacy *.200/201.l6 run (Greptile on PR #397).
+# Checked directly (no "L6D file ignored" warning) and by solution, within the
+# pppar_ion tolerance rather than byte for byte: Accelerate varies run to run
+# (up to 0.08 cm 3D RMS over 6 runs, #404), while ignoring the iono files moves
+# the solution by 33 cm 3D RMS.
 add_test(NAME madocalib_pppar_ion_l6d_template
     COMMAND bash -c "d=\"$1/l6d_template\" && rm -rf \"$d\" && mkdir -p \"$d\" && \
         cp \"$2/2025091A.200.l6\" \"$d/ionoA_2025091.l6d\" && \
@@ -760,9 +764,11 @@ add_test(NAME madocalib_pppar_ion_l6d_template
             -ts 2025/04/01 0:00:00 -te 2025/04/01 0:59:30 -ti 30 -o \"$d/out.pos\" \
             \"$2/MIZU00JPN_R_20250910000_01D_30S_MO.obs\" \"$2/BRDM00DLR_S_20250910000_01D_MN.rnx\" \
             \"$2/2025091A.204.l6\" \"$2/2025091A.206.l6\" \
-            \"$d/ionoA_%Y%n.l6d\" \"$d/ionoB_%Y%n.l6d\" && \
-        diff <(grep -v '^%' \"$1/out_madocalib_pppar_ion.pos\") <(grep -v '^%' \"$d/out.pos\") >/dev/null"
-        $<TARGET_FILE:mrtk> ${CMAKE_BINARY_DIR} ${_MDLDATA}
+            \"$d/ionoA_%Y%n.l6d\" \"$d/ionoB_%Y%n.l6d\" 2>\"$d/stderr.log\" && \
+        ! grep -q 'L6D file ignored' \"$d/stderr.log\" && \
+        \"$3\" \"$4\" \"$1/out_madocalib_pppar_ion.pos\" \"$d/out.pos\" \
+            --tolerance ${_PPPAR_ION_TOL} --fix-q 1 --max-fix-drop ${_PPPAR_FIX_DROP}"
+        $<TARGET_FILE:mrtk> ${CMAKE_BINARY_DIR} ${_MDLDATA} ${Python3_EXECUTABLE} ${_COMPARE_POS}
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
 )
 set_tests_properties(madocalib_pppar_ion_l6d_template PROPERTIES
