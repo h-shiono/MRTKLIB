@@ -12,14 +12,17 @@
  *
  *   GNSS ID 3, C09, sigmask bits 0/3/6/9, no cell mask (4 cells)
  *     BDS-2 table: L2I, L6I, L7I, (undefined)
- *   GNSS ID 7, C19, sigmask bits 0/10 (2 cells)
- *     BDS-3 table: L2I, L1P
+ *   GNSS ID 7, C19, sigmask bits 0/2/5/10, cell mask 1101 (3 cells)
+ *     BDS-3 table: L2I, (undefined), (no cell), L1P
  *
  * Pass 1, set_bds2prn("C09") (C09 is BDS-2):
  *   (1) C09 code / phase biases land on L2I, L6I, L7I; the undefined fourth
  *       cell is skipped, so exactly three codes are valid.
  *   (2) C19 biases decode to the values written after the skipped cell, which
- *       proves the skipped cell still consumed its bits.
+ *       proves the skipped cell still consumed its bits. The cell mask has a
+ *       hole after the undefined cell: the decoder must move to the next mask
+ *       bit after a skip (upstream re-tested the skipped bit and read the
+ *       absent cell, so L1P got the following bits).
  * Pass 2, set_bds2prn("") (default since the BeiDou PRN reassignment, #401;
  * C09 is BDS-3): the same GNSS ID 3 mask is read with the BDS-3 table, so C09
  * biases land on L2I, L6I, L7D, L1D (all four valid).
@@ -87,11 +90,14 @@ static uint16_t sigbits(const int* idx, int n) {
 }
 
 static const int c09_idx[] = {0, 3, 6, 9};
-static const int c19_idx[] = {0, 10};
-static const int c09_cb[] = {1, 2, 3, 4}; /* x 0.02 m */
-static const int c19_cb[] = {5, 6};
+static const int c19_idx[] = {0, 2, 5, 10};
+#define C19_CELLMASK 0xD                      /* 1101: idx 5 has no cell */
+static const int c09_cb[] = {1, 2, 3, 4};     /* x 0.02 m */
+static const int c19_cb[] = {5, 6};           /* decoded: L2I, L1P */
+static const int c19_cb_tx[] = {5, 7, 6};     /* transmitted cells; 7 is the undefined idx 2 */
 static const int c09_pb[] = {11, 12, 13, 14}; /* x 0.001 m */
 static const int c19_pb[] = {15, 16};
+static const int c19_pb_tx[] = {15, 17, 16};
 
 static void build_message(void) {
     int k;
@@ -104,20 +110,21 @@ static void build_message(void) {
     put(1, 0);
     put(4, 7); /* GNSS ID 7: BDS-3 (PRN 19-) */
     put_svmask(19 - 19);
-    put(16, sigbits(c19_idx, 2));
-    put(1, 0);
+    put(16, sigbits(c19_idx, 4));
+    put(1, 1); /* cell mask available */
+    put(4, C19_CELLMASK);
 
     put_head(4, 0);
     for (k = 0; k < 4; k++) put(11, (uint32_t)c09_cb[k]);
-    for (k = 0; k < 2; k++) put(11, (uint32_t)c19_cb[k]);
+    for (k = 0; k < 3; k++) put(11, (uint32_t)c19_cb_tx[k]);
 
     put_head(5, 0);
     for (k = 0; k < 4; k++) {
         put(15, (uint32_t)c09_pb[k]);
         put(2, 0);
     }
-    for (k = 0; k < 2; k++) {
-        put(15, (uint32_t)c19_pb[k]);
+    for (k = 0; k < 3; k++) {
+        put(15, (uint32_t)c19_pb_tx[k]);
         put(2, 0);
     }
 }
@@ -179,6 +186,11 @@ static void check_bds_gen(void) {
     CHECK(set_bds2prn("C19") == -1 && satsys_bd2(satid2no("C09"), NULL) == SYS_CMP,
           "C19 is rejected (PRN 19+ cannot be BDS-2) and leaves no BDS-2");
     CHECK(set_bds2prn("G09") == -1 && set_bds2prn("C10-C05") == -1, "non-BeiDou / reversed range rejected");
+    CHECK(set_bds2prn("C09x") == -1 && set_bds2prn("C09-C10-C11") == -1 && set_bds2prn("C09-C10x") == -1 &&
+              set_bds2prn("C") == -1 && set_bds2prn("C09-") == -1 && set_bds2prn("C09-C") == -1,
+          "trailing text / incomplete range rejected");
+    CHECK(set_bds2prn("c09 C10") == 2 && bds_gen(9) == BDSGEN_2 && bds_gen(10) == BDSGEN_2,
+          "space separator and lower-case c accepted");
     CHECK(set_bds3igso(NULL) == 3 && is_bds3igso(6) && is_bds3igso(8) && !is_bds3igso(38),
           "BDS-3 IGSO default C06-C08");
     CHECK(set_bds3igso("C38-C40") == 3 && is_bds3igso(38) && is_bds3igso(40) && !is_bds3igso(6),

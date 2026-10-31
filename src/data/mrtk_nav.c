@@ -196,16 +196,24 @@ static int parse_bdslist(const char* str, int maxprn, uint8_t val, uint8_t* list
         if (*p != 'C' && *p != 'c') {
             return -1;
         }
-        prn1 = atoi(p + 1);
-        if ((q = strchr(p, '-'))) {
+        /* each number must consume its token: "C09x", "C09-C10-C11" are errors */
+        prn1 = (int)strtol(p + 1, &q, 10);
+        if (q == p + 1) {
+            return -1;
+        }
+        if (*q == '-') {
             if (*(q + 1) != 'C' && *(q + 1) != 'c') {
                 return -1;
             }
-            prn2 = atoi(q + 2);
+            p = q + 2;
+            prn2 = (int)strtol(p, &q, 10);
+            if (q == p) {
+                return -1;
+            }
         } else {
             prn2 = prn1;
         }
-        if (prn1 < MINPRNCMP || prn2 > maxprn || prn1 > prn2) {
+        if (*q || prn1 < MINPRNCMP || prn2 > maxprn || prn1 > prn2) {
             return -1;
         }
         for (prn = prn1; prn <= prn2; prn++) {

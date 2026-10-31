@@ -16,6 +16,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   BDS-3 (GNSS ID 7) signal table. A signal mask bit undefined in the table
   in use is skipped. Before, it indexed `cbias[-1]` / `pbias[-1]` (an
   out-of-bounds stack write, confirmed under ASan).
+- **ST4 / ST5 cell mask kept in step after a skipped cell.** A cell skipped
+  as undefined (or for an unsupported satellite) left the cell-mask cursor on
+  that cell; with a sparse cell mask the decoder then read a bias for an
+  absent cell and every later bias of the message was shifted. MADOCALIB 2.2
+  has the same loop; MRTKLIB now advances the cursor on every cell. No change
+  on the bundled data (outputs byte-identical).
 
 ### BeiDou PRN reassignment
 
@@ -33,6 +39,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     `C06-C08`; it replaces the hard-coded C38–C40.
   - `mrtk post` and `mrtk run` warn when BeiDou is enabled and `bds2_sats` is
     not set. `bds2_sats = []` states "no BDS-2" and silences the warning.
+    A malformed entry (`C09x`, `C09-C10-C11`) or a list longer than 255
+    characters is rejected with a warning, not partly applied.
   - Bundled configurations are pinned to their data. Pre-reassignment data
     (MADOCALIB 2.0 sample, PPC / GSDC benchmarks) uses `C01-C18` / `C38-C40`;
     live and post-April data uses `C09, C10`.

@@ -380,6 +380,11 @@ extern opt_t* searchopt(const char* name, const opt_t* opts) {
  * return : status (1:ok,0:error)
  *-----------------------------------------------------------------------------*/
 extern int str2opt(opt_t* opt, const char* str) {
+    /* the TOML loader passes values up to 2047 bytes; these lists are 256 */
+    if ((opt->var == (void*)prcopt_.bds2prn && strlen(str) >= sizeof(prcopt_.bds2prn)) ||
+        (opt->var == (void*)prcopt_.bds3igso && strlen(str) >= sizeof(prcopt_.bds3igso))) {
+        return 0;
+    }
     if (opt->var == (void*)prcopt_.bds2prn) {
         bds2prn_given_ = 1; /* an explicit "" (no BDS-2) is still a setting */
     }

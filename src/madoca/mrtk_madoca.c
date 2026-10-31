@@ -533,7 +533,9 @@ static int decode_mcssr_cb(mcssr_t* mc, ssr_t* ssr, int i, int apply) {
         satno2id(sat, satid);
         nsig = mc->nsig[mc->gidlist[j]];
         mask = 1 << (nsig - 1);
-        for (k = 0; k < nsig; k++) {
+        /* advance the mask in the loop header: the skips below must not leave it
+         * on the current cell (upstream mdccssr.c re-reads it for a sparse mask) */
+        for (k = 0; k < nsig; k++, mask >>= 1) {
             if ((flg = (mc->cellmask[j] & mask))) {
                 cb = getbits(mc->buff, i, 11);
                 i += 11; /* Code Bias */
@@ -557,7 +559,6 @@ static int decode_mcssr_cb(mcssr_t* mc, ssr_t* ssr, int i, int apply) {
                           code2obs(code));
                 }
             }
-            mask >>= 1;
         }
         if (apply) {
             ssr[sat - 1].t0[4] = mc->gt;
@@ -604,7 +605,9 @@ static int decode_mcssr_pb(mcssr_t* mc, ssr_t* ssr, int i, int apply) {
         satno2id(sat, satid);
         nsig = mc->nsig[mc->gidlist[j]];
         mask = 1 << (nsig - 1);
-        for (k = 0; k < nsig; k++) {
+        /* advance the mask in the loop header: the skips below must not leave it
+         * on the current cell (upstream mdccssr.c re-reads it for a sparse mask) */
+        for (k = 0; k < nsig; k++, mask >>= 1) {
             if ((flg = (mc->cellmask[j] & mask))) {
                 pb = getbits(mc->buff, i, 15);
                 i += 15; /* Phase Bias */
@@ -630,7 +633,6 @@ static int decode_mcssr_pb(mcssr_t* mc, ssr_t* ssr, int i, int apply) {
                     pbias[code - 1] = SSR_INVALID_PBIAS;
                 }
             }
-            mask >>= 1;
         }
         if (apply) {
             ssr[sat - 1].t0[5] = mc->gt;

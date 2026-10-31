@@ -52,6 +52,7 @@ int main(void) {
     solopt_t solopt;
     filopt_t filopt;
     FILE* fp;
+    int i;
 
     /* fixture: deprecated aliases that must apply, one deprecated key shadowed
      * by its new location (new must win), one typo (unknown), and the special
@@ -201,6 +202,30 @@ int main(void) {
     resetsysopts();
     getsysopts(&prcopt, &solopt, &filopt);
     expect(!prcopt.bds2prn_set, "resetsysopts clears bds2prn_set");
+
+    /* Lists longer than the 256-byte prcopt_t fields are rejected, not copied
+     * past the field (string and array forms; the loader accepts 2047 bytes). */
+    fp = fopen(FIXTURE_BDS, "w");
+    if (!fp) {
+        printf("FAIL: cannot write fixture\n");
+        return 1;
+    }
+    fprintf(fp, "[positioning]\nsystems = [\"GPS\", \"BDS\"]\nbds2_sats = \"C09");
+    for (i = 0; i < 100; i++) fprintf(fp, ",C10");
+    fprintf(fp, "\"\n[ambiguity_resolution]\nbds3_igso_sats = [\"C06\"");
+    for (i = 0; i < 100; i++) fprintf(fp, ", \"C07\"");
+    fprintf(fp, "]\n");
+    fclose(fp);
+    resetsysopts();
+    loadopts_toml(FIXTURE_BDS, sysopts);
+    getsysopts(&prcopt, &solopt, &filopt);
+    fflush(stderr);
+    expect(prcopt.bds2prn[0] == '\0' && !prcopt.bds2prn_set && prcopt.bds3igso[0] == '\0',
+           "oversized bds2_sats / bds3_igso_sats are rejected and leave the defaults");
+    expect(capture_contains("invalid value for positioning.bds2_sats") &&
+               capture_contains("invalid value for ambiguity_resolution.bds3_igso_sats"),
+           "oversized bds2_sats / bds3_igso_sats are reported as invalid");
+    resetsysopts();
 
     remove(FIXTURE);
     remove(CAPTURE);
