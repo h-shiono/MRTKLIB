@@ -343,6 +343,15 @@ add_test(NAME utest_lclblk COMMAND utest_lclblk
          WORKING_DIRECTORY ${_UTEST_DIR})
 set_tests_properties(utest_lclblk PROPERTIES LABELS "utest")
 
+# CLAS correction-set assembly after a lost subframe 1 (issue #406 / #242).
+add_executable(utest_clas_bank ${_UTEST_DIR}/utest_clas_bank.c)
+# Override global -ansi (=C90): this test uses C11 (P-01).
+target_compile_options(utest_clas_bank PRIVATE -std=c11)
+target_link_libraries(utest_clas_bank PRIVATE mrtklib)
+add_test(NAME utest_clas_bank COMMAND utest_clas_bank
+         WORKING_DIRECTORY ${_UTEST_DIR})
+set_tests_properties(utest_clas_bank PROPERTIES LABELS "utest")
+
 # RTCM3 MSM BDS B2b round-trip test (issue #333 / #296)
 add_executable(utest_msm_bds_b2b ${_UTEST_DIR}/utest_msm_bds_b2b.c)
 # Override global -ansi (=C90): this test uses C11 (P-01).
@@ -1019,6 +1028,8 @@ endforeach()
 #   rtkrcv_rt_clas_2ch_merge_nsat_check
 #                           Sensitivity guard: the merged run must track more
 #                           satellites per fixed epoch than the single-channel run
+#   rtkrcv_rt_clas_sf1gap   Real-time CLAS PPP-RTK with subframe 1 of every 300 s
+#                           frame removed: recovery after the loss (#406)
 set(_CLSDATA  ${CMAKE_SOURCE_DIR}/tests/data/claslib)
 set(_CLSRTREFDATA ${CMAKE_BINARY_DIR}/tests/data/claslib)
 set(_COMPARE_NMEA ${CMAKE_SOURCE_DIR}/scripts/tests/compare_nmea.py)
@@ -1963,6 +1974,52 @@ print('OK: dual-channel merge adds satellites')
 )
 set_tests_properties(rtkrcv_rt_clas_2ch_merge_nsat_check PROPERTIES
     DEPENDS           "rtkrcv_rt_clas_2ch;rtkrcv_rt_clas_2ch_merge"
+    FIXTURES_REQUIRED claslib_data
+    LABELS            "regression;claslib;realtime"
+)
+
+# ── rtkrcv RT CLAS lost subframe 1 (#406) ─────────────────────────────────────
+# Same replay as rtkrcv_rt_clas from 16:40 GPST, with subframe 1 (mask, orbit,
+# clock, global code bias) of every 300 s frame zero-filled in the L6 file. The
+# check gates Single after each loss and requires Fix again by T+70 s.
+set(_SF1GAP_DIR ${CMAKE_BINARY_DIR}/tests/data/clas_sf1gap)
+add_test(NAME rtkrcv_rt_clas_sf1gap_setup
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/scripts/tests/make_clas_sf1_gap.py
+        --l6 ${_CLSDATA}/2019239Q.l6
+        --out-dir ${_SF1GAP_DIR}
+        --conf ${CMAKE_SOURCE_DIR}/conf/claslib/rtkrcv.toml
+        --period 300 --offset 2400
+)
+set_tests_properties(rtkrcv_rt_clas_sf1gap_setup PROPERTIES
+    FIXTURES_REQUIRED claslib_data
+    FIXTURES_SETUP    clas_sf1gap
+    LABELS            "regression;claslib;realtime"
+)
+add_test(NAME rtkrcv_rt_clas_sf1gap
+    COMMAND bash ${_TESTCMAKE}/run_rtkrcv_test.sh
+        $<TARGET_FILE:mrtk> run
+        ${CMAKE_SOURCE_DIR}
+        3000
+        10
+        ${_SF1GAP_DIR}/rtkrcv_sf1gap.toml
+        52017
+        300
+        ${CMAKE_BINARY_DIR}/out_rtkrcv_rt_clas_sf1gap.nmea
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+set_tests_properties(rtkrcv_rt_clas_sf1gap PROPERTIES
+    FIXTURES_REQUIRED "claslib_data;clas_sf1gap"
+    TIMEOUT           400
+    LABELS            "regression;claslib;realtime"
+    RESOURCE_LOCK     rtkrcv_port
+)
+add_test(NAME rtkrcv_rt_clas_sf1gap_check
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/scripts/tests/check_clas_sf1_gap.py
+        ${CMAKE_BINARY_DIR}/out_rtkrcv_rt_clas_sf1gap.nmea
+        --period 300 --max-single 25 --min-events 2
+)
+set_tests_properties(rtkrcv_rt_clas_sf1gap_check PROPERTIES
+    DEPENDS           rtkrcv_rt_clas_sf1gap
     FIXTURES_REQUIRED claslib_data
     LABELS            "regression;claslib;realtime"
 )

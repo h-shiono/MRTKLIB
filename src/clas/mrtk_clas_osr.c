@@ -679,7 +679,9 @@ int clas_osr_corrmeas(const obsd_t* obs, nav_t* nav, const double* pos, const do
           "clas_osr_corrmeas: pbias_tow=%.1f, cbias_tow=%.1f, "
           "dt=%.1f\n",
           time2gpst(nav->ssr_ch[ch][sat - 1].t0[5], NULL), time2gpst(nav->ssr_ch[ch][sat - 1].t0[4], NULL), dt);
-    if ((!opt->posopt[9] && fabs(dt) > 0.0) || (opt->posopt[9] && (dt > 0.0 || dt < -30.0))) {
+    /* cbias may be newer than pbias by up to 30 s: the bank substitutes the
+     * next cbias when the one matching pbias was lost (#406) */
+    if (dt > 0.0 || dt < -30.0) {
         trace(NULL, 2, "inconsist correction (pbias-cbias): time=%s sat=%2d dt=%.2f\n", time_str(obs->time, 0), sat,
               dt);
         return 0;
