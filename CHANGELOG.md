@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### CLAS
+
+- **Losing subframe 1 of a CLAS frame no longer costs ~17 s of Single**
+  ([#406](https://github.com/h-shiono/MRTKLIB/issues/406),
+  [#242](https://github.com/h-shiono/MRTKLIB/issues/242)). Subframe 1 carries
+  the only code bias (ST4) of networks whose ST6 is phase-only. When it was
+  lost for frame T, the correction set for T+30 looked for a code bias no
+  newer than the phase bias T, found T−30 (past its 60 s validity) and
+  failed, so PPP-RTK fell back to the previous set, whose orbit had expired,
+  until the next network phase bias (~T+47). The code bias of frame T+30 is
+  now used, as the existing consistency check (code bias up to 30 s newer
+  than phase bias) allows, and the OSR check accepts the same window. On
+  three hours of live mosaic-G5 replay, 13 of 15 such outages shrink from
+  17 s to 1–3 s (the orbit T−30 itself expires at T+31); the other two had
+  no valid corrections (IOD SSR change in the lost mask, consecutive losses).
+  Output on loss-free data is byte-identical. Upstream claslib has the same
+  lookup. New tests `utest_clas_bank` and `rtkrcv_rt_clas_sf1gap`.
+
 ## [v0.7.13] - 2026-10-31
 
 **MADOCALIB 2.2 sync: the BeiDou PRN reassignment.** Between 2026-04-10 and
