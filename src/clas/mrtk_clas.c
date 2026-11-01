@@ -1491,7 +1491,19 @@ static int decode_cssr_head(clas_ctx_t* ctx, clas_l6buf_t* l6, cssr_t* cssr, int
     } else {
         *tow = l6->tow0 + getbitu(l6->buff, i, 12);
         i += 12;
+        /* the hourly epoch wrapped but the ST1 at the top of the hour, the only
+         * message that advances tow0, was lost: without this the messages up to
+         * the next ST1 are dated one hour old (#392) */
+        if (l6->time.time != 0 && *tow < l6->tow_last - 1800) {
+            l6->tow0 += 3600;
+            if (l6->tow0 >= 604800) {
+                l6->tow0 -= 604800;
+            }
+            *tow = l6->tow0 + getbitu(l6->buff, i - 12, 12);
+            trace(NULL, 2, "decode_cssr_head(): hourly epoch wrapped without ST1, tow0=%d\n", l6->tow0);
+        }
     }
+    l6->tow_last = *tow;
     udi = getbitu(l6->buff, i, 4);
     i += 4;
     *sync = getbitu(l6->buff, i, 1);

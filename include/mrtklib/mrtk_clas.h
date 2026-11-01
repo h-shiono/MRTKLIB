@@ -567,6 +567,7 @@ typedef struct {
     int subtype;             /* CSSR subtype (1-12) */
     double ftag;             /* receiver time tag of the frame being received (s, 0: none) */
     double ftag_last;        /* receiver time tag of the last frame (s, 0: none) */
+    int tow_last;            /* last decoded epoch time-of-week */
 } clas_l6buf_t;
 
 /*============================================================================
