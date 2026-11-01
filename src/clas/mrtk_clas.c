@@ -1068,6 +1068,16 @@ static int sub_get_close_cssr(clas_bank_ctrl_t* bank, gtime_t time, int network,
         trace(NULL, 2, "sub_get_close_cssr(): cbias not found, net=%d\n", network);
         return 0;
     }
+    /* The cbias epoch matching pbias was lost (CLAS sends the global ST4 code
+     * bias only in subframe 1, network ST6 may be phase-only): the older one is
+     * past its 60 s IS validity, so take the next cbias, newer than pbias by at
+     * most 30 s, as the consistency check below allows (#406, #242). */
+    if (timediff((*pbias)->time, (*cbias)->time) > 0.0) {
+        clas_bias_bank_t* next = get_close_net_cbias(bank, (*pbias)->time, network, 30.0);
+        if (next && timediff(next->time, (*pbias)->time) > 0.0 && timediff(time, next->time) >= 0.0) {
+            *cbias = next;
+        }
+    }
     if (!(*clock = get_close_clock(bank, time, (*orbit)->time, network, 30.0))) {
         trace(NULL, 2, "sub_get_close_cssr(): clock not found, net=%d\n", network);
         return 0;
