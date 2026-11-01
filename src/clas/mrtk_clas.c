@@ -3135,6 +3135,22 @@ extern int clas_input_cssr(clas_ctx_t* ctx, uint8_t data, int ch) {
     ctx->l6delivery[ch] = hdr.prn;
     ctx->l6facility[ch] = clas_get_correct_fac(hdr.msgid);
 
+    /* a frame lost inside the subframe (RS failure or input loss) would shift
+     * the bits of the following frames: discard the rest of the subframe, as
+     * when its first frame is lost (#363) */
+    if (l6->ftag > 0.0 && l6->ftag_last > 0.0 && !hdr.sf_ind && l6->decode_start && l6->nframe < 5) {
+        double dt = l6->ftag - l6->ftag_last;
+        if (dt <= 0.0 || dt > 1.5) {
+            trace(NULL, 2, "clas_input_cssr: frame gap dt=%.3f s, subframe discarded ch=%d nframe=%d\n", dt, ch,
+                  l6->nframe);
+            l6->nbit = -1;
+            l6->frame = 0;
+            l6->nframe = 5;
+        }
+    }
+    l6->ftag_last = l6->ftag;
+    l6->ftag = 0.0;
+
     if (hdr.sf_ind) { /* subframe indicator */
         l6->havebit = 0;
         l6->decode_start = 1;
@@ -3161,6 +3177,8 @@ extern int clas_input_cssr(clas_ctx_t* ctx, uint8_t data, int ch) {
 }
 
 extern int clas_decode_msg(clas_ctx_t* ctx, int ch) { return decode_qzs_msg(ctx, ch); }
+
+extern void clas_set_l6tag(clas_ctx_t* ctx, int ch, double tag) { ctx->l6buf[ch].ftag = tag; }
 
 extern int clas_input_cssrf(clas_ctx_t* ctx, FILE* fp, int ch) {
     int i, data, ret;

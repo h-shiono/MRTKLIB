@@ -1608,6 +1608,7 @@ int mrtk_cssr2rtcm3(int argc, char** argv) {
 
                     /* only feed L6D from selected satellite (avoid frame corruption) */
                     if (l6d_sat == l6d_prn_filter) {
+                        clas_set_l6tag(clas, 0, raw_sbf->l6tag);
                         for (k = 0; k < 250; k++) {
                             clas_input_cssr(clas, rtcm->buff[k], 0);
                             cret = clas_decode_msg(clas, 0);

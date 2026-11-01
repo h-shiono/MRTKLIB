@@ -1145,6 +1145,7 @@ static int decode_qzsrawl6(raw_t* raw, rtcm_t* rtcm) {
     }
 
     memcpy(rtcm->buff, buff, 250);
+    raw->l6tag = week * 604800.0 + tow * 0.001;
 
     /* Route by the L6 header (vendor ID + CSID), not by the SBF Source field
      * or the satellite PRN: L6E PRNs time-multiplex MADOCA-PPP and QZNMA, and
