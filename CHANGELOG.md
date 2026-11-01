@@ -24,6 +24,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   no valid corrections (IOD SSR change in the lost mask, consecutive losses).
   Output on loss-free data is byte-identical. Upstream claslib has the same
   lookup. New tests `utest_clas_bank` and `rtkrcv_rt_clas_sf1gap`.
+- **A CLAS L6 frame lost inside a subframe no longer decodes as shifted
+  bits** ([#363](https://github.com/h-shiono/MRTKLIB/issues/363)). The
+  subframe is assembled by counting frames after the subframe indicator, and
+  the L6 header has no frame counter, so after a lost frame (RS failure or a
+  1–2 s input loss) the following frames were appended at the wrong offset.
+  The garbage that decoded from them, such as STEC of several hundred TECU or
+  code biases metres off, drove the #381 reset loop, metre-level Float and
+  false fixes. The receiver time of each frame (SBF QZSRawL6 TOW,
+  UBX-RXM-QZSSL6 time tag) is now passed to the CLAS decoder through the new
+  `clas_set_l6tag()`, and the rest of a subframe with a frame missing is
+  discarded. Raw L6 byte streams and files carry no time and are unchanged.
+  Two fixes were needed for this to pay off:
+  - The ST1 mask width check counted the header from the wrong bit (as
+    upstream claslib does) and read ngnss from the satellite mask, so a mask
+    that fits in the first frame waited for the second one. A frame lost
+    right after it cost the whole mask. It is now decoded from the first
+    frame.
+  - When the code bias was lost in two consecutive frames, no code bias older
+    than the phase bias was left and the correction set failed before the
+    #406 substitution of the next one was reached; it now substitutes in that
+    case too.
+
+  On three hours of live mosaic-G5 replay: Fix 92.2 % → 98.4 % (hour with
+  five #381 loops; Float max error 58 m → 0.16 m) and 90.1 % → 92.5 % with 42
+  false fixes over 30 cm → 0 (Float max 5.4 m → 0.20 m); the third hour has
+  no such loss and is byte-identical. Where subframe 1 was damaged in two
+  consecutive frames, the solution is now Single for ~30 s while no code bias
+  within its 60 s validity exists, instead of a metre-off Float. claslib
+  post-processing (no time tags) is byte-identical.
+- **Losing the ST1 mask at the top of the hour no longer dates the CSSR
+  messages one hour old**
+  ([#392](https://github.com/h-shiono/MRTKLIB/issues/392)). ST2–ST12 carry
+  only the hourly epoch, and the full TOW base advanced only on ST1. An
+  hourly epoch more than 30 min older than the last decoded one now advances
+  the base by an hour (and wraps at the end of the week). Without this, the
+  #406 recovery cannot apply at the top of the hour. Covered by unit tests
+  only: none of the replayed hours has a loss at the hour top.
+- New test `utest_clas_l6` (frame continuity with synthetic and captured
+  frames, hourly and weekly epoch wrap). ABI: `raw_t` gains `l6tag`,
+  `clas_l6buf_t` gains `ftag`, `ftag_last` and `tow_last`.
 
 ## [v0.7.13] - 2026-10-31
 
