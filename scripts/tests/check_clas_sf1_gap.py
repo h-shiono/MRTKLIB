@@ -3,7 +3,7 @@
 
 For every frame epoch T (GPST, multiple of --period) whose subframe 1 was
 removed by make_clas_sf1_gap.py and that the solution entered in Fix, count
-the Single epochs in [T, T+70 s] and require Fix again by T+70 s. Before #406
+the Single or missing epochs in [T, T+70 s] and require Fix again by T+70 s. Before #406
 the orbit of frame T+30 could not be paired with a code bias until the next
 network phase bias arrived, and the solution stayed Single for that whole
 interval; now it is Single only while the previous orbit is past its 60 s
@@ -53,19 +53,20 @@ def main() -> int:
         if q.get(t - 1) != "4":
             continue  # not in Fix before the loss
         win = [q.get(t + k, "-") for k in range(WINDOW + 1)]
-        nsingle = win.count("1")
+        # a second with no output is as bad as Single: it must not hide an outage
+        nsingle = win.count("1") + win.count("-")
         refix = "4" in win[31:]
         ok = nsingle <= args.max_single and refix
         nev += 1
         nfail += not ok
         print(
-            f"T={t:5d} single={nsingle:2d} refix={'yes' if refix else 'no '} {'ok' if ok else 'FAIL'}  {''.join(win)}"
+            f"T={t:5d} single+missing={nsingle:2d} refix={'yes' if refix else 'no '} {'ok' if ok else 'FAIL'}  {''.join(win)}"
         )
     if nev < args.min_events:
         print(f"FAIL: only {nev} gap events evaluated (need {args.min_events})")
         return 1
     print(
-        f"{nev} events, {nfail} failed (max single {args.max_single} s, Fix again by T+{WINDOW} s)"
+        f"{nev} events, {nfail} failed (max single/missing {args.max_single} s, Fix again by T+{WINDOW} s)"
     )
     return 1 if nfail else 0
 
