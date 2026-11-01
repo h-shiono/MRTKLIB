@@ -1515,11 +1515,16 @@ static int check_bit_width_mask(clas_l6buf_t* l6, cssr_t* cssr, int i0) {
     uint64_t svmask;
     uint16_t sigmask;
 
-    if (i0 + 49 > l6->havebit) {
+    /* i0 is past the 16-bit message number and subtype: the rest of the header
+     * (epoch 20, interval 4, multiple 1, IOD 4, ngnss 4) is 33 bits. Upstream
+     * counts 49 bits from here and reads ngnss from the satellite mask, so a
+     * mask that fits in the first frame waited for the second one, and a frame
+     * lost in between cost the whole mask (#363). */
+    if (i0 + 33 > l6->havebit) {
         return 0;
     }
-    ngnss = getbitu(l6->buff, i0 + 45, 4);
-    i0 += 49;
+    ngnss = getbitu(l6->buff, i0 + 29, 4);
+    i0 += 33;
     for (k = 0; k < ngnss; k++) {
         if (i0 + 61 > l6->havebit) {
             return 0;
