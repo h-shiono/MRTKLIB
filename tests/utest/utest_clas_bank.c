@@ -11,6 +11,8 @@
  *   (1) lost cbias T: the set assembles with cbias T+30 and pbias T.
  *   (2) cbias T present: cbias T is used, as before.
  *   (3) no cbias newer than T-30: no set (no substitution beyond the window).
+ *   (4) cbias T-30 lost too (two consecutive frames): no cbias older than
+ *       pbias is left, and the set still assembles with cbias T+30.
  *
  * The bank entries are written directly; the times follow the frame layout
  * seen in live mosaic-G5 captures (orbit/clock/cbias at the frame epoch,
@@ -131,6 +133,13 @@ int main(void) {
     memset(&b->BiasBank[3], 0, sizeof(b->BiasBank[3]));
     rc = clas_bank_get_close(ctx, at(33.0), NET, 0, corr);
     CHECK(rc != 0, "no set with cbias T-30 only");
+
+    printf("--- (4) cbias T-30 and T lost\n");
+    fill_lost_frame(b);
+    memset(&b->BiasBank[0], 0, sizeof(b->BiasBank[0]));
+    rc = clas_bank_get_close(ctx, at(33.0), NET, 0, corr);
+    CHECK(rc == 0, "set assembles at T+33");
+    CHECK(rc == 0 && timediff(corr->time[SAT - 1][4], at(30.0)) == 0.0, "cbias is T+30");
 
     clas_ctx_free(ctx);
     free(ctx);
