@@ -1714,12 +1714,20 @@ static int ddres(rtk_t* rtk, const nav_t* nav, double* x, double** pbslip, const
                             continue;
                         }
                     } else if (samefac || h == 1) {
-                        /* refsat is taken from whichever single channel has it */
-                        if (!validobs(j, f, nf, y[0]) && !validobs(j, f, nf, y[1])) {
-                            continue;
+                        /* refsat is taken from whichever single channel has it
+                         * with a fresh clock: in real time one channel can
+                         * carry the new 5 s clock before the other (#380) */
+                        for (ch = -1, k = 0; k < SSR_CH_NUM; k++) {
+                            if (!validobs(j, f, nf, y[k])) {
+                                continue;
+                            }
+                            if (l > 1 && timediff(obs[0].time, nav->ssr_ch[k][sati - 1].t0[1]) >= 5.0) {
+                                continue;
+                            }
+                            ch = k;
+                            break;
                         }
-                        ch = validobs(j, f, nf, y[0]) ? 0 : 1;
-                        if (l > 1 && timediff(obs[0].time, nav->ssr_ch[ch][sati - 1].t0[1]) >= 5.0) {
+                        if (ch < 0) {
                             continue;
                         }
                     } else {
