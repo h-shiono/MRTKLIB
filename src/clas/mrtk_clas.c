@@ -1101,13 +1101,30 @@ static int sub_get_close_cssr(clas_bank_ctrl_t* bank, gtime_t time, int network,
     return 1;
 }
 
+/* slot of signal mode in a satellite's corr->smode[]: the slot already
+ * holding it, else the first free one (-1: none) */
+static int corr_bias_slot(const int smode[MAXCODE], int mode) {
+    int i;
+    for (i = 0; i < MAXCODE; i++) {
+        if (smode[i] == mode) {
+            return i;
+        }
+    }
+    for (i = 0; i < MAXCODE; i++) {
+        if (smode[i] == 0) {
+            return i;
+        }
+    }
+    return -1;
+}
+
 extern int clas_bank_get_close(const clas_ctx_t* ctx, gtime_t time, int network, int ch, clas_corr_t* corr) {
     clas_bank_ctrl_t* bank = ctx->bank[ch];
     clas_orbit_bank_t* orbit;
     clas_clock_bank_t* clk;
     clas_bias_bank_t *cbias, *pbias;
     clas_trop_bank_t* trop;
-    int i, j, sis;
+    int i, j, k, sis;
 
     if (!bank->use) {
         return -1;
@@ -1120,21 +1137,26 @@ extern int clas_bank_get_close(const clas_ctx_t* ctx, gtime_t time, int network,
     memset(corr, 0, sizeof(clas_corr_t));
     init_grid_index(corr);
 
-    /* bias corrections */
+    /* bias corrections: a bank entry orders its slots by the signals of its
+     * own mask, and cbias and pbias can come from different masks (cbias up to
+     * 30 s older, or newer after a lost subframe 1, #406), so pair them by
+     * signal, not by slot; pbias first keeps its mask order, as before */
     for (i = 0; i < MAXSAT; i++) {
-        if (cbias->prn[i] != 0) {
+        if (pbias->prn[i] != 0) {
             for (j = 0; j < MAXCODE; j++) {
-                if (cbias->smode[i][j] != 0 && (cbias->sflag[i][j] & 0x01)) {
-                    corr->cbias[i][j] = cbias->cbias[i][j];
-                    corr->smode[i][j] = cbias->smode[i][j];
+                if (pbias->smode[i][j] != 0 && (pbias->sflag[i][j] & 0x02) &&
+                    (k = corr_bias_slot(corr->smode[i], pbias->smode[i][j])) >= 0) {
+                    corr->pbias[i][k] = pbias->pbias[i][j];
+                    corr->smode[i][k] = pbias->smode[i][j];
                 }
             }
         }
-        if (pbias->prn[i] != 0) {
+        if (cbias->prn[i] != 0) {
             for (j = 0; j < MAXCODE; j++) {
-                if (pbias->smode[i][j] != 0 && (pbias->sflag[i][j] & 0x02)) {
-                    corr->pbias[i][j] = pbias->pbias[i][j];
-                    corr->smode[i][j] = pbias->smode[i][j];
+                if (cbias->smode[i][j] != 0 && (cbias->sflag[i][j] & 0x01) &&
+                    (k = corr_bias_slot(corr->smode[i], cbias->smode[i][j])) >= 0) {
+                    corr->cbias[i][k] = cbias->cbias[i][j];
+                    corr->smode[i][k] = cbias->smode[i][j];
                 }
             }
         }

@@ -13,6 +13,9 @@
  *   (3) no cbias newer than T-30: no set (no substitution beyond the window).
  *   (4) cbias T-30 lost too (two consecutive frames): no cbias older than
  *       pbias is left, and the set still assembles with cbias T+30.
+ *   (5) cbias T+30 comes from a different mask than pbias T, so its slots
+ *       hold the signals in another order: each code bias stays with its own
+ *       signal (Greptile, PR #433).
  *
  * The bank entries are written directly; the times follow the frame layout
  * seen in live mosaic-G5 captures (orbit/clock/cbias at the frame epoch,
@@ -72,6 +75,33 @@ static void add_bias(clas_bank_ctrl_t* b, int k, double dt, int network, int bfl
     s->sflag[SAT - 1][0] = bflag;
     s->cbias[SAT - 1][0] = (bflag & 0x01) ? 0.1 : 0.0;
     s->pbias[SAT - 1][0] = (bflag & 0x02) ? 0.2 : 0.0;
+}
+
+/* set the slots of a bias entry: signal modes and their values in slot order */
+static void set_slots(clas_bias_bank_t* s, int bflag, const int* mode, const double* val, int n) {
+    int j;
+    memset(s->smode[SAT - 1], 0, sizeof(s->smode[SAT - 1]));
+    memset(s->sflag[SAT - 1], 0, sizeof(s->sflag[SAT - 1]));
+    for (j = 0; j < n; j++) {
+        s->smode[SAT - 1][j] = mode[j];
+        s->sflag[SAT - 1][j] = bflag;
+        if (bflag & 0x01) {
+            s->cbias[SAT - 1][j] = val[j];
+        } else {
+            s->pbias[SAT - 1][j] = val[j];
+        }
+    }
+}
+
+/* slot of a signal in the assembled set (-1: absent) */
+static int corr_slot(const clas_corr_t* corr, int mode) {
+    int j;
+    for (j = 0; j < MAXCODE; j++) {
+        if (corr->smode[SAT - 1][j] == mode) {
+            return j;
+        }
+    }
+    return -1;
 }
 
 static void add_trop(clas_bank_ctrl_t* b, int k, double dt) {
@@ -140,6 +170,26 @@ int main(void) {
     rc = clas_bank_get_close(ctx, at(33.0), NET, 0, corr);
     CHECK(rc == 0, "set assembles at T+33");
     CHECK(rc == 0 && timediff(corr->time[SAT - 1][4], at(30.0)) == 0.0, "cbias is T+30");
+
+    printf("--- (5) cbias T+30 from another mask\n");
+    fill_lost_frame(b);
+    memset(&b->BiasBank[0], 0, sizeof(b->BiasBank[0]));
+    {
+        const int pmode[] = {CODE_L1C, CODE_L2W}, cmode[] = {CODE_L2W, CODE_L5Q, CODE_L1C};
+        const double pval[] = {0.2, 0.3}, cval[] = {1.2, 1.5, 1.1};
+        int k1, k2, k5;
+        set_slots(&b->BiasBank[2], 0x02, pmode, pval, 2);
+        set_slots(&b->BiasBank[3], 0x01, cmode, cval, 3);
+        rc = clas_bank_get_close(ctx, at(33.0), NET, 0, corr);
+        k1 = corr_slot(corr, CODE_L1C);
+        k2 = corr_slot(corr, CODE_L2W);
+        k5 = corr_slot(corr, CODE_L5Q);
+        CHECK(rc == 0 && k1 >= 0 && k2 >= 0 && k5 >= 0, "set holds L1C, L2W and L5Q once each");
+        CHECK(k1 >= 0 && corr->cbias[SAT - 1][k1] == 1.1 && corr->pbias[SAT - 1][k1] == 0.2, "L1C code and phase bias");
+        CHECK(k2 >= 0 && corr->cbias[SAT - 1][k2] == 1.2 && corr->pbias[SAT - 1][k2] == 0.3, "L2W code and phase bias");
+        CHECK(k5 >= 0 && corr->cbias[SAT - 1][k5] == 1.5 && corr->pbias[SAT - 1][k5] == 0.0, "L5Q code bias only");
+        CHECK(k1 == 0 && k2 == 1 && k5 == 2, "slots in phase-bias order, then code-bias-only signals");
+    }
 
     clas_ctx_free(ctx);
     free(ctx);
