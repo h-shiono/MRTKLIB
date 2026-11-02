@@ -2779,6 +2779,8 @@ set_tests_properties(clas_l6gap_setup PROPERTIES
 # both l6_merge settings, identical): fix rate 0.975, Fix/Float horizontal
 # error max 0.09 m, no fix > 0.30 m. Before the fix (#363 and the ST1 width
 # check): fix rate 0.83-0.89, Float at 6-27 m in three excursions.
+# --end is the last epoch of the window (TOW 505499 = 20:24:41 UTC), so a lost
+# tail fails the gap gate (the harness only requires 90 % of the lines).
 function(_clas_l6gap_rt name port l6_merge)
     set(HO_ROVER ${_L6GAPDATA}/G5P3296u_20m.sbf)
     set(HO_CORR_TYPE off)
@@ -2799,7 +2801,8 @@ function(_clas_l6gap_rt name port l6_merge)
         LABELS            "regression;realtime;claslib")
     add_test(NAME rtkrcv_clas_l6gap_${name}_check
         COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/scripts/tests/check_clas_l6gap.py ${_out}
-            --llh ${_HO_TRUTH_LLH} --min-fix 0.95 --max-herr 1.0 --max-misfix 0 --max-gap 5)
+            --llh ${_HO_TRUTH_LLH} --end 20:24:41 --min-fix 0.95 --max-herr 1.0 --max-misfix 0
+            --max-gap 5)
     set_tests_properties(rtkrcv_clas_l6gap_${name}_check PROPERTIES
         DEPENDS           rtkrcv_clas_l6gap_${name}
         FIXTURES_REQUIRED clas_l6gap_data

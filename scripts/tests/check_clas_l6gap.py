@@ -2,7 +2,8 @@
 """Check a CLAS RT solution through L6 frame losses (#363).
 
 Reads an NMEA solution (GGA) of the clas_l6gap replay and gates, from the
-first fixed epoch to the last solution:
+first fixed epoch to the last epoch of the replay (--end, UTC; the last
+solution if not given, so a lost tail would go unnoticed):
 
 - fix rate on the 1 Hz timeline >= --min-fix (an epoch without a solution
   counts as not fixed);
@@ -10,13 +11,14 @@ first fixed epoch to the last solution:
   decoded from shifted bits gave garbage corrections and Float errors of
   6-27 m in this window;
 - at most --max-misfix fixed epochs with a horizontal error > 0.30 m;
-- no gap between solutions longer than --max-gap s.
+- no gap between solutions, or between the last one and --end, longer than
+  --max-gap s.
 
 RT replay is not bit-reproducible, so there is no RMS gate. --report prints
 the metrics without gating; --selftest checks the gates on synthetic runs.
 
 Usage:
-    check_clas_l6gap.py NMEA --llh LAT,LON,H [thresholds] [--report]
+    check_clas_l6gap.py NMEA --llh LAT,LON,H [--end HH:MM:SS] [thresholds] [--report]
 """
 
 import argparse
@@ -44,14 +46,15 @@ def read_gga(path, ref):
     return rows
 
 
-def metrics(rows):
+def metrics(rows, end=None):
     m = {"epochs": len(rows)}
     fixed = [r for r in rows if r[1] == 4]
     if not fixed:
         return m
-    t0, t1 = fixed[0][0], rows[-1][0]
+    t0 = fixed[0][0]
+    t1 = rows[-1][0] if end is None else max(end, rows[-1][0])
     after = [r for r in rows if r[0] >= t0]
-    t = [r[0] for r in after]
+    t = [r[0] for r in after] + [t1]
     m["first_fix"] = t0 - rows[0][0]
     m["max_gap"] = max([b - a for a, b in zip(t, t[1:])], default=0.0)
     m["fix_rate"] = sum(1 for r in after if r[1] == 4) / (round(t1 - t0) + 1)
@@ -81,6 +84,8 @@ def gate(m, args):
 def selftest(args):
     """Synthetic 1200 s run: each defect must trip its gate."""
 
+    end = 1199.0
+
     def run(q=lambda t: 4, herr=lambda t: 0.02, drop=(0, 0)):
         return [(float(t), q(t), herr(t), 0.0) for t in range(1200) if not drop[0] <= t < drop[1]]
 
@@ -97,11 +102,12 @@ def selftest(args):
         ("misfix at 0.5 m", run(herr=lambda t: 0.5 if 500 <= t < 503 else 0.02), "fixed epochs"),
         ("long outage", run(q=lambda t: 5 if 300 <= t < 500 else 4), "fix rate"),
         ("missing epochs", run(drop=(500, 520)), "gap"),
+        ("lost tail", run(drop=(1140, 1200)), "gap"),
         ("never fixed", run(q=lambda t: 5), "no fixed"),
     ]
     bad = 0
     for label, rows, want in cases:
-        fails = gate(metrics(rows), args)
+        fails = gate(metrics(rows, end), args)
         ok = (not fails) if want is None else any(want in f for f in fails)
         print(f"{'ok  ' if ok else 'FAIL'} {label}: {fails or 'pass'}")
         bad += not ok
@@ -112,6 +118,7 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("nmea", nargs="?")
     ap.add_argument("--llh", help="reference LAT,LON,H (deg, deg, ellipsoidal m)")
+    ap.add_argument("--end", help="last epoch of the replay, UTC HH:MM:SS")
     ap.add_argument("--min-fix", type=float, default=0.95)
     ap.add_argument("--max-herr", type=float, default=1.0)
     ap.add_argument("--max-misfix", type=int, default=0)
@@ -123,7 +130,11 @@ def main():
         return selftest(args)
     if not args.nmea or not args.llh:
         ap.error("NMEA and --llh are required")
-    m = metrics(read_gga(args.nmea, [float(x) for x in args.llh.split(",")]))
+    end = None
+    if args.end:
+        h, mi, se = args.end.split(":")
+        end = int(h) * 3600 + int(mi) * 60 + float(se)
+    m = metrics(read_gga(args.nmea, [float(x) for x in args.llh.split(",")]), end)
     print(" ".join(f"{k}={v:.4f}" if isinstance(v, float) else f"{k}={v}" for k, v in m.items()))
     if args.report:
         return 0
