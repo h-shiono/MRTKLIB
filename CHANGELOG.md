@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.7.14] - 2026-11-02
+
+**CLAS real-time robustness: L6 frame losses and the two-channel merge.**
+Four real-time CLAS PPP-RTK faults found on live mosaic-G5 data are
+fixed. A lost subframe 1 no longer costs ~17 s of Single (#406). A lost
+L6 frame inside a subframe is detected from the receiver frame time and the
+subframe discarded, instead of decoding shifted bits as garbage corrections
+that drove metre-level Float, false fixes and the #381 reset loop (#363); the
+ST1 mask width check, wrong in the same way in upstream claslib since 0.8.0,
+is fixed for this. A lost top-of-hour ST1 no longer dates the following
+messages one hour old (#392). With `l6_merge`, an epoch in which one channel
+already carries the new clock no longer finds no reference satellite (#380).
+claslib post-processing is byte-identical. `raw_t` and `clas_l6buf_t` gain
+fields (ABI change); new API `clas_set_l6tag()`. New dataset
+`clas_l6gap-v1`.
+
 ### CLAS
 
 - **Losing subframe 1 of a CLAS frame no longer costs ~17 s of Single**
@@ -62,6 +78,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the base by an hour (and wraps at the end of the week). Without this, the
   #406 recovery cannot apply at the top of the hour. Covered by unit tests
   only: none of the replayed hours has a loss at the hour top.
+- **With `l6_merge`, an epoch where one L6 channel is one clock update
+  behind no longer drops to Single**
+  ([#380](https://github.com/h-shiono/MRTKLIB/issues/380)). The real-time
+  reference-satellite search took ch0 whenever ch0 was valid and skipped the
+  satellite if ch0's clock was 5 s old, without trying ch1. When the other
+  channel's frame with the new clock was decoded first, no reference
+  satellite was found ("no double-differenced residual"): 2 epochs of Single
+  and a Float re-convergence. The first channel that is both valid and fresh
+  is now used; the 5 s threshold is unchanged. On a 1-hour live mosaic-G5
+  replay (simpleRTK4 Pro), `l6_merge = 1` goes from 97.48 % to 99.07 % Fix,
+  the same as `l6_merge = 0`, which is byte-identical. Post-processing reads
+  both channels ahead and is unaffected. No regression test: the race
+  reproduced only on the full-rate capture from its start, not on shorter
+  or block-filtered slices.
 - New tests `utest_clas_l6` (frame continuity with synthetic and captured
   frames, hourly and weekly epoch wrap) and `rtkrcv_clas_l6gap_{nomerge,merge}`
   (RT replay of 20 min of the live capture, dataset `clas_l6gap-v1`: Fix and
