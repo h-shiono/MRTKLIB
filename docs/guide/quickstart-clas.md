@@ -75,6 +75,64 @@ $GNGGA,160131.00,3908.109031,N,14107.972285,E,4,08,...
 
 Typical fix rate for this dataset: **>99%** (after initial convergence).
 
+### GGA Station ID: CLAS L6 Source
+
+In PPP-RTK mode, the last GGA field before the checksum (field 14,
+*differential reference station ID*) names the L6 source of the corrections
+used for the epoch. Field 13 next to it is the correction age (s).
+
+```
+$GNGGA,160146.00,3606.2180291,N,14005.1791136,E,4,11,1.0,31.791,M,38.037,M,4.0,0101*62
+                                                                        age ─┘ └─ station ID
+```
+
+The 4-digit ID is `P1×100 + P2×10 + F` (0000–0779, within the NMEA range
+0000–1023):
+
+| Digit | Meaning |
+|-------|---------|
+| `P1` | L6 PRN − 192 of channel 1 |
+| `P2` | L6 PRN − 192 of channel 2 (`0` with one channel, or when channel 2 has no corrections) |
+| `F` | Facility ID + 1 (`1`–`4`); `9` when the two channels carry different facilities |
+
+`0000` means no CLAS corrections were used (Q=1 / SPP epochs).
+
+| L6 PRN | 193 | 194 | 195 | 196 | 197 | 199 |
+|--------|-----|-----|-----|-----|-----|-----|
+| Digit  | 1   | 2   | 3   | 4   | 5   | 7   |
+
+Examples:
+
+| ID | Reading |
+|----|---------|
+| `0101` | One channel, PRN 193, facility 1 (the bundled 2019 dataset) |
+| `0243` | `l6_merge`: PRN 194 + PRN 196, facility 3 (the bundled 2025 two-channel dataset) |
+| `0203` | `l6_merge` enabled, only channel 1 has corrections |
+| `0459` | `l6_merge`: PRN 196 + PRN 197, channels on different facilities |
+
+The PRN is the one that delivered the clock correction in use, so a
+QZSS handover (a digit in `P1`/`P2` changes) or a facility switch (`F`
+changes, after which the engine resets its filter) can be read directly from
+the NMEA log and lined up with fix drops.
+
+!!! note "Facility ID"
+    `F` is the facility ID as normalized by the decoder, not the raw bits 4–3
+    of the L6 message type ID. The raw bits depend on the transmit pattern, so
+    two channels from the same facility can carry different raw values (the
+    2025 dataset has raw 1 on PRN 194 and raw 0 on PRN 196; both are facility 3
+    here).
+
+To write `0000` as before, set:
+
+```toml
+[output]
+clas_nmea_source_id = false
+```
+
+The ID is written for CLAS PPP-RTK only; VRS-RTK and the other modes write
+`0000`. The GGA sent upstream to an NTRIP caster carries the ID regardless of
+this option.
+
 ---
 
 ## Real-Time Processing

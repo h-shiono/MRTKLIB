@@ -366,6 +366,7 @@ typedef struct {
 
     /* identification */
     int facility; /* L6 facility id */
+    int l6prn;    /* L6 PRN that delivered the clock set (0: unknown) */
     int gridnum;  /* number of grid points */
     int network;  /* network id */
     int use;      /* in-use flag */
@@ -394,6 +395,7 @@ typedef struct {
     double udi[MAXSAT]; /* update interval (s) */
     int iod[MAXSAT];    /* IOD */
     double c0[MAXSAT];  /* clock correction (m) */
+    int l6prn;          /* L6 PRN that delivered this clock set */
 } clas_clock_bank_t;
 
 /** Code/phase bias ring buffer entry */
@@ -731,6 +733,21 @@ void clas_bank_init(clas_ctx_t* ctx, int ch);
  * @return 0 on success, -1 if no valid corrections found
  */
 int clas_bank_get_close(const clas_ctx_t* ctx, gtime_t time, int network, int ch, clas_corr_t* corr);
+
+/**
+ * @brief Encode the L6 source of the corrections in use as an NMEA GGA station id.
+ *
+ * The id is P1*100 + P2*10 + F (0000-0779, within the GGA range 0000-1023):
+ * P1/P2 = L6 PRN - 192 of channel 1/2 (0 when the channel carries no
+ * corrections or its PRN is outside 193-199), F = facility id + 1 (1-4),
+ * or 9 when the two channels carry different facilities. 0 means no CLAS
+ * corrections in use.
+ *
+ * @param[in] ctx  CLAS context (ctx->current[] holds the corrections in use)
+ * @param[in] nch  Number of channels in use (1, or CLAS_CH_NUM with l6_merge)
+ * @return Station id (0-779)
+ */
+int clas_nmea_refid(const clas_ctx_t* ctx, int nch);
 
 /**
  * @brief Save/restore the latest usable CSSR snapshot for short correction gaps.

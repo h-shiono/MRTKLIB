@@ -249,6 +249,7 @@ static const toml_map_t toml_mapping[] = {
     {"output", "static_solution", "out-solstatic"},
     {"output", "nmea_interval_1", "out-nmeaintv1"},
     {"output", "nmea_interval_2", "out-nmeaintv2"},
+    {"output", "clas_nmea_source_id", "out-clasrefid"},
     {"output", "solution_status", "out-outstat"},
 
     /* ── files ─────────────────────────────────────────────────────────────── */

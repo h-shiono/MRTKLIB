@@ -352,6 +352,15 @@ add_test(NAME utest_clas_bank COMMAND utest_clas_bank
          WORKING_DIRECTORY ${_UTEST_DIR})
 set_tests_properties(utest_clas_bank PROPERTIES LABELS "utest")
 
+# CLAS L6 source as the NMEA GGA station id.
+add_executable(utest_clas_refid ${_UTEST_DIR}/utest_clas_refid.c)
+# Override global -ansi (=C90): this test uses C11 (P-01).
+target_compile_options(utest_clas_refid PRIVATE -std=c11)
+target_link_libraries(utest_clas_refid PRIVATE mrtklib)
+add_test(NAME utest_clas_refid COMMAND utest_clas_refid
+         WORKING_DIRECTORY ${_UTEST_DIR})
+set_tests_properties(utest_clas_refid PROPERTIES LABELS "utest")
+
 # CLAS L6 subframe continuity and hourly epoch wrap (issue #363 / #392).
 add_executable(utest_clas_l6 ${_UTEST_DIR}/utest_clas_l6.c)
 # Override global -ansi (=C90): this test uses C11 (P-01).

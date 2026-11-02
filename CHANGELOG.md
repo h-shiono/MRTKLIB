@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### CLAS
+
+- **The NMEA GGA station id now names the CLAS L6 source of the solution.**
+  In PPP-RTK mode, GGA field 14 (differential reference station id, until now
+  always `0000`) carries `P1*100 + P2*10 + F`, within the NMEA range
+  0000–1023: `P1`/`P2` = L6 PRN − 192 of channel 1/2 (0 when the channel
+  carries no corrections), `F` = facility id + 1, or 9 when the two
+  `l6_merge` channels carry different facilities. Examples: `0201` = 1 ch,
+  PRN 194, facility 1; `0243` = PRN 194 + 196 merged, facility 3; `0000` =
+  no CLAS corrections (Single). The PRN is the one that delivered the clock
+  set in use, so a QZSS handover or a facility switch is visible in the NMEA
+  alone. The facility is the pattern-normalized id, not the raw header bits,
+  which differ between transmit patterns for the same facility. On by
+  default; `[output] clas_nmea_source_id = false` writes `0000` again. VRS-RTK
+  is not covered. No positioning change.
+- `sol_t`, `solopt_t`, `clas_clock_bank_t` and `clas_corr_t` gain fields
+  (ABI change); new API `clas_nmea_refid()`.
+
 ## [v0.7.14] - 2026-11-02
 
 **CLAS real-time robustness: L6 frame losses and the two-channel merge.**

@@ -290,6 +290,7 @@ conflicts with the MADOCA `rtkrcv_rt` test.
 | `positioning.relative.time_interpolation` | `true` | Interpolate corrections between epochs |
 | `positioning.clas.resilience.max_obs_loss` | `90.0` | Max epochs without obs before reset |
 | `positioning.clas.resilience.float_count` | `15` | Float epochs before fix attempt |
+| `output.clas_nmea_source_id` | `true` (default) | L6 PRN + facility of the corrections in the GGA station ID — see [GGA Station ID](../guide/quickstart-clas.md#gga-station-id-clas-l6-source) |
 
 ### Required Support Files
 
