@@ -1473,7 +1473,7 @@ int mrtk_cssr2rtcm3(int argc, char** argv) {
      * For SBF file replay, defer to the first SBF timestamp (L922)
      * to avoid week mismatch between system time and recorded data. */
     {
-        int iw, week = 0;
+        int week = 0;
         gtime_t tref = {0};
 
         if (!sbf_mode && nav->n > 0 && nav->eph[0].toe.time > 0) {
@@ -1486,10 +1486,7 @@ int mrtk_cssr2rtcm3(int argc, char** argv) {
             time2gpst(tref, &week);
         }
         /* SBF file mode: week=0, will be set from first SBF timestamp */
-        for (iw = 0; iw < CSSR_REF_MAX; iw++) {
-            clas->week_ref[iw] = week;
-            clas->tow_ref[iw] = -1;
-        }
+        clas_set_week_ref(clas, week);
         fprintf(stderr, "GPS week reference: %d%s\n", week, week == 0 ? " (deferred to SBF)" : "");
     }
 
@@ -1692,13 +1689,10 @@ int mrtk_cssr2rtcm3(int argc, char** argv) {
                 }
             }
             /* initialize GPS week from SBF timestamp if not yet set */
-            if (clas->week_ref[0] == 0 && raw_sbf->time.time > 0) {
-                int iw, week;
+            if (!clas_week_ref_isset(clas) && raw_sbf->time.time > 0) {
+                int week;
                 time2gpst(raw_sbf->time, &week);
-                for (iw = 0; iw < CSSR_REF_MAX; iw++) {
-                    clas->week_ref[iw] = week;
-                    clas->tow_ref[iw] = -1;
-                }
+                clas_set_week_ref(clas, week);
                 fprintf(stderr, "GPS week from SBF: %d\n", week);
             }
         } else if (!sbf_mode && n > 0) {

@@ -432,15 +432,12 @@ static int decoderaw(rtksvr_t* svr, int index) {
                 }
 
                 /* initialize GPS week reference from obs time (once) */
-                if (svr->clas->week_ref[0] == 0) {
+                if (!clas_week_ref_isset(svr->clas)) {
                     gtime_t t = svr->raw[0].time;
                     if (t.time > 0) {
-                        int j, week;
+                        int week;
                         time2gpst(t, &week);
-                        for (j = 0; j < CSSR_REF_MAX; j++) {
-                            svr->clas->week_ref[j] = week;
-                            svr->clas->tow_ref[j] = -1;
-                        }
+                        clas_set_week_ref(svr->clas, week);
                     }
                 }
                 clas_input_cssr(svr->clas, svr->buff[index][i], ch);
@@ -527,15 +524,12 @@ static int decoderaw(rtksvr_t* svr, int index) {
             trace(NULL, 3, "L6 redirect: fmt=%d ch=%d prn=%d index=%d\n", svr->format[index], ch,
                   svr->rtcm[index].buff[4], index);
             /* initialize week_ref from obs time (once) */
-            if (svr->clas->week_ref[0] == 0) {
+            if (!clas_week_ref_isset(svr->clas)) {
                 gtime_t t = svr->raw[0].time;
                 if (t.time > 0) {
-                    int j, week;
+                    int week;
                     time2gpst(t, &week);
-                    for (j = 0; j < CSSR_REF_MAX; j++) {
-                        svr->clas->week_ref[j] = week;
-                        svr->clas->tow_ref[j] = -1;
-                    }
+                    clas_set_week_ref(svr->clas, week);
                     trace(NULL, 2, "L6 redirect: week_ref initialized to %d\n", week);
                 }
             }

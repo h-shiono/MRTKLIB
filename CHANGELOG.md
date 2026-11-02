@@ -24,6 +24,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   is not covered. No positioning change.
 - `sol_t`, `solopt_t`, `clas_clock_bank_t` and `clas_corr_t` gain fields
   (ABI change); new API `clas_nmea_refid()`.
+- **Real-time `l6_merge`: a channel resuming across a GPS week rollover no
+  longer stops the CLAS corrections until restart**
+  ([#436](https://github.com/h-shiono/MRTKLIB/issues/436)). CSSR messages
+  carry the time of week only, and the decoder follows the week from each
+  subtype's TOW sequence. That state (`week_ref`, `tow_ref`) was shared by both
+  channels, whereas upstream keeps it per L6 stream. A channel silent across
+  the rollover resumes with the previous week's `tow0`, so its first clock
+  before an ST1 is dated near the end of that week. The next clock of the
+  other channel then looked like a rollover, and the shared week moved one
+  week ahead. Every clock was then newer than the observation time and never
+  found again (`clock not found`), so the output stayed Single. The state is
+  now per channel, in `clas_l6buf_t`. On the 5.9-day live mosaic-G5 RT replay
+  with `l6_merge = 1`, the fix rate goes 38.85 % → 98.95 % (Single 308,884 →
+  166 epochs; 98.87 % without merge). With `l6_merge = 0` and in claslib
+  post-processing the output is byte-identical. New API `clas_set_week_ref()`
+  / `clas_week_ref_isset()`. `week_ref`, `tow_ref` and the unused `obs_ref`
+  leave `clas_ctx_t` (API/ABI change).
 
 ## [v0.7.14] - 2026-11-02
 
