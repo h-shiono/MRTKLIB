@@ -236,6 +236,7 @@ MAPPING: list[tuple[str, str, str, str]] = [
     ("out-solstatic", "output", "static_solution", "enum"),
     ("out-nmeaintv1", "output", "nmea_interval_1", "float"),
     ("out-nmeaintv2", "output", "nmea_interval_2", "float"),
+    ("out-clasrefid", "output", "clas_nmea_source_id", "bool"),
     ("out-outstat", "output", "solution_status", "enum"),
     # ── files ────────────────────────────────────────────────────────────────
     ("file-satantfile", "files", "satellite_atx", "str"),

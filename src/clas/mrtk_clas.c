@@ -704,6 +704,7 @@ static void set_cssr_bank_clock(clas_ctx_t* ctx, int ch, gtime_t time, int netwo
             clk->c0[i] = 0.0;
         }
     }
+    clk->l6prn = ctx->l6delivery[ch];
     for (i = 0; i < MAXSAT; i++) {
         ssr = &ctx->dec_ssr[i];
         if (ssr->update_cc != 1) {
@@ -1212,10 +1213,31 @@ extern int clas_bank_get_close(const clas_ctx_t* ctx, gtime_t time, int network,
     corr->bias_time = cbias->time;
     corr->trop_time = trop->time;
     corr->facility = bank->Facility;
+    corr->l6prn = clk->l6prn;
     corr->update_time = time;
     corr->network = network;
     corr->use = 1;
     return 0;
+}
+
+extern int clas_nmea_refid(const clas_ctx_t* ctx, int nch) {
+    int ch, fac = -1, id = 0, digit;
+
+    for (ch = 0; ch < nch && ch < 2; ch++) {
+        const clas_corr_t* corr = &ctx->current[ch];
+        if (!corr->use) {
+            continue;
+        }
+        /* one decimal digit per channel: CLAS L6 PRNs are 193-199 */
+        digit = corr->l6prn - 192;
+        if (digit >= 1 && digit <= 7) {
+            id += digit * (ch == 0 ? 100 : 10);
+        }
+        if (corr->facility >= 0) {
+            fac = (fac < 0 || fac == corr->facility + 1) ? corr->facility + 1 : 9;
+        }
+    }
+    return id ? id + (fac < 0 ? 0 : fac) : 0;
 }
 
 static gtime_t backup_cssr_time(const clas_corr_t* corr) {
@@ -1296,6 +1318,7 @@ extern void clas_restore_backup(clas_ctx_t* ctx, gtime_t time, clas_grid_t* grid
         if ((clock = get_close_clock(bank, time, ctx->current[ch].orbit_time, grid->network, 30.0)) &&
             timediff(ctx->current[ch].clock_time, clock->time) != 0.0) {
             ctx->current[ch].clock_time = clock->time;
+            ctx->current[ch].l6prn = clock->l6prn;
             for (i = 0; i < MAXSAT; i++) {
                 if (clock->prn[i] != 0) {
                     ctx->current[ch].time[i][1] = clock->time;

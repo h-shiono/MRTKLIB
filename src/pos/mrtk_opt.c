@@ -95,7 +95,8 @@ const solopt_t solopt_default = {
     0,          1,          0, 0, 0, 0, 0, /* degf,outhead,outopt,outvel,datum,height,geoid */
     0,          0,          0,             /* solstatic,sstat,trace */
     {0.0, 0.0},                            /* nmeaintv */
-    " ",        ""                         /* separator/program name */
+    " ",        "",                        /* separator/program name */
+    0.0,        1                          /* maxsolstd,clasrefid */
 };
 
 /* resolve and validate correction source ------------------------------------

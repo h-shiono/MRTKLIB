@@ -16,6 +16,8 @@
  *   (5) cbias T+30 comes from a different mask than pbias T, so its slots
  *       hold the signals in another order: each code bias stays with its own
  *       signal (Greptile, PR #433).
+ *   (6) the set carries the L6 PRN of the clock set it uses (NMEA GGA
+ *       station id).
  *
  * The bank entries are written directly; the times follow the frame layout
  * seen in live mosaic-G5 captures (orbit/clock/cbias at the frame epoch,
@@ -190,6 +192,13 @@ int main(void) {
         CHECK(k5 >= 0 && corr->cbias[SAT - 1][k5] == 1.5 && corr->pbias[SAT - 1][k5] == 0.0, "L5Q code bias only");
         CHECK(k1 == 0 && k2 == 1 && k5 == 2, "slots in phase-bias order, then code-bias-only signals");
     }
+
+    printf("--- (6) L6 PRN of the clock set\n");
+    fill_lost_frame(b);
+    b->ClockBank[0].l6prn = 194;
+    b->ClockBank[1].l6prn = 196;
+    rc = clas_bank_get_close(ctx, at(33.0), NET, 0, corr);
+    CHECK(rc == 0 && corr->l6prn == 196, "l6prn from the T+30 clock set");
 
     clas_ctx_free(ctx);
     free(ctx);

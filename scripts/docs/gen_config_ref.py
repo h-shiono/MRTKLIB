@@ -509,6 +509,11 @@ _OPTION_META: dict[str, tuple[str, str]] = {
     "out-solstatic": ("PP", "Static mode output control."),
     "out-nmeaintv1": ("All", "NMEA GGA/RMC output interval (s)."),
     "out-nmeaintv2": ("All", "NMEA GSA/GSV output interval (s)."),
+    "out-clasrefid": (
+        "PPP-RTK",
+        "Write the CLAS L6 source as the NMEA GGA station id: P1*100 + P2*10 + F, "
+        "P1/P2 = L6 PRN - 192 of channel 1/2 (0: none), F = facility + 1 (9: channels differ). On by default.",
+    ),
     "out-outstat": ("PP", "Solution status output level."),
     # ── files ────────────────────────────────────────────────────────────────
     "file-satantfile": (

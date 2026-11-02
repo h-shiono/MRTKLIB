@@ -368,6 +368,7 @@ typedef struct {        /* solution options type */
     char sep[64];       /* field separator */
     char prog[64];      /* program name */
     double maxsolstd;   /* max std-dev for solution output (m) (0:all) */
+    int clasrefid;      /* CLAS L6 source id in NMEA GGA station id (0:off,1:on) */
 } solopt_t;
 
 /*============================================================================

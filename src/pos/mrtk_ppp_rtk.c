@@ -2550,11 +2550,12 @@ extern void ppp_rtk_pos(rtk_t* rtk, const obsd_t* obs, int n, nav_t* nav) {
     int ch, pch = 0, nch = opt->l6mrg ? SSR_CH_NUM : 1;
     int stat = (rtk->opt.mode <= PMODE_DGPS) ? SOLQ_DGPS : SOLQ_FLOAT;
     int vflg[MAXOBS * NFREQ * 4 + 1], nb, svh[SSR_CH_NUM][MAXOBS];
-    int nn, use_backup = 0;
+    int nn, use_backup = 0, refid = 0;
     double cpc_[SSR_CH_NUM][MAXSAT * NFREQ];
     gtime_t pt0_[SSR_CH_NUM][MAXSAT];
 
     trace(NULL, 2, "ppp_rtk_pos: time=%s nx=%d n=%d\n", time_str(obs[0].time, 0), rtk->nx, n);
+    rtk->sol.refid = 0;
     /* check CLAS context availability */
     if (!nav->clas_ctx) {
         trace(NULL, 2, "ppp_rtk_pos: no CLAS context\n");
@@ -2743,6 +2744,7 @@ extern void ppp_rtk_pos(rtk_t* rtk, const obsd_t* obs, int n, nav_t* nav) {
             clas_update_local(nav, &clas->current[ch], ch);
         }
         check_clas_facility(nav, clas, grid, opt);
+        refid = clas_nmea_refid(clas, nch);
     }
 
     trace(NULL, 4, "x(0)=\n");
@@ -3139,6 +3141,7 @@ extern void ppp_rtk_pos(rtk_t* rtk, const obsd_t* obs, int n, nav_t* nav) {
 
     if (stat != SOLQ_NONE) {
         rtk->sol.stat = stat;
+        rtk->sol.refid = (uint16_t)refid;
     } else {
         rtk->sol.stat = SOLQ_SINGLE;
     }

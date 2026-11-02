@@ -1447,7 +1447,7 @@ int outnmea_rmc(uint8_t* buff, const sol_t* sol) {
 int outnmea_gga(uint8_t* buff, const sol_t* sol) {
     gtime_t time;
     double h, ep[6], pos[3], dms1[3], dms2[3], dop = 1.0;
-    int solq, refid = 0;
+    int solq, refid = sol->refid;
     char *p = (char*)buff, *q, sum;
 
     trace(NULL, 3, "outnmea_gga:\n");
@@ -1824,7 +1824,13 @@ int outsols(uint8_t* buff, const sol_t* sol, const double* rb, const solopt_t* o
             break;
         case SOLF_NMEA:
             p += outnmea_rmc(p, sol);
-            p += outnmea_gga(p, sol);
+            if (opt->clasrefid) {
+                p += outnmea_gga(p, sol);
+            } else {
+                sol_t sol0 = *sol;
+                sol0.refid = 0;
+                p += outnmea_gga(p, &sol0);
+            }
             break;
     }
     return p - buff;
