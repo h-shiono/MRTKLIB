@@ -103,6 +103,7 @@ typedef struct {
     uint8_t has_page[56];                   /**< Galileo HAS page (56-byte, staged for ret=13) */
     int has_prn;                            /**< Galileo HAS transmitting PRN (1-40) */
     gtime_t has_time;                       /**< Galileo HAS page reception time (GPST) */
+    double l6tag;                           /**< receiver time tag of the last QZSS L6 frame (s, 0: none) */
     char opt[256];                          /**< receiver dependent options */
     mrtk_sigcfg_t sigcfg[MRTK_NSYS]; /**< #189: per-constellation signal config (drives decoder code selection) */
     int sigcfg_set;                  /**< #189: 1 if sigcfg is configured (else fall back to opt/-Rxxx defaults) */

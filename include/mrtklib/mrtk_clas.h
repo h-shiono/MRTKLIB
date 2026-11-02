@@ -565,6 +565,9 @@ typedef struct {
     gtime_t time;            /* current decode time */
     int ctype;               /* CSSR message type (4073) */
     int subtype;             /* CSSR subtype (1-12) */
+    double ftag;             /* receiver time tag of the frame being received (s, 0: none) */
+    double ftag_last;        /* receiver time tag of the last frame (s, 0: none) */
+    int tow_last;            /* last decoded epoch time-of-week */
 } clas_l6buf_t;
 
 /*============================================================================
@@ -669,6 +672,21 @@ void clas_ctx_free(clas_ctx_t* ctx);
  * @return Status (-1:error, 0:no message, 10:SSR message decoded)
  */
 int clas_input_cssr(clas_ctx_t* ctx, uint8_t data, int ch);
+
+/**
+ * @brief Set the receiver time tag of the L6 frame about to be input.
+ *
+ * L6 frames are broadcast once per second and the L6 header has no frame
+ * counter, so a lost frame can only be seen from the receiver time. Call this
+ * before inputting each frame when the receiver reports a per-frame time (SBF
+ * QZSRawL6 block TOW, UBX-RXM-QZSSL6 time tag). A subframe with a frame missing
+ * is then discarded instead of being decoded from shifted bits (#363). Inputs
+ * without a time tag (raw L6 byte streams and files) are not checked.
+ * @param[in,out] ctx  CLAS context
+ * @param[in]     ch   Channel index (0 or 1)
+ * @param[in]     tag  Receiver time of the frame (s, any origin; 0: unknown)
+ */
+void clas_set_l6tag(clas_ctx_t* ctx, int ch, double tag);
 
 /**
  * @brief Decode the next pending CSSR message from the assembled bit buffer.

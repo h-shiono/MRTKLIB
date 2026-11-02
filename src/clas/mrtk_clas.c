@@ -1064,19 +1064,21 @@ static int sub_get_close_cssr(clas_bank_ctrl_t* bank, gtime_t time, int network,
             return 0;
         }
     }
-    if (!(*cbias = get_close_net_cbias(bank, (*pbias)->time, network, 0.0))) {
-        trace(NULL, 2, "sub_get_close_cssr(): cbias not found, net=%d\n", network);
-        return 0;
-    }
     /* The cbias epoch matching pbias was lost (CLAS sends the global ST4 code
-     * bias only in subframe 1, network ST6 may be phase-only): the older one is
-     * past its 60 s IS validity, so take the next cbias, newer than pbias by at
-     * most 30 s, as the consistency check below allows (#406, #242). */
-    if (timediff((*pbias)->time, (*cbias)->time) > 0.0) {
+     * bias only in subframe 1, network ST6 may be phase-only): the older one, if
+     * still in the bank, is past its 60 s IS validity, so take the next cbias,
+     * newer than pbias by at most 30 s, as the consistency check below allows
+     * (#406, #242). */
+    *cbias = get_close_net_cbias(bank, (*pbias)->time, network, 0.0);
+    if (!*cbias || timediff((*pbias)->time, (*cbias)->time) > 0.0) {
         clas_bias_bank_t* next = get_close_net_cbias(bank, (*pbias)->time, network, 30.0);
         if (next && timediff(next->time, (*pbias)->time) > 0.0 && timediff(time, next->time) >= 0.0) {
             *cbias = next;
         }
+    }
+    if (!*cbias) {
+        trace(NULL, 2, "sub_get_close_cssr(): cbias not found, net=%d\n", network);
+        return 0;
     }
     if (!(*clock = get_close_clock(bank, time, (*orbit)->time, network, 30.0))) {
         trace(NULL, 2, "sub_get_close_cssr(): clock not found, net=%d\n", network);
@@ -1489,7 +1491,19 @@ static int decode_cssr_head(clas_ctx_t* ctx, clas_l6buf_t* l6, cssr_t* cssr, int
     } else {
         *tow = l6->tow0 + getbitu(l6->buff, i, 12);
         i += 12;
+        /* the hourly epoch wrapped but the ST1 at the top of the hour, the only
+         * message that advances tow0, was lost: without this the messages up to
+         * the next ST1 are dated one hour old (#392) */
+        if (l6->time.time != 0 && *tow < l6->tow_last - 1800) {
+            l6->tow0 += 3600;
+            if (l6->tow0 >= 604800) {
+                l6->tow0 -= 604800;
+            }
+            *tow = l6->tow0 + getbitu(l6->buff, i - 12, 12);
+            trace(NULL, 2, "decode_cssr_head(): hourly epoch wrapped without ST1, tow0=%d\n", l6->tow0);
+        }
     }
+    l6->tow_last = *tow;
     udi = getbitu(l6->buff, i, 4);
     i += 4;
     *sync = getbitu(l6->buff, i, 1);
@@ -1515,24 +1529,29 @@ static int check_bit_width_mask(clas_l6buf_t* l6, cssr_t* cssr, int i0) {
     uint64_t svmask;
     uint16_t sigmask;
 
-    if (i0 + 49 > l6->havebit) {
+    /* i0 is past the 16-bit message number and subtype: the rest of the header
+     * (epoch 20, interval 4, multiple 1, IOD 4, ngnss 4) is 33 bits. Upstream
+     * (claslib 0.8.0 on) counts 49 bits from here and reads ngnss from the
+     * satellite mask, so a mask that fits in the first frame waited for the
+     * second one, and a frame lost in between cost the whole mask (#363). */
+    if (i0 + 33 > l6->havebit) {
         return 0;
     }
-    ngnss = getbitu(l6->buff, i0 + 45, 4);
-    i0 += 49;
+    ngnss = getbitu(l6->buff, i0 + 29, 4);
+    i0 += 33;
     for (k = 0; k < ngnss; k++) {
         if (i0 + 61 > l6->havebit) {
             return 0;
         }
+        /* GNSS ID 4, satellite mask 40, signal mask 16, cell-mask flag 1; only
+         * the cell mask follows the block (upstream read both masks again
+         * from the bits after it) */
+        svmask = (uint64_t)getbitu(l6->buff, i0 + 4, 8) << 32;
+        svmask |= (uint64_t)getbitu(l6->buff, i0 + 12, 32);
+        sigmask = getbitu(l6->buff, i0 + 44, 16);
         cmi = getbitu(l6->buff, i0 + 60, 1);
         i0 += 61;
         if (cmi) {
-            svmask = (uint64_t)getbitu(l6->buff, i0, 8) << 32;
-            i0 += 8;
-            svmask |= (uint64_t)getbitu(l6->buff, i0, 32);
-            i0 += 32;
-            sigmask = getbitu(l6->buff, i0, 16);
-            i0 += 16;
             nsat = svmask2nsat(svmask);
             nsig = sigmask2nsig(sigmask);
             if (i0 + nsat * nsig > l6->havebit) {
@@ -3128,6 +3147,22 @@ extern int clas_input_cssr(clas_ctx_t* ctx, uint8_t data, int ch) {
     ctx->l6delivery[ch] = hdr.prn;
     ctx->l6facility[ch] = clas_get_correct_fac(hdr.msgid);
 
+    /* a frame lost inside the subframe (RS failure or input loss) would shift
+     * the bits of the following frames: discard the rest of the subframe, as
+     * when its first frame is lost (#363) */
+    if (l6->ftag > 0.0 && l6->ftag_last > 0.0 && !hdr.sf_ind && l6->decode_start && l6->nframe < 5) {
+        double dt = l6->ftag - l6->ftag_last;
+        if (dt <= 0.0 || dt > 1.5) {
+            trace(NULL, 2, "clas_input_cssr: frame gap dt=%.3f s, subframe discarded ch=%d nframe=%d\n", dt, ch,
+                  l6->nframe);
+            l6->nbit = -1;
+            l6->frame = 0;
+            l6->nframe = 5;
+        }
+    }
+    l6->ftag_last = l6->ftag;
+    l6->ftag = 0.0;
+
     if (hdr.sf_ind) { /* subframe indicator */
         l6->havebit = 0;
         l6->decode_start = 1;
@@ -3154,6 +3189,8 @@ extern int clas_input_cssr(clas_ctx_t* ctx, uint8_t data, int ch) {
 }
 
 extern int clas_decode_msg(clas_ctx_t* ctx, int ch) { return decode_qzs_msg(ctx, ch); }
+
+extern void clas_set_l6tag(clas_ctx_t* ctx, int ch, double tag) { ctx->l6buf[ch].ftag = tag; }
 
 extern int clas_input_cssrf(clas_ctx_t* ctx, FILE* fp, int ch) {
     int i, data, ret;

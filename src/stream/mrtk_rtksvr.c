@@ -540,6 +540,7 @@ static int decoderaw(rtksvr_t* svr, int index) {
                 }
             }
             /* feed 250-byte L6 frame from rtcm->buff to CLAS decoder */
+            clas_set_l6tag(svr->clas, ch, svr->raw[index].l6tag);
             for (k = 0; k < 250; k++) {
                 clas_input_cssr(svr->clas, svr->rtcm[index].buff[k], ch);
                 cret = clas_decode_msg(svr->clas, ch);

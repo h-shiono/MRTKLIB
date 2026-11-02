@@ -352,6 +352,15 @@ add_test(NAME utest_clas_bank COMMAND utest_clas_bank
          WORKING_DIRECTORY ${_UTEST_DIR})
 set_tests_properties(utest_clas_bank PROPERTIES LABELS "utest")
 
+# CLAS L6 subframe continuity and hourly epoch wrap (issue #363 / #392).
+add_executable(utest_clas_l6 ${_UTEST_DIR}/utest_clas_l6.c)
+# Override global -ansi (=C90): this test uses C11 (P-01).
+target_compile_options(utest_clas_l6 PRIVATE -std=c11)
+target_link_libraries(utest_clas_l6 PRIVATE mrtklib)
+add_test(NAME utest_clas_l6 COMMAND utest_clas_l6
+         WORKING_DIRECTORY ${_UTEST_DIR})
+set_tests_properties(utest_clas_l6 PROPERTIES LABELS "utest")
+
 # RTCM3 MSM BDS B2b round-trip test (issue #333 / #296)
 add_executable(utest_msm_bds_b2b ${_UTEST_DIR}/utest_msm_bds_b2b.c)
 # Override global -ansi (=C90): this test uses C11 (P-01).
@@ -2745,3 +2754,63 @@ foreach(_case d9c_m d9c_s mcla_a mcla_e mcla_o)
         DEPENDS post_handover_${_case}
         LABELS  "regression;handover;claslib;ppp-rtk")
 endforeach()
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# CLAS L6 frame-gap regression (#363)
+# ═══════════════════════════════════════════════════════════════════════════════
+# Dataset: clas_l6gap-v1 (release asset of h-shiono/mrtklib-data, #386), 20 min
+# of a live mosaic-G5 SBF capture (DOY 2026-296) in which the receiver dropped
+# whole blocks for 1-2 s every few minutes, QZSRawL6D frames included. Built by
+# scripts/tests/make_clas_l6gap_fixture.py; provenance in
+# tests/data/clas_l6gap/README.md. A frame lost inside a CLAS subframe shifted
+# the bits of the following frames; the subframe is now discarded from the
+# SBF frame time (clas_set_l6tag). RT replay (mrtk run, x10) with the handover
+# template (same antenna and route: one SBF stream with observations and L6),
+# with both l6_merge settings: 0 as in the live run, 1 the RT default.
+set(_L6GAPDATA ${CMAKE_BINARY_DIR}/tests/data/clas_l6gap)
+
+mrtk_dataset_setup_test(clas_l6gap_setup clas_l6gap-v1 ${_L6GAPDATA})
+set_tests_properties(clas_l6gap_setup PROPERTIES
+    FIXTURES_SETUP clas_l6gap_data
+    LABELS         "regression;claslib"
+)
+
+# Gates (check_clas_l6gap.py), measured 2026-11-02 (Accelerate x3 and OpenBLAS,
+# both l6_merge settings, identical): fix rate 0.975, Fix/Float horizontal
+# error max 0.09 m, no fix > 0.30 m. Before the fix (#363 and the ST1 width
+# check): fix rate 0.83-0.89, Float at 6-27 m in three excursions.
+# --end is the last epoch of the window (TOW 505499 = 20:24:41 UTC), so a lost
+# tail fails the gap gate (the harness only requires 90 % of the lines).
+function(_clas_l6gap_rt name port l6_merge)
+    set(HO_ROVER ${_L6GAPDATA}/G5P3296u_20m.sbf)
+    set(HO_CORR_TYPE off)
+    set(HO_CORR "")
+    set(HO_CORR_FMT "")
+    set(_conf ${CMAKE_BINARY_DIR}/clas_l6gap/rtkrcv_clas_l6gap_${name}.toml)
+    configure_file(${_HO_TEMPLATE} ${_conf} @ONLY)
+    set(_out ${CMAKE_BINARY_DIR}/out_rtkrcv_clas_l6gap_${name}.nmea)
+    add_test(NAME rtkrcv_clas_l6gap_${name}
+        COMMAND bash ${_TESTCMAKE}/run_rtkrcv_test.sh
+            $<TARGET_FILE:mrtk> run ${CMAKE_SOURCE_DIR} 1185 10 ${_conf} ${port} 300 ${_out}
+            "l6_merge=${l6_merge}"
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+    set_tests_properties(rtkrcv_clas_l6gap_${name} PROPERTIES
+        FIXTURES_REQUIRED "clas_l6gap_data;claslib_data"
+        RUN_SERIAL        TRUE
+        TIMEOUT           420
+        LABELS            "regression;realtime;claslib")
+    add_test(NAME rtkrcv_clas_l6gap_${name}_check
+        COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/scripts/tests/check_clas_l6gap.py ${_out}
+            --llh ${_HO_TRUTH_LLH} --end 20:24:41 --min-fix 0.95 --max-herr 1.0 --max-misfix 0
+            --max-gap 5)
+    set_tests_properties(rtkrcv_clas_l6gap_${name}_check PROPERTIES
+        DEPENDS           rtkrcv_clas_l6gap_${name}
+        FIXTURES_REQUIRED clas_l6gap_data
+        LABELS            "regression;realtime;claslib")
+endfunction()
+_clas_l6gap_rt(nomerge 52018 0)
+_clas_l6gap_rt(merge   52019 1)
+
+add_test(NAME clas_l6gap_checker_selftest
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/scripts/tests/check_clas_l6gap.py --selftest)
+set_tests_properties(clas_l6gap_checker_selftest PROPERTIES LABELS "utest;claslib")
