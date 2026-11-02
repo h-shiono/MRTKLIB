@@ -19,3 +19,7 @@ mrtk_dataset(handover-v1 SHA256 2690ac610a3696731dcfa629d2f98a9dfd54fef9126ae9b6
 # (OBS cut, BRDC NAV, L6E PRN 207, MIZU antenna from igs20_2290.atx); see
 # tests/data/madocalib_mdc005/generate_reference_mdc005.sh (#401).
 mrtk_dataset(madocalib_mdc005-v1 SHA256 c2179bda50c86608403a44bc4289befa2bbbcfae2558dcea0c72c179a58ec00c)
+
+# CLAS L6 frame gaps: G5P3296u_20m.sbf (live mosaic-G5, 2026-10-23, 20 min, SBF
+# blocks dropped by the receiver); see tests/data/clas_l6gap/README.md (#363).
+mrtk_dataset(clas_l6gap-v1 SHA256 365fe0466a64badb3f52ccebe85ace855615d08e8908848ba1999323cad7bc1e)

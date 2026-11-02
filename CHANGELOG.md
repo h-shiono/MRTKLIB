@@ -62,9 +62,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the base by an hour (and wraps at the end of the week). Without this, the
   #406 recovery cannot apply at the top of the hour. Covered by unit tests
   only: none of the replayed hours has a loss at the hour top.
-- New test `utest_clas_l6` (frame continuity with synthetic and captured
-  frames, hourly and weekly epoch wrap). ABI: `raw_t` gains `l6tag`,
-  `clas_l6buf_t` gains `ftag`, `ftag_last` and `tow_last`.
+- New tests `utest_clas_l6` (frame continuity with synthetic and captured
+  frames, hourly and weekly epoch wrap) and `rtkrcv_clas_l6gap_{nomerge,merge}`
+  (RT replay of 20 min of the live capture, dataset `clas_l6gap-v1`: Fix and
+  Float within 1 m, fix rate ≥ 95 %; the old decoder had Float at 6–27 m).
+  ABI: `raw_t` gains `l6tag`, `clas_l6buf_t` gains `ftag`, `ftag_last` and
+  `tow_last`.
 
 ## [v0.7.13] - 2026-10-31
 
