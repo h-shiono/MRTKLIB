@@ -41,6 +41,13 @@ already allows a code bias up to 30 s newer than the phase bias, and the OSR
 check now accepts the same window. The same substitution also applies when
 the code bias was lost in two consecutive frames.
 
+The correction set now pairs the code and phase biases by signal. A bank
+entry orders its signals by the mask of its own epoch, and the old merge
+paired the two by position, so a code bias from another mask could be
+applied to a different signal. This could happen with the newer code bias
+taken here, and also with one up to 30 s older, which upstream claslib
+allows. No case occurs in the replayed data, whose output is byte-identical.
+
 On three hours of live replay, 13 of 15 such outages shrink from 17 s to
 1–3 s. The remaining 1–3 s is correct by the IS: orbit T−30 expires at T+31,
 and orbit T+30 has not arrived yet. The other two outages had no valid

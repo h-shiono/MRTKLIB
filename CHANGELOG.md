@@ -40,6 +40,11 @@ fields (ABI change); new API `clas_set_l6tag()`. New dataset
   no valid corrections (IOD SSR change in the lost mask, consecutive losses).
   Output on loss-free data is byte-identical. Upstream claslib has the same
   lookup. New tests `utest_clas_bank` and `rtkrcv_rt_clas_sf1gap`.
+  The correction set now pairs code and phase biases by signal, not by bank
+  slot: a slot order follows the mask of its own epoch, so a code bias from
+  another mask (newer here, or up to 30 s older as upstream allows) could be
+  applied to a different signal. Output on the replayed data is
+  byte-identical.
 - **A CLAS L6 frame lost inside a subframe no longer decodes as shifted
   bits** ([#363](https://github.com/h-shiono/MRTKLIB/issues/363)). The
   subframe is assembled by counting frames after the subframe indicator, and
