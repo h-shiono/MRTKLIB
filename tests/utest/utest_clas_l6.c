@@ -25,6 +25,10 @@
  *         (6) the next ST1 keeps tow0 consistent (7230)
  *         (7) at the end of the week, epoch 5 is dated week+1 TOW 5
  *         (8) epochs within the hour are unchanged
+ *
+ * NMEA GGA station id: each clock bank set records the L6 PRN that delivered
+ * it, and keeps it when a later set arrives from another PRN (QZSS handover):
+ *        (11) clock 7170 from PRN 194, clock 7205 from PRN 195
  *-----------------------------------------------------------------------------*/
 #include <stdio.h>
 #include <stdlib.h>
@@ -51,6 +55,7 @@ static int fails = 0;
 /* subframe bit buffer and write cursor */
 static uint8_t sb[(SFBITS + 7) / 8];
 static int sbn;
+static uint8_t frame_prn = 193; /* L6 PRN written into the frame headers */
 
 static void sb_reset(void) {
     memset(sb, 0, sizeof(sb));
@@ -163,9 +168,10 @@ static int input_live(clas_ctx_t* ctx, const uint8_t* fr, double tag) {
 
 /* input frame n of the subframe in sb, return number of messages decoded */
 static int input_frame(clas_ctx_t* ctx, int n, double tag) {
-    uint8_t fr[250] = {0x1A, 0xCF, 0xFC, 0x1D, 193};
+    uint8_t fr[250] = {0x1A, 0xCF, 0xFC, 0x1D, 0};
     int i, nmsg = 0;
 
+    fr[4] = frame_prn;
     fr[5] = n == 0 ? 0xA1 : 0xA0; /* CLAS, subframe indicator on frame 1 */
     fr[6] = (uint8_t)getbitu(sb, 1695 * n, 7);
     for (i = 0; i < 211; i++) {
@@ -343,10 +349,48 @@ static void test_hour_wrap(void) {
     free_ctx(ctx);
 }
 
+/* L6 PRN of the clock bank set dated tow, -1 if there is none */
+static int clock_set_prn(const clas_ctx_t* ctx, int tow) {
+    int i;
+    for (i = 0; i < CLAS_BANK_NUM; i++) {
+        const clas_clock_bank_t* c = &ctx->bank[0]->ClockBank[i];
+        if (c->use && (int)time2gpst(c->time, NULL) == tow) {
+            return c->l6prn;
+        }
+    }
+    return -1;
+}
+
+static void test_l6prn(void) {
+    clas_ctx_t* ctx = new_ctx();
+    char msg[128];
+    int p7170, p7205;
+
+    frame_prn = 194;
+    sb_reset();
+    put_mask(7170);
+    put_clock(3570);
+    input_subframe(ctx, NULL);
+
+    frame_prn = 195;
+    sb_reset();
+    put_mask(7200);
+    put_clock(5);
+    input_subframe(ctx, NULL);
+    frame_prn = 193;
+
+    p7170 = clock_set_prn(ctx, 7170);
+    p7205 = clock_set_prn(ctx, 7205);
+    sprintf(msg, "(11) clock sets keep their L6 PRN: 7170 from 194, 7205 from 195 (got %d, %d)", p7170, p7205);
+    CHECK(p7170 == 194 && p7205 == 195, msg);
+    free_ctx(ctx);
+}
+
 int main(void) {
     printf("utest_clas_l6: L6 subframe continuity (#363) and hourly epoch wrap (#392)\n");
     test_continuity();
     test_hour_wrap();
+    test_l6prn();
     printf("%s (%d failure%s)\n", fails ? "FAILED" : "PASSED", fails, fails == 1 ? "" : "s");
     return fails ? 1 : 0;
 }
