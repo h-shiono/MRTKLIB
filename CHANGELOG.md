@@ -36,11 +36,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `clas_set_l6tag()`, and the rest of a subframe with a frame missing is
   discarded. Raw L6 byte streams and files carry no time and are unchanged.
   Two fixes were needed for this to pay off:
-  - The ST1 mask width check counted the header from the wrong bit (as
-    upstream claslib does) and read ngnss from the satellite mask, so a mask
-    that fits in the first frame waited for the second one. A frame lost
-    right after it cost the whole mask. It is now decoded from the first
-    frame.
+  - The ST1 mask width check counted the header from the wrong bit and read
+    ngnss from the satellite mask, and for a GNSS with a cell mask it read
+    the satellite and signal masks again from the cell-mask bits. A mask that
+    fits in the first frame waited for the second one, and a frame lost right
+    after it cost the whole mask. It is now decoded from the first frame.
+    Upstream claslib has had the same check since 0.8.0 (0.7.5 was right).
   - When the code bias was lost in two consecutive frames, no code bias older
     than the phase bias was left and the correction set failed before the
     #406 substitution of the next one was reached; it now substitutes in that

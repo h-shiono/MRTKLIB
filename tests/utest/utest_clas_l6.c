@@ -16,6 +16,8 @@
  *         (9) a mask that fits in frame 1 decodes before frame 2 arrives, so a
  *             frame lost after it does not cost the mask (upstream read ngnss
  *             from the satellite mask and waited for more bits)
+ *        (10) the same with cell masks (upstream read the satellite and signal
+ *             masks again from the cell-mask bits)
  *
  * #392  ST2-ST12 carry only the hourly epoch; the full TOW is tow0 + hourly and
  *       tow0 advances only on ST1. When the ST1 at the top of the hour is lost:
@@ -73,6 +75,32 @@ static void put_mask(int tow) {
     put(32, 0);
     put(16, 0x8000); /* sigmask: one signal */
     put(1, 0);       /* no cell mask */
+}
+
+/* GPS 20, Galileo 20, QZSS 7 satellites x 16 signals, every cell set: 984 bits */
+static void put_dense_mask(int tow) {
+    static const struct {
+        int id, nsat;
+        uint32_t hi, lo;
+    } g[3] = {{0, 20, 0xFF, 0xFFF00000}, {2, 20, 0xFF, 0xFFF00000}, {4, 7, 0xFE, 0}};
+    int k, j;
+    put(12, 4073);
+    put(4, 1);
+    put(20, (uint32_t)tow);
+    put(4, 0);
+    put(1, 1);
+    put(4, IOD);
+    put(4, 3);
+    for (k = 0; k < 3; k++) {
+        put(4, (uint32_t)g[k].id);
+        put(8, g[k].hi);
+        put(32, g[k].lo);
+        put(16, 0xFFFF);
+        put(1, 1); /* cell mask follows */
+        for (j = 0; j < g[k].nsat; j++) {
+            put(16, 0xFFFF);
+        }
+    }
 }
 
 static void put_clock(int hourly) {
@@ -245,6 +273,23 @@ static void test_continuity(void) {
               "(9) live frame: mask decoded from frame 1 alone");
         input_live(ctx, live_sf1_after_gap, 505144.0);
         CHECK(ctx->cssr[0].iod == 2 && ctx->l6buf[0].nbit == -1, "(9) live frame: mask kept, rest discarded after gap");
+    }
+    free_ctx(ctx);
+
+    /* a mask with cell masks, the rest of frame 1 all ones: the satellite and
+     * signal masks must be read inside each GNSS block, not from the cell-mask
+     * bits after it, or the length check runs past frame 1 */
+    ctx = new_ctx();
+    {
+        int week;
+        sb_reset();
+        put_dense_mask(7170);
+        while (sbn < 1695) {
+            put(1, 1);
+        }
+        input_frame(ctx, 0, 100.0);
+        CHECK(time2gpst(ctx->l6buf[0].time, &week) == 7170.0 && ctx->cssr[0].iod == IOD,
+              "(10) mask with cell masks decoded from frame 1 alone");
     }
     free_ctx(ctx);
 }

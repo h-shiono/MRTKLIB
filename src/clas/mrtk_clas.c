@@ -1531,9 +1531,9 @@ static int check_bit_width_mask(clas_l6buf_t* l6, cssr_t* cssr, int i0) {
 
     /* i0 is past the 16-bit message number and subtype: the rest of the header
      * (epoch 20, interval 4, multiple 1, IOD 4, ngnss 4) is 33 bits. Upstream
-     * counts 49 bits from here and reads ngnss from the satellite mask, so a
-     * mask that fits in the first frame waited for the second one, and a frame
-     * lost in between cost the whole mask (#363). */
+     * (claslib 0.8.0 on) counts 49 bits from here and reads ngnss from the
+     * satellite mask, so a mask that fits in the first frame waited for the
+     * second one, and a frame lost in between cost the whole mask (#363). */
     if (i0 + 33 > l6->havebit) {
         return 0;
     }
@@ -1543,15 +1543,15 @@ static int check_bit_width_mask(clas_l6buf_t* l6, cssr_t* cssr, int i0) {
         if (i0 + 61 > l6->havebit) {
             return 0;
         }
+        /* GNSS ID 4, satellite mask 40, signal mask 16, cell-mask flag 1; only
+         * the cell mask follows the block (upstream read both masks again
+         * from the bits after it) */
+        svmask = (uint64_t)getbitu(l6->buff, i0 + 4, 8) << 32;
+        svmask |= (uint64_t)getbitu(l6->buff, i0 + 12, 32);
+        sigmask = getbitu(l6->buff, i0 + 44, 16);
         cmi = getbitu(l6->buff, i0 + 60, 1);
         i0 += 61;
         if (cmi) {
-            svmask = (uint64_t)getbitu(l6->buff, i0, 8) << 32;
-            i0 += 8;
-            svmask |= (uint64_t)getbitu(l6->buff, i0, 32);
-            i0 += 32;
-            sigmask = getbitu(l6->buff, i0, 16);
-            i0 += 16;
             nsat = svmask2nsat(svmask);
             nsig = sigmask2nsig(sigmask);
             if (i0 + nsat * nsig > l6->havebit) {
