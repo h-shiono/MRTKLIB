@@ -70,10 +70,7 @@ extern int clas_ctx_init(clas_ctx_t* ctx) {
     for (i = 0; i < CLAS_CH_NUM; i++) {
         clas_bank_init(ctx, i);
     }
-    /* initialize tow_ref to -1 (unset) */
-    for (i = 0; i < CSSR_REF_MAX; i++) {
-        ctx->tow_ref[i] = -1;
-    }
+    clas_set_week_ref(ctx, 0);
     for (i = 0; i < CLAS_CH_NUM; i++) {
         ctx->l6facility[i] = -1;
         ctx->l6delivery[i] = -1;
@@ -268,20 +265,12 @@ static float decode_cssr_quality_trop(int a, int b) {
     return (float)((1.0 + b * 0.25) * pow(3.0, a) - 1.0);
 }
 
-static void check_week_ref(clas_ctx_t* ctx, clas_l6buf_t* l6, int tow, int i) {
-    if (ctx->obs_ref[i].time != 0 || ctx->obs_ref[i].sec != 0.0) {
-        gtime_t time = gpst2time(ctx->week_ref[i], tow);
-        if (timediff(time, ctx->obs_ref[i]) > (86400 * 7 / 2)) {
-            trace(NULL, 2, "check_week_ref(): adjust ref week, subtype=%2d, week=%d\n", i + 1, --ctx->week_ref[i]);
-        }
-        ctx->obs_ref[i].time = 0;
-        ctx->obs_ref[i].sec = 0.0;
-    }
+static void check_week_ref(clas_l6buf_t* l6, int tow, int i) {
     if (l6->tow0 != -1) {
-        if (ctx->tow_ref[i] != -1 && ((tow - ctx->tow_ref[i]) < (-86400 * 7 / 2))) {
-            ++ctx->week_ref[i];
+        if (l6->tow_ref[i] != -1 && ((tow - l6->tow_ref[i]) < (-86400 * 7 / 2))) {
+            trace(NULL, 2, "check_week_ref(): week rollover, subtype=%2d, week=%d\n", i + 1, ++l6->week_ref[i]);
         }
-        ctx->tow_ref[i] = tow;
+        l6->tow_ref[i] = tow;
     }
 }
 
@@ -1903,8 +1892,8 @@ static int decode_cssr_mask(clas_ctx_t* ctx, int ch, clas_l6buf_t* l6, int i0) {
 
     i = decode_cssr_head(ctx, l6, cssr, &sync, &tow, &iod, &udint, &ngnss, i0);
     l6->tow0 = (int)(floor(tow / 3600.0) * 3600.0);
-    check_week_ref(ctx, l6, tow, CSSR_REF_MASK);
-    l6->time = gpst2time(ctx->week_ref[CSSR_REF_MASK], tow);
+    check_week_ref(l6, tow, CSSR_REF_MASK);
+    l6->time = gpst2time(l6->week_ref[CSSR_REF_MASK], tow);
 
     for (j = 0; j < CSSR_MAX_GNSS; j++) {
         cssr->cmi[j] = 0;
@@ -1965,8 +1954,8 @@ static int decode_cssr_oc(clas_ctx_t* ctx, int ch, clas_l6buf_t* l6, int i0) {
 
     i = decode_cssr_head(ctx, l6, cssr, &sync, &tow, &iod, &udint, &ngnss, i0);
     nsat = svmask2sat(cssr->svmask, sat);
-    check_week_ref(ctx, l6, tow, CSSR_REF_ORBIT);
-    l6->time = gpst2time(ctx->week_ref[CSSR_REF_ORBIT], tow);
+    check_week_ref(l6, tow, CSSR_REF_ORBIT);
+    l6->time = gpst2time(l6->week_ref[CSSR_REF_ORBIT], tow);
 
     trace(NULL, 2, "decode_cssr_oc: facility=%d tow=%d iod=%d\n", ctx->l6facility[ch] + 1, tow, iod);
     if (cssr->l6facility != ctx->l6facility[ch]) {
@@ -2034,8 +2023,8 @@ static int decode_cssr_cc(clas_ctx_t* ctx, int ch, clas_l6buf_t* l6, int i0) {
     clas_dec_ssr_t* ssr;
 
     i = decode_cssr_head(ctx, l6, cssr, &sync, &tow, &iod, &udint, &ngnss, i0);
-    check_week_ref(ctx, l6, tow, CSSR_REF_CLOCK);
-    l6->time = gpst2time(ctx->week_ref[CSSR_REF_CLOCK], tow);
+    check_week_ref(l6, tow, CSSR_REF_CLOCK);
+    l6->time = gpst2time(l6->week_ref[CSSR_REF_CLOCK], tow);
     nsat = svmask2sat(cssr->svmask, sat);
 
     trace(NULL, 2, "decode_cssr_cc: facility=%d tow=%d iod=%d\n", ctx->l6facility[ch] + 1, tow, iod);
@@ -2087,8 +2076,8 @@ static int decode_cssr_cb(clas_ctx_t* ctx, int ch, clas_l6buf_t* l6, int i0) {
     clas_dec_ssr_t* ssr;
 
     i = decode_cssr_head(ctx, l6, cssr, &sync, &tow, &iod, &udint, &ngnss, i0);
-    check_week_ref(ctx, l6, tow, CSSR_REF_CBIAS);
-    l6->time = gpst2time(ctx->week_ref[CSSR_REF_CBIAS], tow);
+    check_week_ref(l6, tow, CSSR_REF_CBIAS);
+    l6->time = gpst2time(l6->week_ref[CSSR_REF_CBIAS], tow);
     nsat = svmask2sat(cssr->svmask, sat);
     sigmask2sig(nsat, sat, cssr->sigmask, cssr->cellmask, nsig, sig);
 
@@ -2149,8 +2138,8 @@ static int decode_cssr_pb(clas_ctx_t* ctx, int ch, clas_l6buf_t* l6, int i0) {
     clas_dec_ssr_t* ssr;
 
     i = decode_cssr_head(ctx, l6, cssr, &sync, &tow, &iod, &udint, &ngnss, i0);
-    check_week_ref(ctx, l6, tow, CSSR_REF_PBIAS);
-    l6->time = gpst2time(ctx->week_ref[CSSR_REF_PBIAS], tow);
+    check_week_ref(l6, tow, CSSR_REF_PBIAS);
+    l6->time = gpst2time(l6->week_ref[CSSR_REF_PBIAS], tow);
     nsat = svmask2sat(cssr->svmask, sat);
     sigmask2sig(nsat, sat, cssr->sigmask, cssr->cellmask, nsig, sig);
 
@@ -2214,8 +2203,8 @@ static int decode_cssr_bias(clas_ctx_t* ctx, int ch, clas_l6buf_t* l6, int i0) {
     clas_dec_ssr_t* ssr;
 
     i = decode_cssr_head(ctx, l6, cssr, &sync, &tow, &iod, &udint, &ngnss, i0);
-    check_week_ref(ctx, l6, tow, CSSR_REF_BIAS);
-    l6->time = gpst2time(ctx->week_ref[CSSR_REF_BIAS], tow);
+    check_week_ref(l6, tow, CSSR_REF_BIAS);
+    l6->time = gpst2time(l6->week_ref[CSSR_REF_BIAS], tow);
 
     cbflag = getbitu(l6->buff, i, 1);
     i++;
@@ -2331,8 +2320,8 @@ static int decode_cssr_ura(clas_ctx_t* ctx, int ch, clas_l6buf_t* l6, int i0) {
     clas_dec_ssr_t* ssr;
 
     i = decode_cssr_head(ctx, l6, cssr, &sync, &tow, &iod, &udint, &ngnss, i0);
-    check_week_ref(ctx, l6, tow, CSSR_REF_URA);
-    l6->time = gpst2time(ctx->week_ref[CSSR_REF_URA], tow);
+    check_week_ref(l6, tow, CSSR_REF_URA);
+    l6->time = gpst2time(l6->week_ref[CSSR_REF_URA], tow);
     nsat = svmask2sat(cssr->svmask, sat);
 
     trace(NULL, 3, "decode_cssr_ura: facility=%d tow=%d iod=%d\n", ctx->l6facility[ch] + 1, tow, iod);
@@ -2369,8 +2358,8 @@ static int decode_cssr_stec(clas_ctx_t* ctx, int ch, clas_l6buf_t* l6, int i0) {
     ssrn_t* ssrn;
 
     i = decode_cssr_head(ctx, l6, cssr, &sync, &tow, &iod, &udint, &ngnss, i0);
-    check_week_ref(ctx, l6, tow, CSSR_REF_STEC);
-    l6->time = gpst2time(ctx->week_ref[CSSR_REF_STEC], tow);
+    check_week_ref(l6, tow, CSSR_REF_STEC);
+    l6->time = gpst2time(l6->week_ref[CSSR_REF_STEC], tow);
     nsat = svmask2sat(cssr->svmask, sat);
     cssr->opt.stec_type = getbitu(l6->buff, i, 2);
     i += 2;
@@ -2443,8 +2432,8 @@ static int decode_cssr_grid(clas_ctx_t* ctx, int ch, clas_l6buf_t* l6, int i0) {
     ssrn_t* ssrn;
 
     i = decode_cssr_head(ctx, l6, cssr, &sync, &tow, &iod, &udint, &ngnss, i0);
-    check_week_ref(ctx, l6, tow, CSSR_REF_GRID);
-    l6->time = gpst2time(ctx->week_ref[CSSR_REF_GRID], tow);
+    check_week_ref(l6, tow, CSSR_REF_GRID);
+    l6->time = gpst2time(l6->week_ref[CSSR_REF_GRID], tow);
     nsat = svmask2sat(cssr->svmask, sat);
 
     trop_type = getbitu(l6->buff, i, 2);
@@ -2588,8 +2577,8 @@ static int decode_cssr_combo(clas_ctx_t* ctx, int ch, clas_l6buf_t* l6, int i0) 
     clas_dec_ssr_t* ssr;
 
     i = decode_cssr_head(ctx, l6, cssr, &sync, &tow, &iod, &udint, &ngnss, i0);
-    check_week_ref(ctx, l6, tow, CSSR_REF_COMBINED);
-    l6->time = gpst2time(ctx->week_ref[CSSR_REF_COMBINED], tow);
+    check_week_ref(l6, tow, CSSR_REF_COMBINED);
+    l6->time = gpst2time(l6->week_ref[CSSR_REF_COMBINED], tow);
     nsat = svmask2sat(cssr->svmask, sat);
 
     flg_orbit = getbitu(l6->buff, i, 1);
@@ -2708,8 +2697,8 @@ static int decode_cssr_atmos(clas_ctx_t* ctx, int ch, clas_l6buf_t* l6, int i0) 
     static const int dstec_sz_t[4] = {4, 4, 5, 7};
 
     i = decode_cssr_head(ctx, l6, cssr, &sync, &tow, &iod, &udint, &ngnss, i0);
-    check_week_ref(ctx, l6, tow, CSSR_REF_ATMOSPHERIC);
-    l6->time = gpst2time(ctx->week_ref[CSSR_REF_ATMOSPHERIC], tow);
+    check_week_ref(l6, tow, CSSR_REF_ATMOSPHERIC);
+    l6->time = gpst2time(l6->week_ref[CSSR_REF_ATMOSPHERIC], tow);
     nsat = svmask2sat(cssr->svmask, sat);
 
     trop_avail = getbitu(l6->buff, i, 2);
@@ -3236,6 +3225,18 @@ extern int clas_input_cssr(clas_ctx_t* ctx, uint8_t data, int ch) {
 extern int clas_decode_msg(clas_ctx_t* ctx, int ch) { return decode_qzs_msg(ctx, ch); }
 
 extern void clas_set_l6tag(clas_ctx_t* ctx, int ch, double tag) { ctx->l6buf[ch].ftag = tag; }
+
+extern void clas_set_week_ref(clas_ctx_t* ctx, int week) {
+    int ch, i;
+    for (ch = 0; ch < CLAS_CH_NUM; ch++) {
+        for (i = 0; i < CSSR_REF_MAX; i++) {
+            ctx->l6buf[ch].week_ref[i] = week;
+            ctx->l6buf[ch].tow_ref[i] = -1;
+        }
+    }
+}
+
+extern int clas_week_ref_isset(const clas_ctx_t* ctx) { return ctx->l6buf[0].week_ref[0] != 0; }
 
 extern int clas_input_cssrf(clas_ctx_t* ctx, FILE* fp, int ch) {
     int i, data, ret;

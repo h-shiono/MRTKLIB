@@ -570,6 +570,11 @@ typedef struct {
     double ftag;             /* receiver time tag of the frame being received (s, 0: none) */
     double ftag_last;        /* receiver time tag of the last frame (s, 0: none) */
     int tow_last;            /* last decoded epoch time-of-week */
+    /* GPS week reference per subtype, per channel as upstream keeps it per L6
+     * stream: a channel resuming with a stale tow0 must not move the other
+     * channel's week (#436) */
+    int week_ref[CSSR_REF_MAX];
+    int tow_ref[CSSR_REF_MAX]; /* last TOW per subtype (-1: unset) */
 } clas_l6buf_t;
 
 /*============================================================================
@@ -608,11 +613,6 @@ typedef struct {
 
     /* L6 frame buffer per channel */
     clas_l6buf_t l6buf[CLAS_CH_NUM];
-
-    /* Week references per subtype (for week rollover handling) */
-    int week_ref[CSSR_REF_MAX];
-    gtime_t obs_ref[CSSR_REF_MAX]; /* observation ref time per subtype */
-    int tow_ref[CSSR_REF_MAX];     /* last TOW per subtype (-1=unset) */
 
     /* L6 delivery/facility per channel */
     int l6delivery[CLAS_CH_NUM];
@@ -661,6 +661,24 @@ int clas_ctx_init(clas_ctx_t* ctx);
  * @param[in,out] ctx  CLAS context to free
  */
 void clas_ctx_free(clas_ctx_t* ctx);
+
+/**
+ * @brief Set the GPS week reference of the CSSR decoder on every channel.
+ *
+ * CSSR messages carry the time of week only. Call this once with the week of
+ * the data before the first message is decoded; each channel then follows the
+ * week rollovers of its own message sequence.
+ * @param[in,out] ctx   CLAS context
+ * @param[in]     week  GPS week (0: unset)
+ */
+void clas_set_week_ref(clas_ctx_t* ctx, int week);
+
+/**
+ * @brief Test whether the GPS week reference has been set.
+ * @param[in] ctx  CLAS context
+ * @return 1 if clas_set_week_ref() set a week, 0 otherwise
+ */
+int clas_week_ref_isset(const clas_ctx_t* ctx);
 
 /*============================================================================
  * CSSR Decoder Functions
