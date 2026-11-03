@@ -557,6 +557,31 @@ void clas_osr_compensatedisp(clas_corr_t* corr, const int* index, const obsd_t* 
  * clas_osr_corrmeas -- Ionosphere/Bias/Antenna Corrected Measurements
  *===========================================================================*/
 
+extern int clas_osr_bias_smode(const clas_corr_t* corr, int sat, uint8_t code, const double* pbias) {
+    int j, smode, exact = 0, sys = satsys(sat, NULL), nsig = count_nsig(corr->smode[sat - 1]);
+
+    /* pass 1: exact code match (preferred) */
+    for (j = 0; j < nsig && j < MAXCODE; j++) {
+        smode = corr->smode[sat - 1][j];
+        if (smode != 0 && code == smode) {
+            exact = smode;
+            break;
+        }
+    }
+    if (exact && pbias[exact - 1] != CLAS_CSSRINVALID) {
+        return exact;
+    }
+    /* pass 2: same-frequency fallback (e.g. L2X<->L2W, L1X<->L1C), also taken
+     * when the exact match carries an invalid phase bias */
+    for (j = 0; j < nsig && j < MAXCODE; j++) {
+        smode = corr->smode[sat - 1][j];
+        if (smode != 0 && code_on_same_freq(sys, code, smode)) {
+            return smode;
+        }
+    }
+    return exact;
+}
+
 /**
  * @brief Assemble per-satellite ionosphere/bias/antenna corrections.
  *
@@ -586,7 +611,7 @@ int clas_osr_corrmeas(const obsd_t* obs, nav_t* nav, const double* pos, const do
     double vari, dant[NFREQPCV] = {0}, compL[NFREQ + NEXOBS] = {0};
     double stec = 0.0, rate, t5, t6;
     double pbias[NFREQ + NEXOBS] = {0}, cbias[NFREQ + NEXOBS] = {0};
-    int i, j, sat, smode, nsig, nf = opt->nf;
+    int i, sat, smode, nf = opt->nf;
     int flag;
     double dt;
 
@@ -611,31 +636,10 @@ int clas_osr_corrmeas(const obsd_t* obs, nav_t* nav, const double* pos, const do
     }
 
     /* decode phase and code bias (non-VRS / CSSR path) */
-    nsig = count_nsig(corr->smode[sat - 1]);
-    {
-        int sys = satsys(sat, NULL);
-        for (i = 0; i < nf; i++) {
-            /* pass 1: exact code match (preferred) */
-            for (j = 0; j < nsig && j < MAXCODE; j++) {
-                smode = corr->smode[sat - 1][j];
-                if (smode == 0) continue;
-                if (obs->code[i] == smode) {
-                    pbias[i] = nav->ssr_ch[ch][sat - 1].pbias[smode - 1];
-                    cbias[i] = nav->ssr_ch[ch][sat - 1].cbias[smode - 1];
-                    break;
-                }
-            }
-            if (pbias[i] != CLAS_CSSRINVALID) continue;
-            /* pass 2: same-frequency fallback (e.g. L2X↔L2W, L1X↔L1C) */
-            for (j = 0; j < nsig && j < MAXCODE; j++) {
-                smode = corr->smode[sat - 1][j];
-                if (smode == 0) continue;
-                if (code_on_same_freq(sys, obs->code[i], smode)) {
-                    pbias[i] = nav->ssr_ch[ch][sat - 1].pbias[smode - 1];
-                    cbias[i] = nav->ssr_ch[ch][sat - 1].cbias[smode - 1];
-                    break;
-                }
-            }
+    for (i = 0; i < nf; i++) {
+        if ((smode = clas_osr_bias_smode(corr, sat, obs->code[i], nav->ssr_ch[ch][sat - 1].pbias)) != 0) {
+            pbias[i] = nav->ssr_ch[ch][sat - 1].pbias[smode - 1];
+            cbias[i] = nav->ssr_ch[ch][sat - 1].cbias[smode - 1];
         }
     }
 

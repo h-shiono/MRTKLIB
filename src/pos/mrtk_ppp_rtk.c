@@ -193,6 +193,10 @@ static struct {
     /* flag: floatcnt just triggered a mass reset (suppress pbreset) */
     int floatcnt_reset;
 
+    /* last CLAS phase discontinuity indicators seen per L6 channel, satellite
+     * and frequency (CLAS_DISC_* packing; 0 = none seen yet) */
+    uint8_t discnt[SSR_CH_NUM][MAXSAT][NFREQ];
+
     int initialized;
 } prtk_ctx;
 
@@ -1562,6 +1566,69 @@ static void set_init_pb(rtk_t* rtk, const nav_t* nav, const obsd_t* obs, int n, 
     free(bias);
 }
 
+/* return 1 if an indicator present in both prev and cur differs, and merge
+ * the indicators present in cur into prev */
+static int update_discnt(uint8_t* prev, uint8_t cur) {
+    static const int shift[2] = {CLAS_DISC_NET, CLAS_DISC_GLB};
+    int k, changed = 0;
+    uint8_t mask;
+
+    for (k = 0; k < 2; k++) {
+        if (!((cur >> shift[k]) & CLAS_DISC_VALID)) {
+            continue;
+        }
+        if (((*prev >> shift[k]) & CLAS_DISC_VALID) && (((*prev ^ cur) >> shift[k]) & 3)) {
+            changed = 1;
+        }
+        mask = (uint8_t)((CLAS_DISC_VALID | 3) << shift[k]);
+        *prev = (uint8_t)((*prev & ~mask) | (cur & mask));
+    }
+    return changed;
+}
+
+/**
+ * @brief Reset phase biases whose CLAS phase discontinuity indicator changed.
+ *
+ * CLAS advances the indicator of a signal when its phase bias steps (e.g. a
+ * re-fixed network ambiguity). The ambiguity state estimated against the old
+ * bias is then off by the step, so the satellite would be rejected as an
+ * outlier; re-initialize it instead (#393). Must run after the corrections of
+ * this epoch were applied to nav->ssr_ch[].
+ *
+ * @param[in,out] rtk  RTK control struct
+ * @param[in]     nav  Navigation data (ssr_ch[] of this epoch)
+ * @param[in]     clas CLAS context (current[] correction snapshots)
+ * @param[in]     obs  Observation data
+ * @param[in]     n    Number of observations
+ * @param[in]     nch  Number of L6 channels in use
+ */
+static void detslp_discnt(rtk_t* rtk, const nav_t* nav, const clas_ctx_t* clas, const obsd_t* obs, int n, int nch) {
+    const ssr_t* ssr;
+    int i, f, ch, sat, smode, reset, nf = NF_RTK(&rtk->opt);
+
+    for (i = 0; i < n && i < MAXOBS; i++) {
+        sat = obs[i].sat;
+        for (f = 0; f < nf && f < NFREQ; f++) {
+            for (ch = reset = 0; ch < nch; ch++) {
+                ssr = &nav->ssr_ch[ch][sat - 1];
+                if (!ssr->t0[5].time ||
+                    !(smode = clas_osr_bias_smode(&clas->current[ch], sat, obs[i].code[f], ssr->pbias))) {
+                    continue;
+                }
+                if (update_discnt(&prtk_ctx.discnt[ch][sat - 1][f], (uint8_t)ssr->discnt[smode - 1])) {
+                    trace(NULL, 2, "phase discontinuity: %s sat=%2d L%d ch=%d\n", time_str(obs[0].time, 0), sat, f + 1,
+                          ch);
+                    reset = 1;
+                }
+            }
+            if (reset) {
+                set_init_pb(rtk, nav, obs, n, f, sat);
+                rtk->ssat[sat - 1].slip[f] |= 1;
+            }
+        }
+    }
+}
+
 /**
  * @brief Compute DD residuals and measurement matrix, merging L6 channels.
  *
@@ -2746,6 +2813,9 @@ extern void ppp_rtk_pos(rtk_t* rtk, const obsd_t* obs, int n, nav_t* nav) {
         check_clas_facility(nav, clas, grid, opt);
         refid = clas_nmea_refid(clas, nch);
     }
+
+    /* phase bias steps signalled by CLAS */
+    detslp_discnt(rtk, nav, clas, obs, n, nch);
 
     trace(NULL, 4, "x(0)=\n");
     tracemat(NULL, 4, rtk->x, 1, NR_RTK(opt), 13, 4);

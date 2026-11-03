@@ -728,6 +728,7 @@ static void set_cssr_bank_cbias(clas_ctx_t* ctx, int ch, gtime_t time, int netwo
         memset(bias->smode, 0, sizeof(bias->smode));
         memset(bias->sflag, 0, sizeof(bias->sflag));
         memset(bias->prn, 0, sizeof(bias->prn));
+        memset(bias->discnt, 0, sizeof(bias->discnt));
     }
     /* clear previous code bias entries */
     if (bias->bflag & 0x01) {
@@ -778,6 +779,7 @@ static void set_cssr_bank_pbias(clas_ctx_t* ctx, int ch, gtime_t time, int netwo
         memset(bias->smode, 0, sizeof(bias->smode));
         memset(bias->sflag, 0, sizeof(bias->sflag));
         memset(bias->prn, 0, sizeof(bias->prn));
+        memset(bias->discnt, 0, sizeof(bias->discnt));
     }
     /* clear previous phase bias entries */
     if (bias->bflag & 0x02) {
@@ -786,6 +788,7 @@ static void set_cssr_bank_pbias(clas_ctx_t* ctx, int ch, gtime_t time, int netwo
                 if (bias->sflag[i][j] & 0x02) {
                     bias->sflag[i][j] ^= 0x02;
                     bias->pbias[i][j] = 0.0;
+                    bias->discnt[i][j] = 0;
                 }
             }
         }
@@ -803,6 +806,8 @@ static void set_cssr_bank_pbias(clas_ctx_t* ctx, int ch, gtime_t time, int netwo
         for (j = 0; j < MAXCODE; j++) {
             if (ssr->smode[j] != 0 && (pos = get_bias_save_point(bias, bias->prn[i], ssr->smode[j])) != -1) {
                 bias->pbias[i][pos] = ssr->pbias[ssr->smode[j] - 1];
+                bias->discnt[i][pos] = (uint8_t)(((ssr->discnt[ssr->smode[j] - 1] & 3) | CLAS_DISC_VALID)
+                                                 << (network ? CLAS_DISC_NET : CLAS_DISC_GLB));
                 bias->smode[i][pos] = ssr->smode[j];
                 bias->sflag[i][pos] |= 0x02;
             }
@@ -965,6 +970,7 @@ static clas_bias_bank_t* add_base_value_to_pbias(clas_bank_ctrl_t* bank, clas_bi
                     } else {
                         pbias.pbias[i][pos] = CSSR_INVALID_VALUE;
                     }
+                    pbias.discnt[i][pos] |= temp->discnt[i][j];
                     pbias.smode[i][pos] = temp->smode[i][j];
                     pbias.sflag[i][pos] |= 0x02;
                 }
@@ -1137,6 +1143,7 @@ extern int clas_bank_get_close(const clas_ctx_t* ctx, gtime_t time, int network,
                 if (pbias->smode[i][j] != 0 && (pbias->sflag[i][j] & 0x02) &&
                     (k = corr_bias_slot(corr->smode[i], pbias->smode[i][j])) >= 0) {
                     corr->pbias[i][k] = pbias->pbias[i][j];
+                    corr->discnt[i][k] = pbias->discnt[i][j];
                     corr->smode[i][k] = pbias->smode[i][j];
                 }
             }
@@ -1460,6 +1467,7 @@ extern void clas_update_global(nav_t* nav, const clas_corr_t* corr, int ch) {
                     j = corr->smode[sat - 1][i] - 1;
                     ssr->cbias[j] = (float)corr->cbias[sat - 1][i];
                     ssr->pbias[j] = corr->pbias[sat - 1][i];
+                    ssr->discnt[j] = corr->discnt[sat - 1][i];
                 }
             }
             ssr->udi[4] = corr->udi[sat - 1][4];

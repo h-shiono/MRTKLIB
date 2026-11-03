@@ -38,6 +38,10 @@
  *        (12) ch0's next clock after that stays in week+1 (a shared reference
  *             was moved to week+2: clocks a week ahead, never found again)
  *        (13) ch1 reaches week+1 with its own next ST1
+ *
+ * #393  The phase discontinuity indicators of ST5 (global) and ST6 (network)
+ *       phase biases reach the bias bank, each in its own CLAS_DISC_* field:
+ *        (14) ST5 indicator 2 and ST6 network 7 indicator 1 for G01 L1C
  *-----------------------------------------------------------------------------*/
 #include <stdio.h>
 #include <stdlib.h>
@@ -125,6 +129,35 @@ static void put_clock(int hourly) {
     put(1, 0); /* last message: decode returns 10 */
     put(4, IOD);
     put(15, 100); /* G01 clock */
+}
+
+/* ST5 global phase bias of the G01 signal */
+static void put_pbias(int hourly, int disc) {
+    put(12, 4073);
+    put(4, 5);
+    put(12, (uint32_t)hourly);
+    put(4, 0);
+    put(1, 1);
+    put(4, IOD);
+    put(15, 100);
+    put(2, (uint32_t)disc);
+}
+
+/* ST6 network phase bias (no code bias) of the G01 signal */
+static void put_net_pbias(int hourly, int network, int disc) {
+    put(12, 4073);
+    put(4, 6);
+    put(12, (uint32_t)hourly);
+    put(4, 0);
+    put(1, 0); /* last message */
+    put(4, IOD);
+    put(1, 0); /* code bias */
+    put(1, 1); /* phase bias */
+    put(1, 1); /* network bias */
+    put(5, (uint32_t)network);
+    put(1, 1); /* network SV mask: G01 */
+    put(15, 200);
+    put(2, (uint32_t)disc);
 }
 
 /* QZS PRN 195 L6D frame, GPST week 2441 TOW 505141 */
@@ -441,12 +474,51 @@ static void test_week_ref_channels(void) {
     free_ctx(ctx);
 }
 
+/* phase discontinuity indicator of G01 L1C in the bias bank set (tow, network), -1 if none */
+static int bank_discnt(const clas_ctx_t* ctx, int tow, int network) {
+    int i, j;
+    for (i = 0; i < CLAS_BANK_NUM; i++) {
+        const clas_bias_bank_t* b = &ctx->bank[0]->BiasBank[i];
+        if (!b->use || b->network != network || (int)time2gpst(b->time, NULL) != tow) {
+            continue;
+        }
+        for (j = 0; j < MAXCODE; j++) {
+            if (b->smode[0][j] == CODE_L1C && (b->sflag[0][j] & 0x02)) {
+                return b->discnt[0][j];
+            }
+        }
+    }
+    return -1;
+}
+
+static void test_discnt(void) {
+    clas_ctx_t* ctx = new_ctx();
+    char msg[128];
+    int glb, net;
+
+    sb_reset();
+    put_mask(7170);
+    put_pbias(3570, 2);
+    put_net_pbias(3570, 7, 1);
+    input_subframe(ctx, NULL);
+
+    glb = bank_discnt(ctx, 7170, 0);
+    net = bank_discnt(ctx, 7170, 7);
+    sprintf(msg, "(14) ST5/ST6 indicators in the bias bank: global 0x%02X, network 0x%02X (got 0x%02X, 0x%02X)",
+            (2 | CLAS_DISC_VALID) << CLAS_DISC_GLB, (1 | CLAS_DISC_VALID) << CLAS_DISC_NET, glb & 0xFF, net & 0xFF);
+    CHECK(glb == (2 | CLAS_DISC_VALID) << CLAS_DISC_GLB && net == (1 | CLAS_DISC_VALID) << CLAS_DISC_NET, msg);
+    free_ctx(ctx);
+}
+
 int main(void) {
-    printf("utest_clas_l6: L6 subframe continuity (#363), hourly epoch wrap (#392), per-channel week (#436)\n");
+    printf(
+        "utest_clas_l6: L6 subframe continuity (#363), hourly epoch wrap (#392), per-channel week (#436), phase "
+        "discontinuity (#393)\n");
     test_continuity();
     test_hour_wrap();
     test_l6prn();
     test_week_ref_channels();
+    test_discnt();
     printf("%s (%d failure%s)\n", fails ? "FAILED" : "PASSED", fails, fails == 1 ? "" : "s");
     return fails ? 1 : 0;
 }
