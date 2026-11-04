@@ -20,7 +20,7 @@
 #
 # The test:
 #   1. Patches the conf file (output path, playback speed, overrides)
-#   2. Runs rtkrcv with file stream replay
+#   2. Runs rtkrcv with file stream replay, in a fresh working directory
 #   3. Waits until output stabilises (10s idle timeout, 300s max)
 #   4. Checks that data line count >= 90% of reference
 set -euo pipefail
@@ -58,6 +58,12 @@ fi
 CONF=$(mktemp /tmp/rtkrcv_conf_XXXXXX)
 mv "$CONF" "$CONF.${CONF_EXT}"
 CONF="$CONF.${CONF_EXT}"
+# mrtk run reads and rewrites rtkrcv.nav in its working directory
+# (apps/rtkrcv/rtkrcv.c), so a shared cwd hands one replay's broadcast
+# ephemerides to the next and lets concurrent replays race on the file.  Each
+# run gets an empty cwd; the conf paths are all ./tests/..., served by a link.
+RUNDIR=$(mktemp -d /tmp/rtkrcv_cwd_XXXXXX)
+ln -s "$PROJECT_ROOT/tests" "$RUNDIR/tests"
 RTKRCV_PID=""
 
 cleanup() {
@@ -74,6 +80,7 @@ cleanup() {
         wait "$RTKRCV_PID" 2>/dev/null || true
     fi
     rm -f "$OUTPUT" "$CONF" "${CONF}.bak"
+    rm -rf "$RUNDIR"
 }
 trap cleanup EXIT
 
@@ -113,7 +120,7 @@ else
 fi
 
 # Start rtkrcv in background
-"$RTKRCV_BIN" "$RTKRCV_SUBCMD" -s -p "$RTKRCV_PORT" -o "$CONF" &
+(cd "$RUNDIR" && exec "$RTKRCV_BIN" "$RTKRCV_SUBCMD" -s -p "$RTKRCV_PORT" -o "$CONF") &
 RTKRCV_PID=$!
 echo "  rtkrcv PID: $RTKRCV_PID"
 

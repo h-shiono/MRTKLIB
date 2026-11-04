@@ -145,6 +145,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   post-processing is byte-identical. API change: `decode_qzss_l6frame()`
   gains a `tag` argument, new `set_mcssr_ftag()`, `mdcl6d_t` gains `ftag`.
 
+### Tests and test data
+
+- RT replay tests run each `mrtk run` in its own empty working directory.
+  `mrtk run` reads `rtkrcv.nav` from its working directory at start and
+  rewrites it at exit, and all replays shared the source tree as working
+  directory, so each one started with the broadcast ephemerides the previous
+  one had left (the test order decided the initial navigation data), and
+  concurrent replays would race on the file.
+
 ## [v0.7.14] - 2026-11-02
 
 **CLAS real-time robustness: L6 frame losses and the two-channel merge.**
