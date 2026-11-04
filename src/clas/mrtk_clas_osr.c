@@ -1569,25 +1569,17 @@ int clas_ssr2osr(rtk_t* rtk, obsd_t* obs, int n, nav_t* nav, clas_osrd_t* osr, i
     corr = &clas->current[ch];
     ecef2pos(rtk->x, pos);
 
-    if ((nn = clas_get_grid_index(clas, pos, grid, 0, obs[0].time)) <= 0) {
-        trace(NULL, 2, "clas_ssr2osr: no valid grid\n");
-        free(rs);
-        free(dts);
-        free(var);
-        free(e);
-        free(azel);
-        rtk->sol.stat = SOLQ_SINGLE;
-        return 0;
-    }
-
     /* re-fetch corrections closest to observation time each epoch,
      * falling back to L6 buffer time if obs lookup fails. current[ch] is a
      * bank snapshot, not a live decode target, so a fetch gated on network
-     * change would keep serving the first correction set until it ages out. */
-    if (grid->network > 0) {
-        if (clas_bank_get_close(clas, obs[0].time, grid->network, ch, corr) != 0 &&
-            clas_bank_get_close(clas, clas->l6buf[ch].time, grid->network, ch, corr) != 0) {
-            trace(NULL, 2, "clas_ssr2osr: bank lookup failed\n");
+     * change would keep serving the first correction set until it ages out.
+     * When there is no grid or no complete correction set (e.g. a subframe
+     * discarded after a lost frame, #363), bridge with the last good set for
+     * up to 180 s, as upstream cssr2osr.c and PPP-RTK do (#442). Only ch 0 is
+     * fetched here, so the backup is single-channel (l6mrg = 0). */
+    if ((nn = clas_get_grid_index(clas, pos, grid, 0, obs[0].time)) <= 0) {
+        if (!clas_backup_valid(clas, obs[0].time, 0)) {
+            trace(NULL, 2, "clas_ssr2osr: no valid grid\n");
             free(rs);
             free(dts);
             free(var);
@@ -1596,7 +1588,27 @@ int clas_ssr2osr(rtk_t* rtk, obsd_t* obs, int n, nav_t* nav, clas_osrd_t* osr, i
             rtk->sol.stat = SOLQ_SINGLE;
             return 0;
         }
-        clas_check_grid_status(clas, corr, ch);
+        trace(NULL, 3, "clas_ssr2osr: no valid grid, use backup\n");
+        clas_restore_backup(clas, obs[0].time, grid, 0);
+    } else if (grid->network > 0) {
+        if (clas_bank_get_close(clas, obs[0].time, grid->network, ch, corr) != 0 &&
+            clas_bank_get_close(clas, clas->l6buf[ch].time, grid->network, ch, corr) != 0) {
+            if (!clas_backup_valid(clas, obs[0].time, 0)) {
+                trace(NULL, 2, "clas_ssr2osr: bank lookup failed\n");
+                free(rs);
+                free(dts);
+                free(var);
+                free(e);
+                free(azel);
+                rtk->sol.stat = SOLQ_SINGLE;
+                return 0;
+            }
+            trace(NULL, 3, "clas_ssr2osr: bank lookup failed, use backup\n");
+            clas_restore_backup(clas, obs[0].time, grid, 0);
+        } else {
+            clas_check_grid_status(clas, corr, ch);
+            clas_backup_current(clas, grid, 0);
+        }
     }
     clas_update_global(nav, corr, ch);
     clas_update_local(nav, corr, ch);

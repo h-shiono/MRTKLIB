@@ -803,7 +803,8 @@ int clas_nmea_refid(const clas_ctx_t* ctx, int nch);
  * @brief Save/restore the latest usable CSSR snapshot for short correction gaps.
  *
  * Mirrors claslib's BackupCSSR/BackupGrid path. The backup is considered valid
- * while its latest global correction time is within 180 s of the observation.
+ * while its latest global correction time is within 180 s of the observation
+ * and it comes from the facility the bank currently holds.
  */
 int clas_backup_valid(const clas_ctx_t* ctx, gtime_t obstime, int l6mrg);
 void clas_backup_current(clas_ctx_t* ctx, const clas_grid_t* grid, int l6mrg);

@@ -145,6 +145,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   post-processing is byte-identical. API change: `decode_qzss_l6frame()`
   gains a `tag` argument, new `set_mcssr_ftag()`, `mdcl6d_t` gains `ftag`.
 
+### cssr2rtcm3
+
+- **OSR corrections bridge a lost correction set with the last good one**
+  ([#442](https://github.com/h-shiono/MRTKLIB/issues/442)). `clas_ssr2osr()`
+  (`mrtk cssr2rtcm3`, `mrtk ssr2obs`, `mrtk ssr2osr`) produced no output
+  for an epoch whose grid or complete correction set was not available. This
+  happens, for example, when the #363 frame-time check discards a subframe
+  after a lost L6 frame. Upstream claslib `cssr2osr.c` and the MRTKLIB
+  PPP-RTK engine (v0.7.4) instead use the last good set (BackupCSSR) for up
+  to 180 s; the OSR path had lost this in the port. It now does the same,
+  single-channel. On `clas_l6gap-v1` the converter outputs 1164 instead of
+  1067 epochs, and its five outages of 13–33 s are gone. Through
+  `mrtk post` VRS-RTK with the rover observations of the same capture, Fix
+  goes 96.5 % → 99.5 % (Float 35 → 5 epochs), 2D95 stays 3.0 cm, no misfix,
+  and the former outage windows stay Fix (maximum horizontal error
+  20.2 → 2.8 cm). On a 4.9-day replay of a live SBF capture, converter output
+  availability goes 92.30 % → 95.82 % (outages 2809 → 1408, 32266 → 17779 s;
+  sub-10 s outages 807 → 36). claslib
+  `ssr2obs` / `ssr2osr` regression outputs are byte-identical (the path does
+  not fire on the bundled data). A backup is no longer restored after an L6
+  facility change: the change clears the correction bank but not the backup,
+  so the previous facility's orbit, bias and atmosphere were combined with a
+  clock from the new facility's bank. This also applies to PPP-RTK, which
+  shares the backup (upstream claslib has the same gap). New test
+  `cssr2rtcm3_clas_l6gap` gates the converter on `clas_l6gap-v1` (at least
+  1150 epochs, no interval over 15 s; 1067 epochs and 33 s without the
+  bridge).
+
+- **Raw L6 input removed; `mrtk cssr2rtcm3` takes SBF only**
+  ([#442](https://github.com/h-shiono/MRTKLIB/issues/442)). Breaking CLI
+  change: `-in` must be `sbf://URI`, and `-2ch` / `-pos` are gone. These now
+  exit with an error that points to `sbf://`. The raw L6 path (`-in` without
+  `sbf://`, a second L6 stream on `-2ch`, position from NMEA GGA on `-pos`)
+  had emitted no RTCM3 since v0.6.5: output is triggered by the SBF PVT block
+  (95d58ca), which that path never received. On the `clas_l6gap-v1` window
+  the SBF input gives 1067 epochs and the same L6D frames as a raw `.l6d`
+  file give none. A raw L6 byte stream also carries no frame time, so the
+  #363 check for a frame lost inside a subframe (`clas_set_l6tag()`) cannot
+  work on it. `-nav` is optional (bootstrap before the SBF navigation data
+  arrives), and the CSSR week reference always comes from the first SBF time
+  stamp. SBF output on `clas_l6gap-v1` is byte-identical.
+
 ### Tests and test data
 
 - RT replay tests run each `mrtk run` in its own empty working directory.
