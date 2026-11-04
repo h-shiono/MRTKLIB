@@ -1253,6 +1253,16 @@ static gtime_t backup_cssr_time(const clas_corr_t* corr) {
     return time;
 }
 
+/* A facility change clears the bank but not the backup, so a backup from the
+ * previous facility would be restored and then given a clock from the new
+ * facility's bank (#442). */
+static int backup_usable(const clas_ctx_t* ctx, int ch, gtime_t time) {
+    const clas_bank_ctrl_t* bank = ctx->bank[ch];
+
+    return bank && bank->use && ctx->backup[ch].use && ctx->backup[ch].facility == bank->Facility &&
+           timediff(time, backup_cssr_time(&ctx->backup[ch])) <= 180.0;
+}
+
 extern int clas_backup_valid(const clas_ctx_t* ctx, gtime_t obstime, int l6mrg) {
     int ch, nch = l6mrg ? SSR_CH_NUM : 1;
 
@@ -1263,7 +1273,7 @@ extern int clas_backup_valid(const clas_ctx_t* ctx, gtime_t obstime, int l6mrg) 
         nch = CLAS_CH_NUM;
     }
     for (ch = 0; ch < nch; ch++) {
-        if (ctx->backup[ch].use && timediff(obstime, backup_cssr_time(&ctx->backup[ch])) <= 180.0) {
+        if (backup_usable(ctx, ch, obstime)) {
             return 1;
         }
     }
@@ -1306,10 +1316,7 @@ extern void clas_restore_backup(clas_ctx_t* ctx, gtime_t time, clas_grid_t* grid
     }
     for (ch = 0; ch < nch; ch++) {
         clas_bank_ctrl_t* bank = ctx->bank[ch];
-        if (!bank || !bank->use || !ctx->backup[ch].use) {
-            continue;
-        }
-        if (timediff(time, backup_cssr_time(&ctx->backup[ch])) > 180.0) {
+        if (!backup_usable(ctx, ch, time)) {
             continue;
         }
         memcpy(&ctx->current[ch], &ctx->backup[ch], sizeof(clas_corr_t));

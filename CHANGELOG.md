@@ -164,7 +164,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   availability goes 92.30 % → 95.82 % (outages 2809 → 1408, 32266 → 17779 s;
   sub-10 s outages 807 → 36). claslib
   `ssr2obs` / `ssr2osr` regression outputs are byte-identical (the path does
-  not fire on the bundled data).
+  not fire on the bundled data). A backup is no longer restored after an L6
+  facility change: the change clears the correction bank but not the backup,
+  so the previous facility's orbit, bias and atmosphere were combined with a
+  clock from the new facility's bank. This also applies to PPP-RTK, which
+  shares the backup (upstream claslib has the same gap).
 
 - **Raw L6 input removed; `mrtk cssr2rtcm3` takes SBF only**
   ([#442](https://github.com/h-shiono/MRTKLIB/issues/442)). Breaking CLI
