@@ -1621,10 +1621,18 @@ static void detslp_discnt(rtk_t* rtk, const nav_t* nav, const clas_ctx_t* clas, 
                     reset = 1;
                 }
             }
-            if (reset) {
-                set_init_pb(rtk, nav, obs, n, f, sat);
-                rtk->ssat[sat - 1].slip[f] |= 1;
+            if (!reset) {
+                continue;
             }
+            if (obs[i].L[f] != 0.0 && obs[i].P[f] != 0.0 && sat_lambda(sat, f, nav) != 0.0) {
+                set_init_pb(rtk, nav, obs, n, f, sat);
+            } else {
+                /* the indicator is consumed now: clear the state so that
+                 * udbias re-initializes it once the measurement returns */
+                initx(rtk, 0.0, 0.0, IB_RTK(sat, f, &rtk->opt));
+                rtk->ssat[sat - 1].lock[f] = -rtk->opt.minlock;
+            }
+            rtk->ssat[sat - 1].slip[f] |= 1;
         }
     }
 }
