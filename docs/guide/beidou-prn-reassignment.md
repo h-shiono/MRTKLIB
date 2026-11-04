@@ -83,19 +83,23 @@ A satellite classified as the wrong generation either loses its observations
 
 ## What changed in April 2026
 
-PRN assignments from the
+The China Satellite Navigation Office announced the new assignment on
+2026-03-20:
+[北斗卫星导航系统星座状态变化表](http://www.beidou.gov.cn/yw/xwzx/202603/t20260320_29266.html)
+(BDS constellation status change table). The table is an image on that page.
+The dates below come from the
 [IGS satellite metadata](https://files.igs.org/pub/station/general/igs_satellite_metadata.snx)
 (see also the IGSMAIL notices, e.g.
-[IGSMAIL-8693](https://lists.igs.org/pipermail/igsmail/2026/008689.html)):
+[IGSMAIL-8693](https://lists.igs.org/pipermail/igsmail/2026/008689.html)).
 
-Dates are the day the new satellite took the PRN; "was" gives its previous PRN.
+Dates are the day the new satellite took the PRN. "was" gives its previous PRN.
 
 | PRN | Before 2026-04-10 | Since | Now |
 |:----|:------------------|:------|:----|
-| C01 | BDS-2 GEO | 04-20 | BDS-3 GEO (was C59) |
-| C02 | BDS-2 GEO | 04-17 | BDS-3 GEO (was C60) |
-| C03 | BDS-2 GEO | 04-18 | BDS-3 GEO (was C61) |
-| C04 | BDS-2 GEO | 04-21 | BDS-3 GEO (was C62) |
+| C01 | BDS-2 GEO | 04-20 | BDS-3 GEO-4, 140° E (was C59, C62 before 03-31) |
+| C02 | BDS-2 GEO | 04-17 | BDS-3 GEO-2, 80° E (was C60) |
+| C03 | BDS-2 GEO | 04-18 | BDS-3 GEO-3, 110.5° E (was C61) |
+| C04 | BDS-2 GEO | 04-21 | BDS-3 GEO-1, 160° E (was C62, C59 before 03-31) |
 | C05 | BDS-2 GEO | 04-21 | unused |
 | C06 | BDS-2 IGSO | 04-10 | **BDS-3 IGSO** (was C38) |
 | C07 | BDS-2 IGSO | 04-17 | **BDS-3 IGSO** (was C39) |
@@ -107,12 +111,24 @@ Dates are the day the new satellite took the PRN; "was" gives its previous PRN.
 | C13 | BDS-2 IGSO | 04-19 | BDS-3 MEO (was C49) |
 | C14 | BDS-2 MEO | 04-19 | BDS-3 MEO (was C50) |
 | C16 | BDS-2 IGSO | 04-18 | unused (moved to C10) |
+| C31 | BDS-3 (SVN C101) | 04-20 | BDS-3 MEO (MEO-22, was C44) |
 | C38 | BDS-3 IGSO | 04-20 | BDS-3 **MEO** (was C43) |
 | C39 | BDS-3 IGSO | 04-19 | BDS-3 **MEO** (was C45) |
-| C40 | BDS-3 IGSO | 04-21 | BDS-3 **MEO** (was C46) |
+| C40 | BDS-3 IGSO | 04-21 | BDS-3 **MEO** (MEO-24, was C46; B3I / B2a / B2b only) |
+
+C05 and C15–C18 are reserved in the official table. C43–C50 and C59–C62 are no
+longer used.
 
 The IGSO change is why `bds3_igso_sats` exists. Before April the BDS-3 IGSO
 satellites were C38–C40; today they are C06–C08, and C38–C40 are MEO.
+
+!!! note "GEO PRNs before the move: C59 and C62 swapped on 2026-03-31"
+    On 2026-03-31 (DOY 090), before the reassignment, GEO-1 and GEO-4 exchanged
+    PRNs. GEO-1 (now C04) was C59 until then and C62 afterwards. GEO-4 (now C01)
+    was C62 until then and C59 afterwards. The official table gives the PRNs
+    from before this swap. When you match GEO data by PRN, for example BDS
+    PPP-B2b corrections, which only the GEOs broadcast, use the PRN that was
+    valid on the data date.
 
 !!! note "Checking your own data"
     B1C (`C1P`/`C1D`/`C1X`) and B2a (`C5P`/`C5D`/`C5X`) are BDS-3-only signals. A
