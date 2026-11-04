@@ -168,7 +168,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   facility change: the change clears the correction bank but not the backup,
   so the previous facility's orbit, bias and atmosphere were combined with a
   clock from the new facility's bank. This also applies to PPP-RTK, which
-  shares the backup (upstream claslib has the same gap).
+  shares the backup (upstream claslib has the same gap). New test
+  `cssr2rtcm3_clas_l6gap` gates the converter on `clas_l6gap-v1` (at least
+  1150 epochs, no interval over 15 s; 1067 epochs and 33 s without the
+  bridge).
 
 - **Raw L6 input removed; `mrtk cssr2rtcm3` takes SBF only**
   ([#442](https://github.com/h-shiono/MRTKLIB/issues/442)). Breaking CLI

@@ -2828,6 +2828,19 @@ endfunction()
 _clas_l6gap_rt(nomerge 52018 0)
 _clas_l6gap_rt(merge   52019 1)
 
+# cssr2rtcm3 on the same window: the OSR path bridges a discarded subframe
+# with the last good correction set (BackupCSSR, #442). Measured 2026-11-05:
+# 1164 epochs, longest interval 11 s; without the bridge 1067 epochs and 33 s.
+add_test(NAME cssr2rtcm3_clas_l6gap
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/scripts/tests/check_cssr2rtcm3_gap.py
+        $<TARGET_FILE:mrtk> conf/cssr2rtcm3.toml ${_L6GAPDATA}/G5P3296u_20m.sbf
+        ${CMAKE_BINARY_DIR}/out_cssr2rtcm3_clas_l6gap.rtcm3 --min-epochs 1150 --max-gap 15
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+set_tests_properties(cssr2rtcm3_clas_l6gap PROPERTIES
+    FIXTURES_REQUIRED "clas_l6gap_data;claslib_data"
+    TIMEOUT           120
+    LABELS            "regression;claslib;vrs")
+
 add_test(NAME clas_l6gap_checker_selftest
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/scripts/tests/check_clas_l6gap.py --selftest)
 set_tests_properties(clas_l6gap_checker_selftest PROPERTIES LABELS "utest;claslib")
