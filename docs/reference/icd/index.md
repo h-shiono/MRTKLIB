@@ -5,25 +5,48 @@ guides that MRTKLIB's decoders and positioning engines were implemented against.
 
 !!! warning "The PDFs themselves are **not** in this repository"
     These documents are copyrighted by their respective issuers and are
-    **kept local only** — `docs/reference/icd/*.pdf` is gitignored and never
+    **kept local only** — `docs/reference/icd/**/*.pdf` is gitignored and never
     pushed to the remote. This page (the provenance catalog) **is** tracked.
     To obtain a copy, download the official version from the **Source** column.
-    Drop the PDF into `docs/reference/icd/` and it will be available locally
-    without being committed.
+    Drop the PDF into the issuer subdirectory of `docs/reference/icd/` shown in
+    the **File** column and it will be available locally without being committed.
 
 ## Public open ICDs
 
 These are freely published by their issuing authority and can be downloaded by
-anyone from the official source.
+anyone from the official source. Drafts are listed with their distribution
+channel instead of a URL; replace them with the released issue once published.
 
 | File | Document / Issue | Issuer | Source | Used by |
 |------|------------------|--------|--------|---------|
-| `is-qzss-l6-008.pdf` | IS-QZSS-L6-008 (QZSS L6 signal / CLAS · MADOCA-PPP) | Cabinet Office (QZSS) | <https://qzss.go.jp/en/technical/ps-is-qzss/ps-is-qzss.html> | `src/clas/`, `src/madoca/`, L6 frame decoders |
-| `is-qzss-mdc-004.pdf` | IS-QZSS-MDC-004 (QZSS MADOCA-PPP / CLAS) | Cabinet Office (QZSS) | <https://qzss.go.jp/en/technical/ps-is-qzss/ps-is-qzss.html> | `src/madoca/`, `src/clas/`, `src/pos/mrtk_ppp.c` |
-| `sli-mdc-ion-draft.pdf` | MADOCA L6D wide-area ionosphere (draft) | Cabinet Office (QZSS) | QZSS technical documents (draft distribution) | `src/madoca/mrtk_madoca_iono.c`, `src/pos/mrtk_ppp_iono.c` |
-| `IS-GPS-200N.pdf` | IS-GPS-200N — Navstar GPS Space Segment / Navigation User Interfaces | US SMC / GPS Directorate | <https://www.gps.gov/technical/icwg/> | `src/data/` (ephemeris), RINEX nav |
-| `Galileo_HAS_SIS_ICD_v1.0.pdf` | Galileo HAS SIS ICD, Issue 1.0 (May 2022) | EUSPA / European Union | <https://www.gsc-europa.eu/electronic-library/programme-reference-documents> | `src/has/` |
-| `BeiDou_PPP_B2b_ICD_v1.0.pdf` | BDS-SIS-ICD-PPP-B2b-1.0 | CSNO (China Satellite Navigation Office) | <http://en.beidou.gov.cn/SYSTEMS/ICD/> | `src/pos/` (PPP-B2b) |
+| `qzss/is-qzss-pnt-006.pdf` | IS-QZSS-PNT-006 (QZSS satellite positioning, navigation and timing service) | Cabinet Office (QZSS) | <https://qzss.go.jp/en/technical/ps-is-qzss/ps-is-qzss.html> | `src/data/` (QZSS ephemeris), RINEX nav |
+| `qzss/is-qzss-l6-008.pdf` | IS-QZSS-L6-008 (QZSS L6 signal / CLAS · MADOCA-PPP) | Cabinet Office (QZSS) | <https://qzss.go.jp/en/technical/ps-is-qzss/ps-is-qzss.html> | `src/clas/`, `src/madoca/`, L6 frame decoders |
+| `qzss/is-qzss-mdc-004.pdf` | IS-QZSS-MDC-004 (QZSS MADOCA-PPP / CLAS) | Cabinet Office (QZSS) | <https://qzss.go.jp/en/technical/ps-is-qzss/ps-is-qzss.html> | `src/madoca/`, `src/clas/`, `src/pos/mrtk_ppp.c` |
+| `qzss/is-qzss-mdc-005_draft.pdf` | IS-QZSS-MDC-005 (QZSS MADOCA-PPP; draft) — BDS-3 GNSS ID 3 signal table | Cabinet Office (QZSS) | QZSS technical documents (draft distribution) | `src/madoca/mrtk_madoca.c` (v0.7.13, #401) |
+| `qzss/is-qzss-sas-002_draft.pdf` | IS-QZSS-SAS-002 (QZSS signal authentication service; draft) | Cabinet Office (QZSS) | QZSS technical documents (draft distribution) | `include/mrtklib/mrtk_l6.h` (L6 vendor ID, cites SAS-001); QZNMA / CMA (#353, planned) |
+| `qzss/sli-mdc-ion-draft.pdf` | MADOCA L6D wide-area ionosphere (draft) | Cabinet Office (QZSS) | QZSS technical documents (draft distribution) | `src/madoca/mrtk_madoca_iono.c`, `src/pos/mrtk_ppp_iono.c` |
+| `gps/IS-GPS-200N.pdf` | IS-GPS-200N — Navstar GPS Space Segment / Navigation User Interfaces | US SMC / GPS Directorate | <https://www.gps.gov/technical/icwg/> | `src/data/` (ephemeris), RINEX nav |
+| `galileo/Galileo_HAS_SIS_ICD_v1.0.pdf` | Galileo HAS SIS ICD, Issue 1.0 (May 2022) | EUSPA / European Union | <https://www.gsc-europa.eu/electronic-library/programme-reference-documents> | `src/has/` |
+| `galileo/Galileo-OSNMA-SIS-ICD_in_force.pdf` | Galileo OSNMA SIS ICD (edition in force) | EUSPA / European Union | <https://www.gsc-europa.eu/electronic-library/programme-reference-documents> | not yet used (navigation message authentication, planned) |
+| `galileo/Galileo-OSNMA-RX-Guidelines_in_force.pdf` | Galileo OSNMA Receiver Guidelines (edition in force) | EUSPA / European Union | <https://www.gsc-europa.eu/electronic-library/programme-reference-documents> | not yet used (navigation message authentication, planned) |
+| `beidou/BeiDou_PPP_B2b_ICD_v1.0.pdf` | BDS-SIS-ICD-PPP-B2b-1.0 | CSNO (China Satellite Navigation Office) | <http://en.beidou.gov.cn/SYSTEMS/ICD/> | `src/pos/` (PPP-B2b) |
+| `southpan/SBAS-STN-0001_04_SouthPAN-SDD-for-SIS-OS.pdf` | SBAS-STN-0001 Issue 04 — SouthPAN Service Definition Document for the SIS Open Service | Geoscience Australia / Toitū Te Whenua LINZ | <https://www.ga.gov.au/scientific-topics/positioning-navigation/positioning-australia/about-the-program/southpan> | SouthPAN PVS (under evaluation) |
+| `southpan/SBAS-STN-0002_02_SouthPAN-SDD-for-DAS.pdf` | SBAS-STN-0002 Issue 02 — SouthPAN Service Definition Document for the Data Access Service | Geoscience Australia / Toitū Te Whenua LINZ | <https://www.ga.gov.au/scientific-topics/positioning-navigation/positioning-australia/about-the-program/southpan> | SouthPAN PVS (under evaluation) |
+
+## Data-format specifications
+
+Freely published exchange-format specifications held locally.
+
+| File | Document / Version | Issuer | Source | Used by |
+|------|--------------------|--------|--------|---------|
+| `rinex/rinex301.pdf` | RINEX 3.01 | IGS RINEX WG / RTCM-SC104 | <https://igs.org/wg/rinex/> | `src/data/mrtk_rinex.c` |
+| `rinex/rinex302.pdf` | RINEX 3.02 | IGS RINEX WG / RTCM-SC104 | <https://igs.org/wg/rinex/> | `src/data/mrtk_rinex.c` |
+| `rinex/rinex303.pdf` | RINEX 3.03 | IGS RINEX WG / RTCM-SC104 | <https://igs.org/wg/rinex/> | `src/data/mrtk_rinex.c` |
+| `rinex/rinex304.pdf` | RINEX 3.04 | IGS RINEX WG / RTCM-SC104 | <https://igs.org/wg/rinex/> | `src/data/mrtk_rinex.c` |
+| `rinex/rinex305.pdf` | RINEX 3.05 | IGS RINEX WG / RTCM-SC104 | <https://igs.org/wg/rinex/> | `src/data/mrtk_rinex.c` |
+| `rinex/rinex_4.00.pdf` | RINEX 4.00 (incl. CNAV / CNV2 navigation records) | IGS RINEX WG / RTCM-SC104 | <https://igs.org/wg/rinex/> | `src/data/mrtk_rinex.c` |
+| `rinex/rinex_4.01.pdf` | RINEX 4.01 | IGS RINEX WG / RTCM-SC104 | <https://igs.org/wg/rinex/> | `src/data/mrtk_rinex.c` |
+| `rinex/rinex_4.02.pdf` | RINEX 4.02 | IGS RINEX WG / RTCM-SC104 | <https://igs.org/wg/rinex/> | `src/data/mrtk_rinex.c` |
 
 ## Vendor firmware reference guides
 
@@ -34,8 +57,8 @@ anyone from the official source.
 
 | File | Document / Version | Vendor | Source | Used by |
 |------|--------------------|--------|--------|---------|
-| `mosaic-CLAS Firmware v4.15.1 Reference Guide.pdf` | mosaic-CLAS Reference Guide, fw v4.15.1 | Septentrio | Septentrio account (login required) | `docs/hardware/`, two-receiver QZSS L6 (v0.7.1) |
-| `mosaic-G5 Firmware v1.1.0 Reference Guide.pdf` | mosaic-G5 Reference Guide, fw v1.1.0 | Septentrio | Septentrio account (login required) | `docs/hardware/cssr2rtcm3-mosaic-g5.md` |
+| `septentrio/mosaic-CLAS Firmware v4.15.1 Reference Guide.pdf` | mosaic-CLAS Reference Guide, fw v4.15.1 | Septentrio | Septentrio account (login required) | `docs/hardware/`, two-receiver QZSS L6 (v0.7.1) |
+| `septentrio/mosaic-G5 Firmware v1.1.0 Reference Guide.pdf` | mosaic-G5 Reference Guide, fw v1.1.0 | Septentrio | Septentrio account (login required) | `docs/hardware/cssr2rtcm3-mosaic-g5.md` |
 
 ## Cited by upstream RTKLIB (link-only, not collected)
 
@@ -54,8 +77,8 @@ holding a local copy). Documents already held above are cross-referenced.
 | Document (cited editions) | Issuer | Source | Cited by |
 |---------------------------|--------|--------|----------|
 | IS-GPS-200 — Navstar GPS Space Segment / Navigation User Interfaces (200D 2006, 200K 2019; **200N → held, see above**) | US SMC / GPS Directorate | <https://www.gps.gov/technical/icwg/> | `ephemeris.c`, `rinex.c`, `rcvraw.c` |
-| IS-QZSS — QZSS Navigation Service IS (v1.1 2009, v1.5 2014, PNT IS-QZSS-PN-003 2018) | Cabinet Office (QZSS) | <https://qzss.go.jp/en/technical/ps-is-qzss/ps-is-qzss.html> | `ephemeris.c`, `rcvraw.c`, `qzslex.c`, `sbas.c` |
-| IS-QZSS-MDC — MADOCA-PPP / CLAS (MDC-002 2023; **MDC-004 2025 → held, see above**) 🎯 | Cabinet Office (QZSS) | <https://qzss.go.jp/en/technical/ps-is-qzss/ps-is-qzss.html> | `mdciono.c`, `mdccssr.c`, `ppp.c`, `ppp_ar.c` |
+| IS-QZSS — QZSS Navigation Service IS (v1.1 2009, v1.5 2014, PNT IS-QZSS-PN-003 2018; **PNT-006 → held, see above**) | Cabinet Office (QZSS) | <https://qzss.go.jp/en/technical/ps-is-qzss/ps-is-qzss.html> | `ephemeris.c`, `rcvraw.c`, `qzslex.c`, `sbas.c` |
+| IS-QZSS-MDC — MADOCA-PPP / CLAS (MDC-002 2023; **MDC-004 2025, MDC-005 draft → held, see above**) 🎯 | Cabinet Office (QZSS) | <https://qzss.go.jp/en/technical/ps-is-qzss/ps-is-qzss.html> | `mdciono.c`, `mdccssr.c`, `ppp.c`, `ppp_ar.c` |
 | European GNSS (Galileo) Open Service SIS ICD (Issue 1 2010, 1.2 2015, 1.3 2016) | EUSPA / EU | <https://www.gsc-europa.eu/electronic-library/programme-reference-documents> | `ephemeris.c` |
 | BeiDou (BDS) SIS ICD — Open Service Signal B1I (v1.0 2012, v3.0 2019) | CSNO | <http://en.beidou.gov.cn/SYSTEMS/ICD/> | `rtkcmn.c`, `ephemeris.c`, `rcvraw.c` |
 | GLONASS ICD — Navigational radiosignal in bands L1, L2 (v5.1 2008) | Russian Space Systems | <https://glonass-iac.ru/en/documents/> | `ephemeris.c`, `rcvraw.c` |
@@ -71,7 +94,7 @@ holding a local copy). Documents already held above are cross-referenced.
 
 | Document (cited editions) | Issuer | Source | Cited by |
 |---------------------------|--------|--------|----------|
-| RINEX — Receiver Independent Exchange Format (2.11, 2.12, 3.00–3.05, 4.00, 4.01) | IGS RINEX WG / RTCM-SC104 | <https://igs.org/wg/rinex/> | `rinex.c` |
+| RINEX — Receiver Independent Exchange Format (2.11, 2.12, 3.00–3.05, 4.00, 4.01; **3.01–3.05, 4.00–4.02 → held, see above**) | IGS RINEX WG / RTCM-SC104 | <https://igs.org/wg/rinex/> | `rinex.c` |
 | RINEX clock-information extensions (1998, 3.02 2010, 3.04 2017) | IGS / J.Ray, W.Gurtner | <https://files.igs.org/pub/data/format/> | `rinex.c` |
 
 ### RTCM standards & SSR
@@ -111,7 +134,9 @@ holding a local copy). Documents already held above are cross-referenced.
 
 ## Adding a new specification
 
-1. Download the official PDF and place it in `docs/reference/icd/`.
-2. Add a row to the appropriate table above: filename, full title + issue/version,
+1. Download the official PDF and place it in the issuer subdirectory of
+   `docs/reference/icd/` (`qzss/`, `gps/`, `galileo/`, `beidou/`, `southpan/`,
+   `rinex/`, `septentrio/`; create a new one for a new issuer).
+2. Add a row to the appropriate table above: path relative to `icd/`, full title + issue/version,
    issuer, official source URL, and which MRTKLIB modules cite it.
 3. Commit **only** `index.md` — the PDF is gitignored automatically.
