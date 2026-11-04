@@ -276,8 +276,13 @@ if(DOXYGEN_FOUND)
 endif()
 
 # ── Regression tests ──────────────────────────────────────────────────────────
-# Run with: ctest --test-dir build --output-on-failure
-# Skip slow rtkrcv test: ctest --test-dir build -LE realtime
+# Run with: ctest --test-dir build --output-on-failure -j16
+# Skip the slow rtkrcv replays: ctest --test-dir build -LE realtime
+# The realtime tests replay files at x10 against the wall clock and mostly
+# sleep, so they run concurrently: each has its own console port and working
+# directory (tests/cmake/run_rtkrcv_test.sh).  Each still holds a -j slot, so
+# -j16 on 8 cores leaves room for the CPU-bound tests.  Oversubscribing (-j24
+# on 8 cores) makes rtkrcv_rt drop epochs and fail its line-count gate.
 enable_testing()
 
 # Large test datasets: release assets of h-shiono/mrtklib-data, fetched and
@@ -613,7 +618,6 @@ set_tests_properties(rtkrcv_rt PROPERTIES
     FIXTURES_REQUIRED regression_data
     TIMEOUT           300
     LABELS            "regression;realtime"
-    RESOURCE_LOCK     rtkrcv_port
 )
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -1918,7 +1922,6 @@ set_tests_properties(rtkrcv_rt_clas PROPERTIES
     FIXTURES_REQUIRED claslib_data
     TIMEOUT           600
     LABELS            "regression;claslib;realtime"
-    RESOURCE_LOCK     rtkrcv_port
 )
 
 # ── rtkrcv RT CLAS PPP-RTK dual-channel regression ────────────────────────────
@@ -1947,7 +1950,6 @@ set_tests_properties(rtkrcv_rt_clas_2ch PROPERTIES
     FIXTURES_REQUIRED claslib_data
     TIMEOUT           600
     LABELS            "regression;claslib;realtime"
-    RESOURCE_LOCK     rtkrcv_port
 )
 
 # ── rtkrcv RT CLAS PPP-RTK dual-channel merge regression (#309) ───────────────
@@ -1969,7 +1971,6 @@ set_tests_properties(rtkrcv_rt_clas_2ch_merge PROPERTIES
     FIXTURES_REQUIRED claslib_data
     TIMEOUT           600
     LABELS            "regression;claslib;realtime"
-    RESOURCE_LOCK     rtkrcv_port
 )
 
 # Sensitivity guard: the merged run must use satellites the single-channel run
@@ -2039,7 +2040,6 @@ set_tests_properties(rtkrcv_rt_clas_sf1gap PROPERTIES
     FIXTURES_REQUIRED "claslib_data;clas_sf1gap"
     TIMEOUT           400
     LABELS            "regression;claslib;realtime"
-    RESOURCE_LOCK     rtkrcv_port
 )
 add_test(NAME rtkrcv_rt_clas_sf1gap_check
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/scripts/tests/check_clas_sf1_gap.py
@@ -2668,7 +2668,6 @@ function(_handover_rt name case port rover corr overrides check_args)
         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
     set_tests_properties(rtkrcv_handover_${name} PROPERTIES
         FIXTURES_REQUIRED "handover_data;claslib_data"
-        RUN_SERIAL        TRUE
         TIMEOUT           420
         LABELS            "regression;realtime;handover;claslib")
     separate_arguments(_args UNIX_COMMAND "${check_args}")
@@ -2815,7 +2814,6 @@ function(_clas_l6gap_rt name port l6_merge)
         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
     set_tests_properties(rtkrcv_clas_l6gap_${name} PROPERTIES
         FIXTURES_REQUIRED "clas_l6gap_data;claslib_data"
-        RUN_SERIAL        TRUE
         TIMEOUT           420
         LABELS            "regression;realtime;claslib")
     add_test(NAME rtkrcv_clas_l6gap_${name}_check
