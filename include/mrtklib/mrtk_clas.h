@@ -587,6 +587,17 @@ typedef struct {
     int tow_ref[CSSR_REF_MAX]; /* last TOW per subtype (-1: unset) */
 } clas_l6buf_t;
 
+#define CLAS_L6_NPRN 16 /* L6D PRN slots for the demux health table (193..208) */
+
+/* Subframe health of one L6D PRN as seen by the real-time demux.  Only frames
+ * that passed the receiver's RS decoding reach the demux, so an RS failure and
+ * a missing frame look the same: a gap in the frame time tags. */
+typedef struct {
+    double tag; /* receiver time tag of the last frame (s, 0: none) */
+    int nframe; /* frames of the current subframe received without a gap (-1: broken) */
+    int nsfok;  /* consecutive complete subframes up to the current one */
+} clas_l6health_t;
+
 /*============================================================================
  * CLAS Context Type (NEW — replaces upstream global singletons)
  *
@@ -638,8 +649,19 @@ typedef struct {
      * source PRN (l6delivery[ch]).  The demux drops frames from any other PRN
      * to keep each channel's subframe assembly coherent, and re-locks the
      * channel to a new PRN/pattern once the active source has been silent
-     * longer than CLAS_L6_RELOCK_TIMEOUT (QZS handover recovery). */
+     * longer than CLAS_L6_RELOCK_TIMEOUT (QZS handover recovery), or has
+     * degraded (see l6sfok_time). */
     gtime_t l6lock_time[CLAS_CH_NUM];
+
+    /* Obs time when each channel's active source last delivered a complete
+     * subframe (set to the lock time on (re)lock).  A source that keeps
+     * sending frames but no complete subframe for CLAS_L6_DEGRADE_TIMEOUT is
+     * degraded: the demux then re-locks to a clean PRN (#414). */
+    gtime_t l6sfok_time[CLAS_CH_NUM];
+
+    /* Subframe health of every CLAS L6D PRN (index prn - MINPRNQZS), tracked
+     * from the frames reaching the demux, whether routed or dropped. */
+    clas_l6health_t l6health[CLAS_L6_NPRN];
 
     /* nav_t update flag (signals positioning engine to refresh) */
     int updateac;
@@ -852,6 +874,15 @@ int clas_get_correct_fac(int msgid);
  *  re-locks the channel to a newly arriving PRN/pattern (QZS handover). */
 #define CLAS_L6_RELOCK_TIMEOUT 10.0
 
+/** Seconds a channel's active source may go without a complete subframe
+ *  (while still sending frames) before the demux may re-lock the channel to
+ *  a clean PRN (#414). */
+#define CLAS_L6_DEGRADE_TIMEOUT 10.0
+
+/** Consecutive complete subframes a PRN must have delivered to take over a
+ *  degraded channel. */
+#define CLAS_L6_CLEAN_NSF 2
+
 /**
  * @brief Route one interleaved L6D frame to a CLAS channel (or drop it).
  *
@@ -860,8 +891,18 @@ int clas_get_correct_fac(int msgid);
  * QZS PRNs interleaved.  Each CLAS channel decodes one PRN's subframe sequence
  * statefully, so frames from different PRNs must NOT be mixed into the same
  * channel.  This router keeps each channel locked to a single active source
- * PRN and drops frames from any other PRN, re-locking only after the active
- * source has been silent for CLAS_L6_RELOCK_TIMEOUT seconds.
+ * PRN and drops frames from any other PRN.  It re-locks the channel when the
+ * active source has been silent for CLAS_L6_RELOCK_TIMEOUT seconds, or when
+ * the source still sends frames but has delivered no complete subframe for
+ * CLAS_L6_DEGRADE_TIMEOUT seconds while this frame's PRN has delivered
+ * CLAS_L6_CLEAN_NSF complete subframes in a row (#414).  The second re-lock
+ * happens only on the first frame of a subframe, so the channel's subframe
+ * assembly restarts cleanly on the new PRN.
+ *
+ * Subframe completeness is judged from the receiver frame time tags: a
+ * subframe is complete when its first frame and the following four arrive
+ * at most 1.5 s apart.  With @p tag = 0 (no time tag) only the silence
+ * timeout applies.
  *
  * Channels are keyed by CLAS Transmit Pattern ID (IS-QZSS-L6 §4.1.1.2): there
  * are only two patterns, so two channels suffice regardless of how many PRNs
@@ -869,14 +910,16 @@ int clas_get_correct_fac(int msgid);
  * collapses to whichever pattern is currently active; dual-channel CLAS
  * (`l6mrg!=0`) maps each pattern to its own channel for merging.
  *
- * @param[in,out] ctx    CLAS context (holds per-channel PRN/pattern/time lock)
- * @param[in]     prn    Broadcasting QZS PRN (L6 frame byte `buff[4]`)
- * @param[in]     ptn    CLAS Transmit Pattern ID, `(buff[5] & 0x06) >> 1`
+ * @param[in,out] ctx    CLAS context (holds per-channel PRN/pattern/time lock
+ *                       and the per-PRN subframe health)
+ * @param[in]     hdr    L6 header of the frame (PRN, transmit pattern ID,
+ *                       subframe indicator)
+ * @param[in]     tag    Receiver time tag of the frame (s, 0: none)
  * @param[in]     l6mrg  L6 merge mode (0:single channel, !=0:dual channel)
- * @param[in]     now    Current observation time (GPST) used for the timeout
+ * @param[in]     now    Current observation time (GPST) used for the timeouts
  * @return Channel index (0..CLAS_CH_NUM-1) to feed, or -1 to drop the frame.
  */
-int clas_route_l6frame(clas_ctx_t* ctx, int prn, int ptn, int l6mrg, gtime_t now);
+int clas_route_l6frame(clas_ctx_t* ctx, const l6_header_t* hdr, double tag, int l6mrg, gtime_t now);
 
 /*============================================================================
  * Grid Interpolation (mrtk_clas_grid.c)

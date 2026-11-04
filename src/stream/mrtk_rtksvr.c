@@ -516,7 +516,7 @@ static int decoderaw(rtksvr_t* svr, int index) {
             if (!now.time || (svr->rtcm[0].time.time && timediff(svr->rtcm[0].time, now) > 0)) {
                 now = svr->rtcm[0].time;
             }
-            ch = clas_route_l6frame(svr->clas, hdr.prn, hdr.ptn, svr->rtk.opt.l6mrg, now);
+            ch = clas_route_l6frame(svr->clas, &hdr, svr->raw[index].l6tag, svr->rtk.opt.l6mrg, now);
             if (ch < 0) {
                 continue;
             }

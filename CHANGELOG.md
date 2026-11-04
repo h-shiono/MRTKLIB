@@ -9,6 +9,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### CLAS
 
+- **Real-time L6 demux leaves a degraded PRN**
+  ([#414](https://github.com/h-shiono/MRTKLIB/issues/414)). A CLAS channel
+  stays locked to one QZS PRN and released the lock only after that PRN had
+  been silent for 10 s. A PRN that degrades at low elevation keeps sending
+  some frames while others fail RS decoding, so the lock was kept, no
+  subframe was complete, and PPP-RTK fell to Single when the corrections aged
+  out, while the other CLAS PRNs were clean. `clas_route_l6frame()` now
+  tracks the subframe completeness of every CLAS PRN from the receiver frame
+  time tags. When the locked PRN has delivered no complete subframe for more
+  than 10 s (`CLAS_L6_DEGRADE_TIMEOUT`) and another PRN has delivered two
+  complete subframes in a row (`CLAS_L6_CLEAN_NSF`), the channel moves to
+  that PRN at the first frame of its next subframe, so the subframe assembly
+  restarts cleanly. The silence timeout is unchanged, and a degraded lock is
+  kept if no other PRN is clean. RT replay of a mosaic-G5 capture
+  (2026-10-23 → 10-28, network 7, `l6_merge = 0`) with the lock started on
+  the PRN that degrades: at 2026-10-26 20:47 UTC the 47 Single epochs
+  (correction age up to 83 s) are gone, and the solution stays Fix (age ≤ 28 s).
+  Nine more windows set up the same way (lock forced at the start onto the
+  PRN 194 or 196 that degrades later): Single epochs 1022 → 611, misfixes
+  247 → 168, no window worse. The setting-satellite handovers also relock
+  earlier, without waiting 10 s of silence. The full 4.9-day replay keeps its
+  fix rate (93.74 % → 93.78 %); Single epochs 7312 → 7254, Fix→Single
+  events 866 → 872, misfixes 1840 (unchanged). The demux now relocks at four
+  handovers of a setting satellite during its degradation (30–75 s of lost
+  corrections before). Of the +6 Fix→Single events, +4 are in days whose lock
+  sequence is identical in both builds (RT replay timing); +2 are on
+  2026-10-24, when the new build moved from a degraded 199 to 194, which
+  later lost single frames that 196 / 199 did not. The candidate is the first
+  qualifying PRN, not the best one. API change: the function takes
+  the L6 header and the frame time tag (`const l6_header_t*`, `double tag`)
+  instead of the PRN and pattern. ABI change: `clas_ctx_t` gains
+  `l6sfok_time[]` and `l6health[]`.
 - **VRS-RTK partial AR no longer writes `rtk->ssat[-1]`**
   ([#412](https://github.com/h-shiono/MRTKLIB/issues/412)). When no trial
   exclusion gave a ratio, the partial-AR loop in `mrtk_vrs.c` cleared
