@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### CLAS
 
+- **Partial AR restores a satellite as it was before the trial exclusion**
+  ([#413](https://github.com/h-shiono/MRTKLIB/issues/413)). Both CLAS
+  engines try excluding one satellite at a time; after a failed trial they
+  set every frequency of it valid, so a frequency that was invalid before the
+  trial (one is allowed per candidate) became valid for the rest of the epoch.
+  The pre-trial `vsat[]` is now saved and restored. This happens often
+  (claslib regressions: 0–985 times per PPP-RTK run, 66–197 per VRS run), but
+  every claslib PPP-RTK / VRS NMEA output and the six PPC CLAS runs are
+  byte-identical; only the per-satellite valid flags in the `.stat` output
+  change. Upstream claslib 0.9.0 has the same behaviour.
 - **VRS-RTK partial AR no longer writes `rtk->ssat[-1]`**
   ([#412](https://github.com/h-shiono/MRTKLIB/issues/412)). When no trial
   exclusion gave a ratio, the partial-AR loop in `mrtk_vrs.c` cleared
