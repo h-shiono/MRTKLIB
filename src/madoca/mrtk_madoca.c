@@ -139,6 +139,9 @@ typedef struct {
     int tow0;                                      /* for Hourly Epoch Time 1s */
     int ep0;                                       /* for Hourly Epoch Time 1s regresses check */
     int iod;                                       /* IOD SSR */
+    double ftag;                                   /* receiver time tag of the input frame (s, 0: none) */
+    double ftag_last;                              /* receiver time tag of the last accepted frame */
+    int skip;                                      /* frames skipped until the next subframe indicator */
 } mcssr_t;
 
 mcssr_t _mcssr[SSR_CH_NUM];
@@ -769,8 +772,27 @@ extern int decode_qzss_l6emsg(rtcm_t* rtcm) {
         _mcssr[_mcssr_ch].prn_chk_cnt = 0;
     }
 
+    /* a frame lost before a frame that continues a message (RS failure or
+     * input loss) would shift the bits of the message: discard it and wait
+     * for the next subframe indicator. Every message starts with one, and
+     * QZNMA frames on the same PRN fall between messages (#363) */
+    if (_mcssr[_mcssr_ch].ftag > 0.0) {
+        double dt = _mcssr[_mcssr_ch].ftag - _mcssr[_mcssr_ch].ftag_last;
+        if (!si && _mcssr[_mcssr_ch].ftag_last > 0.0 && (dt <= 0.0 || dt > 1.5) && !_mcssr[_mcssr_ch].skip) {
+            trace(NULL, 2, "decode_qzss_l6emsg : %s,frame gap dt=%.3f s, message discarded prn=%d frame=%d\n",
+                  time_str(_mcssr[_mcssr_ch].gt, 3), dt, prn,
+                  _mcssr[_mcssr_ch].maxframe > 0 ? _mcssr[_mcssr_ch].frame : 0);
+            _mcssr[_mcssr_ch].maxframe = 0;
+            _mcssr[_mcssr_ch].skip = 1;
+        }
+        _mcssr[_mcssr_ch].ftag_last = _mcssr[_mcssr_ch].ftag;
+        _mcssr[_mcssr_ch].ftag = 0.0;
+    }
     if (si == 1) {
         _mcssr[_mcssr_ch].maxframe = 0; /* Subframe Indicator : First Data */
+        _mcssr[_mcssr_ch].skip = 0;
+    } else if (_mcssr[_mcssr_ch].skip) {
+        return 0;
     }
 
     /* frame recognition */
@@ -911,6 +933,9 @@ extern void set_mcssr_ch(int ch) {
 }
 extern int get_mcssr_ch(void) { return _mcssr_ch; }
 
+/* set receiver time tag of the next L6E frame (current channel) ------------*/
+extern void set_mcssr_ftag(double tag) { _mcssr[_mcssr_ch].ftag = tag; }
+
 /* initialize MADOCA-PPP CSSR control ----------------------------------------
  * initialize MADOCA-PPP CSSR control struct for current channel
  * args   : gtime_t *gt   I    GPST for week number determination
@@ -922,6 +947,8 @@ extern void init_mcssr(const gtime_t gt) {
     _mcssr[_mcssr_ch].prn = -1;   /* invalid value */
     _mcssr[_mcssr_ch].tow0 = -1;  /* invalid value */
     _mcssr[_mcssr_ch].frame = 0;  /* initial value */
+    _mcssr[_mcssr_ch].ftag = _mcssr[_mcssr_ch].ftag_last = 0.0;
+    _mcssr[_mcssr_ch].skip = 0;
 }
 
 /* stack QZSS L6E message ----------------------------------------------------

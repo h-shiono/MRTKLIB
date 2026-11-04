@@ -1151,7 +1151,7 @@ static int decode_qzsrawl6(raw_t* raw, rtcm_t* rtcm) {
      * or the satellite PRN: L6E PRNs time-multiplex MADOCA-PPP and QZNMA, and
      * PRN 197 carries CLAS (IS-QZSS-MDC rev 002), not MADOCA iono. Source
      * (1=L6D, 2=L6E) only decides the legacy handling of null messages. */
-    ret = decode_qzss_l6frame(rtcm, source == 1);
+    ret = decode_qzss_l6frame(rtcm, source == 1, raw->l6tag);
     if (ret == 10 || ret == 16) {
         raw->ephsat = sat; /* L6D satellite for redirect / cssr2rtcm3 filtering */
     }

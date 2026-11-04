@@ -599,6 +599,7 @@ static int decoderaw(rtksvr_t* svr, int index) {
                     }
                 }
                 if (svr->mdciono[0].time.time) { /* feed only once the week is anchored */
+                    svr->mdciono[j].ftag = svr->raw[index].l6tag;
                     for (k = 0; k < 250; k++) {
                         if (input_qzssl6d(&svr->mdciono[j], svr->rtcm[index].buff[k]) == 10 &&
                             svr->mdciono[j].re.rvalid) {
