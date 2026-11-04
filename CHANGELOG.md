@@ -137,6 +137,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### cssr2rtcm3
 
+- **OSR corrections bridge a lost correction set with the last good one**
+  ([#442](https://github.com/h-shiono/MRTKLIB/issues/442)). `clas_ssr2osr()`
+  (`mrtk cssr2rtcm3`, `mrtk ssr2obs`, `mrtk ssr2osr`) produced no output
+  for an epoch whose grid or complete correction set was not available. This
+  happens, for example, when the #363 frame-time check discards a subframe
+  after a lost L6 frame. Upstream claslib `cssr2osr.c` and the MRTKLIB
+  PPP-RTK engine (v0.7.4) instead use the last good set (BackupCSSR) for up
+  to 180 s; the OSR path had lost this in the port. It now does the same,
+  single-channel. On `clas_l6gap-v1` the converter outputs 1164 instead of
+  1067 epochs, and its five outages of 13–33 s are gone. Through
+  `mrtk post` VRS-RTK with the rover observations of the same capture, Fix
+  goes 96.5 % → 99.5 % (Float 35 → 5 epochs), 2D95 stays 3.0 cm, no misfix,
+  and the former outage windows stay Fix (maximum horizontal error
+  20.2 → 2.8 cm). On a 4.9-day replay of a live SBF capture, converter output
+  availability goes 92.30 % → 95.82 % (outages 2809 → 1408, 32266 → 17779 s;
+  sub-10 s outages 807 → 36). claslib
+  `ssr2obs` / `ssr2osr` regression outputs are byte-identical (the path does
+  not fire on the bundled data).
+
 - **Raw L6 input removed; `mrtk cssr2rtcm3` takes SBF only**
   ([#442](https://github.com/h-shiono/MRTKLIB/issues/442)). Breaking CLI
   change: `-in` must be `sbf://URI`, and `-2ch` / `-pos` are gone. These now
