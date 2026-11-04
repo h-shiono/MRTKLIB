@@ -135,6 +135,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   post-processing is byte-identical. API change: `decode_qzss_l6frame()`
   gains a `tag` argument, new `set_mcssr_ftag()`, `mdcl6d_t` gains `ftag`.
 
+### cssr2rtcm3
+
+- **Raw L6 input removed; `mrtk cssr2rtcm3` takes SBF only**
+  ([#442](https://github.com/h-shiono/MRTKLIB/issues/442)). Breaking CLI
+  change: `-in` must be `sbf://URI`, and `-2ch` / `-pos` are gone. These now
+  exit with an error that points to `sbf://`. The raw L6 path (`-in` without
+  `sbf://`, a second L6 stream on `-2ch`, position from NMEA GGA on `-pos`)
+  had emitted no RTCM3 since v0.6.5: output is triggered by the SBF PVT block
+  (95d58ca), which that path never received. On the `clas_l6gap-v1` window
+  the SBF input gives 1067 epochs and the same L6D frames as a raw `.l6d`
+  file give none. A raw L6 byte stream also carries no frame time, so the
+  #363 check for a frame lost inside a subframe (`clas_set_l6tag()`) cannot
+  work on it. `-nav` is optional (bootstrap before the SBF navigation data
+  arrives), and the CSSR week reference always comes from the first SBF time
+  stamp. SBF output on `clas_l6gap-v1` is byte-identical.
+
 ## [v0.7.14] - 2026-11-02
 
 **CLAS real-time robustness: L6 frame losses and the two-channel merge.**

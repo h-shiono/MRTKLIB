@@ -237,15 +237,15 @@ mrtk cssr2rtcm3 [options] [-nav file ...]
 | Option | Description |
 |--------|-------------|
 | `-k`, `--config FILE` | Configuration file (TOML or legacy `.conf`) |
-| `-in`, `--input URI` | L6 CSSR input stream; use `sbf://…` for single-stream SBF (auto-extracts L6D, PVT, NAV) |
-| `-2ch URI` | Second L6 input stream (channel 2) |
+| `-in`, `--input sbf://URI` | SBF input stream (required); the converter takes the L6D frames, navigation data and PVT position from it |
 | `-out`, `--output URI` | Output RTCM3 stream (e.g. `tcpsvr://:2101`) |
-| `-pos URI` | NMEA GGA input stream for rover position (optional) |
-| `-p LAT,LON,HGT` | Fixed user position (deg, m) |
-| `-nav`, `--nav FILE…` | Navigation file(s) (RINEX NAV) |
+| `-p LAT,LON,HGT` | Fixed user position (deg, m); default: the first PVT position, latched |
+| `-nav`, `--nav FILE…` | Navigation file(s) (RINEX NAV), optional bootstrap before the SBF navigation data arrives |
 | `-d`, `--trace LEVEL` | Trace level (0-5) |
 | `-t`, `--interval SEC` | Output interval in seconds (default: 1) |
 | `-h`, `--help` | Show help |
+
+The input is a Septentrio SBF stream with QZSRawL6D (4270), PVT and navigation blocks, written as `sbf://` followed by the stream URI (e.g. `sbf://serial://ttyACM0:115200`). Raw L6 byte streams (`-in` without `sbf://`, `-2ch`, `-pos`) were removed in v0.7.15: they carry no frame time, so a frame lost inside a CLAS subframe cannot be detected.
 
 **Stream URI formats:**
 

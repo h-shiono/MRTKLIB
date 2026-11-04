@@ -17,8 +17,9 @@
  * @file cssr2rtcm3.c
  * @brief Real-time QZSS CSSR (CLAS L6D) to RTCM3 MSM7 (OSR) converter.
  *
- * Receives QZSS CLAS L6D CSSR correction data via stream (serial/TCP/NTRIP/
- * file) and converts it to RTCM3 MSM7 (OSR) messages in real-time. This
+ * Receives a Septentrio SBF stream (serial/TCP/NTRIP/file) carrying QZSS CLAS
+ * L6D frames (QZSRawL6D), navigation data and PVT, and converts the CLAS CSSR
+ * corrections to RTCM3 MSM7 (OSR) messages in real-time. This
  * enables CLAS-unsupported GNSS receivers to use CLAS corrections as a
  * Virtual Reference Station (VRS) via NTRIP/TCP.
  *
@@ -26,7 +27,7 @@
  * replaced by the MRTKLIB stream API for real-time operation.
  *
  * Data flow (per epoch):
- *   1. strread(stream_in) → L6 bytes → clas_input_cssr() → CSSR decode
+ *   1. strread(stream_in) → input_sbf() → L6D frame → clas_input_cssr()
  *   2. clas_decode_msg() == 10 → epoch boundary → update corrections
  *   3. actualdist() → satellite positions + Doppler → dummy observations
  *   4. clas_ssr2osr() → OSR (VRS pseudo-observations)
@@ -641,14 +642,10 @@ static const char* usage_text[] = {"mrtk cssr2rtcm3: real-time CSSR (CLAS L6D) t
                                    "",
                                    "Options:",
                                    "  -k,  --config FILE       Configuration file (TOML or legacy .conf)",
-                                   "  -in, --input  URI        L6 CSSR input stream                  [stdin]",
-                                   "                             Use sbf://... for single SBF stream mode",
-                                   "                             (auto-extracts L6D, PVT position, and NAV)",
-                                   "  -2ch URI                 Second L6 input stream (channel 2)",
-                                   "  -out, --output URI       RTCM3 output stream                   [stdout]",
-                                   "  -pos URI                 Position input stream (NMEA GGA)",
-                                   "  -p   LAT,LON,HGT         Fixed user position (deg, m)",
-                                   "  -nav, --nav FILE...      Navigation files (RINEX NAV)",
+                                   "  -in, --input  sbf://URI  SBF input stream (L6D, NAV and PVT position)",
+                                   "  -out, --output URI       RTCM3 output stream",
+                                   "  -p   LAT,LON,HGT         Fixed user position (deg, m)          [first PVT]",
+                                   "  -nav, --nav FILE...      Navigation files (RINEX NAV, bootstrap)",
                                    "  -d,  --trace LEVEL       Trace level (0..5)                    [0]",
                                    "  -t,  --interval SEC      Output interval (s)                   [1]",
                                    "  -h,  --help              Show this help",
@@ -663,21 +660,9 @@ static const char* usage_text[] = {"mrtk cssr2rtcm3: real-time CSSR (CLAS L6D) t
                                    "  ntripcas://[user:pw@]:port/mnt  NTRIP caster",
                                    "",
                                    "Examples:",
-                                   "  # File replay (testing)",
-                                   "  mrtk cssr2rtcm3 --input file://data/2019239Q.l6 \\",
-                                   "    --output file://out.rtcm3 \\",
-                                   "    --nav data/nav.nav -p 36.104,140.087,70.0",
-                                   "",
-                                   "  # Serial L6 -> TCP server, position from receiver NMEA",
-                                   "  mrtk cssr2rtcm3 -in serial://ttyUSB0:115200 \\",
-                                   "    -out tcpsvr://:9001 \\",
-                                   "    -pos serial://ttyUSB1:9600 \\",
-                                   "    -nav /path/to/broadcast.nav",
-                                   "",
-                                   "  # NTRIP L6 -> NTRIP caster, fixed position",
-                                   "  mrtk cssr2rtcm3 -in ntripcli://user:pw@caster:2101/L6 \\",
-                                   "    -out ntripsvr://:pw@caster:2101/VRS \\",
-                                   "    -p 35.681,139.767,40.0 -nav /path/to/nav",
+                                   "  # SBF file replay (testing)",
+                                   "  mrtk cssr2rtcm3 --input sbf://file://rover.sbf \\",
+                                   "    --output file://out.rtcm3",
                                    "",
                                    "  # Single SBF stream from mosaic-G5 (serial)",
                                    "  mrtk cssr2rtcm3 -in sbf://serial://ttyUSB0:115200 \\",
@@ -735,108 +720,6 @@ static int parse_stream_uri(const char* uri, int* type, char* path) {
 static void sig_shutdown(int sig) {
     (void)sig;
     g_shutdown = 1;
-}
-
-/*============================================================================
- * NMEA GGA Position Parser
- *
- * Lightweight inline GGA parser — extracts lat/lon/hgt from $xxGGA sentence.
- * Does not depend on sol_t time field (unlike decode_nmeagga in mrtk_sol.c).
- *===========================================================================*/
-
-/**
- * @brief Convert NMEA ddmm.mmmm format to decimal degrees.
- */
-static double nmea_dmm2deg(double dmm) {
-    int deg = (int)(dmm / 100.0);
-    return deg + (dmm - deg * 100.0) / 60.0;
-}
-
-/**
- * @brief Parse NMEA GGA sentence and extract position in ECEF.
- * @param[in]  buf    NMEA sentence buffer
- * @param[in]  len    Buffer length
- * @param[out] ecef   ECEF position [X,Y,Z] (m), unchanged if parse fails
- * @return 1 if position updated, 0 otherwise
- */
-static int parse_nmea_gga(const char* buf, int len, double* ecef) {
-    char line[512], *fields[20];
-    double lat, lon, alt, msl, pos[3];
-    char ns, ew;
-    int i, nf;
-
-    if (len <= 0 || len >= (int)sizeof(line)) return 0;
-    memcpy(line, buf, len);
-    line[len] = '\0';
-
-    /* check for GGA sentence */
-    if (!strstr(line, "GGA")) return 0;
-
-    /* split by comma */
-    fields[0] = line;
-    for (i = 0, nf = 1; i < len && nf < 20; i++) {
-        if (line[i] == ',') {
-            line[i] = '\0';
-            fields[nf++] = line + i + 1;
-        }
-    }
-    /* GGA: $xxGGA,time,lat,N/S,lon,E/W,qual,nsat,hdop,alt,M,geoid,M,... */
-    if (nf < 12) return 0;
-
-    /* check quality indicator (field 6) — 0 means no fix */
-    if (atoi(fields[6]) == 0) return 0;
-
-    lat = atof(fields[2]);
-    ns = fields[3][0];
-    lon = atof(fields[4]);
-    ew = fields[5][0];
-    alt = atof(fields[8]);
-    msl = atof(fields[10]);
-
-    if ((ns != 'N' && ns != 'S') || (ew != 'E' && ew != 'W')) return 0;
-
-    pos[0] = (ns == 'N' ? 1.0 : -1.0) * nmea_dmm2deg(lat) * D2R;
-    pos[1] = (ew == 'E' ? 1.0 : -1.0) * nmea_dmm2deg(lon) * D2R;
-    pos[2] = alt + msl;
-
-    pos2ecef(pos, ecef);
-    return 1;
-}
-
-/**
- * @brief Read NMEA GGA from position stream and update user position.
- * @param[in]  strm      Position input stream
- * @param[out] user_pos  User position in ECEF [X,Y,Z] (m)
- * @return 1 if position updated, 0 otherwise
- */
-static int update_position_from_stream(stream_t* strm, double* user_pos) {
-    static char nmeabuf[2048];
-    static int nmealen = 0;
-    uint8_t buf[512];
-    int n, i, updated = 0;
-
-    n = strread(strm, buf, sizeof(buf));
-    if (n <= 0) return 0;
-
-    /* append to line buffer */
-    for (i = 0; i < n; i++) {
-        if (nmealen >= (int)sizeof(nmeabuf) - 1) {
-            nmealen = 0; /* overflow — reset */
-        }
-        nmeabuf[nmealen++] = (char)buf[i];
-
-        /* look for complete line (CR or LF) */
-        if (buf[i] == '\n' || buf[i] == '\r') {
-            if (nmealen > 1) {
-                nmeabuf[nmealen] = '\0';
-                if (parse_nmea_gga(nmeabuf, nmealen, user_pos)) {
-                    updated = 1;
-                }
-            }
-            nmealen = 0;
-        }
-    }
-    return updated;
 }
 
 /*============================================================================
@@ -1197,12 +1080,8 @@ int mrtk_cssr2rtcm3(int argc, char** argv) {
     /* stream state */
     stream_t strm_in = {0};
     stream_t strm_out = {0};
-    stream_t strm_pos = {0};
-    stream_t strm_2ch = {0};
-    int in_type = STR_NONE, out_type = STR_NONE, pos_type = STR_NONE;
-    int ch2_type = STR_NONE;
-    char in_path[1024] = "", out_path[1024] = "", pos_path[1024] = "";
-    char ch2_path[1024] = "";
+    int in_type = STR_NONE, out_type = STR_NONE;
+    char in_path[1024] = "", out_path[1024] = "";
 
     /* config */
     char* conffile = "";
@@ -1213,7 +1092,6 @@ int mrtk_cssr2rtcm3(int argc, char** argv) {
     int has_fixed_pos = 0;
     double output_interval = 1.0; /* seconds */
     int trace_level = 0;
-    int sbf_mode = 0; /* 1: single SBF stream input */
 
     /* processing state */
     clas_ctx_t* clas = NULL;
@@ -1247,17 +1125,18 @@ int mrtk_cssr2rtcm3(int argc, char** argv) {
             conffile = argv[++i];
         } else if (!strcmp(argv[i], "-in") && i + 1 < argc) {
             const char* uri = argv[++i];
-            if (!strncmp(uri, "sbf://", 6)) {
-                sbf_mode = 1;
-                uri += 6; /* strip sbf:// prefix → inner URI */
+            if (strncmp(uri, "sbf://", 6)) {
+                fprintf(stderr,
+                        "Error: -in must be an SBF stream (sbf://URI); raw L6 input was removed in v0.7.15, "
+                        "see the CHANGELOG.\n");
+                return -1;
             }
-            parse_stream_uri(uri, &in_type, in_path);
+            parse_stream_uri(uri + 6, &in_type, in_path);
         } else if (!strcmp(argv[i], "-out") && i + 1 < argc) {
             parse_stream_uri(argv[++i], &out_type, out_path);
-        } else if (!strcmp(argv[i], "-pos") && i + 1 < argc) {
-            parse_stream_uri(argv[++i], &pos_type, pos_path);
-        } else if (!strcmp(argv[i], "-2ch") && i + 1 < argc) {
-            parse_stream_uri(argv[++i], &ch2_type, ch2_path);
+        } else if (!strcmp(argv[i], "-pos") || !strcmp(argv[i], "-2ch")) {
+            fprintf(stderr, "Error: %s was removed in v0.7.15 with the raw L6 input; use -in sbf://URI.\n", argv[i]);
+            return -1;
         } else if (!strcmp(argv[i], "-p") && i + 1 < argc) {
             sscanf(argv[++i], "%lf,%lf,%lf", &fixed_pos[0], &fixed_pos[1], &fixed_pos[2]);
             has_fixed_pos = 1;
@@ -1296,17 +1175,6 @@ int mrtk_cssr2rtcm3(int argc, char** argv) {
         fprintf(stderr, "Error: no output stream specified (-out).\n");
         return -1;
     }
-    if (!sbf_mode) {
-        if (!has_fixed_pos && pos_type == STR_NONE) {
-            fprintf(stderr, "Error: no position specified (-p or -pos).\n");
-            return -1;
-        }
-        if (nnav <= 0) {
-            fprintf(stderr, "Error: no navigation files specified (-nav).\n");
-            return -1;
-        }
-    }
-
     /* load configuration */
     prcopt.mode = PMODE_SSR2OSR;
     prcopt.nf = OSR_NFREQ;
@@ -1441,54 +1309,30 @@ int mrtk_cssr2rtcm3(int argc, char** argv) {
         }
     }
 
-    /* allocate raw_t for SBF mode */
-    if (sbf_mode) {
-        raw_sbf = (raw_t*)calloc(1, sizeof(raw_t));
-        if (!raw_sbf) {
-            fprintf(stderr, "Memory allocation error (raw_t).\n");
-            goto cleanup;
-        }
-        if (!init_raw(raw_sbf, STRFMT_SEPT)) {
-            fprintf(stderr, "Failed to initialize raw_t.\n");
-            goto cleanup;
-        }
-        fprintf(stderr, "SBF mode: single-stream input (L6D + NAV + PVT)\n");
+    /* SBF decoder */
+    raw_sbf = (raw_t*)calloc(1, sizeof(raw_t));
+    if (!raw_sbf) {
+        fprintf(stderr, "Memory allocation error (raw_t).\n");
+        goto cleanup;
+    }
+    if (!init_raw(raw_sbf, STRFMT_SEPT)) {
+        fprintf(stderr, "Failed to initialize raw_t.\n");
+        goto cleanup;
     }
 
-    /* read navigation files (optional in SBF mode — bootstrap only) */
+    /* read navigation files (optional, bootstrap only) */
     for (i = 0; i < nnav; i++) {
         readrnx(navfiles[i], 0, "", NULL, nav, NULL);
     }
     if (nnav > 0) uniqnav(nav);
-    if (!sbf_mode && nav->n <= 0) {
-        fprintf(stderr, "No navigation data found.\n");
-        goto cleanup;
-    }
     if (nav->n > 0) {
         fprintf(stderr, "Loaded %d navigation records.\n", nav->n);
     }
 
-    /* initialize GPS week reference.
-     * CSSR decoder needs a valid GPS week to interpret ToW fields.
-     * For SBF file replay, defer to the first SBF timestamp (L922)
-     * to avoid week mismatch between system time and recorded data. */
-    {
-        int week = 0;
-        gtime_t tref = {0};
-
-        if (!sbf_mode && nav->n > 0 && nav->eph[0].toe.time > 0) {
-            /* stream mode: use ephemeris if available */
-            tref = nav->eph[0].toe;
-            time2gpst(tref, &week);
-        } else if (!sbf_mode) {
-            /* stream mode fallback: current system time */
-            tref = utc2gpst(timeget());
-            time2gpst(tref, &week);
-        }
-        /* SBF file mode: week=0, will be set from first SBF timestamp */
-        clas_set_week_ref(clas, week);
-        fprintf(stderr, "GPS week reference: %d%s\n", week, week == 0 ? " (deferred to SBF)" : "");
-    }
+    /* the CSSR decoder needs a GPS week to interpret ToW fields: take it from
+     * the first SBF timestamp, not the system time, so that file replay of a
+     * recorded week works */
+    clas_set_week_ref(clas, 0);
 
     /* initialize RTK structure */
     rtkinit(&rtk, &prcopt);
@@ -1511,20 +1355,6 @@ int mrtk_cssr2rtcm3(int argc, char** argv) {
     if (!stropen(&strm_out, out_type, STR_MODE_W, out_path)) {
         fprintf(stderr, "Output stream open error: %s\n", out_path);
         goto cleanup;
-    }
-    if (pos_type != STR_NONE) {
-        if (!stropen(&strm_pos, pos_type, STR_MODE_R, pos_path)) {
-            fprintf(stderr, "Position stream open error: %s\n", pos_path);
-            goto cleanup;
-        }
-        fprintf(stderr, "Position stream: %s\n", pos_path);
-    }
-    if (ch2_type != STR_NONE) {
-        if (!stropen(&strm_2ch, ch2_type, STR_MODE_R, ch2_path)) {
-            fprintf(stderr, "Ch2 stream open error: %s\n", ch2_path);
-            goto cleanup;
-        }
-        fprintf(stderr, "L6 ch2 stream: %s\n", ch2_path);
     }
 
     fprintf(stderr, "Input:  %s\n", in_path);
@@ -1560,10 +1390,8 @@ int mrtk_cssr2rtcm3(int argc, char** argv) {
 
         if (n > 0) {
             total_bytes += n;
-        }
 
-        if (sbf_mode && n > 0) {
-            /* SBF mode: demux L6D, NAV, and PVT from single SBF stream */
+            /* demux L6D, NAV, and PVT from the SBF stream */
             for (i = 0; i < n; i++) {
                 ret = input_sbf(raw_sbf, rtcm, buf[i]);
 
@@ -1695,41 +1523,6 @@ int mrtk_cssr2rtcm3(int argc, char** argv) {
                 clas_set_week_ref(clas, week);
                 fprintf(stderr, "GPS week from SBF: %d\n", week);
             }
-        } else if (!sbf_mode && n > 0) {
-            /* Legacy mode: raw L6 CSSR bytes → ch1 */
-            for (i = 0; i < n; i++) {
-                clas_input_cssr(clas, buf[i], 0);
-                ret = clas_decode_msg(clas, 0);
-                if (ret == 10) {
-                    update_corrections(clas, nav, 0);
-                }
-            }
-        }
-
-        /* L6 ch2 input (legacy mode only — SBF mode is single-stream) */
-        if (!sbf_mode && ch2_type != STR_NONE) {
-            n = strread(&strm_2ch, buf, sizeof(buf));
-            if (n > 0) {
-                for (i = 0; i < n; i++) {
-                    clas_input_cssr(clas, buf[i], 1);
-                    ret = clas_decode_msg(clas, 1);
-                    if (ret == 10) {
-                        update_corrections(clas, nav, 1);
-                    }
-                }
-            }
-        }
-
-        /* Update position from NMEA GGA (legacy mode only) */
-        if (!sbf_mode && pos_type != STR_NONE) {
-            if (update_position_from_stream(&strm_pos, user_pos)) {
-                pos_updated = 1;
-                for (i = 0; i < 3; i++) {
-                    prcopt.ru[i] = user_pos[i];
-                    rtk.sol.rr[i] = user_pos[i];
-                    rtk.x[i] = user_pos[i];
-                }
-            }
         }
 
         /* Check if position is available */
@@ -1750,7 +1543,7 @@ int mrtk_cssr2rtcm3(int argc, char** argv) {
         }
         pvt_trigger = 0;
 
-        now = raw_sbf ? raw_sbf->time : clas->l6buf[0].time;
+        now = raw_sbf->time;
         if (now.time == 0 || clas->l6buf[0].time.time == 0) {
             dbg_notime++;
             continue;
@@ -1884,8 +1677,6 @@ cleanup:
     /* close streams */
     strclose(&strm_in);
     strclose(&strm_out);
-    if (pos_type != STR_NONE) strclose(&strm_pos);
-    if (ch2_type != STR_NONE) strclose(&strm_2ch);
 
     /* free resources */
     rtkfree(&rtk);
