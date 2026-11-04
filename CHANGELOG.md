@@ -41,6 +41,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the L6 header and the frame time tag (`const l6_header_t*`, `double tag`)
   instead of the PRN and pattern. ABI change: `clas_ctx_t` gains
   `l6sfok_time[]` and `l6health[]`.
+- **Partial AR restores a satellite as it was before the trial exclusion**
+  ([#413](https://github.com/h-shiono/MRTKLIB/issues/413)). Both CLAS
+  engines try excluding one satellite at a time; after a failed trial they
+  set every frequency of it valid, so a frequency that was invalid before the
+  trial (one is allowed per candidate) became valid for the rest of the epoch.
+  The pre-trial `vsat[]` is now saved and restored. This happens often
+  (claslib regressions: 0–985 times per PPP-RTK run, 66–197 per VRS run), but
+  every claslib PPP-RTK / VRS NMEA output and the six PPC CLAS runs are
+  byte-identical; only the per-satellite valid flags in the `.stat` output
+  change. Upstream claslib 0.9.0 has the same behaviour.
 - **VRS-RTK partial AR no longer writes `rtk->ssat[-1]`**
   ([#412](https://github.com/h-shiono/MRTKLIB/issues/412)). When no trial
   exclusion gave a ratio, the partial-AR loop in `mrtk_vrs.c` cleared
@@ -169,6 +179,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   work on it. `-nav` is optional (bootstrap before the SBF navigation data
   arrives), and the CSSR week reference always comes from the first SBF time
   stamp. SBF output on `clas_l6gap-v1` is byte-identical.
+
+### Tests and test data
+
+- RT replay tests run each `mrtk run` in its own empty working directory.
+  `mrtk run` reads `rtkrcv.nav` from its working directory at start and
+  rewrites it at exit, and all replays shared the source tree as working
+  directory, so each one started with the broadcast ephemerides the previous
+  one had left (the test order decided the initial navigation data), and
+  concurrent replays would race on the file.
+- RT replay tests run concurrently: the `rtkrcv_port` resource lock and
+  `RUN_SERIAL` on the handover / L6-gap replays are removed (each replay
+  already has its own console port). The replays mostly sleep (~6 % CPU),
+  so they were the whole wall time of a run: full suite on 8 cores
+  2281 s → 476–482 s at `-j16` (3 runs, all passing). Every RT output keeps
+  the serial run's epoch count, first / last epoch and maximum gap, and all
+  but one keep its fix share. `rtkrcv_rt_clas_sf1gap` re-fixes ~150 s later
+  after one long float stretch (16:40:49, fix share 32.7 → 27.7–28.4 %):
+  that epoch is a marginal AR decision that load alone moves (8 busy cores
+  and a single replay reproduce it), and the test gates the subframe-1
+  recovery, which is unchanged: the same three loss events are evaluated in
+  every run (Single 18–19 s, limit 25 s), and with the #406 fix disabled
+  the check still fails all three at `-j16`. `-j24` oversubscribes the host
+  and `rtkrcv_rt` drops epochs, so the documented default is `-j16` on this
+  8-core host. CI is unchanged (`-j4 -LE realtime`). No change to the
+  positioning algorithms; RT replay results can differ under load as above.
 
 ## [v0.7.14] - 2026-11-02
 

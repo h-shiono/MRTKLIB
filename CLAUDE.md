@@ -64,7 +64,7 @@ See [`docs/releases/changelog.md`](docs/releases/changelog.md) for the full hist
 
 ### Test Status
 
-Run `cd build && ctest --output-on-failure` to get current counts. Last known (v0.7.14): 191 tests, all passing. Large datasets are fetched on first use from `h-shiono/mrtklib-data` release assets (#386; network needed once, cache `~/.cache/mrtklib-data`). RT CLAS replay tests are timing-sensitive: they can false-fail under CPU contention but pass in isolation. The claslib/madocalib fixtures extract and then delete files under `tests/data/` — never run the PPC benchmark concurrently with ctest in the same tree.
+Run `cd build && ctest --output-on-failure` to get current counts. Last known (develop after v0.7.14): 193 tests, all passing. Large datasets are fetched on first use from `h-shiono/mrtklib-data` release assets (#386; network needed once, cache `~/.cache/mrtklib-data`). The RT replay tests (label `realtime`) run concurrently, each with its own console port and working directory, and pace against the wall clock: they can still false-fail when the host is oversubscribed (`-j24` on 8 cores drops `rtkrcv_rt` epochs), and even 8 busy cores next to a single replay move a marginal AR decision (`rtkrcv_rt_clas_sf1gap` re-fixes ~150 s later after 16:40:49; its gate is unaffected). Measured on an 8-core Mac: `-j16` passes, `-j24` does not; size `-j` for other hosts by measurement, not by rule. Never run two ctest instances on the same host at once: the RT console ports (52003–52019) are host-wide, and within one tree the claslib/madocalib fixtures extract and then delete each other's files under `tests/data/` — the same applies to the PPC benchmark.
 
 ---
 
@@ -167,11 +167,11 @@ These hurt the codebase. Don't do them even if they seem helpful:
 |---------------|--------------------------------------------------------|
 | Configure     | `cmake --preset default`                               |
 | Build         | `cmake --build build`                                  |
-| Test (all)    | `cd build && ctest --output-on-failure`                |
+| Test (all)    | `cd build && ctest --output-on-failure -j16`           |
 | Test (filter) | `cd build && ctest -R <pattern> --output-on-failure`   |
 | Coverage      | `cd build && ctest -T Coverage`                        |
 
-For long ctest runs (regression tests can take several minutes), prefer launching a `test-summarizer` subagent so the main context is not blocked. See §9.3.
+For long ctest runs (the full suite takes ~8 min at `-j16` on 8 cores, the RT replays set the floor), prefer launching a `test-summarizer` subagent so the main context is not blocked. See §9.3.
 
 ### Unified `mrtk` binary
 
