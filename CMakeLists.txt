@@ -410,6 +410,16 @@ add_test(NAME utest_l6_route COMMAND utest_l6_route
          WORKING_DIRECTORY ${_UTEST_DIR})
 set_tests_properties(utest_l6_route PROPERTIES LABELS "utest")
 
+# MADOCA-PPP L6E / L6D iono message assembly across a lost frame (#363), on
+# the utest_l6_route SBF fixtures.
+add_executable(utest_madoca_l6gap ${_UTEST_DIR}/utest_madoca_l6gap.c)
+# Override global -ansi (=C90): this test uses C11 (P-01).
+target_compile_options(utest_madoca_l6gap PRIVATE -std=c11)
+target_link_libraries(utest_madoca_l6gap PRIVATE mrtklib)
+add_test(NAME utest_madoca_l6gap COMMAND utest_madoca_l6gap
+         WORKING_DIRECTORY ${_UTEST_DIR})
+set_tests_properties(utest_madoca_l6gap PROPERTIES LABELS "utest")
+
 # Serial stream write byte count over a pseudo-terminal pair (#343).
 add_executable(utest_stream_serial ${_UTEST_DIR}/utest_stream_serial.c)
 # Override global -ansi (=C90): this test uses C11 (P-01).

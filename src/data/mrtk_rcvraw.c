@@ -1658,7 +1658,7 @@ extern int decode_frame(const uint8_t* buff, eph_t* eph, alm_t* alm, double* ion
     return 1;
 }
 /* route a QZSS L6 frame from a receiver container (UBX/SBF) ----------------*/
-extern int decode_qzss_l6frame(rtcm_t* rtcm, int is_l6d) {
+extern int decode_qzss_l6frame(rtcm_t* rtcm, int is_l6d, double tag) {
     l6_header_t hdr;
     int ret;
 
@@ -1675,6 +1675,7 @@ extern int decode_qzss_l6frame(rtcm_t* rtcm, int is_l6d) {
             return 17;
         case L6_SVC_MADOCA:
             /* remap "L6E SSR decoded" (10) so it is not read as a CLAS frame */
+            set_mcssr_ftag(tag);
             ret = decode_qzss_l6emsg(rtcm);
             return ret == 10 ? 15 : ret;
         case L6_SVC_NULL:
@@ -1686,6 +1687,7 @@ extern int decode_qzss_l6frame(rtcm_t* rtcm, int is_l6d) {
                 trace(NULL, 2, "L6 frame: null message prn=%d dropped\n", hdr.prn);
                 return 0;
             }
+            set_mcssr_ftag(tag);
             ret = decode_qzss_l6emsg(rtcm);
             return ret == 10 ? 15 : ret;
         default:

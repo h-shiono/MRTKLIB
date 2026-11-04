@@ -77,6 +77,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   / `clas_week_ref_isset()`. `week_ref`, `tow_ref` and the unused `obs_ref`
   leave `clas_ctx_t` (API/ABI change).
 
+### MADOCA-PPP
+
+- **Real-time L6E and L6D-iono messages are no longer decoded across a lost
+  frame** ([#363](https://github.com/h-shiono/MRTKLIB/issues/363), the
+  MADOCA side of the v0.7.14 CLAS fix). The decoders assemble a message from
+  the frames after its subframe indicator and never checked that they were
+  consecutive. When a receiver input loss of 1–2 s took the last frame of one
+  message and the head of the next, the next message's second frame completed
+  the first one, which was then decoded from shifted bits. On 5.9 days of
+  mosaic-G5 SBF this happened 158–359 times per L6E PRN and 53 times on L6D
+  PRN 200, in almost every hour. The SBF / UBX decoders now pass the receiver
+  frame time to the L6E decoder (`decode_qzss_l6frame()`) and `rtksvr` passes
+  it to the L6D-iono decoder (`mdcl6d_t.ftag`); a frame that continues a
+  message but does not follow the previous frame by 1 s discards the message
+  until the next subframe indicator. Every MADOCA-PPP message starts with one
+  and QZNMA frames on the same PRN fall between messages, so a clean stream
+  decodes as before. RT replay of four 2-hour windows (`qzs-madoca-ppp`
+  preset, PPP-AR + L6D iono, first 30 min excluded): the metre-level
+  excursions that followed a shifted decode by 4–6 s are gone (maximum
+  horizontal / vertical error 2.34 / 4.41 m → 0.09 / 0.20 m over all
+  windows); H95 improves in 3 of 4 windows (e.g. 10.1 → 4.0 cm) and the fix
+  rate changes by +13.4, +1.6, +1.4 and −3.4 pt. `.l6e` / `.l6d` files and
+  L6E streams carry no frame time and decode as before; MADOCA
+  post-processing is byte-identical. API change: `decode_qzss_l6frame()`
+  gains a `tag` argument, new `set_mcssr_ftag()`, `mdcl6d_t` gains `ftag`.
+
 ## [v0.7.14] - 2026-11-02
 
 **CLAS real-time robustness: L6 frame losses and the two-channel merge.**

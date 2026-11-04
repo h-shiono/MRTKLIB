@@ -81,6 +81,8 @@ typedef struct {
     int tow0;                                     /* for Hourly Epoch Time 1s */
     int ep0;                                      /* for Hourly Epoch Time 1s regresses check */
     int iod;                                      /* IOD SSR */
+    double ftag_last;                             /* receiver time tag of the last accepted frame */
+    int skip;                                     /* frames skipped until the next subframe indicator */
 } miono_t;
 
 static miono_t _miono[MIONO_MAX_PRN] = {{0}};
@@ -384,8 +386,25 @@ extern int decode_qzss_l6dmsg(mdcl6d_t* mdcl6d) {
         }
     }
 
+    /* a frame lost before a frame that continues a message would shift the
+     * bits of the message: discard it and wait for the next subframe
+     * indicator, as in decode_qzss_l6emsg() (#363) */
+    if (mdcl6d->ftag > 0.0) {
+        double dt = mdcl6d->ftag - _miono[j].ftag_last;
+        if (!si && _miono[j].ftag_last > 0.0 && (dt <= 0.0 || dt > 1.5) && !_miono[j].skip) {
+            trace(NULL, 2, "decode_qzss_l6dmsg: %s,frame gap dt=%.3f s, message discarded prn=%d frame=%d\n",
+                  time_str(_miono[j].gt, 3), dt, prn, _miono[j].maxframe > 0 ? _miono[j].frame : 0);
+            _miono[j].maxframe = 0;
+            _miono[j].skip = 1;
+        }
+        _miono[j].ftag_last = mdcl6d->ftag;
+        mdcl6d->ftag = 0.0;
+    }
     if (si == 1) {
         _miono[j].maxframe = 0; /* Subframe Indicator : First Data */
+        _miono[j].skip = 0;
+    } else if (_miono[j].skip) {
+        return 0;
     }
 
     /* frame recognition */
@@ -518,6 +537,8 @@ extern void init_miono(const gtime_t gt) {
         _miono[i].mgfid = -1; /* invalid value */
         _miono[i].tow0 = -1;  /* invalid value */
         _miono[i].frame = 0;  /* initial value */
+        _miono[i].ftag_last = 0.0;
+        _miono[i].skip = 0;
     }
 }
 
