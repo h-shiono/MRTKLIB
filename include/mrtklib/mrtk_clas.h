@@ -187,6 +187,14 @@ enum {
 #define CLAS_BANK_NUM 32    /* bank depth (ring buffer entries) */
 #define CLAS_MAX_GP 80      /* max grid points in bank storage */
 
+/* Phase discontinuity indicator packing in the bias bank / clas_corr_t: the
+ * phase bias applied is the network (ST6) bias plus the global (ST5) one, so
+ * both 2-bit indicators are kept, each with a present bit. A change of either
+ * one means the phase bias of that signal stepped (IS-QZSS-L6). */
+#define CLAS_DISC_NET 0   /* bit shift of the network (ST6) indicator */
+#define CLAS_DISC_GLB 4   /* bit shift of the global (ST5) indicator */
+#define CLAS_DISC_VALID 4 /* present bit, above the 2 indicator bits */
+
 /*============================================================================
  * Grid Interpolation Constants
  *===========================================================================*/
@@ -337,9 +345,10 @@ typedef struct {
     zwd_t zwd[CLAS_MAX_GP];
 
     /* signal biases per satellite */
-    double cbias[MAXSAT][MAXCODE]; /* code bias (m) */
-    double pbias[MAXSAT][MAXCODE]; /* phase bias (m) */
-    int smode[MAXSAT][MAXCODE];    /* signal tracking mode */
+    double cbias[MAXSAT][MAXCODE];   /* code bias (m) */
+    double pbias[MAXSAT][MAXCODE];   /* phase bias (m) */
+    uint8_t discnt[MAXSAT][MAXCODE]; /* phase discontinuity indicators (CLAS_DISC_*) */
+    int smode[MAXSAT][MAXCODE];      /* signal tracking mode */
 
     /* orbit corrections per satellite */
     double deph0[MAXSAT]; /* radial (m) */
@@ -400,17 +409,18 @@ typedef struct {
 
 /** Code/phase bias ring buffer entry */
 typedef struct {
-    int use;                       /* in-use flag */
-    gtime_t time;                  /* epoch time */
-    int network;                   /* network id */
-    int bflag;                     /* bias type flag */
-    int prn[MAXSAT];               /* satellite availability */
-    double udi[MAXSAT];            /* update interval (s) */
-    int iod[MAXSAT];               /* IOD */
-    int smode[MAXSAT][MAXCODE];    /* signal tracking mode */
-    int sflag[MAXSAT][MAXCODE];    /* signal validity flag */
-    double cbias[MAXSAT][MAXCODE]; /* code bias (m) */
-    double pbias[MAXSAT][MAXCODE]; /* phase bias (m) */
+    int use;                         /* in-use flag */
+    gtime_t time;                    /* epoch time */
+    int network;                     /* network id */
+    int bflag;                       /* bias type flag */
+    int prn[MAXSAT];                 /* satellite availability */
+    double udi[MAXSAT];              /* update interval (s) */
+    int iod[MAXSAT];                 /* IOD */
+    int smode[MAXSAT][MAXCODE];      /* signal tracking mode */
+    int sflag[MAXSAT][MAXCODE];      /* signal validity flag */
+    double cbias[MAXSAT][MAXCODE];   /* code bias (m) */
+    double pbias[MAXSAT][MAXCODE];   /* phase bias (m) */
+    uint8_t discnt[MAXSAT][MAXCODE]; /* phase discontinuity indicators (CLAS_DISC_*) */
 } clas_bias_bank_t;
 
 /** Troposphere/ionosphere grid ring buffer entry */
@@ -1100,6 +1110,23 @@ void clas_osr_compensatedisp(clas_corr_t* corr, const int* index, const obsd_t* 
 int clas_osr_corrmeas(const obsd_t* obs, nav_t* nav, const double* pos, const double* azel, const prcopt_t* opt,
                       clas_grid_t* grid, clas_corr_t* corr, ssat_t ssat, int* brk, clas_osrd_t* osr, int* pbreset,
                       int ch, clas_osr_ctx_t* osr_ctx);
+
+/**
+ * @brief Select the CLAS signal whose biases correct an observed signal.
+ *
+ * Exact code match first, then a signal on the same frequency (e.g. L2X for
+ * an L2W observation), as clas_osr_corrmeas() applies the biases. The
+ * same-frequency signal is also preferred when the exact match carries an
+ * invalid phase bias; the exact match is returned if there is none.
+ *
+ * @param[in] corr   Merged correction snapshot
+ * @param[in] sat    Satellite number (1..MAXSAT)
+ * @param[in] code   Observation code (CODE_???)
+ * @param[in] pbias  Phase biases of the satellite indexed by signal mode - 1
+ *                   (nav->ssr_ch[ch][sat-1].pbias)
+ * @return CLAS signal mode (CODE_???) indexing ssr_t pbias/cbias/discnt, 0 if none
+ */
+int clas_osr_bias_smode(const clas_corr_t* corr, int sat, uint8_t code, const double* pbias);
 
 /**
  * @brief Initialize OSR conversion context.

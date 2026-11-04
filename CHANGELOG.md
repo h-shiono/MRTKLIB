@@ -9,6 +9,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### CLAS
 
+- **PPP-RTK honours the CSSR phase discontinuity indicator**
+  ([#393](https://github.com/h-shiono/MRTKLIB/issues/393)). CLAS advances
+  the 2-bit indicator of a signal in ST5 / ST6 when its phase bias steps.
+  The decoder read it, but the bias bank, `clas_corr_t` and
+  `clas_update_global()` dropped it (upstream claslib ignores it too). The
+  filter therefore kept ambiguities estimated against the old bias. When CLAS
+  stepped the network phase biases of every satellite at once, all phase
+  residuals (0.5–1.5 m) were rejected and the epoch fell to Single, then again
+  when the biases stepped back. In 5.9 days of live data from a receiver in
+  network 7 this happened about 2.9 times a day and was the leading cause of
+  Single epochs. The network (ST6) and global (ST5) indicators now travel with
+  the phase bias to `nav->ssr_ch[].discnt`. `ppp_rtk_pos()` compares them per
+  L6 channel, satellite and frequency after the epoch's corrections are
+  applied, and re-initializes the phase bias state of each signal whose
+  indicator changed. RT replay of the two issue captures (mosaic-G5,
+  2026-10-24 01:00:30 / 07:30:30 GPST): the two Single epochs of each event
+  are gone, the solution stays Float through both bias steps and re-fixes at
+  the same epoch as before (event 1: 2 epochs earlier); the re-fix still
+  waits for the step back 30 s later. claslib post-processing: 8 of 10 PP outputs
+  byte-identical; `st12` and `l1cl5` (single-satellite indicator changes)
+  move by < 0.1 mm 3D RMS with unchanged fix rate. VRS-RTK, `ssr2obs` and
+  `ssr2osr` are byte-identical.
+- `clas_bias_bank_t` and `clas_corr_t` gain `discnt[MAXSAT][MAXCODE]` (ABI
+  change, +9.4 KB each with the default preset, +0.3 MB per L6 channel
+  bank); new API `clas_osr_bias_smode()`.
 - **The NMEA GGA station id now names the CLAS L6 source of the solution.**
   In PPP-RTK mode, GGA field 14 (differential reference station id, until now
   always `0000`) carries `P1*100 + P2*10 + F`, within the NMEA range

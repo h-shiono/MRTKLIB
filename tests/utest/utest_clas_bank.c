@@ -18,6 +18,8 @@
  *       signal (Greptile, PR #433).
  *   (6) the set carries the L6 PRN of the clock set it uses (NMEA GGA
  *       station id).
+ *   (7) the phase discontinuity indicators of the network (ST6) and global
+ *       (ST5) phase bias both reach the set and nav->ssr_ch (#393).
  *
  * The bank entries are written directly; the times follow the frame layout
  * seen in live mosaic-G5 captures (orbit/clock/cbias at the frame epoch,
@@ -199,6 +201,25 @@ int main(void) {
     b->ClockBank[1].l6prn = 196;
     rc = clas_bank_get_close(ctx, at(33.0), NET, 0, corr);
     CHECK(rc == 0 && corr->l6prn == 196, "l6prn from the T+30 clock set");
+
+    printf("--- (7) phase discontinuity indicators\n");
+    fill_lost_frame(b);
+    b->BiasBank[2].discnt[SAT - 1][0] = (1 | CLAS_DISC_VALID) << CLAS_DISC_NET;
+    add_bias(b, 4, 0.0, 0, 0x02); /* global ST5 pbias T */
+    b->BiasBank[4].discnt[SAT - 1][0] = (2 | CLAS_DISC_VALID) << CLAS_DISC_GLB;
+    rc = clas_bank_get_close(ctx, at(33.0), NET, 0, corr);
+    {
+        const int disc = ((1 | CLAS_DISC_VALID) << CLAS_DISC_NET) | ((2 | CLAS_DISC_VALID) << CLAS_DISC_GLB);
+        int k1 = corr_slot(corr, CODE_L1C);
+        nav_t* nav = (nav_t*)calloc(1, sizeof(nav_t));
+        CHECK(rc == 0 && k1 >= 0 && corr->discnt[SAT - 1][k1] == disc, "set carries network and global indicator");
+        CHECK(rc == 0 && k1 >= 0 && corr->pbias[SAT - 1][k1] == 0.4, "phase bias is network + global");
+        if (nav) {
+            clas_update_global(nav, corr, 0);
+            CHECK(nav->ssr_ch[0][SAT - 1].discnt[CODE_L1C - 1] == disc, "nav->ssr_ch carries the indicators");
+            free(nav);
+        }
+    }
 
     clas_ctx_free(ctx);
     free(ctx);
