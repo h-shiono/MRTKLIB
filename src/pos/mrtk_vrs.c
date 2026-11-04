@@ -2424,10 +2424,14 @@ extern int relposvrs(rtk_t* rtk, const obsd_t* obs, int nu, int* nr, nav_t* nav)
                 }
                 if (nb > 1) {
                     break;
-                } else {
-                    for (f = 0; f < nf; f++) {
-                        rtk->ssat[exsat - 1].vsat[f] = 0;
-                    }
+                }
+                /* no trial gave a ratio: nothing to exclude, and further
+                 * iterations would repeat the same trials (#412) */
+                if (exsat == 0) {
+                    break;
+                }
+                for (f = 0; f < nf; f++) {
+                    rtk->ssat[exsat - 1].vsat[f] = 0;
                 }
             }
         }
