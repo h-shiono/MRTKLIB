@@ -77,6 +77,11 @@ extern int clas_ctx_init(clas_ctx_t* ctx) {
         ctx->l6pattern[i] = -1;
         ctx->l6lock_time[i].time = 0;
         ctx->l6lock_time[i].sec = 0.0;
+        ctx->l6sfok_time[i].time = 0;
+        ctx->l6sfok_time[i].sec = 0.0;
+    }
+    for (i = 0; i < CLAS_L6_NPRN; i++) {
+        ctx->l6health[i].nframe = -1;
     }
     ctx->initialized = 1;
     return 0;
@@ -3087,14 +3092,53 @@ extern int clas_get_correct_fac(int msgid) {
     }
 }
 
-extern int clas_route_l6frame(clas_ctx_t* ctx, int prn, int ptn, int l6mrg, gtime_t now) {
-    int ch, target, locked_prn, stale;
+/* update the subframe health of one L6D PRN from a frame reaching the demux.
+ * returns 1 if the frame completes a subframe (first frame + 4 more, each at
+ * most 1.5 s after the previous one, the same gap rule as clas_input_cssr) */
+static int l6health_update(clas_l6health_t* h, int sf_ind, double tag) {
+    double dt = h->tag > 0.0 ? tag - h->tag : -1.0;
+    int cont = dt > 0.0 && dt <= 1.5;
+
+    h->tag = tag;
+    if (sf_ind) {
+        if (h->nframe != 5 || !cont) {
+            h->nsfok = 0;
+        }
+        h->nframe = 1;
+        return 0;
+    }
+    if (h->nframe >= 1 && h->nframe < 5 && cont) {
+        if (++h->nframe == 5) {
+            h->nsfok++;
+            return 1;
+        }
+        return 0;
+    }
+    h->nframe = -1;
+    h->nsfok = 0;
+    return 0;
+}
+
+extern int clas_route_l6frame(clas_ctx_t* ctx, const l6_header_t* hdr, double tag, int l6mrg, gtime_t now) {
+    clas_l6health_t* h = NULL;
+    int ch, target, locked_prn, stale, degraded = 0, sfok = 0;
+    int prn = hdr->prn, ptn = hdr->ptn;
     int nch = l6mrg ? CLAS_CH_NUM : 1;
+
+    /* 0. subframe health of every PRN, routed or not, so a clean PRN can be
+     *    told from a degraded one when the lock is reconsidered (#414) */
+    if (tag > 0.0 && prn >= MINPRNQZS && prn < MINPRNQZS + CLAS_L6_NPRN) {
+        h = &ctx->l6health[prn - MINPRNQZS];
+        sfok = l6health_update(h, hdr->sf_ind, tag);
+    }
 
     /* 1. already the active source on some channel → accept and refresh */
     for (ch = 0; ch < nch; ch++) {
         if (ctx->l6delivery[ch] == prn) {
             ctx->l6lock_time[ch] = now;
+            if (sfok) {
+                ctx->l6sfok_time[ch] = now;
+            }
             return ch;
         }
     }
@@ -3125,20 +3169,35 @@ extern int clas_route_l6frame(clas_ctx_t* ctx, int prn, int ptn, int l6mrg, gtim
         }
     }
 
-    /* 3. (re)lock the target channel to this PRN only if it is free or its
-     *    current active source has gone silent past the handover timeout;
-     *    otherwise drop to keep the channel's subframe stream coherent. */
+    /* 3. (re)lock the target channel to this PRN only if it is free, its
+     *    current active source has gone silent past the handover timeout, or
+     *    the source still sends frames but no complete subframe while this PRN
+     *    delivers clean ones; otherwise drop to keep the channel's subframe
+     *    stream coherent. The degraded case re-locks only on this PRN's first
+     *    frame of a subframe: the old source's frames can be < 1.5 s old, so
+     *    the frame-gap discard in clas_input_cssr() would not separate them. */
     locked_prn = ctx->l6delivery[target];
     stale = (ctx->l6lock_time[target].time == 0) || (timediff(now, ctx->l6lock_time[target]) > CLAS_L6_RELOCK_TIMEOUT);
+    if (locked_prn >= 0 && !stale && h && hdr->sf_ind && h->nsfok >= CLAS_L6_CLEAN_NSF &&
+        ctx->l6sfok_time[target].time != 0) {
+        degraded = timediff(now, ctx->l6sfok_time[target]) > CLAS_L6_DEGRADE_TIMEOUT;
+    }
 
-    if (locked_prn < 0 || stale) {
-        if (locked_prn != prn || ctx->l6pattern[target] != ptn) {
+    if (locked_prn < 0 || stale || degraded) {
+        if (degraded) {
+            trace(NULL, 2,
+                  "L6 lock: ch=%d prn=%d pattern=%d (was prn=%d pattern=%d: no complete subframe for %.0f s, "
+                  "new prn %d clean subframes)\n",
+                  target, prn, ptn, locked_prn, ctx->l6pattern[target], timediff(now, ctx->l6sfok_time[target]),
+                  h->nsfok);
+        } else if (locked_prn != prn || ctx->l6pattern[target] != ptn) {
             trace(NULL, 2, "L6 lock: ch=%d prn=%d pattern=%d (was prn=%d pattern=%d)\n", target, prn, ptn, locked_prn,
                   ctx->l6pattern[target]);
         }
         ctx->l6delivery[target] = prn;
         ctx->l6pattern[target] = ptn;
         ctx->l6lock_time[target] = now;
+        ctx->l6sfok_time[target] = now;
         return target;
     }
     return -1; /* channel busy with a different, still-active PRN → drop */
