@@ -3040,6 +3040,7 @@ extern void ppp_rtk_pos(rtk_t* rtk, const obsd_t* obs, int n, nav_t* nav) {
         if (nb <= 1 && rtk->opt.posopt[6]) {
             int isat[MAXOBS], exsat = 0, sati, nf2 = NF_RTK(&rtk->opt);
             double el[MAXOBS], ratio = 0.0;
+            uint8_t vsat0[NFREQ];
             elsort(rtk, obs, isat, el, n);
             for (l = 0; l < rtk->opt.armaxdelsat; l++) {
                 ratio = 0.0;
@@ -3059,6 +3060,7 @@ extern void ppp_rtk_pos(rtk_t* rtk, const obsd_t* obs, int n, nav_t* nav) {
                     }
                     /* temporarily exclude this satellite */
                     for (f = 0; f < nf2; f++) {
+                        vsat0[f] = rtk->ssat[sati - 1].vsat[f];
                         rtk->ssat[sati - 1].vsat[f] = 0;
                     }
                     pdop = calpdop(rtk, H, azel, vflg, obs, rtk->opt.elmaskar, n, nv);
@@ -3068,9 +3070,10 @@ extern void ppp_rtk_pos(rtk_t* rtk, const obsd_t* obs, int n, nav_t* nav) {
                               rtk->sol.ratio);
                         break;
                     } else {
-                        /* restore satellite and track best ratio */
+                        /* restore the satellite as it was before the trial: a
+                         * frequency invalid before must stay invalid (#413) */
                         for (f = 0; f < nf2; f++) {
-                            rtk->ssat[sati - 1].vsat[f] = 1;
+                            rtk->ssat[sati - 1].vsat[f] = vsat0[f];
                         }
                         if (ratio < rtk->sol.ratio) {
                             exsat = sati;
