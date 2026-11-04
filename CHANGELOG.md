@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### CLAS
 
+- **VRS-RTK partial AR no longer writes `rtk->ssat[-1]`**
+  ([#412](https://github.com/h-shiono/MRTKLIB/issues/412)). When no trial
+  exclusion gave a ratio, the partial-AR loop in `mrtk_vrs.c` cleared
+  `vsat[]` of satellite index −1, overwriting the end of `ambc[MAXSAT-1]`
+  in `rtk_t`. This happened in every claslib VRS regression (20 times per
+  run, at the start-up epochs). The loop now stops when nothing can be
+  excluded; the remaining iterations would only have repeated the same
+  trials. The PPP-RTK engine already had the guard. Upstream claslib 0.9.0
+  has the same defect in both engines. VRS-RTK and `ssr2obs` outputs are
+  byte-identical.
 - **PPP-RTK honours the CSSR phase discontinuity indicator**
   ([#393](https://github.com/h-shiono/MRTKLIB/issues/393)). CLAS advances
   the 2-bit indicator of a signal in ST5 / ST6 when its phase bias steps.
