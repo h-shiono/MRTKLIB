@@ -41,6 +41,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the L6 header and the frame time tag (`const l6_header_t*`, `double tag`)
   instead of the PRN and pattern. ABI change: `clas_ctx_t` gains
   `l6sfok_time[]` and `l6health[]`.
+- **`l6_merge = 1` no longer counts a silent L6 channel as a correction
+  source** ([#443](https://github.com/h-shiono/MRTKLIB/issues/443)). In
+  real time the merge channels are keyed by transmit pattern. When the only
+  PRN of one pattern sets or is not yet steadily received, that channel has
+  no source, but its bank lookup in `ppp_rtk_pos()` still succeeded: first
+  at the observation time within the 180 s orbit age, then at the
+  `l6buf[ch].time` fallback, which stays at the time of the last frame. When
+  the live channel then lost a subframe at an input gap (#363), the silent
+  channel still counted, so the BackupCSSR bridge was not used and the live
+  channel's set was cleared. The silent channel's troposphere was too old,
+  and PPP-RTK fell to Single for ~17 s, where `l6_merge = 0` kept Fix. A
+  merge channel whose locked PRN has sent no frame for more than
+  `CLAS_L6_RELOCK_TIMEOUT` (`clas_l6_silent()`) is now skipped, and merge
+  falls back to single-channel behaviour. RT replay of a mosaic-G5 capture
+  (2026-10-23 → 10-28, network 7, `l6_merge = 1`): on 2026-10-27, while
+  PRN 194 (the only pattern-1 PRN) was lost, 20:45–21:23 UTC Single epochs
+  168 → 6. Over 4.9 days, Fix→Single events 875 → 860 (`l6_merge = 0`: 872),
+  Single epochs 7123 → 6900, fix rate 93.80 % → 93.90 %, Fix epochs with a
+  horizontal error > 0.3 m unchanged (2511). All 16 Fix→Single events that
+  only `l6_merge = 1` had are gone. The one new event (10-27 22:58) is part
+  of the same Single period as in the baseline, which started 30 s earlier.
+  Post-processing and `l6_merge = 0` are unaffected: only the RT demux sets
+  the lock time.
 - **Partial AR restores a satellite as it was before the trial exclusion**
   ([#413](https://github.com/h-shiono/MRTKLIB/issues/413)). Both CLAS
   engines try excluding one satellite at a time; after a failed trial they

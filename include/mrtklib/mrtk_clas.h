@@ -922,6 +922,21 @@ int clas_get_correct_fac(int msgid);
  */
 int clas_route_l6frame(clas_ctx_t* ctx, const l6_header_t* hdr, double tag, int l6mrg, gtime_t now);
 
+/**
+ * @brief Test whether a demux channel's L6 source has gone silent.
+ *
+ * True when clas_route_l6frame() locked the channel to a source PRN but has
+ * accepted no frame on it for more than CLAS_L6_RELOCK_TIMEOUT seconds, e.g.
+ * the only PRN broadcasting that transmit pattern has set (#443).  A channel
+ * the demux never locked (post-processing, or no frame yet) is not silent.
+ *
+ * @param[in] ctx   CLAS context
+ * @param[in] ch    Channel index (0..CLAS_CH_NUM-1)
+ * @param[in] time  Current observation time (GPST)
+ * @return 1 if the channel's source is silent, 0 otherwise.
+ */
+int clas_l6_silent(const clas_ctx_t* ctx, int ch, gtime_t time);
+
 /*============================================================================
  * Grid Interpolation (mrtk_clas_grid.c)
  *===========================================================================*/

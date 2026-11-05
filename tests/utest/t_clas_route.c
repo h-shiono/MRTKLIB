@@ -218,12 +218,37 @@ static void test_degraded_edges(void) {
     free(ctx);
 }
 
+/* a channel whose source PRN stopped (the only PRN of its pattern set) is
+ * reported silent past the re-lock timeout, so the merge path does not take
+ * its stale bank as a correction source (#443) */
+static void test_silent(void) {
+    clas_ctx_t* ctx = fresh();
+    int t;
+
+    CHECK(!clas_l6_silent(ctx, 0, at(100)), "silent: never-locked channel is not silent");
+    for (t = 0; t < 20; t++) {
+        route(ctx, 194, 1, t % 5 == 0, 1000.0 + t, 1, at(t));
+        route(ctx, 199, 0, t % 5 == 0, 1000.0 + t, 1, at(t));
+    }
+    CHECK(!clas_l6_silent(ctx, 0, at(20)) && !clas_l6_silent(ctx, 1, at(20)), "silent: both live");
+    for (t = 20; t < 40; t++) {
+        route(ctx, 199, 0, t % 5 == 0, 1000.0 + t, 1, at(t));
+    }
+    CHECK(!clas_l6_silent(ctx, 0, at(29)), "silent: not before the re-lock timeout");
+    CHECK(clas_l6_silent(ctx, 0, at(30)), "silent: pattern channel without a source past the timeout");
+    CHECK(!clas_l6_silent(ctx, 1, at(39)), "silent: other pattern's channel still live");
+    route(ctx, 196, 1, 1, 1040.0, 1, at(40));
+    CHECK(ctx->l6delivery[0] == 196 && !clas_l6_silent(ctx, 0, at(40)), "silent: a new PRN of the pattern revives it");
+    free(ctx);
+}
+
 int main(void) {
     test_single();
     test_dual();
     test_degraded();
     test_both_degraded();
     test_degraded_edges();
+    test_silent();
 
     printf("\n%s: %d check(s) failed\n", fails ? "FAIL" : "PASS", fails);
     return fails ? 1 : 0;
