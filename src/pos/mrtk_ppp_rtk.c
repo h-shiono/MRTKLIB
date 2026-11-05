@@ -2762,6 +2762,14 @@ extern void ppp_rtk_pos(rtk_t* rtk, const obsd_t* obs, int n, nav_t* nav) {
         int ch, nok = 0;
         int chok[SSR_CH_NUM] = {0};
         for (ch = 0; ch < nch && !use_backup; ch++) {
+            /* a merge channel whose L6 source has gone silent is no source: its
+             * bank still answers (at obs time within the orbit age, then at the
+             * frozen l6buf time), so counting it would keep nok > 0 and block
+             * the backup bridge when the live channel loses a subframe (#443) */
+            if (opt->l6mrg && clas_l6_silent(clas, ch, obs[0].time)) {
+                trace(NULL, 3, "ppp_rtk_pos: L6 source silent ch=%d\n", ch);
+                continue;
+            }
             /* re-fetch corrections closest to observation time,
              * falling back to L6 buffer time if obs lookup fails */
             if (grid->network > 0) {

@@ -3210,6 +3210,13 @@ extern int clas_route_l6frame(clas_ctx_t* ctx, const l6_header_t* hdr, double ta
     return -1; /* channel busy with a different, still-active PRN → drop */
 }
 
+extern int clas_l6_silent(const clas_ctx_t* ctx, int ch, gtime_t time) {
+    if (!ctx || ch < 0 || ch >= CLAS_CH_NUM || ctx->l6delivery[ch] < 0 || ctx->l6lock_time[ch].time == 0) {
+        return 0;
+    }
+    return timediff(time, ctx->l6lock_time[ch]) > CLAS_L6_RELOCK_TIMEOUT;
+}
+
 extern int clas_input_cssr(clas_ctx_t* ctx, uint8_t data, int ch) {
     clas_l6buf_t* l6 = &ctx->l6buf[ch];
     l6_header_t hdr;
