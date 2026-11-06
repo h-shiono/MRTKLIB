@@ -159,7 +159,8 @@ the v0.7.14 #363 fix).
   alone. The facility is the pattern-normalized id, not the raw header bits,
   which differ between transmit patterns for the same facility. On by
   default; `[output] clas_nmea_source_id = false` writes `0000` again. VRS-RTK
-  is not covered. No positioning change.
+  is not covered, and the GGA that `mrtk run` sends to an NTRIP caster still
+  writes `0000`. No positioning change.
 - `sol_t`, `solopt_t`, `clas_clock_bank_t` and `clas_corr_t` gain fields
   (ABI change); new API `clas_nmea_refid()`.
 - **Real-time `l6_merge`: a channel resuming across a GPS week rollover no
@@ -178,7 +179,10 @@ the v0.7.14 #363 fix).
   166 epochs; 98.87 % without merge). With `l6_merge = 0` and in claslib
   post-processing the output is byte-identical. New API `clas_set_week_ref()`
   / `clas_week_ref_isset()`. `week_ref`, `tow_ref` and the unused `obs_ref`
-  leave `clas_ctx_t` (API/ABI change).
+  leave `clas_ctx_t` (API/ABI change). The week is set once, at startup, so a
+  channel first received after a later rollover has no earlier TOW to detect
+  it from: its first ST1 now takes the week of the channel already decoding
+  (Greptile #454).
 
 ### MADOCA-PPP
 

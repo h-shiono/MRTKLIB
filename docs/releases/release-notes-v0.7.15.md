@@ -66,6 +66,8 @@ are gone and the solution stays Float through both bias steps.
   one week ahead. Every clock was newer than the observation time, so the
   output stayed Single. The state is now per channel, in `clas_l6buf_t`.
   5.9-day RT replay: fix rate 38.85 % → 98.95 % (98.87 % without merge).
+  A channel first received after a later rollover has no earlier TOW of its
+  own, so its first ST1 takes the week of the channel already decoding.
 - **Silent channel ([#443](https://github.com/h-shiono/MRTKLIB/issues/443)).**
   When the only PRN of one transmit pattern set, its channel still passed the
   bank lookup, so the BackupCSSR bridge was not used when the live channel
@@ -141,7 +143,8 @@ In PPP-RTK mode, GGA field 14 (until now `0000`) carries `P1*100 + P2*10 + F`:
 corrections), `F` = facility id + 1, or 9 when the merged channels carry
 different facilities. A QZSS handover or a facility switch is then visible in
 the NMEA alone. On by default; `[output] clas_nmea_source_id = false` writes
-`0000`. VRS-RTK is not covered.
+`0000`. VRS-RTK is not covered, and the GGA that `mrtk run` sends to an
+NTRIP caster still writes `0000`.
 
 ### Tests
 
@@ -155,7 +158,7 @@ the NMEA alone. On by default; `[output] clas_nmea_source_id = false` writes
   existing `l6route_*.sbf` fixtures), `utest_clas_refid` (GGA station id),
   `utest_cssr2rtcm3_sched` (converter epoch scheduler) and
   `cssr2rtcm3_clas_l6gap` with a `-t 5` variant (converter on
-  `clas_l6gap-v1`). Extended: `utest_clas_l6` (per-channel week reference,
+  `clas_l6gap-v1`). Extended: `utest_clas_l6` (per-channel week reference, late first channel,
   discontinuity indicator decode), `utest_clas_bank` (indicator delivery; BackupCSSR restore with one unusable merge channel),
   `utest_t_clas_route` (degraded-PRN relock, silent merge channel). The
   partial-AR fixes (#412 / #413) have no dedicated test: every regression
