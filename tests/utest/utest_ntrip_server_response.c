@@ -5,7 +5,8 @@
 
 #include "../../src/stream/mrtk_stream.c"
 
-static int check(const char* response, int accepted, int version) {
+/* req_v2: the request reqntrip_s() sent (1: v2 POST with chunked transfer) */
+static int check(const char* response, int req_v2, int accepted, int version) {
     ntrip_t* ntrip = calloc(1, sizeof(*ntrip));
     tcpcli_t* tcp = calloc(1, sizeof(*tcp));
     char message[MAXSTRMSG] = {0};
@@ -16,6 +17,7 @@ static int check(const char* response, int accepted, int version) {
     ntrip->state = 1;
     ntrip->type = 0;
     ntrip->ver = NTRIP_VER_AUTO;
+    ntrip->req_v2 = req_v2;
     ntrip->nb = (int)strlen(response);
     memcpy(ntrip->buff, response, ntrip->nb);
     failed = rspntrip_s(ntrip, message) != accepted || (accepted && ntrip->ver_neg != version);
@@ -27,12 +29,14 @@ static int check(const char* response, int accepted, int version) {
 
 int main(void) {
     int failures = 0;
-    failures += check("OK\r\n", 1, NTRIP_VER_1);
-    failures += check("ICY 200 OK\r\n", 1, NTRIP_VER_1);
-    failures += check("HTTP/1.1 200 OK\r\nServer: fixture\r\n\r\n", 1, NTRIP_VER_2);
-    failures += check("HTTP/1.1 200 OK\r\n", 0, 0);
-    failures += check("HTTP/1.1 200 Success\r\nX-Test: OK\r\n\r\n", 1, NTRIP_VER_2);
-    failures += check("HTTP/1.1 401 Not OK\r\n\r\n", 0, 0);
+    failures += check("OK\r\n", 1, 1, NTRIP_VER_1);
+    failures += check("ICY 200 OK\r\n", 1, 1, NTRIP_VER_1);
+    failures += check("HTTP/1.1 200 OK\r\nServer: fixture\r\n\r\n", 1, 1, NTRIP_VER_2);
+    failures += check("HTTP/1.1 200 OK\r\n", 1, 0, 0);
+    failures += check("HTTP/1.1 200 Success\r\nX-Test: OK\r\n\r\n", 1, 1, NTRIP_VER_2);
+    failures += check("HTTP/1.1 401 Not OK\r\n\r\n", 1, 0, 0);
+    /* v1 SOURCE answered with an HTTP status line: no chunked output */
+    failures += check("HTTP/1.1 200 OK\r\n\r\n", 0, 1, NTRIP_VER_1);
     printf("NTRIP server response failures: %d\n", failures);
     return failures != 0;
 }

@@ -348,7 +348,10 @@ add_test(NAME utest_t_ntrip COMMAND t_ntrip
          WORKING_DIRECTORY ${_UTEST_DIR})
 set_tests_properties(utest_t_ntrip PROPERTIES LABELS "utest")
 
+# NTRIP server handshake: v1/v2 decision from the request sent and the
+# response (#385). Includes mrtk_stream.c to reach the private rspntrip_s().
 add_executable(utest_ntrip_server_response ${_UTEST_DIR}/utest_ntrip_server_response.c)
+# Override global -ansi (=C90): this test uses C11 (P-01).
 target_compile_options(utest_ntrip_server_response PRIVATE -std=c11)
 target_link_libraries(utest_ntrip_server_response PRIVATE mrtklib)
 add_test(NAME utest_ntrip_server_response COMMAND utest_ntrip_server_response)
