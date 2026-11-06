@@ -168,7 +168,7 @@ int mrtk_dump(int argc, char** argv) {
     char *infile[MAXFILE], *outfile = NULL, *gridfile = NULL;
     FILE *fp_in, *fp_out;
     char path[1024];
-    int i, iw, n = 0, ret, net, ch = 0, trace_level = 0, parse_mode = 0;
+    int i, n = 0, ret, net, ch = 0, trace_level = 0, parse_mode = 0;
 
     /* translate --long flags to their -short aliases before parsing */
     mrtk_normalize_args(argc, argv, opt_aliases);
@@ -246,10 +246,7 @@ int mrtk_dump(int argc, char** argv) {
     if (ts.time) {
         int week;
         time2gpst(ts, &week);
-        for (iw = 0; iw < CSSR_REF_MAX; iw++) {
-            clas->week_ref[iw] = week;
-            clas->tow_ref[iw] = -1;
-        }
+        clas_set_week_ref(clas, week);
     }
 
     /* read CLAS grid definition (required for STEC/troposphere grid records) */

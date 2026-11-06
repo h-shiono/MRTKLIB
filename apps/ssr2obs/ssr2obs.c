@@ -381,12 +381,9 @@ static int gen_osr(gtime_t ts, gtime_t te, double ti, int mode, prcopt_t* prcopt
 
     /* initialize GPS week reference from start time (required for CSSR decoding) */
     {
-        int iw, week;
+        int week;
         time2gpst(ts, &week);
-        for (iw = 0; iw < CSSR_REF_MAX; iw++) {
-            clas->week_ref[iw] = week;
-            clas->tow_ref[iw] = -1;
-        }
+        clas_set_week_ref(clas, week);
     }
 
     /* read grid definition file */

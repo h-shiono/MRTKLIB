@@ -187,6 +187,14 @@ enum {
 #define CLAS_BANK_NUM 32    /* bank depth (ring buffer entries) */
 #define CLAS_MAX_GP 80      /* max grid points in bank storage */
 
+/* Phase discontinuity indicator packing in the bias bank / clas_corr_t: the
+ * phase bias applied is the network (ST6) bias plus the global (ST5) one, so
+ * both 2-bit indicators are kept, each with a present bit. A change of either
+ * one means the phase bias of that signal stepped (IS-QZSS-L6). */
+#define CLAS_DISC_NET 0   /* bit shift of the network (ST6) indicator */
+#define CLAS_DISC_GLB 4   /* bit shift of the global (ST5) indicator */
+#define CLAS_DISC_VALID 4 /* present bit, above the 2 indicator bits */
+
 /*============================================================================
  * Grid Interpolation Constants
  *===========================================================================*/
@@ -337,9 +345,10 @@ typedef struct {
     zwd_t zwd[CLAS_MAX_GP];
 
     /* signal biases per satellite */
-    double cbias[MAXSAT][MAXCODE]; /* code bias (m) */
-    double pbias[MAXSAT][MAXCODE]; /* phase bias (m) */
-    int smode[MAXSAT][MAXCODE];    /* signal tracking mode */
+    double cbias[MAXSAT][MAXCODE];   /* code bias (m) */
+    double pbias[MAXSAT][MAXCODE];   /* phase bias (m) */
+    uint8_t discnt[MAXSAT][MAXCODE]; /* phase discontinuity indicators (CLAS_DISC_*) */
+    int smode[MAXSAT][MAXCODE];      /* signal tracking mode */
 
     /* orbit corrections per satellite */
     double deph0[MAXSAT]; /* radial (m) */
@@ -366,6 +375,7 @@ typedef struct {
 
     /* identification */
     int facility; /* L6 facility id */
+    int l6prn;    /* L6 PRN that delivered the clock set (0: unknown) */
     int gridnum;  /* number of grid points */
     int network;  /* network id */
     int use;      /* in-use flag */
@@ -394,21 +404,23 @@ typedef struct {
     double udi[MAXSAT]; /* update interval (s) */
     int iod[MAXSAT];    /* IOD */
     double c0[MAXSAT];  /* clock correction (m) */
+    int l6prn;          /* L6 PRN that delivered this clock set */
 } clas_clock_bank_t;
 
 /** Code/phase bias ring buffer entry */
 typedef struct {
-    int use;                       /* in-use flag */
-    gtime_t time;                  /* epoch time */
-    int network;                   /* network id */
-    int bflag;                     /* bias type flag */
-    int prn[MAXSAT];               /* satellite availability */
-    double udi[MAXSAT];            /* update interval (s) */
-    int iod[MAXSAT];               /* IOD */
-    int smode[MAXSAT][MAXCODE];    /* signal tracking mode */
-    int sflag[MAXSAT][MAXCODE];    /* signal validity flag */
-    double cbias[MAXSAT][MAXCODE]; /* code bias (m) */
-    double pbias[MAXSAT][MAXCODE]; /* phase bias (m) */
+    int use;                         /* in-use flag */
+    gtime_t time;                    /* epoch time */
+    int network;                     /* network id */
+    int bflag;                       /* bias type flag */
+    int prn[MAXSAT];                 /* satellite availability */
+    double udi[MAXSAT];              /* update interval (s) */
+    int iod[MAXSAT];                 /* IOD */
+    int smode[MAXSAT][MAXCODE];      /* signal tracking mode */
+    int sflag[MAXSAT][MAXCODE];      /* signal validity flag */
+    double cbias[MAXSAT][MAXCODE];   /* code bias (m) */
+    double pbias[MAXSAT][MAXCODE];   /* phase bias (m) */
+    uint8_t discnt[MAXSAT][MAXCODE]; /* phase discontinuity indicators (CLAS_DISC_*) */
 } clas_bias_bank_t;
 
 /** Troposphere/ionosphere grid ring buffer entry */
@@ -568,7 +580,23 @@ typedef struct {
     double ftag;             /* receiver time tag of the frame being received (s, 0: none) */
     double ftag_last;        /* receiver time tag of the last frame (s, 0: none) */
     int tow_last;            /* last decoded epoch time-of-week */
+    /* GPS week reference per subtype, per channel as upstream keeps it per L6
+     * stream: a channel resuming with a stale tow0 must not move the other
+     * channel's week (#436) */
+    int week_ref[CSSR_REF_MAX];
+    int tow_ref[CSSR_REF_MAX]; /* last TOW per subtype (-1: unset) */
 } clas_l6buf_t;
+
+#define CLAS_L6_NPRN 16 /* L6D PRN slots for the demux health table (193..208) */
+
+/* Subframe health of one L6D PRN as seen by the real-time demux.  Only frames
+ * that passed the receiver's RS decoding reach the demux, so an RS failure and
+ * a missing frame look the same: a gap in the frame time tags. */
+typedef struct {
+    double tag; /* receiver time tag of the last frame (s, 0: none) */
+    int nframe; /* frames of the current subframe received without a gap (-1: broken) */
+    int nsfok;  /* consecutive complete subframes up to the current one */
+} clas_l6health_t;
 
 /*============================================================================
  * CLAS Context Type (NEW — replaces upstream global singletons)
@@ -607,11 +635,6 @@ typedef struct {
     /* L6 frame buffer per channel */
     clas_l6buf_t l6buf[CLAS_CH_NUM];
 
-    /* Week references per subtype (for week rollover handling) */
-    int week_ref[CSSR_REF_MAX];
-    gtime_t obs_ref[CSSR_REF_MAX]; /* observation ref time per subtype */
-    int tow_ref[CSSR_REF_MAX];     /* last TOW per subtype (-1=unset) */
-
     /* L6 delivery/facility per channel */
     int l6delivery[CLAS_CH_NUM];
     int l6facility[CLAS_CH_NUM];
@@ -626,8 +649,19 @@ typedef struct {
      * source PRN (l6delivery[ch]).  The demux drops frames from any other PRN
      * to keep each channel's subframe assembly coherent, and re-locks the
      * channel to a new PRN/pattern once the active source has been silent
-     * longer than CLAS_L6_RELOCK_TIMEOUT (QZS handover recovery). */
+     * longer than CLAS_L6_RELOCK_TIMEOUT (QZS handover recovery), or has
+     * degraded (see l6sfok_time). */
     gtime_t l6lock_time[CLAS_CH_NUM];
+
+    /* Obs time when each channel's active source last delivered a complete
+     * subframe (set to the lock time on (re)lock).  A source that keeps
+     * sending frames but no complete subframe for CLAS_L6_DEGRADE_TIMEOUT is
+     * degraded: the demux then re-locks to a clean PRN (#414). */
+    gtime_t l6sfok_time[CLAS_CH_NUM];
+
+    /* Subframe health of every CLAS L6D PRN (index prn - MINPRNQZS), tracked
+     * from the frames reaching the demux, whether routed or dropped. */
+    clas_l6health_t l6health[CLAS_L6_NPRN];
 
     /* nav_t update flag (signals positioning engine to refresh) */
     int updateac;
@@ -659,6 +693,24 @@ int clas_ctx_init(clas_ctx_t* ctx);
  * @param[in,out] ctx  CLAS context to free
  */
 void clas_ctx_free(clas_ctx_t* ctx);
+
+/**
+ * @brief Set the GPS week reference of the CSSR decoder on every channel.
+ *
+ * CSSR messages carry the time of week only. Call this once with the week of
+ * the data before the first message is decoded; each channel then follows the
+ * week rollovers of its own message sequence.
+ * @param[in,out] ctx   CLAS context
+ * @param[in]     week  GPS week (0: unset)
+ */
+void clas_set_week_ref(clas_ctx_t* ctx, int week);
+
+/**
+ * @brief Test whether the GPS week reference has been set.
+ * @param[in] ctx  CLAS context
+ * @return 1 if clas_set_week_ref() set a week, 0 otherwise
+ */
+int clas_week_ref_isset(const clas_ctx_t* ctx);
 
 /*============================================================================
  * CSSR Decoder Functions
@@ -733,10 +785,26 @@ void clas_bank_init(clas_ctx_t* ctx, int ch);
 int clas_bank_get_close(const clas_ctx_t* ctx, gtime_t time, int network, int ch, clas_corr_t* corr);
 
 /**
+ * @brief Encode the L6 source of the corrections in use as an NMEA GGA station id.
+ *
+ * The id is P1*100 + P2*10 + F (0000-0779, within the GGA range 0000-1023):
+ * P1/P2 = L6 PRN - 192 of channel 1/2 (0 when the channel carries no
+ * corrections or its PRN is outside 193-199), F = facility id + 1 (1-4),
+ * or 9 when the two channels carry different facilities. 0 means no CLAS
+ * corrections in use.
+ *
+ * @param[in] ctx  CLAS context (ctx->current[] holds the corrections in use)
+ * @param[in] nch  Number of channels in use (1, or CLAS_CH_NUM with l6_merge)
+ * @return Station id (0-779)
+ */
+int clas_nmea_refid(const clas_ctx_t* ctx, int nch);
+
+/**
  * @brief Save/restore the latest usable CSSR snapshot for short correction gaps.
  *
  * Mirrors claslib's BackupCSSR/BackupGrid path. The backup is considered valid
- * while its latest global correction time is within 180 s of the observation.
+ * while its latest global correction time is within 180 s of the observation
+ * and it comes from the facility the bank currently holds.
  */
 int clas_backup_valid(const clas_ctx_t* ctx, gtime_t obstime, int l6mrg);
 void clas_backup_current(clas_ctx_t* ctx, const clas_grid_t* grid, int l6mrg);
@@ -807,6 +875,15 @@ int clas_get_correct_fac(int msgid);
  *  re-locks the channel to a newly arriving PRN/pattern (QZS handover). */
 #define CLAS_L6_RELOCK_TIMEOUT 10.0
 
+/** Seconds a channel's active source may go without a complete subframe
+ *  (while still sending frames) before the demux may re-lock the channel to
+ *  a clean PRN (#414). */
+#define CLAS_L6_DEGRADE_TIMEOUT 10.0
+
+/** Consecutive complete subframes a PRN must have delivered to take over a
+ *  degraded channel. */
+#define CLAS_L6_CLEAN_NSF 2
+
 /**
  * @brief Route one interleaved L6D frame to a CLAS channel (or drop it).
  *
@@ -815,8 +892,18 @@ int clas_get_correct_fac(int msgid);
  * QZS PRNs interleaved.  Each CLAS channel decodes one PRN's subframe sequence
  * statefully, so frames from different PRNs must NOT be mixed into the same
  * channel.  This router keeps each channel locked to a single active source
- * PRN and drops frames from any other PRN, re-locking only after the active
- * source has been silent for CLAS_L6_RELOCK_TIMEOUT seconds.
+ * PRN and drops frames from any other PRN.  It re-locks the channel when the
+ * active source has been silent for CLAS_L6_RELOCK_TIMEOUT seconds, or when
+ * the source still sends frames but has delivered no complete subframe for
+ * CLAS_L6_DEGRADE_TIMEOUT seconds while this frame's PRN has delivered
+ * CLAS_L6_CLEAN_NSF complete subframes in a row (#414).  The second re-lock
+ * happens only on the first frame of a subframe, so the channel's subframe
+ * assembly restarts cleanly on the new PRN.
+ *
+ * Subframe completeness is judged from the receiver frame time tags: a
+ * subframe is complete when its first frame and the following four arrive
+ * at most 1.5 s apart.  With @p tag = 0 (no time tag) only the silence
+ * timeout applies.
  *
  * Channels are keyed by CLAS Transmit Pattern ID (IS-QZSS-L6 §4.1.1.2): there
  * are only two patterns, so two channels suffice regardless of how many PRNs
@@ -824,14 +911,31 @@ int clas_get_correct_fac(int msgid);
  * collapses to whichever pattern is currently active; dual-channel CLAS
  * (`l6mrg!=0`) maps each pattern to its own channel for merging.
  *
- * @param[in,out] ctx    CLAS context (holds per-channel PRN/pattern/time lock)
- * @param[in]     prn    Broadcasting QZS PRN (L6 frame byte `buff[4]`)
- * @param[in]     ptn    CLAS Transmit Pattern ID, `(buff[5] & 0x06) >> 1`
+ * @param[in,out] ctx    CLAS context (holds per-channel PRN/pattern/time lock
+ *                       and the per-PRN subframe health)
+ * @param[in]     hdr    L6 header of the frame (PRN, transmit pattern ID,
+ *                       subframe indicator)
+ * @param[in]     tag    Receiver time tag of the frame (s, 0: none)
  * @param[in]     l6mrg  L6 merge mode (0:single channel, !=0:dual channel)
- * @param[in]     now    Current observation time (GPST) used for the timeout
+ * @param[in]     now    Current observation time (GPST) used for the timeouts
  * @return Channel index (0..CLAS_CH_NUM-1) to feed, or -1 to drop the frame.
  */
-int clas_route_l6frame(clas_ctx_t* ctx, int prn, int ptn, int l6mrg, gtime_t now);
+int clas_route_l6frame(clas_ctx_t* ctx, const l6_header_t* hdr, double tag, int l6mrg, gtime_t now);
+
+/**
+ * @brief Test whether a demux channel's L6 source has gone silent.
+ *
+ * True when clas_route_l6frame() locked the channel to a source PRN but has
+ * accepted no frame on it for more than CLAS_L6_RELOCK_TIMEOUT seconds, e.g.
+ * the only PRN broadcasting that transmit pattern has set (#443).  A channel
+ * the demux never locked (post-processing, or no frame yet) is not silent.
+ *
+ * @param[in] ctx   CLAS context
+ * @param[in] ch    Channel index (0..CLAS_CH_NUM-1)
+ * @param[in] time  Current observation time (GPST)
+ * @return 1 if the channel's source is silent, 0 otherwise.
+ */
+int clas_l6_silent(const clas_ctx_t* ctx, int ch, gtime_t time);
 
 /*============================================================================
  * Grid Interpolation (mrtk_clas_grid.c)
@@ -1065,6 +1169,23 @@ void clas_osr_compensatedisp(clas_corr_t* corr, const int* index, const obsd_t* 
 int clas_osr_corrmeas(const obsd_t* obs, nav_t* nav, const double* pos, const double* azel, const prcopt_t* opt,
                       clas_grid_t* grid, clas_corr_t* corr, ssat_t ssat, int* brk, clas_osrd_t* osr, int* pbreset,
                       int ch, clas_osr_ctx_t* osr_ctx);
+
+/**
+ * @brief Select the CLAS signal whose biases correct an observed signal.
+ *
+ * Exact code match first, then a signal on the same frequency (e.g. L2X for
+ * an L2W observation), as clas_osr_corrmeas() applies the biases. The
+ * same-frequency signal is also preferred when the exact match carries an
+ * invalid phase bias; the exact match is returned if there is none.
+ *
+ * @param[in] corr   Merged correction snapshot
+ * @param[in] sat    Satellite number (1..MAXSAT)
+ * @param[in] code   Observation code (CODE_???)
+ * @param[in] pbias  Phase biases of the satellite indexed by signal mode - 1
+ *                   (nav->ssr_ch[ch][sat-1].pbias)
+ * @return CLAS signal mode (CODE_???) indexing ssr_t pbias/cbias/discnt, 0 if none
+ */
+int clas_osr_bias_smode(const clas_corr_t* corr, int sat, uint8_t code, const double* pbias);
 
 /**
  * @brief Initialize OSR conversion context.

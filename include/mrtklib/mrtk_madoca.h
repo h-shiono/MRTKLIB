@@ -55,6 +55,18 @@ void set_mcssr_ch(int ch);
 int get_mcssr_ch(void);
 
 /**
+ * @brief Set the receiver time tag of the next L6E frame (current channel).
+ *
+ * With a tag, decode_qzss_l6emsg() discards a message whose frames do not
+ * follow each other by 1 s (a frame lost inside the message). The tag is
+ * consumed by the next frame; without one (L6E streams, files) frames are
+ * assembled as before.
+ *
+ * @param[in] tag  Receiver time of the frame (s, any continuous time scale; 0: none)
+ */
+void set_mcssr_ftag(double tag);
+
+/**
  * @brief Initialize MADOCA-PPP CSSR control struct for current channel.
  * @param[in] gt  GPST for week number determination
  */

@@ -432,6 +432,7 @@ TOML section: `[output]`
 | `static_solution` | enum | PP | Static mode output control. `all` · `single` |
 | `nmea_interval_1` | float | All | NMEA GGA/RMC output interval (s). |
 | `nmea_interval_2` | float | All | NMEA GSA/GSV output interval (s). |
+| `clas_nmea_source_id` | boolean | PPP-RTK | Write the CLAS L6 source as the NMEA GGA station id: P1*100 + P2*10 + F, P1/P2 = L6 PRN - 192 of channel 1/2 (0: none), F = facility + 1 (9: channels differ). On by default. |
 | `solution_status` | enum | PP | Solution status output level. `off` · `state` · `residual` |
 
 ## Files

@@ -110,7 +110,7 @@ Branch naming conventions used in this repo:
 ```bash
 cmake -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build -j
-cd build && ctest --output-on-failure
+cd build && ctest --output-on-failure -j16   # measured on 8 cores; adjust for your host
 ```
 
 All tests must pass before you open a PR. If your change makes a test

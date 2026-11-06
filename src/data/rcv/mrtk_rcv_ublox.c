@@ -1381,7 +1381,7 @@ static int decode_rxmqzssl6(raw_t* raw, rtcm_t* rtcm) {
         /* route by the L6 header service, not by the L6D/L6E message bit: an
          * L6D channel may carry MADOCA-PPP iono (PRN 200/201) -> 16, which must
          * not enter the CLAS demux; L6E carries MADOCA-PPP (15) and QZNMA (17) */
-        ret = decode_qzss_l6frame(rtcm, msg == 0);
+        ret = decode_qzss_l6frame(rtcm, msg == 0, raw->l6tag);
     }
     return ret;
 }

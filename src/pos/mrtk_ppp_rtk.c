@@ -193,6 +193,10 @@ static struct {
     /* flag: floatcnt just triggered a mass reset (suppress pbreset) */
     int floatcnt_reset;
 
+    /* last CLAS phase discontinuity indicators seen per L6 channel, satellite
+     * and frequency (CLAS_DISC_* packing; 0 = none seen yet) */
+    uint8_t discnt[SSR_CH_NUM][MAXSAT][NFREQ];
+
     int initialized;
 } prtk_ctx;
 
@@ -1562,6 +1566,77 @@ static void set_init_pb(rtk_t* rtk, const nav_t* nav, const obsd_t* obs, int n, 
     free(bias);
 }
 
+/* return 1 if an indicator present in both prev and cur differs, and merge
+ * the indicators present in cur into prev */
+static int update_discnt(uint8_t* prev, uint8_t cur) {
+    static const int shift[2] = {CLAS_DISC_NET, CLAS_DISC_GLB};
+    int k, changed = 0;
+    uint8_t mask;
+
+    for (k = 0; k < 2; k++) {
+        if (!((cur >> shift[k]) & CLAS_DISC_VALID)) {
+            continue;
+        }
+        if (((*prev >> shift[k]) & CLAS_DISC_VALID) && (((*prev ^ cur) >> shift[k]) & 3)) {
+            changed = 1;
+        }
+        mask = (uint8_t)((CLAS_DISC_VALID | 3) << shift[k]);
+        *prev = (uint8_t)((*prev & ~mask) | (cur & mask));
+    }
+    return changed;
+}
+
+/**
+ * @brief Reset phase biases whose CLAS phase discontinuity indicator changed.
+ *
+ * CLAS advances the indicator of a signal when its phase bias steps (e.g. a
+ * re-fixed network ambiguity). The ambiguity state estimated against the old
+ * bias is then off by the step, so the satellite would be rejected as an
+ * outlier; re-initialize it instead (#393). Must run after the corrections of
+ * this epoch were applied to nav->ssr_ch[].
+ *
+ * @param[in,out] rtk  RTK control struct
+ * @param[in]     nav  Navigation data (ssr_ch[] of this epoch)
+ * @param[in]     clas CLAS context (current[] correction snapshots)
+ * @param[in]     obs  Observation data
+ * @param[in]     n    Number of observations
+ * @param[in]     nch  Number of L6 channels in use
+ */
+static void detslp_discnt(rtk_t* rtk, const nav_t* nav, const clas_ctx_t* clas, const obsd_t* obs, int n, int nch) {
+    const ssr_t* ssr;
+    int i, f, ch, sat, smode, reset, nf = NF_RTK(&rtk->opt);
+
+    for (i = 0; i < n && i < MAXOBS; i++) {
+        sat = obs[i].sat;
+        for (f = 0; f < nf && f < NFREQ; f++) {
+            for (ch = reset = 0; ch < nch; ch++) {
+                ssr = &nav->ssr_ch[ch][sat - 1];
+                if (!ssr->t0[5].time ||
+                    !(smode = clas_osr_bias_smode(&clas->current[ch], sat, obs[i].code[f], ssr->pbias))) {
+                    continue;
+                }
+                if (update_discnt(&prtk_ctx.discnt[ch][sat - 1][f], (uint8_t)ssr->discnt[smode - 1])) {
+                    trace(NULL, 2, "phase discontinuity: %s sat=%2d L%d ch=%d\n", time_str(obs[0].time, 0), sat, f + 1,
+                          ch);
+                    reset = 1;
+                }
+            }
+            if (!reset) {
+                continue;
+            }
+            if (obs[i].L[f] != 0.0 && obs[i].P[f] != 0.0 && sat_lambda(sat, f, nav) != 0.0) {
+                set_init_pb(rtk, nav, obs, n, f, sat);
+            } else {
+                /* the indicator is consumed now: clear the state so that
+                 * udbias re-initializes it once the measurement returns */
+                initx(rtk, 0.0, 0.0, IB_RTK(sat, f, &rtk->opt));
+                rtk->ssat[sat - 1].lock[f] = -rtk->opt.minlock;
+            }
+            rtk->ssat[sat - 1].slip[f] |= 1;
+        }
+    }
+}
+
 /**
  * @brief Compute DD residuals and measurement matrix, merging L6 channels.
  *
@@ -2550,11 +2625,12 @@ extern void ppp_rtk_pos(rtk_t* rtk, const obsd_t* obs, int n, nav_t* nav) {
     int ch, pch = 0, nch = opt->l6mrg ? SSR_CH_NUM : 1;
     int stat = (rtk->opt.mode <= PMODE_DGPS) ? SOLQ_DGPS : SOLQ_FLOAT;
     int vflg[MAXOBS * NFREQ * 4 + 1], nb, svh[SSR_CH_NUM][MAXOBS];
-    int nn, use_backup = 0;
+    int nn, use_backup = 0, refid = 0;
     double cpc_[SSR_CH_NUM][MAXSAT * NFREQ];
     gtime_t pt0_[SSR_CH_NUM][MAXSAT];
 
     trace(NULL, 2, "ppp_rtk_pos: time=%s nx=%d n=%d\n", time_str(obs[0].time, 0), rtk->nx, n);
+    rtk->sol.refid = 0;
     /* check CLAS context availability */
     if (!nav->clas_ctx) {
         trace(NULL, 2, "ppp_rtk_pos: no CLAS context\n");
@@ -2686,6 +2762,14 @@ extern void ppp_rtk_pos(rtk_t* rtk, const obsd_t* obs, int n, nav_t* nav) {
         int ch, nok = 0;
         int chok[SSR_CH_NUM] = {0};
         for (ch = 0; ch < nch && !use_backup; ch++) {
+            /* a merge channel whose L6 source has gone silent is no source: its
+             * bank still answers (at obs time within the orbit age, then at the
+             * frozen l6buf time), so counting it would keep nok > 0 and block
+             * the backup bridge when the live channel loses a subframe (#443) */
+            if (opt->l6mrg && clas_l6_silent(clas, ch, obs[0].time)) {
+                trace(NULL, 3, "ppp_rtk_pos: L6 source silent ch=%d\n", ch);
+                continue;
+            }
             /* re-fetch corrections closest to observation time,
              * falling back to L6 buffer time if obs lookup fails */
             if (grid->network > 0) {
@@ -2743,7 +2827,11 @@ extern void ppp_rtk_pos(rtk_t* rtk, const obsd_t* obs, int n, nav_t* nav) {
             clas_update_local(nav, &clas->current[ch], ch);
         }
         check_clas_facility(nav, clas, grid, opt);
+        refid = clas_nmea_refid(clas, nch);
     }
+
+    /* phase bias steps signalled by CLAS */
+    detslp_discnt(rtk, nav, clas, obs, n, nch);
 
     trace(NULL, 4, "x(0)=\n");
     tracemat(NULL, 4, rtk->x, 1, NR_RTK(opt), 13, 4);
@@ -2960,6 +3048,7 @@ extern void ppp_rtk_pos(rtk_t* rtk, const obsd_t* obs, int n, nav_t* nav) {
         if (nb <= 1 && rtk->opt.posopt[6]) {
             int isat[MAXOBS], exsat = 0, sati, nf2 = NF_RTK(&rtk->opt);
             double el[MAXOBS], ratio = 0.0;
+            uint8_t vsat0[NFREQ];
             elsort(rtk, obs, isat, el, n);
             for (l = 0; l < rtk->opt.armaxdelsat; l++) {
                 ratio = 0.0;
@@ -2979,6 +3068,7 @@ extern void ppp_rtk_pos(rtk_t* rtk, const obsd_t* obs, int n, nav_t* nav) {
                     }
                     /* temporarily exclude this satellite */
                     for (f = 0; f < nf2; f++) {
+                        vsat0[f] = rtk->ssat[sati - 1].vsat[f];
                         rtk->ssat[sati - 1].vsat[f] = 0;
                     }
                     pdop = calpdop(rtk, H, azel, vflg, obs, rtk->opt.elmaskar, n, nv);
@@ -2988,9 +3078,10 @@ extern void ppp_rtk_pos(rtk_t* rtk, const obsd_t* obs, int n, nav_t* nav) {
                               rtk->sol.ratio);
                         break;
                     } else {
-                        /* restore satellite and track best ratio */
+                        /* restore the satellite as it was before the trial: a
+                         * frequency invalid before must stay invalid (#413) */
                         for (f = 0; f < nf2; f++) {
-                            rtk->ssat[sati - 1].vsat[f] = 1;
+                            rtk->ssat[sati - 1].vsat[f] = vsat0[f];
                         }
                         if (ratio < rtk->sol.ratio) {
                             exsat = sati;
@@ -3139,6 +3230,7 @@ extern void ppp_rtk_pos(rtk_t* rtk, const obsd_t* obs, int n, nav_t* nav) {
 
     if (stat != SOLQ_NONE) {
         rtk->sol.stat = stat;
+        rtk->sol.refid = (uint16_t)refid;
     } else {
         rtk->sol.stat = SOLQ_SINGLE;
     }

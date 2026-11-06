@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.15)
-project(MRTKLIB VERSION 0.7.14 LANGUAGES C)
+project(MRTKLIB VERSION 0.7.15 LANGUAGES C)
 
 # ── Version header generation ─────────────────────────────────────────────────
 set(MRTKLIB_VERSION_MAJOR ${PROJECT_VERSION_MAJOR})
@@ -276,8 +276,13 @@ if(DOXYGEN_FOUND)
 endif()
 
 # ── Regression tests ──────────────────────────────────────────────────────────
-# Run with: ctest --test-dir build --output-on-failure
-# Skip slow rtkrcv test: ctest --test-dir build -LE realtime
+# Run with: ctest --test-dir build --output-on-failure -j16
+# Skip the slow rtkrcv replays: ctest --test-dir build -LE realtime
+# The realtime tests replay files at x10 against the wall clock and mostly
+# sleep, so they run concurrently: each has its own console port and working
+# directory (tests/cmake/run_rtkrcv_test.sh).  Each still holds a -j slot, so
+# -j16 on 8 cores leaves room for the CPU-bound tests.  Oversubscribing (-j24
+# on 8 cores) makes rtkrcv_rt drop epochs and fail its line-count gate.
 enable_testing()
 
 # Large test datasets: release assets of h-shiono/mrtklib-data, fetched and
@@ -343,6 +348,16 @@ add_test(NAME utest_lclblk COMMAND utest_lclblk
          WORKING_DIRECTORY ${_UTEST_DIR})
 set_tests_properties(utest_lclblk PROPERTIES LABELS "utest")
 
+# cssr2rtcm3 output epoch scheduling after input gaps, duplicate / backward
+# PVT times, week rollover and non-default -t (issue #442).
+add_executable(utest_cssr2rtcm3_sched ${_UTEST_DIR}/utest_cssr2rtcm3_sched.c)
+# Override global -ansi (=C90): this test uses C11 (P-01). The header it
+# tests stays C90-compatible because the cssr2rtcm3 app still builds with -ansi.
+target_compile_options(utest_cssr2rtcm3_sched PRIVATE -std=c11)
+target_link_libraries(utest_cssr2rtcm3_sched PRIVATE mrtklib)
+add_test(NAME utest_cssr2rtcm3_sched COMMAND utest_cssr2rtcm3_sched)
+set_tests_properties(utest_cssr2rtcm3_sched PROPERTIES LABELS "utest")
+
 # CLAS correction-set assembly after a lost subframe 1 (issue #406 / #242).
 add_executable(utest_clas_bank ${_UTEST_DIR}/utest_clas_bank.c)
 # Override global -ansi (=C90): this test uses C11 (P-01).
@@ -351,6 +366,15 @@ target_link_libraries(utest_clas_bank PRIVATE mrtklib)
 add_test(NAME utest_clas_bank COMMAND utest_clas_bank
          WORKING_DIRECTORY ${_UTEST_DIR})
 set_tests_properties(utest_clas_bank PROPERTIES LABELS "utest")
+
+# CLAS L6 source as the NMEA GGA station id.
+add_executable(utest_clas_refid ${_UTEST_DIR}/utest_clas_refid.c)
+# Override global -ansi (=C90): this test uses C11 (P-01).
+target_compile_options(utest_clas_refid PRIVATE -std=c11)
+target_link_libraries(utest_clas_refid PRIVATE mrtklib)
+add_test(NAME utest_clas_refid COMMAND utest_clas_refid
+         WORKING_DIRECTORY ${_UTEST_DIR})
+set_tests_properties(utest_clas_refid PROPERTIES LABELS "utest")
 
 # CLAS L6 subframe continuity and hourly epoch wrap (issue #363 / #392).
 add_executable(utest_clas_l6 ${_UTEST_DIR}/utest_clas_l6.c)
@@ -400,6 +424,16 @@ target_link_libraries(utest_l6_route PRIVATE mrtklib)
 add_test(NAME utest_l6_route COMMAND utest_l6_route
          WORKING_DIRECTORY ${_UTEST_DIR})
 set_tests_properties(utest_l6_route PROPERTIES LABELS "utest")
+
+# MADOCA-PPP L6E / L6D iono message assembly across a lost frame (#363), on
+# the utest_l6_route SBF fixtures.
+add_executable(utest_madoca_l6gap ${_UTEST_DIR}/utest_madoca_l6gap.c)
+# Override global -ansi (=C90): this test uses C11 (P-01).
+target_compile_options(utest_madoca_l6gap PRIVATE -std=c11)
+target_link_libraries(utest_madoca_l6gap PRIVATE mrtklib)
+add_test(NAME utest_madoca_l6gap COMMAND utest_madoca_l6gap
+         WORKING_DIRECTORY ${_UTEST_DIR})
+set_tests_properties(utest_madoca_l6gap PROPERTIES LABELS "utest")
 
 # Serial stream write byte count over a pseudo-terminal pair (#343).
 add_executable(utest_stream_serial ${_UTEST_DIR}/utest_stream_serial.c)
@@ -594,7 +628,6 @@ set_tests_properties(rtkrcv_rt PROPERTIES
     FIXTURES_REQUIRED regression_data
     TIMEOUT           300
     LABELS            "regression;realtime"
-    RESOURCE_LOCK     rtkrcv_port
 )
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -1899,7 +1932,6 @@ set_tests_properties(rtkrcv_rt_clas PROPERTIES
     FIXTURES_REQUIRED claslib_data
     TIMEOUT           600
     LABELS            "regression;claslib;realtime"
-    RESOURCE_LOCK     rtkrcv_port
 )
 
 # ── rtkrcv RT CLAS PPP-RTK dual-channel regression ────────────────────────────
@@ -1928,7 +1960,6 @@ set_tests_properties(rtkrcv_rt_clas_2ch PROPERTIES
     FIXTURES_REQUIRED claslib_data
     TIMEOUT           600
     LABELS            "regression;claslib;realtime"
-    RESOURCE_LOCK     rtkrcv_port
 )
 
 # ── rtkrcv RT CLAS PPP-RTK dual-channel merge regression (#309) ───────────────
@@ -1950,7 +1981,6 @@ set_tests_properties(rtkrcv_rt_clas_2ch_merge PROPERTIES
     FIXTURES_REQUIRED claslib_data
     TIMEOUT           600
     LABELS            "regression;claslib;realtime"
-    RESOURCE_LOCK     rtkrcv_port
 )
 
 # Sensitivity guard: the merged run must use satellites the single-channel run
@@ -2020,7 +2050,6 @@ set_tests_properties(rtkrcv_rt_clas_sf1gap PROPERTIES
     FIXTURES_REQUIRED "claslib_data;clas_sf1gap"
     TIMEOUT           400
     LABELS            "regression;claslib;realtime"
-    RESOURCE_LOCK     rtkrcv_port
 )
 add_test(NAME rtkrcv_rt_clas_sf1gap_check
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/scripts/tests/check_clas_sf1_gap.py
@@ -2649,7 +2678,6 @@ function(_handover_rt name case port rover corr overrides check_args)
         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
     set_tests_properties(rtkrcv_handover_${name} PROPERTIES
         FIXTURES_REQUIRED "handover_data;claslib_data"
-        RUN_SERIAL        TRUE
         TIMEOUT           420
         LABELS            "regression;realtime;handover;claslib")
     separate_arguments(_args UNIX_COMMAND "${check_args}")
@@ -2796,7 +2824,6 @@ function(_clas_l6gap_rt name port l6_merge)
         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
     set_tests_properties(rtkrcv_clas_l6gap_${name} PROPERTIES
         FIXTURES_REQUIRED "clas_l6gap_data;claslib_data"
-        RUN_SERIAL        TRUE
         TIMEOUT           420
         LABELS            "regression;realtime;claslib")
     add_test(NAME rtkrcv_clas_l6gap_${name}_check
@@ -2810,6 +2837,28 @@ function(_clas_l6gap_rt name port l6_merge)
 endfunction()
 _clas_l6gap_rt(nomerge 52018 0)
 _clas_l6gap_rt(merge   52019 1)
+
+# cssr2rtcm3 on the same window (check_cssr2rtcm3_gap.py). The OSR path
+# bridges a discarded subframe with the last good correction set (BackupCSSR,
+# #442): 1067 epochs and outages up to 33 s without it. Each output epoch is
+# the latest valid PVT time on the -t grid, and the MSM epoch times in the
+# RTCM3 output must match it: stepping one interval per PVT lagged the
+# receiver by 2-10 s after input gaps (#442). Measured 2026-11-05: -t 1 1162
+# epochs, longest interval 3 s, lag 0; -t 5 236 epochs, longest interval 5 s.
+function(_cssr2rtcm3_l6gap name interval min_epochs max_gap)
+    add_test(NAME cssr2rtcm3_clas_l6gap${name}
+        COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/scripts/tests/check_cssr2rtcm3_gap.py
+            $<TARGET_FILE:mrtk> conf/cssr2rtcm3.toml ${_L6GAPDATA}/G5P3296u_20m.sbf
+            ${CMAKE_BINARY_DIR}/out_cssr2rtcm3_clas_l6gap${name}.rtcm3
+            --interval ${interval} --min-epochs ${min_epochs} --max-gap ${max_gap}
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+    set_tests_properties(cssr2rtcm3_clas_l6gap${name} PROPERTIES
+        FIXTURES_REQUIRED "clas_l6gap_data;claslib_data"
+        TIMEOUT           120
+        LABELS            "regression;claslib;vrs")
+endfunction()
+_cssr2rtcm3_l6gap(""    1 1150 5)
+_cssr2rtcm3_l6gap(_t5   5  230 10)
 
 add_test(NAME clas_l6gap_checker_selftest
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/scripts/tests/check_clas_l6gap.py --selftest)

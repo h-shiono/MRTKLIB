@@ -70,16 +70,18 @@ extern int clas_ctx_init(clas_ctx_t* ctx) {
     for (i = 0; i < CLAS_CH_NUM; i++) {
         clas_bank_init(ctx, i);
     }
-    /* initialize tow_ref to -1 (unset) */
-    for (i = 0; i < CSSR_REF_MAX; i++) {
-        ctx->tow_ref[i] = -1;
-    }
+    clas_set_week_ref(ctx, 0);
     for (i = 0; i < CLAS_CH_NUM; i++) {
         ctx->l6facility[i] = -1;
         ctx->l6delivery[i] = -1;
         ctx->l6pattern[i] = -1;
         ctx->l6lock_time[i].time = 0;
         ctx->l6lock_time[i].sec = 0.0;
+        ctx->l6sfok_time[i].time = 0;
+        ctx->l6sfok_time[i].sec = 0.0;
+    }
+    for (i = 0; i < CLAS_L6_NPRN; i++) {
+        ctx->l6health[i].nframe = -1;
     }
     ctx->initialized = 1;
     return 0;
@@ -268,20 +270,38 @@ static float decode_cssr_quality_trop(int a, int b) {
     return (float)((1.0 + b * 0.25) * pow(3.0, a) - 1.0);
 }
 
-static void check_week_ref(clas_ctx_t* ctx, clas_l6buf_t* l6, int tow, int i) {
-    if (ctx->obs_ref[i].time != 0 || ctx->obs_ref[i].sec != 0.0) {
-        gtime_t time = gpst2time(ctx->week_ref[i], tow);
-        if (timediff(time, ctx->obs_ref[i]) > (86400 * 7 / 2)) {
-            trace(NULL, 2, "check_week_ref(): adjust ref week, subtype=%2d, week=%d\n", i + 1, --ctx->week_ref[i]);
-        }
-        ctx->obs_ref[i].time = 0;
-        ctx->obs_ref[i].sec = 0.0;
-    }
+static void check_week_ref(clas_l6buf_t* l6, int tow, int i) {
     if (l6->tow0 != -1) {
-        if (ctx->tow_ref[i] != -1 && ((tow - ctx->tow_ref[i]) < (-86400 * 7 / 2))) {
-            ++ctx->week_ref[i];
+        if (l6->tow_ref[i] != -1 && ((tow - l6->tow_ref[i]) < (-86400 * 7 / 2))) {
+            trace(NULL, 2, "check_week_ref(): week rollover, subtype=%2d, week=%d\n", i + 1, ++l6->week_ref[i]);
         }
-        ctx->tow_ref[i] = tow;
+        l6->tow_ref[i] = tow;
+    }
+}
+
+/* the week set at startup is stale for a channel first received after a week
+ * rollover, and with no earlier TOW of its own the rollover is not detected:
+ * its first ST1 takes the week of a channel already decoding */
+static void anchor_week_ref(clas_ctx_t* ctx, int ch, int tow) {
+    const clas_l6buf_t* o;
+    int i, j, d, week;
+
+    for (j = 0; j < CLAS_CH_NUM; j++) {
+        o = &ctx->l6buf[j];
+        if (j == ch || o->tow_ref[CSSR_REF_MASK] == -1) {
+            continue;
+        }
+        week = o->week_ref[CSSR_REF_MASK];
+        d = tow - o->tow_ref[CSSR_REF_MASK];
+        if (d < -86400 * 7 / 2) {
+            week++;
+        } else if (d > 86400 * 7 / 2) {
+            week--;
+        }
+        for (i = 0; i < CSSR_REF_MAX; i++) {
+            ctx->l6buf[ch].week_ref[i] = week;
+        }
+        return;
     }
 }
 
@@ -704,6 +724,7 @@ static void set_cssr_bank_clock(clas_ctx_t* ctx, int ch, gtime_t time, int netwo
             clk->c0[i] = 0.0;
         }
     }
+    clk->l6prn = ctx->l6delivery[ch];
     for (i = 0; i < MAXSAT; i++) {
         ssr = &ctx->dec_ssr[i];
         if (ssr->update_cc != 1) {
@@ -738,6 +759,7 @@ static void set_cssr_bank_cbias(clas_ctx_t* ctx, int ch, gtime_t time, int netwo
         memset(bias->smode, 0, sizeof(bias->smode));
         memset(bias->sflag, 0, sizeof(bias->sflag));
         memset(bias->prn, 0, sizeof(bias->prn));
+        memset(bias->discnt, 0, sizeof(bias->discnt));
     }
     /* clear previous code bias entries */
     if (bias->bflag & 0x01) {
@@ -788,6 +810,7 @@ static void set_cssr_bank_pbias(clas_ctx_t* ctx, int ch, gtime_t time, int netwo
         memset(bias->smode, 0, sizeof(bias->smode));
         memset(bias->sflag, 0, sizeof(bias->sflag));
         memset(bias->prn, 0, sizeof(bias->prn));
+        memset(bias->discnt, 0, sizeof(bias->discnt));
     }
     /* clear previous phase bias entries */
     if (bias->bflag & 0x02) {
@@ -796,6 +819,7 @@ static void set_cssr_bank_pbias(clas_ctx_t* ctx, int ch, gtime_t time, int netwo
                 if (bias->sflag[i][j] & 0x02) {
                     bias->sflag[i][j] ^= 0x02;
                     bias->pbias[i][j] = 0.0;
+                    bias->discnt[i][j] = 0;
                 }
             }
         }
@@ -813,6 +837,8 @@ static void set_cssr_bank_pbias(clas_ctx_t* ctx, int ch, gtime_t time, int netwo
         for (j = 0; j < MAXCODE; j++) {
             if (ssr->smode[j] != 0 && (pos = get_bias_save_point(bias, bias->prn[i], ssr->smode[j])) != -1) {
                 bias->pbias[i][pos] = ssr->pbias[ssr->smode[j] - 1];
+                bias->discnt[i][pos] = (uint8_t)(((ssr->discnt[ssr->smode[j] - 1] & 3) | CLAS_DISC_VALID)
+                                                 << (network ? CLAS_DISC_NET : CLAS_DISC_GLB));
                 bias->smode[i][pos] = ssr->smode[j];
                 bias->sflag[i][pos] |= 0x02;
             }
@@ -975,6 +1001,7 @@ static clas_bias_bank_t* add_base_value_to_pbias(clas_bank_ctrl_t* bank, clas_bi
                     } else {
                         pbias.pbias[i][pos] = CSSR_INVALID_VALUE;
                     }
+                    pbias.discnt[i][pos] |= temp->discnt[i][j];
                     pbias.smode[i][pos] = temp->smode[i][j];
                     pbias.sflag[i][pos] |= 0x02;
                 }
@@ -1147,6 +1174,7 @@ extern int clas_bank_get_close(const clas_ctx_t* ctx, gtime_t time, int network,
                 if (pbias->smode[i][j] != 0 && (pbias->sflag[i][j] & 0x02) &&
                     (k = corr_bias_slot(corr->smode[i], pbias->smode[i][j])) >= 0) {
                     corr->pbias[i][k] = pbias->pbias[i][j];
+                    corr->discnt[i][k] = pbias->discnt[i][j];
                     corr->smode[i][k] = pbias->smode[i][j];
                 }
             }
@@ -1212,10 +1240,31 @@ extern int clas_bank_get_close(const clas_ctx_t* ctx, gtime_t time, int network,
     corr->bias_time = cbias->time;
     corr->trop_time = trop->time;
     corr->facility = bank->Facility;
+    corr->l6prn = clk->l6prn;
     corr->update_time = time;
     corr->network = network;
     corr->use = 1;
     return 0;
+}
+
+extern int clas_nmea_refid(const clas_ctx_t* ctx, int nch) {
+    int ch, fac = -1, id = 0, digit;
+
+    for (ch = 0; ch < nch && ch < 2; ch++) {
+        const clas_corr_t* corr = &ctx->current[ch];
+        if (!corr->use) {
+            continue;
+        }
+        /* one decimal digit per channel: CLAS L6 PRNs are 193-199 */
+        digit = corr->l6prn - 192;
+        if (digit >= 1 && digit <= 7) {
+            id += digit * (ch == 0 ? 100 : 10);
+        }
+        if (corr->facility >= 0) {
+            fac = (fac < 0 || fac == corr->facility + 1) ? corr->facility + 1 : 9;
+        }
+    }
+    return id ? id + (fac < 0 ? 0 : fac) : 0;
 }
 
 static gtime_t backup_cssr_time(const clas_corr_t* corr) {
@@ -1230,6 +1279,16 @@ static gtime_t backup_cssr_time(const clas_corr_t* corr) {
     return time;
 }
 
+/* A facility change clears the bank but not the backup, so a backup from the
+ * previous facility would be restored and then given a clock from the new
+ * facility's bank (#442). */
+static int backup_usable(const clas_ctx_t* ctx, int ch, gtime_t time) {
+    const clas_bank_ctrl_t* bank = ctx->bank[ch];
+
+    return bank && bank->use && ctx->backup[ch].use && ctx->backup[ch].facility == bank->Facility &&
+           timediff(time, backup_cssr_time(&ctx->backup[ch])) <= 180.0;
+}
+
 extern int clas_backup_valid(const clas_ctx_t* ctx, gtime_t obstime, int l6mrg) {
     int ch, nch = l6mrg ? SSR_CH_NUM : 1;
 
@@ -1240,7 +1299,7 @@ extern int clas_backup_valid(const clas_ctx_t* ctx, gtime_t obstime, int l6mrg) 
         nch = CLAS_CH_NUM;
     }
     for (ch = 0; ch < nch; ch++) {
-        if (ctx->backup[ch].use && timediff(obstime, backup_cssr_time(&ctx->backup[ch])) <= 180.0) {
+        if (backup_usable(ctx, ch, obstime)) {
             return 1;
         }
     }
@@ -1283,10 +1342,11 @@ extern void clas_restore_backup(clas_ctx_t* ctx, gtime_t time, clas_grid_t* grid
     }
     for (ch = 0; ch < nch; ch++) {
         clas_bank_ctrl_t* bank = ctx->bank[ch];
-        if (!bank || !bank->use || !ctx->backup[ch].use) {
-            continue;
-        }
-        if (timediff(time, backup_cssr_time(&ctx->backup[ch])) > 180.0) {
+        /* a channel without a usable backup still holds the snapshot of an
+         * earlier epoch (a failed bank fetch leaves current untouched), maybe
+         * from the previous facility: drop it so the caller does not apply it */
+        if (!backup_usable(ctx, ch, time)) {
+            clas_clear_current(ctx, ch);
             continue;
         }
         memcpy(&ctx->current[ch], &ctx->backup[ch], sizeof(clas_corr_t));
@@ -1296,6 +1356,7 @@ extern void clas_restore_backup(clas_ctx_t* ctx, gtime_t time, clas_grid_t* grid
         if ((clock = get_close_clock(bank, time, ctx->current[ch].orbit_time, grid->network, 30.0)) &&
             timediff(ctx->current[ch].clock_time, clock->time) != 0.0) {
             ctx->current[ch].clock_time = clock->time;
+            ctx->current[ch].l6prn = clock->l6prn;
             for (i = 0; i < MAXSAT; i++) {
                 if (clock->prn[i] != 0) {
                     ctx->current[ch].time[i][1] = clock->time;
@@ -1448,6 +1509,7 @@ extern void clas_update_global(nav_t* nav, const clas_corr_t* corr, int ch) {
                     j = corr->smode[sat - 1][i] - 1;
                     ssr->cbias[j] = (float)corr->cbias[sat - 1][i];
                     ssr->pbias[j] = corr->pbias[sat - 1][i];
+                    ssr->discnt[j] = corr->discnt[sat - 1][i];
                 }
             }
             ssr->udi[4] = corr->udi[sat - 1][4];
@@ -1880,8 +1942,11 @@ static int decode_cssr_mask(clas_ctx_t* ctx, int ch, clas_l6buf_t* l6, int i0) {
 
     i = decode_cssr_head(ctx, l6, cssr, &sync, &tow, &iod, &udint, &ngnss, i0);
     l6->tow0 = (int)(floor(tow / 3600.0) * 3600.0);
-    check_week_ref(ctx, l6, tow, CSSR_REF_MASK);
-    l6->time = gpst2time(ctx->week_ref[CSSR_REF_MASK], tow);
+    if (l6->tow_ref[CSSR_REF_MASK] == -1) {
+        anchor_week_ref(ctx, ch, tow);
+    }
+    check_week_ref(l6, tow, CSSR_REF_MASK);
+    l6->time = gpst2time(l6->week_ref[CSSR_REF_MASK], tow);
 
     for (j = 0; j < CSSR_MAX_GNSS; j++) {
         cssr->cmi[j] = 0;
@@ -1942,8 +2007,8 @@ static int decode_cssr_oc(clas_ctx_t* ctx, int ch, clas_l6buf_t* l6, int i0) {
 
     i = decode_cssr_head(ctx, l6, cssr, &sync, &tow, &iod, &udint, &ngnss, i0);
     nsat = svmask2sat(cssr->svmask, sat);
-    check_week_ref(ctx, l6, tow, CSSR_REF_ORBIT);
-    l6->time = gpst2time(ctx->week_ref[CSSR_REF_ORBIT], tow);
+    check_week_ref(l6, tow, CSSR_REF_ORBIT);
+    l6->time = gpst2time(l6->week_ref[CSSR_REF_ORBIT], tow);
 
     trace(NULL, 2, "decode_cssr_oc: facility=%d tow=%d iod=%d\n", ctx->l6facility[ch] + 1, tow, iod);
     if (cssr->l6facility != ctx->l6facility[ch]) {
@@ -2011,8 +2076,8 @@ static int decode_cssr_cc(clas_ctx_t* ctx, int ch, clas_l6buf_t* l6, int i0) {
     clas_dec_ssr_t* ssr;
 
     i = decode_cssr_head(ctx, l6, cssr, &sync, &tow, &iod, &udint, &ngnss, i0);
-    check_week_ref(ctx, l6, tow, CSSR_REF_CLOCK);
-    l6->time = gpst2time(ctx->week_ref[CSSR_REF_CLOCK], tow);
+    check_week_ref(l6, tow, CSSR_REF_CLOCK);
+    l6->time = gpst2time(l6->week_ref[CSSR_REF_CLOCK], tow);
     nsat = svmask2sat(cssr->svmask, sat);
 
     trace(NULL, 2, "decode_cssr_cc: facility=%d tow=%d iod=%d\n", ctx->l6facility[ch] + 1, tow, iod);
@@ -2064,8 +2129,8 @@ static int decode_cssr_cb(clas_ctx_t* ctx, int ch, clas_l6buf_t* l6, int i0) {
     clas_dec_ssr_t* ssr;
 
     i = decode_cssr_head(ctx, l6, cssr, &sync, &tow, &iod, &udint, &ngnss, i0);
-    check_week_ref(ctx, l6, tow, CSSR_REF_CBIAS);
-    l6->time = gpst2time(ctx->week_ref[CSSR_REF_CBIAS], tow);
+    check_week_ref(l6, tow, CSSR_REF_CBIAS);
+    l6->time = gpst2time(l6->week_ref[CSSR_REF_CBIAS], tow);
     nsat = svmask2sat(cssr->svmask, sat);
     sigmask2sig(nsat, sat, cssr->sigmask, cssr->cellmask, nsig, sig);
 
@@ -2126,8 +2191,8 @@ static int decode_cssr_pb(clas_ctx_t* ctx, int ch, clas_l6buf_t* l6, int i0) {
     clas_dec_ssr_t* ssr;
 
     i = decode_cssr_head(ctx, l6, cssr, &sync, &tow, &iod, &udint, &ngnss, i0);
-    check_week_ref(ctx, l6, tow, CSSR_REF_PBIAS);
-    l6->time = gpst2time(ctx->week_ref[CSSR_REF_PBIAS], tow);
+    check_week_ref(l6, tow, CSSR_REF_PBIAS);
+    l6->time = gpst2time(l6->week_ref[CSSR_REF_PBIAS], tow);
     nsat = svmask2sat(cssr->svmask, sat);
     sigmask2sig(nsat, sat, cssr->sigmask, cssr->cellmask, nsig, sig);
 
@@ -2191,8 +2256,8 @@ static int decode_cssr_bias(clas_ctx_t* ctx, int ch, clas_l6buf_t* l6, int i0) {
     clas_dec_ssr_t* ssr;
 
     i = decode_cssr_head(ctx, l6, cssr, &sync, &tow, &iod, &udint, &ngnss, i0);
-    check_week_ref(ctx, l6, tow, CSSR_REF_BIAS);
-    l6->time = gpst2time(ctx->week_ref[CSSR_REF_BIAS], tow);
+    check_week_ref(l6, tow, CSSR_REF_BIAS);
+    l6->time = gpst2time(l6->week_ref[CSSR_REF_BIAS], tow);
 
     cbflag = getbitu(l6->buff, i, 1);
     i++;
@@ -2308,8 +2373,8 @@ static int decode_cssr_ura(clas_ctx_t* ctx, int ch, clas_l6buf_t* l6, int i0) {
     clas_dec_ssr_t* ssr;
 
     i = decode_cssr_head(ctx, l6, cssr, &sync, &tow, &iod, &udint, &ngnss, i0);
-    check_week_ref(ctx, l6, tow, CSSR_REF_URA);
-    l6->time = gpst2time(ctx->week_ref[CSSR_REF_URA], tow);
+    check_week_ref(l6, tow, CSSR_REF_URA);
+    l6->time = gpst2time(l6->week_ref[CSSR_REF_URA], tow);
     nsat = svmask2sat(cssr->svmask, sat);
 
     trace(NULL, 3, "decode_cssr_ura: facility=%d tow=%d iod=%d\n", ctx->l6facility[ch] + 1, tow, iod);
@@ -2346,8 +2411,8 @@ static int decode_cssr_stec(clas_ctx_t* ctx, int ch, clas_l6buf_t* l6, int i0) {
     ssrn_t* ssrn;
 
     i = decode_cssr_head(ctx, l6, cssr, &sync, &tow, &iod, &udint, &ngnss, i0);
-    check_week_ref(ctx, l6, tow, CSSR_REF_STEC);
-    l6->time = gpst2time(ctx->week_ref[CSSR_REF_STEC], tow);
+    check_week_ref(l6, tow, CSSR_REF_STEC);
+    l6->time = gpst2time(l6->week_ref[CSSR_REF_STEC], tow);
     nsat = svmask2sat(cssr->svmask, sat);
     cssr->opt.stec_type = getbitu(l6->buff, i, 2);
     i += 2;
@@ -2420,8 +2485,8 @@ static int decode_cssr_grid(clas_ctx_t* ctx, int ch, clas_l6buf_t* l6, int i0) {
     ssrn_t* ssrn;
 
     i = decode_cssr_head(ctx, l6, cssr, &sync, &tow, &iod, &udint, &ngnss, i0);
-    check_week_ref(ctx, l6, tow, CSSR_REF_GRID);
-    l6->time = gpst2time(ctx->week_ref[CSSR_REF_GRID], tow);
+    check_week_ref(l6, tow, CSSR_REF_GRID);
+    l6->time = gpst2time(l6->week_ref[CSSR_REF_GRID], tow);
     nsat = svmask2sat(cssr->svmask, sat);
 
     trop_type = getbitu(l6->buff, i, 2);
@@ -2565,8 +2630,8 @@ static int decode_cssr_combo(clas_ctx_t* ctx, int ch, clas_l6buf_t* l6, int i0) 
     clas_dec_ssr_t* ssr;
 
     i = decode_cssr_head(ctx, l6, cssr, &sync, &tow, &iod, &udint, &ngnss, i0);
-    check_week_ref(ctx, l6, tow, CSSR_REF_COMBINED);
-    l6->time = gpst2time(ctx->week_ref[CSSR_REF_COMBINED], tow);
+    check_week_ref(l6, tow, CSSR_REF_COMBINED);
+    l6->time = gpst2time(l6->week_ref[CSSR_REF_COMBINED], tow);
     nsat = svmask2sat(cssr->svmask, sat);
 
     flg_orbit = getbitu(l6->buff, i, 1);
@@ -2685,8 +2750,8 @@ static int decode_cssr_atmos(clas_ctx_t* ctx, int ch, clas_l6buf_t* l6, int i0) 
     static const int dstec_sz_t[4] = {4, 4, 5, 7};
 
     i = decode_cssr_head(ctx, l6, cssr, &sync, &tow, &iod, &udint, &ngnss, i0);
-    check_week_ref(ctx, l6, tow, CSSR_REF_ATMOSPHERIC);
-    l6->time = gpst2time(ctx->week_ref[CSSR_REF_ATMOSPHERIC], tow);
+    check_week_ref(l6, tow, CSSR_REF_ATMOSPHERIC);
+    l6->time = gpst2time(l6->week_ref[CSSR_REF_ATMOSPHERIC], tow);
     nsat = svmask2sat(cssr->svmask, sat);
 
     trop_avail = getbitu(l6->buff, i, 2);
@@ -3067,14 +3132,53 @@ extern int clas_get_correct_fac(int msgid) {
     }
 }
 
-extern int clas_route_l6frame(clas_ctx_t* ctx, int prn, int ptn, int l6mrg, gtime_t now) {
-    int ch, target, locked_prn, stale;
+/* update the subframe health of one L6D PRN from a frame reaching the demux.
+ * returns 1 if the frame completes a subframe (first frame + 4 more, each at
+ * most 1.5 s after the previous one, the same gap rule as clas_input_cssr) */
+static int l6health_update(clas_l6health_t* h, int sf_ind, double tag) {
+    double dt = h->tag > 0.0 ? tag - h->tag : -1.0;
+    int cont = dt > 0.0 && dt <= 1.5;
+
+    h->tag = tag;
+    if (sf_ind) {
+        if (h->nframe != 5 || !cont) {
+            h->nsfok = 0;
+        }
+        h->nframe = 1;
+        return 0;
+    }
+    if (h->nframe >= 1 && h->nframe < 5 && cont) {
+        if (++h->nframe == 5) {
+            h->nsfok++;
+            return 1;
+        }
+        return 0;
+    }
+    h->nframe = -1;
+    h->nsfok = 0;
+    return 0;
+}
+
+extern int clas_route_l6frame(clas_ctx_t* ctx, const l6_header_t* hdr, double tag, int l6mrg, gtime_t now) {
+    clas_l6health_t* h = NULL;
+    int ch, target, locked_prn, stale, degraded = 0, sfok = 0;
+    int prn = hdr->prn, ptn = hdr->ptn;
     int nch = l6mrg ? CLAS_CH_NUM : 1;
+
+    /* 0. subframe health of every PRN, routed or not, so a clean PRN can be
+     *    told from a degraded one when the lock is reconsidered (#414) */
+    if (tag > 0.0 && prn >= MINPRNQZS && prn < MINPRNQZS + CLAS_L6_NPRN) {
+        h = &ctx->l6health[prn - MINPRNQZS];
+        sfok = l6health_update(h, hdr->sf_ind, tag);
+    }
 
     /* 1. already the active source on some channel → accept and refresh */
     for (ch = 0; ch < nch; ch++) {
         if (ctx->l6delivery[ch] == prn) {
             ctx->l6lock_time[ch] = now;
+            if (sfok) {
+                ctx->l6sfok_time[ch] = now;
+            }
             return ch;
         }
     }
@@ -3105,23 +3209,45 @@ extern int clas_route_l6frame(clas_ctx_t* ctx, int prn, int ptn, int l6mrg, gtim
         }
     }
 
-    /* 3. (re)lock the target channel to this PRN only if it is free or its
-     *    current active source has gone silent past the handover timeout;
-     *    otherwise drop to keep the channel's subframe stream coherent. */
+    /* 3. (re)lock the target channel to this PRN only if it is free, its
+     *    current active source has gone silent past the handover timeout, or
+     *    the source still sends frames but no complete subframe while this PRN
+     *    delivers clean ones; otherwise drop to keep the channel's subframe
+     *    stream coherent. The degraded case re-locks only on this PRN's first
+     *    frame of a subframe: the old source's frames can be < 1.5 s old, so
+     *    the frame-gap discard in clas_input_cssr() would not separate them. */
     locked_prn = ctx->l6delivery[target];
     stale = (ctx->l6lock_time[target].time == 0) || (timediff(now, ctx->l6lock_time[target]) > CLAS_L6_RELOCK_TIMEOUT);
+    if (locked_prn >= 0 && !stale && h && hdr->sf_ind && h->nsfok >= CLAS_L6_CLEAN_NSF &&
+        ctx->l6sfok_time[target].time != 0) {
+        degraded = timediff(now, ctx->l6sfok_time[target]) > CLAS_L6_DEGRADE_TIMEOUT;
+    }
 
-    if (locked_prn < 0 || stale) {
-        if (locked_prn != prn || ctx->l6pattern[target] != ptn) {
+    if (locked_prn < 0 || stale || degraded) {
+        if (degraded) {
+            trace(NULL, 2,
+                  "L6 lock: ch=%d prn=%d pattern=%d (was prn=%d pattern=%d: no complete subframe for %.0f s, "
+                  "new prn %d clean subframes)\n",
+                  target, prn, ptn, locked_prn, ctx->l6pattern[target], timediff(now, ctx->l6sfok_time[target]),
+                  h->nsfok);
+        } else if (locked_prn != prn || ctx->l6pattern[target] != ptn) {
             trace(NULL, 2, "L6 lock: ch=%d prn=%d pattern=%d (was prn=%d pattern=%d)\n", target, prn, ptn, locked_prn,
                   ctx->l6pattern[target]);
         }
         ctx->l6delivery[target] = prn;
         ctx->l6pattern[target] = ptn;
         ctx->l6lock_time[target] = now;
+        ctx->l6sfok_time[target] = now;
         return target;
     }
     return -1; /* channel busy with a different, still-active PRN → drop */
+}
+
+extern int clas_l6_silent(const clas_ctx_t* ctx, int ch, gtime_t time) {
+    if (!ctx || ch < 0 || ch >= CLAS_CH_NUM || ctx->l6delivery[ch] < 0 || ctx->l6lock_time[ch].time == 0) {
+        return 0;
+    }
+    return timediff(time, ctx->l6lock_time[ch]) > CLAS_L6_RELOCK_TIMEOUT;
 }
 
 extern int clas_input_cssr(clas_ctx_t* ctx, uint8_t data, int ch) {
@@ -3213,6 +3339,18 @@ extern int clas_input_cssr(clas_ctx_t* ctx, uint8_t data, int ch) {
 extern int clas_decode_msg(clas_ctx_t* ctx, int ch) { return decode_qzs_msg(ctx, ch); }
 
 extern void clas_set_l6tag(clas_ctx_t* ctx, int ch, double tag) { ctx->l6buf[ch].ftag = tag; }
+
+extern void clas_set_week_ref(clas_ctx_t* ctx, int week) {
+    int ch, i;
+    for (ch = 0; ch < CLAS_CH_NUM; ch++) {
+        for (i = 0; i < CSSR_REF_MAX; i++) {
+            ctx->l6buf[ch].week_ref[i] = week;
+            ctx->l6buf[ch].tow_ref[i] = -1;
+        }
+    }
+}
+
+extern int clas_week_ref_isset(const clas_ctx_t* ctx) { return ctx->l6buf[0].week_ref[0] != 0; }
 
 extern int clas_input_cssrf(clas_ctx_t* ctx, FILE* fp, int ch) {
     int i, data, ret;

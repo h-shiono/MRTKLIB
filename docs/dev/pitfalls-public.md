@@ -298,6 +298,18 @@ correction is not provided, which silently degrades the fix rate. Use
 `nf=3` only after confirming that an E5b bias source is available (for
 example, from a third-party SSR provider running alongside CLAS).
 
+### P-27 — CLAS decoder state that follows a message sequence is per channel
+
+Upstream claslib keeps one `rtcm_t` per L6 stream. MRTKLIB gathers the
+channels in one `clas_ctx_t`. Any decoder state derived from the order of
+received messages belongs to the channel that received them: put it in
+`clas_l6buf_t` (`tow0`, `tow_last`, `week_ref`, `tow_ref`, …), not in
+`clas_ctx_t`. With `l6_merge`, one channel can stay silent for hours and
+resume with stale state. If that state is shared, its first messages corrupt
+the other channel's (a week reference moved one week ahead stops every clock
+lookup until restart). Set the week through `clas_set_week_ref()`, which
+initialises every channel.
+
 ---
 
 ## Platform & Runtime

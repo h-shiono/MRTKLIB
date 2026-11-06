@@ -543,13 +543,10 @@ static void update_clas(gtime_t time) {
     char path[1024];
 
     /* initialize GPS week reference from observation time (once) */
-    if (clas_ctx && clas_ctx->week_ref[0] == 0 && time.time != 0) {
-        int i, week;
+    if (clas_ctx && !clas_week_ref_isset(clas_ctx) && time.time != 0) {
+        int week;
         time2gpst(time, &week);
-        for (i = 0; i < CSSR_REF_MAX; i++) {
-            clas_ctx->week_ref[i] = week;
-            clas_ctx->tow_ref[i] = -1; /* mark as unset for rollover detection */
-        }
+        clas_set_week_ref(clas_ctx, week);
         trace(NULL, 2, "clas week_ref initialized: week=%d\n", week);
     }
 

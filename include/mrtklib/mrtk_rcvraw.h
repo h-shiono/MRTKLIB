@@ -177,10 +177,12 @@ int decode_irn_nav(const uint8_t* buff, eph_t* eph, double* ion, double* utc);
  *
  * @param[in,out] rtcm    RTCM control struct; rtcm->buff holds the 250-byte frame.
  * @param[in]     is_l6d  1 if the receiver reports the L6D signal (only used for null messages).
+ * @param[in]     tag     Receiver time tag of the frame (s, 0: none); lets the MADOCA-PPP decoder
+ *                        detect a frame lost inside a message (see set_mcssr_ftag()).
  * @return 10: CLAS frame, 15: MADOCA SSR decoded, 16: MADOCA iono frame,
  *         17: QZNMA frame, 0: no message / reserved vendor, -1: error.
  */
-int decode_qzss_l6frame(rtcm_t* rtcm, int is_l6d);
+int decode_qzss_l6frame(rtcm_t* rtcm, int is_l6d, double tag);
 
 /*============================================================================
  * Receiver-Specific Initialization Functions

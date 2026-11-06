@@ -25,6 +25,28 @@
  *         (6) the next ST1 keeps tow0 consistent (7230)
  *         (7) at the end of the week, epoch 5 is dated week+1 TOW 5
  *         (8) epochs within the hour are unchanged
+ *
+ * NMEA GGA station id: each clock bank set records the L6 PRN that delivered
+ * it, and keeps it when a later set arrives from another PRN (QZSS handover):
+ *        (11) clock 7170 from PRN 194, clock 7205 from PRN 195
+ *
+ * #436  The GPS week of ST1-ST12 is tracked per subtype from the TOW sequence.
+ *       With two channels (l6_merge), ch1 can resume after a long silence
+ *       across a week rollover with tow0 still from the previous week, so its
+ *       first clock before an ST1 is dated near the end of that week. The week
+ *       reference is per channel, as upstream keeps it per L6 stream:
+ *        (12) ch0's next clock after that stays in week+1 (a shared reference
+ *             was moved to week+2: clocks a week ahead, never found again)
+ *        (13) ch1 reaches week+1 with its own next ST1
+ *       A channel first received after the rollover has no earlier TOW, so
+ *       its first ST1 takes the week of the channel already decoding:
+ *        (15) ch1's first ST1 at TOW 90 after ch0 rolled over: week+1
+ *        (16) ch1's first ST1 at TOW 604790 just after ch0's week-top ST1:
+ *             week, not week+1
+ *
+ * #393  The phase discontinuity indicators of ST5 (global) and ST6 (network)
+ *       phase biases reach the bias bank, each in its own CLAS_DISC_* field:
+ *        (14) ST5 indicator 2 and ST6 network 7 indicator 1 for G01 L1C
  *-----------------------------------------------------------------------------*/
 #include <stdio.h>
 #include <stdlib.h>
@@ -51,6 +73,7 @@ static int fails = 0;
 /* subframe bit buffer and write cursor */
 static uint8_t sb[(SFBITS + 7) / 8];
 static int sbn;
+static uint8_t frame_prn = 193; /* L6 PRN written into the frame headers */
 
 static void sb_reset(void) {
     memset(sb, 0, sizeof(sb));
@@ -113,6 +136,35 @@ static void put_clock(int hourly) {
     put(15, 100); /* G01 clock */
 }
 
+/* ST5 global phase bias of the G01 signal */
+static void put_pbias(int hourly, int disc) {
+    put(12, 4073);
+    put(4, 5);
+    put(12, (uint32_t)hourly);
+    put(4, 0);
+    put(1, 1);
+    put(4, IOD);
+    put(15, 100);
+    put(2, (uint32_t)disc);
+}
+
+/* ST6 network phase bias (no code bias) of the G01 signal */
+static void put_net_pbias(int hourly, int network, int disc) {
+    put(12, 4073);
+    put(4, 6);
+    put(12, (uint32_t)hourly);
+    put(4, 0);
+    put(1, 0); /* last message */
+    put(4, IOD);
+    put(1, 0); /* code bias */
+    put(1, 1); /* phase bias */
+    put(1, 1); /* network bias */
+    put(5, (uint32_t)network);
+    put(1, 1); /* network SV mask: G01 */
+    put(15, 200);
+    put(2, (uint32_t)disc);
+}
+
 /* QZS PRN 195 L6D frame, GPST week 2441 TOW 505141 */
 static const uint8_t live_sf1_head[250] = {
     0x1A, 0xCF, 0xFC, 0x1D, 0xC3, 0xA1, 0x7F, 0x48, 0xBD, 0xA9, 0xA2, 0x88, 0xC0, 0x3A, 0x88, 0x60, 0x30, 0x02,
@@ -161,46 +213,48 @@ static int input_live(clas_ctx_t* ctx, const uint8_t* fr, double tag) {
     return nmsg;
 }
 
-/* input frame n of the subframe in sb, return number of messages decoded */
-static int input_frame(clas_ctx_t* ctx, int n, double tag) {
-    uint8_t fr[250] = {0x1A, 0xCF, 0xFC, 0x1D, 193};
+/* input frame n of the subframe in sb on channel ch, return number of messages decoded */
+static int input_frame_ch(clas_ctx_t* ctx, int ch, int n, double tag) {
+    uint8_t fr[250] = {0x1A, 0xCF, 0xFC, 0x1D, 0};
     int i, nmsg = 0;
 
+    fr[4] = frame_prn;
     fr[5] = n == 0 ? 0xA1 : 0xA0; /* CLAS, subframe indicator on frame 1 */
     fr[6] = (uint8_t)getbitu(sb, 1695 * n, 7);
     for (i = 0; i < 211; i++) {
         fr[7 + i] = (uint8_t)getbitu(sb, 1695 * n + 7 + 8 * i, 8);
     }
     if (tag > 0.0) {
-        clas_set_l6tag(ctx, 0, tag);
+        clas_set_l6tag(ctx, ch, tag);
     }
     for (i = 0; i < 250; i++) {
-        clas_input_cssr(ctx, fr[i], 0);
-        while (clas_decode_msg(ctx, 0) == 10) {
+        clas_input_cssr(ctx, fr[i], ch);
+        while (clas_decode_msg(ctx, ch) == 10) {
             nmsg++;
         }
     }
     return nmsg;
 }
 
-static int input_subframe(clas_ctx_t* ctx, const double* tags) {
+static int input_frame(clas_ctx_t* ctx, int n, double tag) { return input_frame_ch(ctx, 0, n, tag); }
+
+static int input_subframe_ch(clas_ctx_t* ctx, int ch, const double* tags) {
     int n, nmsg = 0;
     for (n = 0; n < 5; n++) {
-        nmsg += input_frame(ctx, n, tags ? tags[n] : 0.0);
+        nmsg += input_frame_ch(ctx, ch, n, tags ? tags[n] : 0.0);
     }
     return nmsg;
 }
 
+static int input_subframe(clas_ctx_t* ctx, const double* tags) { return input_subframe_ch(ctx, 0, tags); }
+
 static clas_ctx_t* new_ctx(void) {
     clas_ctx_t* ctx = (clas_ctx_t*)calloc(1, sizeof(clas_ctx_t));
-    int i;
     if (!ctx || clas_ctx_init(ctx) != 0) {
         printf("FAIL: clas_ctx_init\n");
         exit(1);
     }
-    for (i = 0; i < CSSR_REF_MAX; i++) {
-        ctx->week_ref[i] = WEEK;
-    }
+    clas_set_week_ref(ctx, WEEK);
     return ctx;
 }
 
@@ -264,10 +318,8 @@ static void test_continuity(void) {
      * next two frames lost. The mask (272 bits), ST3 and ST2 fit in frame 1. */
     ctx = new_ctx();
     {
-        int i, week;
-        for (i = 0; i < CSSR_REF_MAX; i++) {
-            ctx->week_ref[i] = 2441;
-        }
+        int week;
+        clas_set_week_ref(ctx, 2441);
         input_live(ctx, live_sf1_head, 505141.0);
         CHECK(time2gpst(ctx->l6buf[0].time, &week) == 505140.0 && ctx->l6buf[0].nbit > 272,
               "(9) live frame: mask decoded from frame 1 alone");
@@ -343,10 +395,182 @@ static void test_hour_wrap(void) {
     free_ctx(ctx);
 }
 
+/* L6 PRN of the clock bank set dated tow, -1 if there is none */
+static int clock_set_prn(const clas_ctx_t* ctx, int tow) {
+    int i;
+    for (i = 0; i < CLAS_BANK_NUM; i++) {
+        const clas_clock_bank_t* c = &ctx->bank[0]->ClockBank[i];
+        if (c->use && (int)time2gpst(c->time, NULL) == tow) {
+            return c->l6prn;
+        }
+    }
+    return -1;
+}
+
+static void test_l6prn(void) {
+    clas_ctx_t* ctx = new_ctx();
+    char msg[128];
+    int p7170, p7205;
+
+    frame_prn = 194;
+    sb_reset();
+    put_mask(7170);
+    put_clock(3570);
+    input_subframe(ctx, NULL);
+
+    frame_prn = 195;
+    sb_reset();
+    put_mask(7200);
+    put_clock(5);
+    input_subframe(ctx, NULL);
+    frame_prn = 193;
+
+    p7170 = clock_set_prn(ctx, 7170);
+    p7205 = clock_set_prn(ctx, 7205);
+    sprintf(msg, "(11) clock sets keep their L6 PRN: 7170 from 194, 7205 from 195 (got %d, %d)", p7170, p7205);
+    CHECK(p7170 == 194 && p7205 == 195, msg);
+    free_ctx(ctx);
+}
+
+static void test_week_ref_channels(void) {
+    clas_ctx_t* ctx = new_ctx();
+    double tow;
+    int week;
+    char msg[160];
+
+    /* ch1: last subframe of the week before it goes silent (tow0 597600) */
+    sb_reset();
+    put_mask(601050);
+    put_clock(3455);
+    input_subframe_ch(ctx, 1, NULL);
+
+    /* ch0: end of the week, then the week-top subframe */
+    sb_reset();
+    put_mask(604770);
+    put_clock(3575);
+    input_subframe_ch(ctx, 0, NULL);
+    sb_reset();
+    put_mask(30);
+    put_clock(35);
+    input_subframe_ch(ctx, 0, NULL);
+
+    /* ch1 resumes in week+1 with a clock before any ST1: 597600 + 2755 */
+    sb_reset();
+    put_clock(2755);
+    input_subframe_ch(ctx, 1, NULL);
+
+    /* ch0's next clock */
+    sb_reset();
+    put_clock(65);
+    input_subframe_ch(ctx, 0, NULL);
+    tow = time2gpst(ctx->l6buf[0].time, &week);
+    sprintf(msg, "(12) ch1 resuming with a stale tow0: ch0 clock stays week+1 TOW 65 (got week %+d TOW %.0f)",
+            week - WEEK, tow);
+    CHECK(week == WEEK + 1 && tow == 65.0, msg);
+
+    /* ch1's next ST1 */
+    sb_reset();
+    put_mask(90);
+    put_clock(95);
+    input_subframe_ch(ctx, 1, NULL);
+    tow = time2gpst(ctx->l6buf[1].time, &week);
+    sprintf(msg, "(13) ch1 next ST1: clock dated week+1 TOW 95 (got week %+d TOW %.0f)", week - WEEK, tow);
+    CHECK(week == WEEK + 1 && tow == 95.0, msg);
+    free_ctx(ctx);
+}
+
+static void test_week_ref_late_channel(void) {
+    clas_ctx_t* ctx = new_ctx();
+    double tow;
+    int week;
+    char msg[160];
+
+    /* ch0 decodes across the rollover, ch1 has received nothing yet */
+    sb_reset();
+    put_mask(604770);
+    put_clock(3575);
+    input_subframe_ch(ctx, 0, NULL);
+    sb_reset();
+    put_mask(30);
+    put_clock(35);
+    input_subframe_ch(ctx, 0, NULL);
+
+    sb_reset();
+    put_mask(90);
+    put_clock(95);
+    input_subframe_ch(ctx, 1, NULL);
+    tow = time2gpst(ctx->l6buf[1].time, &week);
+    sprintf(msg, "(15) ch1 first ST1 after ch0's rollover: clock dated week+1 TOW 95 (got week %+d TOW %.0f)",
+            week - WEEK, tow);
+    CHECK(week == WEEK + 1 && tow == 95.0, msg);
+    free_ctx(ctx);
+
+    ctx = new_ctx();
+    sb_reset();
+    put_mask(604770);
+    put_clock(3575);
+    input_subframe_ch(ctx, 0, NULL);
+    sb_reset();
+    put_mask(30);
+    put_clock(35);
+    input_subframe_ch(ctx, 0, NULL);
+    sb_reset();
+    put_mask(604790);
+    put_clock(3595);
+    input_subframe_ch(ctx, 1, NULL);
+    tow = time2gpst(ctx->l6buf[1].time, &week);
+    sprintf(msg, "(16) ch1 first ST1 at the end of the week: clock dated week TOW 604795 (got week %+d TOW %.0f)",
+            week - WEEK, tow);
+    CHECK(week == WEEK && tow == 604795.0, msg);
+    free_ctx(ctx);
+}
+
+/* phase discontinuity indicator of G01 L1C in the bias bank set (tow, network), -1 if none */
+static int bank_discnt(const clas_ctx_t* ctx, int tow, int network) {
+    int i, j;
+    for (i = 0; i < CLAS_BANK_NUM; i++) {
+        const clas_bias_bank_t* b = &ctx->bank[0]->BiasBank[i];
+        if (!b->use || b->network != network || (int)time2gpst(b->time, NULL) != tow) {
+            continue;
+        }
+        for (j = 0; j < MAXCODE; j++) {
+            if (b->smode[0][j] == CODE_L1C && (b->sflag[0][j] & 0x02)) {
+                return b->discnt[0][j];
+            }
+        }
+    }
+    return -1;
+}
+
+static void test_discnt(void) {
+    clas_ctx_t* ctx = new_ctx();
+    char msg[128];
+    int glb, net;
+
+    sb_reset();
+    put_mask(7170);
+    put_pbias(3570, 2);
+    put_net_pbias(3570, 7, 1);
+    input_subframe(ctx, NULL);
+
+    glb = bank_discnt(ctx, 7170, 0);
+    net = bank_discnt(ctx, 7170, 7);
+    sprintf(msg, "(14) ST5/ST6 indicators in the bias bank: global 0x%02X, network 0x%02X (got 0x%02X, 0x%02X)",
+            (2 | CLAS_DISC_VALID) << CLAS_DISC_GLB, (1 | CLAS_DISC_VALID) << CLAS_DISC_NET, glb & 0xFF, net & 0xFF);
+    CHECK(glb == (2 | CLAS_DISC_VALID) << CLAS_DISC_GLB && net == (1 | CLAS_DISC_VALID) << CLAS_DISC_NET, msg);
+    free_ctx(ctx);
+}
+
 int main(void) {
-    printf("utest_clas_l6: L6 subframe continuity (#363) and hourly epoch wrap (#392)\n");
+    printf(
+        "utest_clas_l6: L6 subframe continuity (#363), hourly epoch wrap (#392), per-channel week (#436), phase "
+        "discontinuity (#393)\n");
     test_continuity();
     test_hour_wrap();
+    test_l6prn();
+    test_week_ref_channels();
+    test_week_ref_late_channel();
+    test_discnt();
     printf("%s (%d failure%s)\n", fails ? "FAILED" : "PASSED", fails, fails == 1 ? "" : "s");
     return fails ? 1 : 0;
 }

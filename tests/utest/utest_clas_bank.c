@@ -16,6 +16,14 @@
  *   (5) cbias T+30 comes from a different mask than pbias T, so its slots
  *       hold the signals in another order: each code bias stays with its own
  *       signal (Greptile, PR #433).
+ *   (6) the set carries the L6 PRN of the clock set it uses (NMEA GGA
+ *       station id).
+ *   (7) the phase discontinuity indicators of the network (ST6) and global
+ *       (ST5) phase bias both reach the set and nav->ssr_ch (#393).
+ *   (8) l6_merge BackupCSSR restore with one channel unusable (facility
+ *       changed, or backup older than 180 s): clas_backup_valid() succeeds
+ *       on the other channel, and the unusable channel's current set, still
+ *       an earlier snapshot, is cleared instead of being applied.
  *
  * The bank entries are written directly; the times follow the frame layout
  * seen in live mosaic-G5 captures (orbit/clock/cbias at the frame epoch,
@@ -189,6 +197,66 @@ int main(void) {
         CHECK(k2 >= 0 && corr->cbias[SAT - 1][k2] == 1.2 && corr->pbias[SAT - 1][k2] == 0.3, "L2W code and phase bias");
         CHECK(k5 >= 0 && corr->cbias[SAT - 1][k5] == 1.5 && corr->pbias[SAT - 1][k5] == 0.0, "L5Q code bias only");
         CHECK(k1 == 0 && k2 == 1 && k5 == 2, "slots in phase-bias order, then code-bias-only signals");
+    }
+
+    printf("--- (6) L6 PRN of the clock set\n");
+    fill_lost_frame(b);
+    b->ClockBank[0].l6prn = 194;
+    b->ClockBank[1].l6prn = 196;
+    rc = clas_bank_get_close(ctx, at(33.0), NET, 0, corr);
+    CHECK(rc == 0 && corr->l6prn == 196, "l6prn from the T+30 clock set");
+
+    printf("--- (7) phase discontinuity indicators\n");
+    fill_lost_frame(b);
+    b->BiasBank[2].discnt[SAT - 1][0] = (1 | CLAS_DISC_VALID) << CLAS_DISC_NET;
+    add_bias(b, 4, 0.0, 0, 0x02); /* global ST5 pbias T */
+    b->BiasBank[4].discnt[SAT - 1][0] = (2 | CLAS_DISC_VALID) << CLAS_DISC_GLB;
+    rc = clas_bank_get_close(ctx, at(33.0), NET, 0, corr);
+    {
+        const int disc = ((1 | CLAS_DISC_VALID) << CLAS_DISC_NET) | ((2 | CLAS_DISC_VALID) << CLAS_DISC_GLB);
+        int k1 = corr_slot(corr, CODE_L1C);
+        nav_t* nav = (nav_t*)calloc(1, sizeof(nav_t));
+        CHECK(rc == 0 && k1 >= 0 && corr->discnt[SAT - 1][k1] == disc, "set carries network and global indicator");
+        CHECK(rc == 0 && k1 >= 0 && corr->pbias[SAT - 1][k1] == 0.4, "phase bias is network + global");
+        if (nav) {
+            clas_update_global(nav, corr, 0);
+            CHECK(nav->ssr_ch[0][SAT - 1].discnt[CODE_L1C - 1] == disc, "nav->ssr_ch carries the indicators");
+            free(nav);
+        }
+    }
+
+    printf("--- (8) BackupCSSR restore, one merge channel unusable\n");
+    {
+        static const char* why[] = {"both usable", "ch1 facility changed", "ch1 backup expired"};
+        clas_grid_t* grid = (clas_grid_t*)calloc(1, sizeof(clas_grid_t));
+        int ch, k;
+        for (k = 0; grid && k < 3; k++) {
+            char msg[128];
+            for (ch = 0; ch < 2; ch++) {
+                clas_corr_t* x = &ctx->current[ch];
+                clas_bank_init(ctx, ch);
+                ctx->bank[ch]->Facility = 0;
+                memset(x, 0, sizeof(*x));
+                x->use = 1;
+                x->facility = 0;
+                x->network = NET;
+                x->clock_time = x->orbit_time = x->bias_time = at(k == 2 ? -200.0 : 0.0);
+                if (ch == 0) {
+                    x->clock_time = x->orbit_time = x->bias_time = at(0.0);
+                }
+            }
+            clas_backup_current(ctx, grid, 1);
+            if (k == 1) {
+                ctx->bank[1]->Facility = 1;
+            }
+            CHECK(clas_backup_valid(ctx, at(1.0), 1), "backup valid on ch0");
+            clas_restore_backup(ctx, at(1.0), grid, 1);
+            snprintf(msg, sizeof(msg), "%s: ch0 restored", why[k]);
+            CHECK(ctx->current[0].use && ctx->current[0].facility == 0, msg);
+            snprintf(msg, sizeof(msg), "%s: ch1 %s", why[k], k ? "cleared" : "restored");
+            CHECK(k ? !ctx->current[1].use : ctx->current[1].use, msg);
+        }
+        free(grid);
     }
 
     clas_ctx_free(ctx);

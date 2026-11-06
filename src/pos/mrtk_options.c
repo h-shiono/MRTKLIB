@@ -217,6 +217,7 @@ opt_t sysopts[] = {
     {"out-solstatic", 3, (void*)&solopt_.solstatic, STAOPT},
     {"out-nmeaintv1", 1, (void*)&solopt_.nmeaintv[0], "s"},
     {"out-nmeaintv2", 1, (void*)&solopt_.nmeaintv[1], "s"},
+    {"out-clasrefid", 3, (void*)&solopt_.clasrefid, SWTOPT},
     {"out-outstat", 3, (void*)&solopt_.sstat, STSOPT},
 
     {"stats-eratio1", 1, (void*)&prcopt_.eratio[0], ""},

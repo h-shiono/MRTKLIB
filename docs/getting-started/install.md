@@ -82,15 +82,19 @@ Utilities:
 
 ```bash
 cd build
-ctest --output-on-failure
+ctest --output-on-failure -j16
 ```
 
 !!! note "Real-time tests"
-    Tests labeled `realtime` use file-stream replay (ranging from ~90 seconds to several minutes) and are excluded from CI.
-    To run them locally:
+    Tests labeled `realtime` use file-stream replay against the wall clock (~2 to ~6 minutes each) and are excluded from CI.
+    They run concurrently and mostly sleep, but each holds a `-j` slot, so `-j` can exceed the core count: on an
+    8-core Mac `-j16` keeps the full suite near the length of the longest replay (~8 min), while `-j24` starves the
+    replays and they drop epochs. Adjust for your host.
+    To run only them, or to skip them:
 
     ```bash
-    ctest --output-on-failure -L realtime
+    ctest --output-on-failure -j16 -L realtime
+    ctest --output-on-failure -j8 -LE realtime
     ```
 
 ## Next Steps
