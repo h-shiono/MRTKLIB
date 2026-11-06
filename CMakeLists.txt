@@ -2633,6 +2633,136 @@ set_tests_properties(has_ppp_check PROPERTIES
 )
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# BeiDou PPP-B2b regression (#417)
+# ═══════════════════════════════════════════════════════════════════════════════
+# Dataset: g5p3_296u-v1 (release asset of h-shiono/mrtklib-data, #386), one
+# hour of the kubolab mosaic-G5 capture of 2026-10-23 (19:59:30-21:00 GPST):
+# G5P3296u.sbf (observations, GPS/Galileo/BeiDou navigation, BDSRawB2b of the
+# GEOs C01-C04, BDSCNav1, GEORawL5 PRN 122 for SouthPAN PVS) with a synthetic
+# .tag, and BRD4296u.rnx (RINEX 4 broadcast navigation cut from
+# BRD400DLR_S_20262960000_01D_MN, for the BeiDou CNV1 records that
+# mrtk convert does not write). See tests/data/g5p3_296u/README.md.
+#
+# Post:      SBF --l6extract--> .b2b; SBF --convert--> RINEX obs;
+#            obs + BRD4296u.rnx + .b2b --post (correction = bds-b2b)--> float PPP
+# Real time: SBF replay --mrtk run--> float PPP (B-CNAV1 from BDSCNav1)
+#
+# Reference: the CR-G5 antenna reference point of the handover dataset
+# (tests/data/handover/README.md), LLH 35.666341805 139.792211221 59.7614.
+set(_B2BDATA ${CMAKE_BINARY_DIR}/tests/data/g5p3_296u)
+set(_B2B_REF_XYZ -3961905.1685 3348992.7560 3698212.4291)
+set(_B2B_TEMPLATE ${CMAKE_SOURCE_DIR}/tests/data/g5p3_296u/b2b_g5p3.toml.in)
+
+mrtk_dataset_setup_test(b2b_setup g5p3_296u-v1 ${_B2BDATA})
+set_tests_properties(b2b_setup PROPERTIES
+    FIXTURES_SETUP g5p3_296u_data
+    LABELS         "regression;b2b"
+)
+
+set(B2B_ROVER ${_B2BDATA}/G5P3296u.sbf)
+set(B2B_ATX ${CMAKE_SOURCE_DIR}/tests/data/claslib/igs14_L5copy.atx)
+set(_B2B_CONF ${CMAKE_BINARY_DIR}/b2b/b2b_g5p3.toml)
+configure_file(${_B2B_TEMPLATE} ${_B2B_CONF} @ONLY)
+
+# ── l6extract: SBF BDSRawB2b -> .b2b (GEO frames only) ────────────────────────
+# 13996 GEO records (C01-C04) in the hour; the IGSO/MEO B-CNAV3 frames
+# were dropped when the dataset was cut. A change signals a regression in the
+# B2b extractor or the GEO list.
+add_test(NAME b2b_extract
+    COMMAND bash -c "\"$0\" l6extract -in \"$1\" -o \"$2\" 2>&1 | grep -q '13996 GEO correction records'"
+        $<TARGET_FILE:mrtk>
+        ${_B2BDATA}/G5P3296u.sbf
+        ${CMAKE_BINARY_DIR}/b2b/l6
+    WORKING_DIRECTORY ${_B2BDATA}
+)
+set_tests_properties(b2b_extract PROPERTIES
+    FIXTURES_REQUIRED g5p3_296u_data
+    TIMEOUT           60
+    LABELS            "regression;b2b"
+)
+
+add_test(NAME b2b_convert
+    COMMAND $<TARGET_FILE:mrtk> convert -r sbf
+        -o ${_B2BDATA}/G5P3296u.obs -n ${_B2BDATA}/G5P3296u.nav
+        ${_B2BDATA}/G5P3296u.sbf
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+set_tests_properties(b2b_convert PROPERTIES
+    FIXTURES_REQUIRED g5p3_296u_data
+    TIMEOUT           120
+    LABELS            "regression;b2b"
+)
+
+add_test(NAME b2b_ppp
+    COMMAND $<TARGET_FILE:mrtk> post -k ${_B2B_CONF}
+        -o ${CMAKE_BINARY_DIR}/out_b2b_ppp.pos
+        ${_B2BDATA}/G5P3296u.obs
+        ${_B2BDATA}/BRD4296u.rnx
+        ${_B2BDATA}/G5P3296u.b2b
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+set_tests_properties(b2b_ppp PROPERTIES
+    FIXTURES_REQUIRED "g5p3_296u_data;claslib_data"
+    DEPENDS           "b2b_convert;b2b_extract"
+    TIMEOUT           180
+    LABELS            "regression;b2b;ppp"
+)
+
+# Thresholds: measured 2026-11-06 (igs14_L5copy.atx), mean of the last 20 min
+# vs the reference: post dENU +0.129/-0.050/+0.272 m (horiz 0.139, 3D 0.305),
+# replay +0.136/-0.043/+0.148 m (horiz 0.142, 3D 0.205). BeiDou-only float PPP
+# is still converging at the end of the hour (U), so the gates (0.30 m horiz,
+# 0.60 m 3D, ~2x) catch regressions, not the service accuracy. Post: 3499 of
+# 3557 epochs (0.984); the replay starts ~48 s later (first BDSCNav1 at
+# 20:00:32) and has 3451 (0.970) and is not bit-reproducible, hence 0.90.
+add_test(NAME b2b_ppp_check
+    COMMAND ${Python3_EXECUTABLE} ${_CHECK_HASPPP}
+        ${CMAKE_BINARY_DIR}/out_b2b_ppp.pos
+        --ref-xyz ${_B2B_REF_XYZ}
+        --expected-epochs 3557
+        --min-ratio 0.95
+        --interval 1
+        --last-min 20
+        --max-horiz 0.30
+        --max-3d 0.60
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+set_tests_properties(b2b_ppp_check PROPERTIES
+    DEPENDS           b2b_ppp
+    FIXTURES_REQUIRED g5p3_296u_data
+    LABELS            "regression;b2b;ppp"
+)
+
+# ── mrtk run: SBF replay at x20 ───────────────────────────────────────────────
+add_test(NAME rtkrcv_b2b
+    COMMAND bash ${_TESTCMAKE}/run_rtkrcv_test.sh
+        $<TARGET_FILE:mrtk> run ${CMAKE_SOURCE_DIR} 3400 20 ${_B2B_CONF} 52020 300
+        ${CMAKE_BINARY_DIR}/out_rtkrcv_b2b.pos
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+set_tests_properties(rtkrcv_b2b PROPERTIES
+    FIXTURES_REQUIRED "g5p3_296u_data;claslib_data"
+    TIMEOUT           420
+    LABELS            "regression;realtime;b2b"
+)
+add_test(NAME rtkrcv_b2b_check
+    COMMAND ${Python3_EXECUTABLE} ${_CHECK_HASPPP}
+        ${CMAKE_BINARY_DIR}/out_rtkrcv_b2b.pos
+        --ref-xyz ${_B2B_REF_XYZ}
+        --expected-epochs 3557
+        --min-ratio 0.90
+        --interval 1
+        --last-min 20
+        --max-horiz 0.30
+        --max-3d 0.60
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+set_tests_properties(rtkrcv_b2b_check PROPERTIES
+    DEPENDS           rtkrcv_b2b
+    FIXTURES_REQUIRED g5p3_296u_data
+    LABELS            "regression;realtime;b2b"
+)
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # QZSS L6 handover regression (#372)
 # ═══════════════════════════════════════════════════════════════════════════════
 # Dataset: handover-v1 (release asset of h-shiono/mrtklib-data, #386), five
