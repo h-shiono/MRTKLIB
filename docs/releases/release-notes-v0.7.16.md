@@ -60,7 +60,9 @@ mosaic-G5 capture of 2026-10-23 to 10-28 (TOPCON CR-G5, Tokyo):
 - **One stream at a time:** the decoder takes the first GEO that sends a mask
   and keeps it until that GEO is silent for 10 s. An orbit of one stream is
   therefore never paired with a clock of the other. An IOD SSR change clears
-  every staged correction.
+  every staged correction, in post-processing and in real time.
+- **Code biases:** a withdrawn bias (−2048 / −2047) is removed. A bias older
+  than its 86400 s validity, or never received, drops the pseudorange.
 - **Ephemeris:** the orbit IODN refers to the **B-CNAV1** ephemeris (IODC).
   - Post-processing needs a RINEX 4 broadcast file with CNV1 records (e.g.
     `BRD400DLR_S`).
@@ -75,7 +77,8 @@ mosaic-G5 capture of 2026-10-23 to 10-28 (TOPCON CR-G5, Tokyo):
   every 6 s. A 12 s limit turned the 2 h kinematic 2D rms from 0.16 to
   0.34 m. Other sources keep 60 s.
 - **Tools:** `mrtk l6extract` writes the GEO frames to `<input>.b2b` (options
-  `-no-b2b`, `-b2b-geo LIST`); `mrtk post` reads `.b2b` input.
+  `-no-b2b`, `-b2b-geo LIST`). `mrtk post` reads a `.b2b` input only with
+  `correction = "bds-b2b"`.
 - **Samples:** `conf/b2b/ppp_bds_b2b.toml`, `conf/b2b/run_bds_b2b.toml`;
   guide: [Quick Start: BeiDou PPP-B2b](../guide/quickstart-bds-b2b.md).
 

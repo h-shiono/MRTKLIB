@@ -40,7 +40,8 @@ dataset `g5p3_296u-v1`, shared with the SouthPAN PVS work. ABI changes in
   frames of the GEOs to `<input-basename>.b2b` (new options `-no-b2b`,
   `-b2b-geo LIST`). `mrtk post` reads `.b2b` input and selects the B-CNAV1 /
   B-CNAV2 ephemeris (RINEX 4 `CNV1` / `CNV2`) for BeiDou, matching the
-  correction IODN. A RINEX 4 broadcast file with CNV1 records is needed
+  correction IODN. A `.b2b` input is read only with `correction = "bds-b2b"`,
+  so it cannot replace the corrections of another selected service. A RINEX 4 broadcast file with CNV1 records is needed
   (e.g. `BRD400DLR_S`); `mrtk convert` writes none.
 - **Real time.** The SBF decoder stages `BDSRawB2b` messages (raw return code
   14) for the rtksvr B2b decoder. It also decodes `BDSCNav1` (4251, mosaic-G5
@@ -59,8 +60,10 @@ dataset `g5p3_296u-v1`, shared with the SouthPAN PVS work. ABI changes in
   C04 IOD SSR 2 with the same mask (2025-08-21: C59 / C60 and C62). The
   decoder takes the first GEO that sends a mask, until it is silent for 10 s,
   so the orbit of one stream is never combined with the clock of the other.
-  An IOD SSR change clears every staged correction, and a withdrawn code bias
-  (−2048 / −2047) is removed.
+  An IOD SSR change clears every staged correction (published to the
+  positioning channel in real time too), and a withdrawn code bias
+  (−2048 / −2047) is removed. A code bias older than its 86400 s validity,
+  or never received, drops the pseudorange.
 - **Clock age limit 30 s for PPP-B2b** (`SSR_VENDOR_B2B`; other sources keep
   60 s). The ICD's 12 s nominal validity is not usable as an age limit: live
   clocks arrive 6–8 s after their epoch and are renewed every 6 s.
