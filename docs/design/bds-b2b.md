@@ -1,9 +1,11 @@
 # BeiDou PPP-B2b (B2b-I SSR) Support — Design
 
-Status: **Phase 1 (post-processing) implemented & validated** (2026-06-12):
-decoder bit-exact vs cssrlib on 1 h of live broadcast; BDS float PPP converges
-to cm-level scatter on the cssrlib-data doy2025-233 dataset. Phase 2
-(real-time) pending B2b-enabled SBF capture. Authoritative source:
+Status: **post-processing and real time implemented & validated**.
+Phase 1 (2026-06-12): decoder bit-exact vs cssrlib on 1 h of live broadcast;
+BDS float PPP on the cssrlib-data doy2025-233 dataset. Phase 2/3 (2026-11-06,
+#417): GEO list after the 2026-04 PRN reassignment, SBF BDSCNav1 ephemeris for
+real time, regression tests on the kubolab mosaic-G5 capture (§6.6).
+Authoritative source:
 `upstream/BeiDou_PPP_B2b_ICD_v1.0.pdf` (BDS-SIS-ICD-PPP-B2b-1.0, 2020-07).
 Reference implementation: cssrlib `cssr_bds.py` (cross-check golden, as done
 for Galileo HAS).
@@ -11,9 +13,11 @@ for Galileo HAS).
 ## 1. Service overview
 
 - PPP-B2b broadcasts SSR corrections (orbit / clock / code bias / URAI) on the
-  **B2b-I** signal (1207.14 MHz, BPSK(10), 1000 sps) from **BDS-3 GEO**
-  satellites C59 / C60 / C61 (80°E, 110.5°E, 140°E). Coverage: China and
-  surrounding area — all three GEOs are visible from Japan.
+  **B2b-I** signal (1207.14 MHz, BPSK(10), 1000 sps) from the four **BDS-3
+  GEO** satellites (80°E, 110.5°E, 140°E, 160°E). Their PRNs changed with the
+  2026-04 reassignment: C59–C62 before (C59↔C62 swapped on 2026-03-31),
+  C01–C04 since 2026-04-21 (§6.6). Coverage: China and surrounding area; all
+  four GEOs are visible from Japan.
 - Corrections target **BDS-3 and GPS** (Galileo / GLONASS slots are defined in
   the mask but not broadcast as of 2026).
 - **No phase biases** are broadcast → float PPP only (same situation as
@@ -80,11 +84,12 @@ to:
     B2b**. Need a B2b-aware selection: match `iodn & 0xff` against
     `eph->iode` of CNAV1 records (`eph->type == 2`).
   - **Post-processing**: RINEX 4 BRDC already parsed — `decode_eph_bds_cnav()`
-    fills `iodc`/`iode`/`type` (`mrtk_rinex.c:1480–1484`). Use a RINEX 4 nav
-    file (e.g. BRDC00WRD) instead of RINEX 3 brdc.
-  - **Real-time**: SBF decoder currently handles only `BDSRaw` 4047 (D1/D2).
-    Add `BDSRawB1C` (block **4218**) → B-CNAV1 ephemeris decoder
-    (cssrlib `rawnav.py decode_bds_b1c` as reference).
+    fills `iodc`/`iode`/`type`. Use a RINEX 4 nav file with CNV1 records
+    (`BRD400DLR_S`; the RINEX 3 `BRDC00WRD` has none, §6.5).
+  - **Real-time**: SBF `BDSCNav1` (block **4251**, receiver-decoded B-CNAV1
+    ephemeris) → `decode_bdscnav1()`, ephemeris set 1, type 2 (§6.6).
+    `BDSRawB1C` (4218) was the original plan, but its NAVBits are raw
+    B-CNAV1 symbols that would need an LDPC decoder on our side.
   - `getseleph(SYS_CMP)` gains meaning: 0 = D1/D2 (default, CSSR matching),
     1 = CNAV1 (selected automatically when `correction == bds-b2b`).
 
@@ -117,8 +122,9 @@ Integration points (all mirroring HAS, file:line of the HAS counterpart):
 | resolve_correction: lift the "reserved" rejection, require SSRAPC eph | `mrtk_opt.c:186, 209` |
 | corr_meas: `CORR_BDS_B2B` joins the SSR branch; keep carrier when pbias absent | `mrtk_ppp.c:646, 694–703` |
 
-SVID note: SBF svid→sat already maps C41–C63 (svid 223–245,
-`mrtk_rcv_septentrio.c:236`), so GEO C59–C61 frames decode without changes.
+SVID note: SBF svid→sat maps C01–C40 (svid 141–180) and C41–C63 (svid
+223–245), so both GEO PRN ranges decode without changes. Which PRNs are
+treated as GEO is configured (`[positioning] bds_geo_sats`, §6.6).
 
 `.b2b` file format (analogous to `.has` 64-byte records): fixed **72-byte**
 little-endian records `[tow_ms u4][wnc u2][prn u1][flags u1][msg u8[61]][pad
@@ -131,11 +137,11 @@ receiver CRC pass.
    decoder core + utest, l6extract 4242, `update_bds_b2b()`, config
    validation, seleph CNAV1 matching. Validate decoder bit-exact vs cssrlib
    (`scripts/tests/b2b_cssrlib_decode.py`, venv pattern from HAS).
-2. **Phase 2 — real-time**: SBF 4242 + **4218 B-CNAV1** decoders, rtksvr
-   routing (ret 14), E2E replay of the same dataset.
-3. **Phase 3 — regression**: trimmed SBF bundle under `tests/data/b2b/`,
-   ctest chain `b2b_setup/extract/convert/ppp/ppp_check/cleanup` (HAS
-   pattern, `CMakeLists.txt:1472–1563`), docs (mkdocs correction page).
+2. **Phase 2 — real-time**: SBF 4242 + **4251 B-CNAV1** decoders, rtksvr
+   routing (ret 14), E2E replay (§6.6).
+3. **Phase 3 — regression**: dataset `g5p3_296u-v1` (mrtklib-data), ctest
+   chain `b2b_setup/extract/convert/ppp/ppp_check` + `rtkrcv_b2b(_check)`
+   (§6.6), docs (mkdocs correction page).
 
 Accuracy target: published PPP-B2b performance ≈0.1–0.2 m H / 0.3 m V
 (95%, converged) in coverage area; gate thresholds to be measured on real
@@ -166,14 +172,51 @@ data first (HAS lesson: thresholds set loose, then tightened).
   nsat 6.7, last-20-min scatter E 2.9 / N 1.4 / U 21 cm, sub-meter agreement
   with the (meter-class) RINEX header position.
 
+## 6.6 Phase 2/3 findings (2026-11-06, #417)
+
+- **GEO PRNs.** The kubolab mosaic-G5 capture (DOY 2026-296..301) has 1 Hz
+  `BDSRawB2b` from C01–C04 and none from C59–C63. The static az/el of C01–C04
+  match the four GEO slots, and the CSNO table of 2026-03-20 lists them as
+  GEO-4/2/3/1. IGSO and MEO B2b-I frames (B-CNAV3) pass the same CRC and
+  reuse MesType 1/4/5. No header bits separate them: bits 6–11 are 0 on
+  several MEOs, as on the GEOs. So the GEO set is configured:
+  `[positioning] bds_geo_sats` (`pos2-bdsgeo`), default `C01-C04`, applied
+  by `set_bdsopt()`. `b2b_input_msg()` and `mrtk l6extract` (`-b2b-geo`)
+  use it.
+- **Real-time ephemeris.** SBF `BDSCNav1` (4251) gives the decoded B-CNAV1
+  record. Layout per the mosaic-G5 Firmware v1.1.0 Reference Guide, 4 SBF
+  Reference (pp. 245–246); Septentrio's own SbfParser (mosaic-X5 4.14.10.1
+  guide) has no 4251. It is checked against the RINEX 4 CNV1 records of
+  BRD400DLR: M0 / e / i0 / a0 agree to the last bit on 13 satellites, and
+  IODC 0 at t_oe 504000 matches the B2b IODN (the counter wraps 27 → 0).
+  The record goes to ephemeris set 1, type 2, so it does not replace the
+  D1/D2 record of `BDSNav` (4081) in set 0. It is decoded only while
+  `getseleph(SYS_CMP) == 1`. `rtksvrstart()` sets that for
+  `correction = bds-b2b`, as `postpos()` does. `BDSCNav1` is output only
+  when the ephemeris changes, so a replay waits for the next hourly update.
+- **Live broadcast content (2026-10-23).** MT1/2/3/4/63, one common stream on
+  all four GEOs. Orbit corrections for 12 BDS-3 (C06–C42) and 15 GPS satellites
+  per hour; code biases (modes 0, 1, 2, 4, 5, 7, 8, 12) for BDS only, still no
+  GPS DCB. The mosaic-G5 tracks B1I + B3I on every BDS-3 satellite, so
+  `bds3 = "B1I/B3I"`.
+- **Validation** (BeiDou-only float PPP, 2026-10-23 20:00–22:00, vs the
+  TPSCR.G5 reference of `tests/data/handover`), statistics after 60 min:
+  post kinematic 2D rms 11.8 / U rms 9.6 / 3D95 20.9 cm, static
+  3.6 / 7.0 / 10.2 cm; `mrtk run` replay kinematic 14.8 / 10.7 / 27.9 cm,
+  8.9 satellites on average. doy2025-233 post output is byte-identical to
+  Phase 1 with `bds_geo_sats = ["C59-C62"]`.
+- **Regression.** Dataset `g5p3_296u-v1` (1 h of hour u, GEO `BDSRawB2b`,
+  `BDSCNav1`, SouthPAN `GEORawL5` PRN 122 for #418, cut RINEX 4 nav);
+  tests `b2b_extract/convert/ppp/ppp_check` and `rtkrcv_b2b(_check)`. The
+  gates catch regressions, not the service accuracy (performance baseline:
+  #457).
+
 ## 7. Open questions
 
-1. **Receiver availability of BDSRawB2b (4242)** on the user's hardware
-   (mosaic-G5 firmware?) — user is sourcing test data now. If unavailable,
-   alternatives: PolaRx/X5 logs, or public B2b captures.
-2. RINEX 4 BRDC with CNV1 records for the PP dataset (BRDC00WRD works).
-3. Confirm with real data whether live MT3 DCB set covers the signals we
-   track (B1C/B2a vs B1I/B3I pairs), and which BDS pair to prefer for
-   iono-free PPP under `bds-b2b`.
-4. GAL/GLO: decode + store (mask slots defined) but expect empty until the
+1. **GPS without code biases.** Live MT2/MT4 cover 15 GPS satellites, but MT3
+   has no GPS DCB, so the SSR rule drops GPS pseudoranges. Using GPS with a
+   bias-free iono-free pair would roughly double the satellite count.
+2. MT5–7 have not been seen on the live broadcast (MT6 `Slot_S` indexing is
+   still unverified).
+3. GAL/GLO: decode + store (mask slots defined) but expect empty until the
    service broadcasts them.
