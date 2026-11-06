@@ -153,6 +153,11 @@ target_link_libraries(mrtklib PUBLIC m)
 if(UNIX AND NOT APPLE)
     target_link_libraries(mrtklib PUBLIC rt)
 endif()
+# The stream / server code creates threads; glibc < 2.34 keeps pthread_create
+# in libpthread, so every executable linking the static library needs it
+# (utests including mrtk_stream.c too, #385).
+find_package(Threads REQUIRED)
+target_link_libraries(mrtklib PUBLIC Threads::Threads)
 
 # ── System LAPACK/BLAS integration for fast matrix operations ────────────────
 # Request LP64 BLAS/LAPACK integer ABI; ILP64 silently breaks our int* wrappers (#108).
@@ -482,6 +487,15 @@ target_compile_options(t_ntrip PRIVATE -std=c11)
 add_test(NAME utest_t_ntrip COMMAND t_ntrip
          WORKING_DIRECTORY ${_UTEST_DIR})
 set_tests_properties(utest_t_ntrip PROPERTIES LABELS "utest")
+
+# NTRIP server handshake: v1/v2 decision from the request sent and the
+# response (#385). Includes mrtk_stream.c to reach the private rspntrip_s().
+add_executable(utest_ntrip_server_response ${_UTEST_DIR}/utest_ntrip_server_response.c)
+# Override global -ansi (=C90): this test uses C11 (P-01).
+target_compile_options(utest_ntrip_server_response PRIVATE -std=c11)
+target_link_libraries(utest_ntrip_server_response PRIVATE mrtklib)
+add_test(NAME utest_ntrip_server_response COMMAND utest_ntrip_server_response)
+set_tests_properties(utest_ntrip_server_response PROPERTIES LABELS "utest")
 
 # ── RINEX 4 test data fixture (decompress BRD400 NAV) ────────────────────────
 set(_RINEX4_DIR ${CMAKE_SOURCE_DIR}/tests/data/rinex4)
