@@ -193,7 +193,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   clock from the new facility's bank. This also applies to PPP-RTK, which
   shares the backup (upstream claslib has the same gap). New test
   `cssr2rtcm3_clas_l6gap` gates the converter on `clas_l6gap-v1` (at least
-  1150 epochs, no interval over 15 s; 1067 epochs and 33 s without the
+  1150 epochs, no interval over 5 s; 1067 epochs and 33 s without the
   bridge).
 
 - **Raw L6 input removed; `mrtk cssr2rtcm3` takes SBF only**
@@ -209,6 +209,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   work on it. `-nav` is optional (bootstrap before the SBF navigation data
   arrives), and the CSSR week reference always comes from the first SBF time
   stamp. SBF output on `clas_l6gap-v1` is byte-identical.
+
+- **Output epoch follows the receiver instead of stepping behind after input
+  gaps** ([#442](https://github.com/h-shiono/MRTKLIB/issues/442)). The
+  converter output at most one epoch per read, one interval after the last
+  one. After an input gap it therefore produced virtual observations for past
+  epochs, 2–10 s behind the receiver, and when the lag passed 10 s it reset
+  and the output time jumped forward by 10 s or more. That explains the
+  10–19 s output gaps that remained after the BackupCSSR bridge (29 resets =
+  29 gaps on three hours of a live capture). The epoch is now the time of the
+  latest valid PVT, saved when the PVT block is decoded (`raw->time` moves
+  with every SBF block), truncated to the `-t` grid in GPS week seconds
+  (`-t` must be > 0). A PVT on or before the last output epoch (duplicate or
+  backward time) is skipped and counted as `stale`; the 10 s reset is gone.
+  On a 4.9-day replay of a live SBF capture, output gaps of 10–19 s go
+  1276 → 132 and outage time 17779 → 9206 s. Counted against the seconds in
+  which the receiver had a valid PVT (days 296–298), the output covers
+  97.8–98.3 % instead of 95.4–96.2 %, and no epoch is output at a second
+  without a PVT (the old scheduler output 1054–2079 a day). The remaining
+  ≥ 10 s gaps on day 297 (60) all follow an input loss within 30 s and are
+  OSR failures after a discarded subframe (#363), not the scheduler. On
+  `clas_l6gap-v1`: 1162 epochs, longest interval 3 s (was 11 s), output
+  epoch = PVT second. `mrtk post` VRS-RTK on that window is unchanged within
+  noise (Fix 98.5 → 98.1 %, 2D95 3.0 → 3.1 cm), because post-processing
+  pairs base and rover by time and does not see the delay. In a real-time
+  replay (`mrtk run` VRS-RTK fed by the converter at ×1, rtkrcv started
+  first) on three hours of the live capture, the age of differential goes
+  from a mean of about 6 s (p95 11 s) to 1.1 s (p95 4 s), while Fix
+  (95.0 → 94.4 %) and the fixed-solution scatter (2D95 16.8 → 17.1 cm)
+  stay within run-to-run noise. The late output therefore did not limit RT
+  positioning on this data, and the post-processing / RT Fix gap of #97 /
+  #98 is not explained by it. New unit test
+  `utest_cssr2rtcm3_sched` (grid, gaps, duplicate / backward PVT, week
+  rollover, `-t 5` / `-t 0.5`); `cssr2rtcm3_clas_l6gap` also checks that the
+  RTCM3 MSM epochs equal the logged epochs, increase strictly and lie within
+  one interval before their PVT, and gains a `-t 5` variant.
 
 ### Tests and test data
 

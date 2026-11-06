@@ -40,6 +40,7 @@
 #include <string.h>
 #include <unistd.h>
 
+#include "cssr2rtcm3_sched.h"
 #include "mrtklib/mrtk_clas.h"
 #include "mrtklib/mrtk_cli.h"
 #include "mrtklib/mrtk_const.h"
@@ -1103,13 +1104,15 @@ int mrtk_cssr2rtcm3(int argc, char** argv) {
     clas_osrd_t* osr = NULL;
     obs_t obs = {0};
     gtime_t last_output = {0};
+    gtime_t pvt_time = {0}; /* latest valid PVT time: the output time base */
     int i, ret;
     int pos_updated = 0;
     int epoch_count = 0;
     int osr_count = 0;
     long total_bytes = 0;
     int nav_count = 0, l6d_count = 0, pvt_count = 0, pvt_trigger = 0;
-    int dbg_nopos = 0, dbg_notime = 0, dbg_nogeom = 0, dbg_noosr = 0;
+    int pvt_merged = 0; /* PVTs superseded by a later one in the same read */
+    int dbg_nopos = 0, dbg_notime = 0, dbg_nogeom = 0, dbg_noosr = 0, dbg_stale = 0;
     int dbg_cssr_decode = 0;
     int dbg_subtype[16] = {0};
     int l6d_prn_filter = 0;        /* auto-select first QZS satellite for L6D */
@@ -1157,6 +1160,10 @@ int mrtk_cssr2rtcm3(int argc, char** argv) {
             trace_level = atoi(argv[++i]);
         } else if (!strcmp(argv[i], "-t") && i + 1 < argc) {
             output_interval = atof(argv[++i]);
+            if (output_interval <= 0.0) {
+                fprintf(stderr, "Error: -t must be > 0\n");
+                return -1;
+            }
         } else if (!strcmp(argv[i], "-h") || !strcmp(argv[i], "--help")) {
             for (i = 0; usage_text[i]; i++) fprintf(stderr, "%s\n", usage_text[i]);
             return 0;
@@ -1497,7 +1504,15 @@ int mrtk_cssr2rtcm3(int argc, char** argv) {
                     }
                 } else if (ret == 5) {
                     pvt_count++;
+                    if (pvt_trigger) {
+                        pvt_merged++;
+                    }
                     pvt_trigger = 1; /* trigger RTCM3 output */
+                    /* raw_sbf->time is the time of the last decoded block of
+                     * any type, so keep the PVT's own; it never moves back */
+                    if (pvt_time.time == 0 || timediff(raw_sbf->time, pvt_time) > 0.0) {
+                        pvt_time = raw_sbf->time;
+                    }
                     /* PVTGeodetic → latch user position on first valid fix.
                      * VRS base coordinates must be stable across epochs;
                      * per-epoch SPP updates cause meter-level jumps that
@@ -1532,39 +1547,27 @@ int mrtk_cssr2rtcm3(int argc, char** argv) {
             continue;
         }
 
-        /* Output RTCM3 at 1-second intervals, triggered by PVT reception.
-         * Time base: PVT epoch from SBF receiver (1 Hz).
-         * Previous implementation used l6buf[0].time (CSSR decode time),
-         * which only updates every 5s on new CSSR messages, causing
-         * ~35% epoch loss in the RTCM3 output. */
+        /* Output RTCM3 triggered by PVT reception, at most one epoch per
+         * read: the epoch of the latest valid PVT on the output-interval grid
+         * (c2r_next_epoch). Stepping one interval per PVT instead lagged the
+         * receiver by up to 10 s after input gaps and then jumped (#442). */
         if (!pvt_trigger) {
             sleepms(10);
             continue;
         }
         pvt_trigger = 0;
 
-        now = raw_sbf->time;
+        now = pvt_time;
         if (now.time == 0 || clas->l6buf[0].time.time == 0) {
             dbg_notime++;
             continue;
         }
 
-        /* Initialize last_output on first valid epoch */
-        if (last_output.time == 0) {
-            last_output = timeadd(now, -output_interval);
-        }
-
-        /* Advance one epoch on the CSSR 1-second grid.
-         * If gap > 10s (e.g. after startup), skip ahead to avoid
-         * sending stale observations. */
         {
-            double gap = timediff(now, last_output);
-            if (gap > 10.0) {
-                last_output = timeadd(now, -output_interval);
-            }
-            if (timediff(now, last_output) >= output_interval - 0.01) {
-                gtime_t t = timeadd(last_output, output_interval);
-
+            gtime_t t;
+            if (!c2r_next_epoch(now, output_interval, last_output, &t)) {
+                dbg_stale++;
+            } else {
                 rtk.sol.time = t;
 
                 /* measure processing time */
@@ -1614,10 +1617,10 @@ int mrtk_cssr2rtcm3(int argc, char** argv) {
                             int week;
                             double tow = time2gpst(t, &week);
                             fprintf(stderr,
-                                    "\rEpoch %d: week=%d tow=%.0f sats=%d "
+                                    "\rEpoch %d: week=%d tow=%.3f pvt=%.3f sats=%d "
                                     "bytes=%d osr=%ums total=%ums pos=%.1f,%.1f,%.1f",
-                                    epoch_count, week, tow, obs.n, bytes, t_osr - t_start, t_end - t_start, user_pos[0],
-                                    user_pos[1], user_pos[2]);
+                                    epoch_count, week, tow, time2gpst(now, NULL), obs.n, bytes, t_osr - t_start,
+                                    t_end - t_start, user_pos[0], user_pos[1], user_pos[2]);
                             fflush(stderr);
                         }
                     } else {
@@ -1649,7 +1652,8 @@ int mrtk_cssr2rtcm3(int argc, char** argv) {
         }
     }
     fprintf(stderr, "Grid: network=%d num=%d\n", clas->grid[0].network, clas->grid[0].num);
-    fprintf(stderr, "Read: %ld bytes, NAV: %d, L6D: %d, PVT: %d\n", total_bytes, nav_count, l6d_count, pvt_count);
+    fprintf(stderr, "Read: %ld bytes, NAV: %d, L6D: %d, PVT: %d (merged in one read: %d)\n", total_bytes, nav_count,
+            l6d_count, pvt_count, pvt_merged);
     fprintf(stderr, "CSSR decoded: %d (ST1=%d ST2=%d ST3=%d ST4=%d ST5=%d ST7=%d ST11=%d ST12=%d)\n", dbg_cssr_decode,
             dbg_subtype[1], dbg_subtype[2], dbg_subtype[3], dbg_subtype[4], dbg_subtype[5], dbg_subtype[7],
             dbg_subtype[11], dbg_subtype[12]);
@@ -1669,7 +1673,8 @@ int mrtk_cssr2rtcm3(int argc, char** argv) {
         fprintf(stderr, "%d", sprn);
     }
     fprintf(stderr, ")\n");
-    fprintf(stderr, "Skipped: nopos=%d notime=%d nogeom=%d noosr=%d\n", dbg_nopos, dbg_notime, dbg_nogeom, dbg_noosr);
+    fprintf(stderr, "Skipped: nopos=%d notime=%d nogeom=%d noosr=%d stale=%d\n", dbg_nopos, dbg_notime, dbg_nogeom,
+            dbg_noosr, dbg_stale);
     fprintf(stderr, "Nav: n=%d ng=%d nmax=%d\n", nav->n, nav->ng, nav->nmax);
     fprintf(stderr, "Total: %d epochs, %d satellite-observations\n", epoch_count, osr_count);
 
