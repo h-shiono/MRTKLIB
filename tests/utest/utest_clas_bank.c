@@ -20,6 +20,10 @@
  *       station id).
  *   (7) the phase discontinuity indicators of the network (ST6) and global
  *       (ST5) phase bias both reach the set and nav->ssr_ch (#393).
+ *   (8) l6_merge BackupCSSR restore with one channel unusable (facility
+ *       changed, or backup older than 180 s): clas_backup_valid() succeeds
+ *       on the other channel, and the unusable channel's current set, still
+ *       an earlier snapshot, is cleared instead of being applied.
  *
  * The bank entries are written directly; the times follow the frame layout
  * seen in live mosaic-G5 captures (orbit/clock/cbias at the frame epoch,
@@ -219,6 +223,40 @@ int main(void) {
             CHECK(nav->ssr_ch[0][SAT - 1].discnt[CODE_L1C - 1] == disc, "nav->ssr_ch carries the indicators");
             free(nav);
         }
+    }
+
+    printf("--- (8) BackupCSSR restore, one merge channel unusable\n");
+    {
+        static const char* why[] = {"both usable", "ch1 facility changed", "ch1 backup expired"};
+        clas_grid_t* grid = (clas_grid_t*)calloc(1, sizeof(clas_grid_t));
+        int ch, k;
+        for (k = 0; grid && k < 3; k++) {
+            char msg[128];
+            for (ch = 0; ch < 2; ch++) {
+                clas_corr_t* x = &ctx->current[ch];
+                clas_bank_init(ctx, ch);
+                ctx->bank[ch]->Facility = 0;
+                memset(x, 0, sizeof(*x));
+                x->use = 1;
+                x->facility = 0;
+                x->network = NET;
+                x->clock_time = x->orbit_time = x->bias_time = at(k == 2 ? -200.0 : 0.0);
+                if (ch == 0) {
+                    x->clock_time = x->orbit_time = x->bias_time = at(0.0);
+                }
+            }
+            clas_backup_current(ctx, grid, 1);
+            if (k == 1) {
+                ctx->bank[1]->Facility = 1;
+            }
+            CHECK(clas_backup_valid(ctx, at(1.0), 1), "backup valid on ch0");
+            clas_restore_backup(ctx, at(1.0), grid, 1);
+            snprintf(msg, sizeof(msg), "%s: ch0 restored", why[k]);
+            CHECK(ctx->current[0].use && ctx->current[0].facility == 0, msg);
+            snprintf(msg, sizeof(msg), "%s: ch1 %s", why[k], k ? "cleared" : "restored");
+            CHECK(k ? !ctx->current[1].use : ctx->current[1].use, msg);
+        }
+        free(grid);
     }
 
     clas_ctx_free(ctx);

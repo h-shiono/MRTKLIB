@@ -1316,7 +1316,11 @@ extern void clas_restore_backup(clas_ctx_t* ctx, gtime_t time, clas_grid_t* grid
     }
     for (ch = 0; ch < nch; ch++) {
         clas_bank_ctrl_t* bank = ctx->bank[ch];
+        /* a channel without a usable backup still holds the snapshot of an
+         * earlier epoch (a failed bank fetch leaves current untouched), maybe
+         * from the previous facility: drop it so the caller does not apply it */
         if (!backup_usable(ctx, ch, time)) {
+            clas_clear_current(ctx, ch);
             continue;
         }
         memcpy(&ctx->current[ch], &ctx->backup[ch], sizeof(clas_corr_t));
