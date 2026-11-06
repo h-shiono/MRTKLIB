@@ -60,8 +60,8 @@ In the spirit of RTKLIB, it aims to be both a readable reference for how each se
 | **Galileo HAS** | E6-B C/NAV | Float PPP | :white_check_mark: | :white_check_mark: |
 | **IGS products** | SP3 / CLK / Bias-SINEX | Float PPP, PPP-AR | :white_check_mark: | — |
 | **IGS-RTS** | RTCM-SSR over NTRIP | Float PPP | :white_check_mark: | :white_check_mark: |
-| **BeiDou PPP-B2b** | BDS-3 GEO B2b | PPP | planned | planned |
-| **SouthPAN PVS** | SouthPAN SBAS GEO | PPP | under evaluation | under evaluation |
+| **BeiDou PPP-B2b** | BDS-3 GEO B2b | PPP | planned (v0.7.16) | planned |
+| **SouthPAN PVS** | SouthPAN SBAS GEO | PPP | planned (v0.7.17) | planned |
 
 ### Lineage
 
