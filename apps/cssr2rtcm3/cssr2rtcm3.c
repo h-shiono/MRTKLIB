@@ -1617,7 +1617,7 @@ int mrtk_cssr2rtcm3(int argc, char** argv) {
                             int week;
                             double tow = time2gpst(t, &week);
                             fprintf(stderr,
-                                    "\rEpoch %d: week=%d tow=%.0f pvt=%.3f sats=%d "
+                                    "\rEpoch %d: week=%d tow=%.3f pvt=%.3f sats=%d "
                                     "bytes=%d osr=%ums total=%ums pos=%.1f,%.1f,%.1f",
                                     epoch_count, week, tow, time2gpst(now, NULL), obs.n, bytes, t_osr - t_start,
                                     t_end - t_start, user_pos[0], user_pos[1], user_pos[2]);

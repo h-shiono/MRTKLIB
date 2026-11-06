@@ -351,6 +351,9 @@ set_tests_properties(utest_lclblk PROPERTIES LABELS "utest")
 # cssr2rtcm3 output epoch scheduling after input gaps, duplicate / backward
 # PVT times, week rollover and non-default -t (issue #442).
 add_executable(utest_cssr2rtcm3_sched ${_UTEST_DIR}/utest_cssr2rtcm3_sched.c)
+# Override global -ansi (=C90): this test uses C11 (P-01). The header it
+# tests stays C90-compatible because the cssr2rtcm3 app still builds with -ansi.
+target_compile_options(utest_cssr2rtcm3_sched PRIVATE -std=c11)
 target_link_libraries(utest_cssr2rtcm3_sched PRIVATE mrtklib)
 add_test(NAME utest_cssr2rtcm3_sched COMMAND utest_cssr2rtcm3_sched)
 set_tests_properties(utest_cssr2rtcm3_sched PROPERTIES LABELS "utest")

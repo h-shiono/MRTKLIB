@@ -33,7 +33,7 @@ import re
 import subprocess
 import sys
 
-EPOCH = re.compile(r"Epoch \d+: week=(\d+) tow=(\d+) pvt=([\d.]+)")
+EPOCH = re.compile(r"Epoch \d+: week=(\d+) tow=([\d.]+) pvt=([\d.]+)")
 # MSM1-7 of GPS, Galileo, QZSS: 30-bit epoch time = time of week in ms
 MSM_TOW_MS = set(range(1071, 1078)) | set(range(1091, 1098)) | set(range(1111, 1118))
 
@@ -111,7 +111,7 @@ def main():
         print(f"FAIL: exit {res.returncode}\n{res.stderr[-2000:]}")
         return 1
 
-    log = [(int(w) * 604800 + int(s), float(p)) for w, s, p in EPOCH.findall(res.stderr)]
+    log = [(int(w) * 604800 + float(s), float(p)) for w, s, p in EPOCH.findall(res.stderr)]
     if len(log) < 2:
         print(f"FAIL: {len(log)} epochs\n{res.stderr[-2000:]}")
         return 1
@@ -120,9 +120,9 @@ def main():
     # PVT time minus output epoch, within the week
     lags = [(p - e % 604800 + 302400) % 604800 - 302400 for e, p in log]
     rtcm, bad = rtcm_msm_epochs(a.out) if os.path.exists(a.out) else ([], 0)
-    log_ms = [(e % 604800) * 1000 for e in t]
+    log_ms = [round((e % 604800) * 1000) for e in t]
     print(
-        f"epochs={len(t)} span={t[-1] - t[0] + 1} s max_gap={gap} s (after tow {at % 604800}) "
+        f"epochs={len(t)} span={t[-1] - t[0] + a.interval:g} s max_gap={gap:g} s (after tow {at % 604800:g}) "
         f"lag=[{min(lags):.3f}, {max(lags):.3f}] s rtcm_epochs={len(rtcm)} crc_errors={bad}"
     )
 
@@ -136,7 +136,7 @@ def main():
     if len(t) < a.min_epochs:
         fail(f"epochs {len(t)} < {a.min_epochs}")
     if gap > a.max_gap:
-        fail(f"max gap {gap} s > {a.max_gap} s")
+        fail(f"max gap {gap:g} s > {a.max_gap:g} s")
     if min(lags) < 0.0 or max(lags) >= a.interval:
         fail(f"output epoch not within one interval ({a.interval} s) before its PVT time")
     if any(b <= x for x, b in zip(t, t[1:])):
