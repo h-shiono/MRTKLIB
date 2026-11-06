@@ -95,6 +95,7 @@
 #define MAXAGESSR_UDI 120.0        /* cap of the udi-extended ssr orbit age (s) */
 #define MAXAGESSR_HRCLK 10.0       /* max age of ssr high-rate clock (s) */
 #define MAXAGESSR_B2BCLK 30.0      /* max age of PPP-B2b clock correction (s) */
+#define MAXAGESSR_PVS 100.0        /* max age of SouthPAN PVS correction from reception (s) */
 #define STD_BRDCCLK 30.0           /* error of broadcast clock (m) */
 
 /*============================================================================
@@ -837,6 +838,11 @@ static int satpos_ssr(gtime_t time, gtime_t teph, int sat, const nav_t* nav, int
      * clock limit) still stops a clock that is no longer renewed sooner than
      * MAXAGESSR. Other sources keep MAXAGESSR. */
     maxage2 = ssr->vendor == SSR_VENDOR_B2B ? MAXAGESSR_B2BCLK : MAXAGESSR;
+    /* SouthPAN PVS: 100 s validity from reception of the MT32 (SBAS-STN-0001
+     * 5.3.2); t0 is the reception time and udi is 0 */
+    if (ssr->vendor == SSR_VENDOR_PVS) {
+        maxage1 = maxage2 = MAXAGESSR_PVS;
+    }
     if (fabs(t1) > maxage1 || fabs(t2) > maxage2) {
         trace(NULL, 2, "age of ssr error: %s sat=%2d t=%.0f %.0f\n", time_str(time, 0), sat, t1, t2);
         *svh = -1;
@@ -882,6 +888,28 @@ static int satpos_ssr(gtime_t time, gtime_t teph, int sat, const nav_t* nav, int
 
         /* relativity correction */
         dts[0] -= 2.0 * dot(rs, rs + 3, 3) / CLIGHT / CLIGHT;
+
+        /* SouthPAN PVS: the DFMC clock correction refers to the GPS L1/L5
+         * iono-free clock, so TGD is removed (as cssrlib). Without it the GPS
+         * L1/L5 PPP on ALBY 2025-233 has a 5.7 m vertical bias. */
+        if (ssr->vendor == SSR_VENDOR_PVS && sys == SYS_GPS) {
+            dts[0] -= eph->tgd[0];
+        }
+    }
+    /* SouthPAN PVS: the MT32 orbit correction is ECEF and is added to the
+     * broadcast position */
+    if (ssr->vendor == SSR_VENDOR_PVS) {
+        if (opt) {
+            satantoff(time, rs, sat, nav, dant);
+        }
+        for (i = 0; i < 3; i++) {
+            rs[i] += deph[i] + dant[i];
+        }
+        dts[0] += dclk / CLIGHT;
+        *var = var_urassr(ssr->ura);
+        trace(NULL, 5, "satpos_ssr: %s sat=%2d pvs deph=%6.3f %6.3f %6.3f dclk=%6.3f\n", time_str(time, 2), sat,
+              deph[0], deph[1], deph[2], dclk);
+        return 1;
     }
     /* radial-along-cross directions in ecef */
     if (!normv3(rs + 3, ea)) {

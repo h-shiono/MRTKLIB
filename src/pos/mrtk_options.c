@@ -84,7 +84,7 @@ static int bds2prn_given_; /* pos2-bds2prn was read from a configuration */
 #define DOPOPT "0:zd,1:sd"
 #define SATCB "0:auto,1:ssr,2:bia,3:dcb"
 #define SATPB "0:auto,1:ssr,2:bia,3:fcb"
-#define CORROPT "-1:auto,0:none,1:igs,2:igs-rts,3:qzs-madoca,4:gal-has,5:bds-b2b,6:qzs-clas"
+#define CORROPT "-1:auto,0:none,1:igs,2:igs-rts,3:qzs-madoca,4:gal-has,5:bds-b2b,6:qzs-clas,7:southpan-pvs"
 #define BDS2OPT "satid(C01-C18),.. BDS-2 in PRN 1-18 (\"\":no BDS-2)"
 #define IGSOOPT "satid,.. BDS-3 IGSO (\"\":C06-C08)"
 #define GEOOPT "satid,.. BDS-3 GEO, PPP-B2b (\"\":C01-C04)"

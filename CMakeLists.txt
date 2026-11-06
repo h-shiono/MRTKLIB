@@ -478,6 +478,17 @@ add_test(NAME utest_b2b COMMAND utest_b2b
          WORKING_DIRECTORY ${_UTEST_DIR})
 set_tests_properties(utest_b2b PROPERTIES LABELS "utest")
 
+# SouthPAN PVS test: synthetic DFMC L5 MT32 messages through sbsupdatepvs(),
+# the .sbs band round trip and satpos(EPHOPT_SSRAPC) with a synthetic GPS
+# ephemeris (no real signal data).
+add_executable(utest_pvs ${_UTEST_DIR}/utest_pvs.c)
+# Override global -ansi (=C90): this test uses C99 declarations (P-01).
+target_compile_options(utest_pvs PRIVATE -std=c11)
+target_link_libraries(utest_pvs PRIVATE mrtklib)
+add_test(NAME utest_pvs COMMAND utest_pvs
+         WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
+set_tests_properties(utest_pvs PROPERTIES LABELS "utest")
+
 # NTRIP v2 chunked codec test (header-only, no library dependency)
 add_executable(t_ntrip ${_UTEST_DIR}/t_ntrip.c)
 # Override global -ansi (=C90) for this target, same as mrtklib target.
@@ -2707,6 +2718,7 @@ set_tests_properties(b2b_extract PROPERTIES
 add_test(NAME b2b_convert
     COMMAND $<TARGET_FILE:mrtk> convert -r sbf
         -o ${_B2BDATA}/G5P3296u.obs -n ${_B2BDATA}/G5P3296u.nav
+        -s ${_B2BDATA}/G5P3296u.sbs
         ${_B2BDATA}/G5P3296u.sbf
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
 )
@@ -2784,6 +2796,175 @@ set_tests_properties(rtkrcv_b2b_check PROPERTIES
     FIXTURES_REQUIRED g5p3_296u_data
     LABELS            "regression;realtime;b2b"
 )
+
+# ── SouthPAN PVS on the same dataset (#418) ───────────────────────────────────
+# The receiver is in Japan, outside the PVS service area: PRN 122 sends
+# corrections for the satellites SouthPAN monitors, so these tests guard the
+# L5 input path (SBF GEORawL5 -> .sbs / rtksvr), the MT32 decoder and the
+# engine, not the service accuracy. b2b_convert also writes the SBAS message
+# file (.sbs) and a navigation file with the Galileo F/NAV ephemeris of the
+# SBF GALNav blocks (BRD4296u.rnx has I/NAV only).
+set(_PVS_CONF ${CMAKE_BINARY_DIR}/pvs/pvs_g5p3.toml)
+set(PVS_ROVER ${_B2BDATA}/G5P3296u.sbf)
+set(PVS_ATX ${B2B_ATX})
+configure_file(${CMAKE_SOURCE_DIR}/tests/data/g5p3_296u/pvs_g5p3.toml.in ${_PVS_CONF} @ONLY)
+
+# 2599 MT32 frames of PRN 122 in the hour (dataset README)
+add_test(NAME pvs_sbs_check
+    COMMAND bash -c "test \"$(grep -c ' 122 32 : ' \"$0\")\" = 2599" ${_B2BDATA}/G5P3296u.sbs
+)
+set_tests_properties(pvs_sbs_check PROPERTIES
+    DEPENDS           b2b_convert
+    FIXTURES_REQUIRED g5p3_296u_data
+    LABELS            "regression;pvs"
+)
+
+add_test(NAME pvs_ppp
+    COMMAND $<TARGET_FILE:mrtk> post -k ${_PVS_CONF}
+        -o ${CMAKE_BINARY_DIR}/out_pvs_ppp.pos
+        ${_B2BDATA}/G5P3296u.obs
+        ${_B2BDATA}/BRD4296u.rnx
+        ${_B2BDATA}/G5P3296u.nav
+        ${_B2BDATA}/G5P3296u.sbs
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+set_tests_properties(pvs_ppp PROPERTIES
+    FIXTURES_REQUIRED "g5p3_296u_data;claslib_data"
+    DEPENDS           b2b_convert
+    TIMEOUT           180
+    LABELS            "regression;pvs;ppp"
+)
+
+# Thresholds: measured 2026-11-06 (igs14_L5copy.atx), mean of the last 20 min
+# vs the reference: post dENU -0.121/-0.017/+0.183 m (horiz 0.122, 3D 0.22),
+# replay -0.130/-0.019/+0.179 m (horiz 0.131, 3D 0.22), 10.4 satellites
+# (GPS L1/L5 + Galileo E1/E5a). Gates as b2b_ppp_check (0.30 m horiz, 0.60 m
+# 3D). Post: 3499 of 3557 epochs (0.984); the replay has 3498 and is not
+# bit-reproducible, hence 0.90.
+add_test(NAME pvs_ppp_check
+    COMMAND ${Python3_EXECUTABLE} ${_CHECK_HASPPP}
+        ${CMAKE_BINARY_DIR}/out_pvs_ppp.pos
+        --ref-xyz ${_B2B_REF_XYZ}
+        --expected-epochs 3557
+        --min-ratio 0.95
+        --interval 1
+        --last-min 20
+        --max-horiz 0.30
+        --max-3d 0.60
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+set_tests_properties(pvs_ppp_check PROPERTIES
+    DEPENDS           pvs_ppp
+    FIXTURES_REQUIRED g5p3_296u_data
+    LABELS            "regression;pvs;ppp"
+)
+
+# ── mrtk run: SBF replay at x20 (GEORawL5 + GALNav F/NAV from the SBF) ────────
+add_test(NAME rtkrcv_pvs
+    COMMAND bash ${_TESTCMAKE}/run_rtkrcv_test.sh
+        $<TARGET_FILE:mrtk> run ${CMAKE_SOURCE_DIR} 3400 20 ${_PVS_CONF} 52021 300
+        ${CMAKE_BINARY_DIR}/out_rtkrcv_pvs.pos
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+set_tests_properties(rtkrcv_pvs PROPERTIES
+    FIXTURES_REQUIRED "g5p3_296u_data;claslib_data"
+    TIMEOUT           420
+    LABELS            "regression;realtime;pvs"
+)
+add_test(NAME rtkrcv_pvs_check
+    COMMAND ${Python3_EXECUTABLE} ${_CHECK_HASPPP}
+        ${CMAKE_BINARY_DIR}/out_rtkrcv_pvs.pos
+        --ref-xyz ${_B2B_REF_XYZ}
+        --expected-epochs 3557
+        --min-ratio 0.90
+        --interval 1
+        --last-min 20
+        --max-horiz 0.30
+        --max-3d 0.60
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+set_tests_properties(rtkrcv_pvs_check PROPERTIES
+    DEPENDS           rtkrcv_pvs
+    FIXTURES_REQUIRED g5p3_296u_data
+    LABELS            "regression;realtime;pvs"
+)
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# SouthPAN PVS in the service area (#418)
+# ═══════════════════════════════════════════════════════════════════════════════
+# Dataset: southpan-v1 (release asset of h-shiono/mrtklib-data, #386), two
+# one-hour cases from cssrlib-data (MIT; SouthPAN data CC BY 4.0) built by
+# scripts/tests/make_southpan_fixture.py, see tests/data/southpan/README.md:
+#   ALBY 2025-233 h  PolaRx5 at Albany + PRN 122 L5 SIS log (.sbs)
+#   ALIC 2025-110 f  Alice Springs + DAS (SISNeT) log, converted by das2sbs.py
+# GPS L1/L5 + Galileo E1/E5a float PPP (conf/pvs/ppp_southpan_pvs.toml). One
+# hour is shorter than the 80 min IOC convergence target, so the gates catch
+# regressions, not the service accuracy. Reference: the RINEX header positions
+# (as cssrlib's test_ppppvs.py), within ~1 cm of the IGS weekly SINEX.
+set(_PVSDATA ${CMAKE_BINARY_DIR}/tests/data/southpan)
+mrtk_dataset_setup_test(southpan_setup southpan-v1 ${_PVSDATA})
+set_tests_properties(southpan_setup PROPERTIES
+    FIXTURES_SETUP southpan_data
+    LABELS         "regression;pvs"
+)
+set(_PVS_ATX ${CMAKE_SOURCE_DIR}/tests/data/claslib/igs14_L5copy.atx)
+
+function(_pvs_ppp name mode obs nav corr ref_xyz epochs max_horiz max_3d depends)
+    set(_conf ${CMAKE_BINARY_DIR}/pvs/${name}.toml)
+    file(READ ${CMAKE_SOURCE_DIR}/conf/pvs/ppp_southpan_pvs.toml _t)
+    string(REPLACE "mode = \"ppp-kine\"" "mode = \"${mode}\"" _t "${_t}")
+    string(REPLACE "receiver_atx = \"\"" "receiver_atx = \"${_PVS_ATX}\"" _t "${_t}")
+    file(WRITE ${_conf} "${_t}")
+    add_test(NAME ${name}
+        COMMAND $<TARGET_FILE:mrtk> post -k ${_conf}
+            -o ${CMAKE_BINARY_DIR}/out_${name}.pos
+            ${_PVSDATA}/${obs} ${_PVSDATA}/${nav} ${_PVSDATA}/${corr}
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+    set_tests_properties(${name} PROPERTIES
+        FIXTURES_REQUIRED "southpan_data;claslib_data"
+        DEPENDS           "${depends}"
+        TIMEOUT           180
+        LABELS            "regression;pvs;ppp")
+    separate_arguments(_ref UNIX_COMMAND "${ref_xyz}")
+    add_test(NAME ${name}_check
+        COMMAND ${Python3_EXECUTABLE} ${_CHECK_HASPPP}
+            ${CMAKE_BINARY_DIR}/out_${name}.pos
+            --ref-xyz ${_ref}
+            --expected-epochs ${epochs}
+            --min-ratio 0.95
+            --interval 1
+            --last-min 20
+            --max-horiz ${max_horiz}
+            --max-3d ${max_3d}
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+    set_tests_properties(${name}_check PROPERTIES
+        DEPENDS           ${name}
+        FIXTURES_REQUIRED southpan_data
+        LABELS            "regression;pvs;ppp")
+endfunction()
+
+add_test(NAME pvs_alic_das2sbs
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/scripts/tests/das2sbs.py
+        ${_PVSDATA}/DAS2025110f.txt ${_PVSDATA}/ALIC110f.sbs)
+set_tests_properties(pvs_alic_das2sbs PROPERTIES
+    FIXTURES_REQUIRED southpan_data
+    LABELS            "regression;pvs")
+
+# Thresholds: measured 2026-11-06 (igs14_L5copy.atx), mean of the last 20 min
+# vs the reference (11.7 / 11.0 satellites):
+#   pvs_alby_kin     dENU -0.008/-0.046/+0.119 m (horiz 0.047, 3D 0.128)
+#   pvs_alby_static  dENU +0.058/-0.050/+0.060 m (horiz 0.077, 3D 0.098)
+#   pvs_alic_kin     dENU -0.580/-0.196/-0.889 m (horiz 0.612, 3D 1.08)
+# ALBY gates ~2x. ALIC: cssrlib (test_ppppvs.py, static) also ends ~1.1 m low
+# on this hour. The reference matches IGS SINEX to ~1 cm and CODE-products
+# PPP (Galileo E1/E5a) of the same observations ends within 0.17 m, so the
+# offset is in the DAS-logged corrections. DAS input is not validated (#462);
+# its gate only catches a broken DAS path. See tests/data/southpan/README.md.
+_pvs_ppp(pvs_alby_kin ppp-kine ALBY233h.obs BRD4233h.rnx ALBY233h.sbs
+    "-2441715.2741 4629128.6896 -3633362.5218" 3600 0.15 0.30 "")
+_pvs_ppp(pvs_alby_static ppp-static ALBY233h.obs BRD4233h.rnx ALBY233h.sbs
+    "-2441715.2741 4629128.6896 -3633362.5218" 3600 0.15 0.25 "")
+_pvs_ppp(pvs_alic_kin ppp-kine ALIC110f.obs BRD4110f.rnx ALIC110f.sbs
+    "-4052052.9320 4212835.9496 -2545104.3074" 3660 1.20 2.00 pvs_alic_das2sbs)
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # QZSS L6 handover regression (#372)

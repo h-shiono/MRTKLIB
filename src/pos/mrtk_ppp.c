@@ -669,6 +669,10 @@ static int corr_meas(const obsd_t* obs, const nav_t* nav, const double* azel, co
                     P[i] += nav->cbias[obs->sat - 1][2];
                 }
             }
+        } else if (corr == CORR_SOUTHPAN_PVS) {
+            /* SouthPAN PVS broadcasts no code or phase biases: the DFMC clock
+             * refers to the GPS L1 C/A + L5 / Galileo E1 + E5a iono-free
+             * combination, and the float ambiguity absorbs the phase bias */
         } else if (corr == CORR_NONE) {
             /* no satellite bias correction (SPP/DGPS/RTK route through pntpos/relpos,
              * not here; branch kept for completeness) */

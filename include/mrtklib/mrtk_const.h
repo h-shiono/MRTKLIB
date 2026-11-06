@@ -422,6 +422,7 @@ extern "C" {
 #define SSR_VENDOR_L6 0            /* vendor type L6(MADOCA-PPP) */
 #define SSR_VENDOR_RTCM 1          /* vendor type RTCM3(JAXA-MADOCA) */
 #define SSR_VENDOR_B2B 2           /* vendor type BeiDou PPP-B2b */
+#define SSR_VENDOR_PVS 3           /* vendor type SouthPAN PVS (DFMC L5 MT32, ECEF) */
 #define MAXAGESSRL6 60.0           /* max age of ssr satellite code and phase bias (s) */
 #define MIONO_MAX_AGE 300.0        /* max age of STEC correction (s) (Table 6.3.2-3) */
 #define SSR_INVALID_CBIAS -81.92   /* invalid value of ssr code bias (m) */

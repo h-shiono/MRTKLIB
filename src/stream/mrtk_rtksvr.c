@@ -212,7 +212,13 @@ static void update_sbs(rtksvr_t* svr, sbsmsg_t* sbsmsg, int index) {
             }
             svr->sbsmsg[i] = *sbsmsg;
         }
-        sbsupdatecorr(sbsmsg, &svr->nav);
+        if (sbsmsg->band == SBS_BAND_L5) {
+            if (svr->rtk.opt.correction == CORR_SOUTHPAN_PVS) {
+                sbsupdatepvs(sbsmsg, &svr->nav);
+            }
+        } else {
+            sbsupdatecorr(sbsmsg, &svr->nav);
+        }
     }
     svr->nmsg[index][3]++;
 }
@@ -1345,6 +1351,7 @@ extern int rtksvrstart(rtksvr_t* svr, int cycle, int buffsize, int* strs, char**
     /* PPP-B2b orbit corrections reference the B-CNAV1 ephemeris (SBF BDSCNav1,
      * ephemeris set 1), not the D1/D2 AODE; as postpos(). */
     setseleph(SYS_CMP, prcopt->correction == CORR_BDS_B2B ? 1 : 0);
+    setseleph(SYS_GAL, prcopt->correction == CORR_SOUTHPAN_PVS ? 1 : 0);
 
     /* free any iono state left over from a previous run so an in-process restart
      * (the rtkrcv shell can `load` a new config and `restart` in the same

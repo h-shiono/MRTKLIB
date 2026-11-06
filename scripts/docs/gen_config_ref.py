@@ -52,10 +52,12 @@ _OPTION_META: dict[str, tuple[str, str]] = {
         "PPP, PPP-RTK, VRS",
         "Correction source (lowercase; parsing is case-sensitive). Decouples the augmentation source from `mode`. "
         "`none` · `igs` (precise SP3/CLK files) · `igs-rts` (real-time RTCM-SSR / IGS-SSR MT4076; float PPP) · "
-        "`qzs-madoca` · `qzs-clas` · `gal-has`† · `bds-b2b`† (†reserved/not yet implemented). "
+        "`qzs-madoca` · `qzs-clas` · `gal-has` · `bds-b2b` · `southpan-pvs` (SouthPAN PVS, DFMC L5 MT32 of "
+        "PRN 122; float PPP on GPS L1/L5 + Galileo E1/E5a, no ambiguity resolution). "
         "Optional: when omitted it is inferred from `mode` + `satellite_ephemeris` for backward compatibility. "
         '**`igs-rts` is never inferred and must be set explicitly** (it shares `satellite_ephemeris = "brdc+ssrapc"` '
-        'with `qzs-madoca`); it requires `satellite_ephemeris = "brdc+ssrapc"` or `"brdc+ssrcom"`. '
+        'with `qzs-madoca`); it requires `satellite_ephemeris = "brdc+ssrapc"` or `"brdc+ssrcom"`, as do '
+        "`gal-has`, `bds-b2b` and `southpan-pvs`. "
         "See [Positioning Configuration Model](../design/configuration.md). "
         "**Note:** `igs` enables conventional IGS-products float PPP for both geodetic receivers "
         "(e.g. GPS L1+L2, Galileo E1+E5a) and receivers that provide the 2nd frequency only as Galileo **E5b** / "

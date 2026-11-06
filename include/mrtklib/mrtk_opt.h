@@ -112,14 +112,15 @@ extern "C" {
 #define EPHOPT_SSRAPC 3 /* ephemeris option: broadcast + SSR_APC */
 #define EPHOPT_SSRCOM 4 /* ephemeris option: broadcast + SSR_COM */
 
-#define CORR_AUTO -1      /* correction source: infer from mode + sateph (default) */
-#define CORR_NONE 0       /* correction source: none (SPP/DGPS/RTK) */
-#define CORR_IGS 1        /* correction source: IGS precise products (files) */
-#define CORR_IGS_RTS 2    /* correction source: IGS Real-Time Service (RTCM-SSR) [reserved] */
-#define CORR_QZS_MADOCA 3 /* correction source: MADOCA-PPP (QZSS L6E / RTCM-SSR) */
-#define CORR_GAL_HAS 4    /* correction source: Galileo HAS (E6-B SSR) [reserved] */
-#define CORR_BDS_B2B 5    /* correction source: BeiDou PPP-B2b (B2b SSR) [reserved] */
-#define CORR_QZS_CLAS 6   /* correction source: QZSS CLAS (L6D CSSR) */
+#define CORR_AUTO -1        /* correction source: infer from mode + sateph (default) */
+#define CORR_NONE 0         /* correction source: none (SPP/DGPS/RTK) */
+#define CORR_IGS 1          /* correction source: IGS precise products (files) */
+#define CORR_IGS_RTS 2      /* correction source: IGS Real-Time Service (RTCM-SSR) [reserved] */
+#define CORR_QZS_MADOCA 3   /* correction source: MADOCA-PPP (QZSS L6E / RTCM-SSR) */
+#define CORR_GAL_HAS 4      /* correction source: Galileo HAS (E6-B SSR) [reserved] */
+#define CORR_BDS_B2B 5      /* correction source: BeiDou PPP-B2b (B2b SSR) [reserved] */
+#define CORR_QZS_CLAS 6     /* correction source: QZSS CLAS (L6D CSSR) */
+#define CORR_SOUTHPAN_PVS 7 /* correction source: SouthPAN PVS (DFMC L5 MT32) */
 
 /*============================================================================
  * AR Mode Constants

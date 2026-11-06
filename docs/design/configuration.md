@@ -33,7 +33,7 @@ them explicitly is the core of this design.
 | **engine** | Which estimator? | `single` · `dgps` · `rtk` · `ppp` · `ppp-rtk` · `vrs-rtk` |
 | **dynamics** | How does the receiver move? | `static` · `kinematic` · `fixed` |
 | **armode** | Integer ambiguity resolution? | `off` · `continuous` · `instantaneous` |
-| **correction** | Where do corrections come from? | `none` · `igs` · `igs-rts` · `qzs-madoca` · `gal-has` · `bds-b2b` · `qzs-clas` |
+| **correction** | Where do corrections come from? | `none` · `igs` · `igs-rts` · `qzs-madoca` · `gal-has` · `bds-b2b` · `southpan-pvs` · `qzs-clas` |
 
 The **engine** is the genuine dispatch decision — each value maps to a
 distinct estimator in the code (`pntpos` / `relpos` / `pppos` /
@@ -57,6 +57,7 @@ coupling: **a correction source implies a compatible engine class.**
 | `qzs-madoca` | `ppp` | MADOCA-PPP SSR via QZSS L6E or RTCM-SSR |
 | `gal-has` | `ppp` | Galileo HAS via E6-B SSR |
 | `bds-b2b` | `ppp` | BeiDou PPP-B2b via B2b-signal SSR (orbit/clock/code bias) |
+| `southpan-pvs` | `ppp` | SouthPAN PVS via DFMC L5 MT32 of GEO PRN 122 (ECEF orbit/clock only; float PPP) |
 | `qzs-clas` | `ppp-rtk` / `vrs-rtk` | QZSS CLAS L6D CSSR (orbit/clock/bias **+ gridded atmosphere**); consumed undifferenced (`ppp-rtk`) or as CLAS-derived OSR by double-differencing (`vrs-rtk`) |
 
 This is why `mode` and `correction` were conflated in the first place: the
@@ -86,7 +87,8 @@ Values follow a deliberate rule so the namespace stays unambiguous as more
 sources are added:
 
 - **`<system>-<service>`** when a single constellation operates and broadcasts
-  the augmentation — `qzs-madoca`, `qzs-clas`, `gal-has`, `bds-b2b`. The prefix
+  the augmentation — `qzs-madoca`, `qzs-clas`, `gal-has`, `bds-b2b`,
+  `southpan-pvs` (SouthPAN is an SBAS, not a GNSS: its name is the system). The prefix
   is the **broadcasting / operating system**, not the constellations being
   corrected (MADOCA and CLAS correct multiple GNSS but are broadcast by QZSS).
 - **bare name** for cross-constellation products with no single operating
@@ -180,21 +182,19 @@ modes are bare words (no `rtk-` prefix).
 
 | `mode` value | accepted `correction` |
 |--------------|-----------------------|
-| `ppp-static` / `ppp-kine` / `ppp-fixed` | `igs`, `igs-rts`‡, `qzs-madoca`, `gal-has`†, `bds-b2b`† |
+| `ppp-static` / `ppp-kine` / `ppp-fixed` | `igs`, `igs-rts`‡, `qzs-madoca`, `gal-has`‡, `bds-b2b`‡, `southpan-pvs`‡ |
 | `ppp-rtk` | `qzs-clas` |
 | `vrs-rtk` | `qzs-clas` |
 | `kinematic` / `static` / `fixed` / `movingbase` | `none` |
 | `dgps` | `none` |
 | `single` | `none` |
 
-† Reserved value — accepted by the matrix but rejected with an explicit
-"not implemented" error until the corresponding decoder lands (§7).
-
-‡ `igs-rts` additionally requires `satellite_ephemeris = "brdc+ssrapc"` (or
-`"brdc+ssrcom"`): the RTCM-SSR corrections are applied on top of broadcast
-ephemeris, so an SSR-aware `sateph` is mandatory. It is also **never inferred**
-(§6.1) — it shares `brdc+ssrapc` with `qzs-madoca`, so the two are
-indistinguishable from options alone and `igs-rts` must be set explicitly.
+‡ `igs-rts`, `gal-has`, `bds-b2b` and `southpan-pvs` additionally require
+`satellite_ephemeris = "brdc+ssrapc"` (or `"brdc+ssrcom"`): their corrections
+are applied on top of broadcast ephemeris, so an SSR-aware `sateph` is
+mandatory. `igs-rts` is also **never inferred** (§6.1) — it shares
+`brdc+ssrapc` with `qzs-madoca`, so the two are indistinguishable from options
+alone and `igs-rts` must be set explicitly (as must the other three).
 
 Dynamics (static / kinematic / fixed) is independent of `correction`: all three
 accept the same sources. The fixed variant (`ppp-fixed`) constrains the receiver
@@ -227,6 +227,12 @@ route through it. This spec therefore covers only the `ppp`-engine sources.
 
 Today `corr_meas` has exactly one behavior (SSR-mandatory), which is why the
 IGS path fails. Phase 1 introduces a branch on `correction`:
+
+**PVS path** — `correction = southpan-pvs`
+: No satellite bias at all: the DFMC clock correction refers to the GPS
+  L1 C/A + L5 / Galileo E1 + E5a iono-free combination (GPS TGD removed in
+  `satpos_ssr`), and the float ambiguity absorbs the phase bias. Ambiguity
+  resolution is rejected.
 
 **SSR (MADOCA) path** — `correction ∈ { qzs-madoca, gal-has, bds-b2b }`
 : Current behavior, unchanged. Satellite code/phase bias is read from

@@ -127,6 +127,8 @@ static const char* corr_name(int corr) {
             return "bds-b2b";
         case CORR_QZS_CLAS:
             return "qzs-clas";
+        case CORR_SOUTHPAN_PVS:
+            return "southpan-pvs";
         default:
             return "?";
     }
@@ -190,19 +192,21 @@ extern int resolve_correction(prcopt_t* opt, char* msg, size_t msgsz) {
         case PMODE_PPP_STATIC:
         case PMODE_PPP_FIXED:
             if (opt->correction != CORR_IGS && opt->correction != CORR_QZS_MADOCA && opt->correction != CORR_IGS_RTS &&
-                opt->correction != CORR_GAL_HAS && opt->correction != CORR_BDS_B2B) {
+                opt->correction != CORR_GAL_HAS && opt->correction != CORR_BDS_B2B &&
+                opt->correction != CORR_SOUTHPAN_PVS) {
                 if (msg) {
                     snprintf(msg, msgsz,
-                             "invalid correction=%s for mode=%s (use igs, igs-rts, qzs-madoca, gal-has or bds-b2b)",
+                             "invalid correction=%s for mode=%s (use igs, igs-rts, qzs-madoca, gal-has, bds-b2b or "
+                             "southpan-pvs)",
                              corr_name(opt->correction), mode_name(m));
                 }
                 return 0;
             }
-            /* igs-rts, gal-has and bds-b2b apply broadcast ephemeris + SSR
-             * corrections; they need an SSR-aware satellite-ephemeris option
-             * (brdc+ssrapc or brdc+ssrcom). */
+            /* igs-rts, gal-has, bds-b2b and southpan-pvs apply broadcast
+             * ephemeris + SSR corrections; they need an SSR-aware
+             * satellite-ephemeris option (brdc+ssrapc or brdc+ssrcom). */
             if ((opt->correction == CORR_IGS_RTS || opt->correction == CORR_GAL_HAS ||
-                 opt->correction == CORR_BDS_B2B) &&
+                 opt->correction == CORR_BDS_B2B || opt->correction == CORR_SOUTHPAN_PVS) &&
                 opt->sateph != EPHOPT_SSRAPC && opt->sateph != EPHOPT_SSRCOM) {
                 if (msg) {
                     snprintf(msg, msgsz,
@@ -217,6 +221,13 @@ extern int resolve_correction(prcopt_t* opt, char* msg, size_t msgsz) {
              * iono-free combination there is one ambiguity per satellite and
              * ppp_ar() is a no-op. Flag the misconfiguration rather than silently
              * returning a float-only solution. */
+            /* PVS broadcasts orbit and clock only: no phase biases, float PPP */
+            if (opt->correction == CORR_SOUTHPAN_PVS && opt->modear >= ARMODE_CONT) {
+                if (msg) {
+                    snprintf(msg, msgsz, "correction=southpan-pvs supports float PPP only (ambiguity_resolution off)");
+                }
+                return 0;
+            }
             if (opt->correction == CORR_IGS && opt->modear >= ARMODE_CONT && opt->ionoopt != IONOOPT_EST) {
                 if (msg) {
                     snprintf(msg, msgsz,

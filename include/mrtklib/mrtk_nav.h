@@ -102,6 +102,7 @@ typedef struct {      /* SBAS message type */
     int week, tow;    /* receiption time */
     uint8_t prn, rcv; /* SBAS satellite PRN,receiver number */
     uint8_t msg[29];  /* SBAS message (226bit) padded by 0 */
+    uint8_t band;     /* signal band (SBS_BAND_L1,SBS_BAND_L5) */
 } sbsmsg_t;
 
 typedef struct {    /* SBAS messages type */

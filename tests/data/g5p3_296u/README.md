@@ -2,10 +2,10 @@
 
 Release asset `g5p3_296u-v1.tar.gz` of
 [h-shiono/mrtklib-data](https://github.com/h-shiono/mrtklib-data) (#386). The
-`b2b_*` and `rtkrcv_b2b*` tests use it (#417), and it is cut so that SouthPAN
-PVS tests (#418) can use it too. Built by
+`b2b_*` and `rtkrcv_b2b*` tests (#417) and the `pvs_ppp*`, `pvs_sbs_check` and
+`rtkrcv_pvs*` SouthPAN PVS tests (#418) use it. Built by
 `scripts/tests/make_g5p3_296u_fixture.py`. Only this README and the test
-configuration template `b2b_g5p3.toml.in` are committed.
+configuration templates `b2b_g5p3.toml.in` and `pvs_g5p3.toml.in` are committed.
 
 SHA256 `923b2fe8e276664b8ad809947eaca2afc5577a9eca39cb7274b50781b5d44106`
 (the build is reproducible: same capture and navigation file, same hash).
@@ -59,3 +59,13 @@ orbit corrections for 12 BDS-3 satellites (C06-C42) and 15 GPS satellites
 in the hour (the mask lists 30 BDS and 32 GPS), and code biases (modes 0, 1,
 2, 4, 5, 7, 8, 12) for BeiDou only. Without GPS code biases the tests are
 BeiDou-only float PPP (B1I/B3I).
+
+## SouthPAN PVS content
+
+PRN 122 sends 2599 MT32 in the hour (2443 of them flagged for PVS, odd
+tD/16). The receiver is in Tokyo, outside the PVS service area, so the PVS
+tests guard the L5 input path, the decoder and the engine, not the service
+accuracy (the in-area cases are in `../southpan/README.md`). `BRD4296u.rnx`
+has Galileo I/NAV only; the PVS post-processing test adds the navigation file
+that `mrtk convert` writes from the SBF `GALNav` blocks, which has the F/NAV
+records.
