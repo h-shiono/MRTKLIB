@@ -1102,8 +1102,9 @@ static void readpreceph(char** infile, int n, const prcopt_t* prcopt, nav_t* nav
         }
     }
 
-    /* BeiDou PPP-B2b .b2b file (first match only) */
-    for (i = 0; i < n; i++) {
+    /* BeiDou PPP-B2b .b2b file (first match only), only for correction = bds-b2b:
+     * otherwise its corrections would replace those of the selected service */
+    for (i = 0; i < n && prcopt->correction == CORR_BDS_B2B; i++) {
         if ((ext = strrchr(infile[i], '.')) && (!strcmp(ext, ".b2b") || !strcmp(ext, ".B2B"))) {
             strcpy(bds_b2b_file, infile[i]);
             if (!bds_b2b) {

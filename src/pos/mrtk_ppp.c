@@ -698,6 +698,15 @@ static int corr_meas(const obsd_t* obs, const nav_t* nav, const double* azel, co
                     cb = nav->ssr_ch[0][obs->sat - 1].cbias[ssrcode - 1];
                 }
             }
+            /* PPP-B2b code biases are valid for udi[4] (86400 s, ICD Table 6-12); an
+             * older or absent MT3 drops the pseudorange like a missing bias */
+            if (corr == CORR_BDS_B2B && ssrcode != CODE_NONE) {
+                const ssr_t* ssr = nav->ssr_ch[0] + obs->sat - 1;
+                if (!ssr->t0[4].time || timediff(obs->time, ssr->t0[4]) > ssr->udi[4]) {
+                    ssrcode = CODE_NONE;
+                    cb = pb = 0.0;
+                }
+            }
             if (cb != 0.0) {
                 P[i] += cb;
                 trace(NULL, tl > 0 ? 4 : 4, "corr_meas: %s cbias %s obscode=C%s ssrcode=C%s cbias=%7.3f\n", tstr, satid,

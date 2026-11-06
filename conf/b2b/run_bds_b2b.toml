@@ -15,7 +15,7 @@
 #   1. Edit [streams.input.rover] path to point at your SBF source
 #      (file replay, serial, or tcpcli).
 #   2. Edit [streams.output.stream1] path to your solution sink.
-#   3. Run: ./build/mrtk run -k conf/b2b/run_bds_b2b.toml
+#   3. Run: ./build/mrtk run -o conf/b2b/run_bds_b2b.toml
 
 [positioning]
 mode = "ppp-kine"                   # (6:ppp-kine,7:ppp-static)
