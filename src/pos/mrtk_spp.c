@@ -123,13 +123,19 @@ static double gettgd(int sat, const nav_t* nav, int type) {
     }
 }
 /* index of the 2nd frequency for the iono-free combination -------------------
- * #135: for IGS-product PPP, when the conventional slot 1 carries no observation
- * (F9P-class GAL E5b / BDS B2I, with E5a/B3I absent), fall back to the first
- * populated higher slot. Returns 1 otherwise, so existing dual-frequency data is
- * unaffected. nav may be NULL to skip the carrier-frequency validity check
- * (e.g. for SNR masking, which only needs the observation slot). */
+ * Upstream claslib SPP uses L1-L5 for GAL/SBS and L1-L2 otherwise; apply that
+ * choice only while CLAS processing is active (the upstream profiles disagree
+ * here, and GAL/SBS rows without an E5a/L5 observation would otherwise drop
+ * out of non-CLAS SPP). Preserve the #135 IGS-product fallback for receivers
+ * whose conventional slot 1 is absent.
+ * nav may be NULL to skip the carrier-frequency validity check (e.g. for SNR
+ * masking, which only needs the observation slot). */
 static int iflc_freq2_idx(const obsd_t* obs, const nav_t* nav, const prcopt_t* opt) {
+    int sys = satsys(obs->sat, NULL);
     int j;
+    if (opt->ionoopt == IONOOPT_IFLC && opt->correction == CORR_QZS_CLAS && NFREQ >= 3 && (sys & (SYS_GAL | SYS_SBS))) {
+        return 2;
+    }
     if (opt->ionoopt == IONOOPT_IFLC && opt->correction == CORR_IGS && obs->P[1] == 0.0) {
         for (j = 2; j < NFREQ; j++) {
             if (obs->P[j] != 0.0 && (!nav || sat2freq(obs->sat, obs->code[j], nav) != 0.0)) {
@@ -249,7 +255,7 @@ static double prange(const obsd_t* obs, const nav_t* nav, const prcopt_t* opt, d
 /* pseudorange residuals -----------------------------------------------------*/
 static int rescode(int iter, const obsd_t* obs, int n, const double* rs, const double* dts, const double* vare,
                    const int* svh, const nav_t* nav, const double* x, const prcopt_t* opt, double* v, double* H,
-                   double* var, double* azel, int* vsat, double* resp, int* ns) {
+                   double* var, double* azel, int* vsat, double* resp, int* ns, const int* outp) {
     gtime_t time;
     double r, freq, dion = 0.0, dtrp = 0.0, vmeas, vion = 0.0, vtrp = 0.0, rr[3], pos[3], dtr;
     double e[3], P, fact_ion;
@@ -280,6 +286,9 @@ static int rescode(int iter, const obsd_t* obs, int n, const double* rs, const d
             continue;
         }
         /* excluded satellite? */
+        if (sat >= 1 && sat <= MAXSAT && outp && outp[sat - 1]) {
+            continue;
+        }
         if (satexclude(sat, vare[i], svh[i], opt)) {
             continue;
         }
@@ -417,6 +426,31 @@ static int valsol(const double* azel, const int* vsat, int n, const prcopt_t* op
     }
     return 1;
 }
+/* exclude satellites with large SPP pseudorange residuals ---------------------*/
+static void exclsat(const obsd_t* obs, const double* resp, const prcopt_t* opt, int n, const int* vsat, int* outp) {
+    double v2 = 0.0, thres = opt->rejethres * opt->rejethres;
+    int i, j;
+
+    for (i = j = 0; i < n && i < MAXOBS; i++) {
+        if (!vsat[i]) {
+            continue;
+        }
+        v2 += resp[i] * resp[i];
+        j++;
+    }
+    if (j == 0 || v2 / j > thres) {
+        return;
+    }
+    for (i = 0; i < n && i < MAXOBS; i++) {
+        int sat = obs[i].sat;
+        if (!vsat[i] || sat < 1 || sat > MAXSAT || resp[i] * resp[i] <= thres) {
+            continue;
+        }
+        outp[sat - 1] = 1;
+        trace(NULL, 2, "pntpos : excluded obs due to large residuals :sat=%2d res=%.2f rms=%.2f\n", sat, resp[i],
+              sqrt(v2 / j));
+    }
+}
 /* IGG-III three-segment equivalent-weight factor (#116 P2) ------------------
  * rt = standardized residual; returns a multiplicative weight in [0,1].
  * |rt|<=k0: full weight; k0<|rt|<=k1: smooth down-weight; |rt|>k1: reject. */
@@ -452,7 +486,8 @@ static double median_abs(const double* x, int n, double* work) {
 static int estpos(const obsd_t* obs, int n, const double* rs, const double* dts, const double* vare, const int* svh,
                   const nav_t* nav, const prcopt_t* opt, sol_t* sol, double* azel, int* vsat, double* resp, char* msg) {
     double x[NX] = {0}, dx[NX], Q[NX * NX], *v, *H, *var, *vpre, sig;
-    int i, j, k, info, stat = 1, nv, ns;
+    int i, j, k, info, stat = 1, nv = 0, ns;
+    int outp[MAXSAT] = {0};
 
     trace(NULL, 3, "estpos  : n=%d\n", n);
 
@@ -466,8 +501,11 @@ static int estpos(const obsd_t* obs, int n, const double* rs, const double* dts,
     }
 
     for (i = 0; i < MAXITR; i++) {
+        if (i > 0 && nv > opt->rejeminsat && opt->rejethres > 0.0) {
+            exclsat(obs, resp, opt, n, vsat, outp);
+        }
         /* pseudorange residuals (m) */
-        nv = rescode(i, obs, n, rs, dts, vare, svh, nav, x, opt, v, H, var, azel, vsat, resp, &ns);
+        nv = rescode(i, obs, n, rs, dts, vare, svh, nav, x, opt, v, H, var, azel, vsat, resp, &ns, outp);
 
         if (nv < NX) {
             sprintf(msg, "lack of valid sats ns=%d", nv);
@@ -661,7 +699,10 @@ static int raim_fde(const obsd_t* obs, int n, const double* rs, const double* dt
  * disagrees with the Doppler beyond thresdop after removing the common-mode
  * (receiver clock) offset — the single-receiver detector from demo5/detslp_dop,
  * kept SPP-local so PPP/RTK are untouched. ssat holds the previous epoch's
- * phase (pt/ph), populated by pntpos at the end of each epoch. */
+ * phase in the pntpos-private spt/sph slots, populated at the end of each
+ * pntpos call. pt[0]/ph[0] must NOT be used here: they belong to the engines'
+ * own slip detectors (detslp_ll/detslp_dop), and overwriting them from pntpos
+ * silently disabled rover slip detection in relative RTK (issue #318). */
 static void spp_detslp(const obsd_t* obs, int n, const ssat_t* ssat, double thresdop, int* slip) {
     double dph, dpt, tt, mean = 0.0, dif[MAXOBS] = {0};
     int i, sat, ndop = 0, valid[MAXOBS] = {0};
@@ -669,15 +710,15 @@ static void spp_detslp(const obsd_t* obs, int n, const ssat_t* ssat, double thre
     for (i = 0; i < n && i < MAXOBS; i++) {
         slip[i] = (obs[i].LLI[0] & 1) ? 1 : 0; /* loss-of-lock indicator */
         sat = obs[i].sat;
-        if (thresdop <= 0.0 || obs[i].L[0] == 0.0 || obs[i].D[0] == 0.0 || ssat[sat - 1].ph[0][0] == 0.0) {
+        if (thresdop <= 0.0 || obs[i].L[0] == 0.0 || obs[i].D[0] == 0.0 || ssat[sat - 1].sph[0] == 0.0) {
             continue;
         }
-        tt = timediff(obs[i].time, ssat[sat - 1].pt[0][0]);
+        tt = timediff(obs[i].time, ssat[sat - 1].spt[0]);
         if (fabs(tt) < DTTOL || fabs(tt) > 3.0) {
             continue;
         }
-        dph = (obs[i].L[0] - ssat[sat - 1].ph[0][0]) / tt; /* phase rate (cyc/s) */
-        dpt = -obs[i].D[0];                                /* Doppler-predicted rate */
+        dph = (obs[i].L[0] - ssat[sat - 1].sph[0]) / tt; /* phase rate (cyc/s) */
+        dpt = -obs[i].D[0];                              /* Doppler-predicted rate */
         dif[i] = dph - dpt;
         valid[i] = 1; /* explicit validity — dif can legitimately be 0.0 */
         if (fabs(dif[i]) < 3.0 * thresdop) {
@@ -721,11 +762,11 @@ static int resdop(const obsd_t* obs, int n, const double* rs, const double* dts,
         /* measured range rate (cyc/s) and its Std (m/s): TDCP primary, Doppler fallback */
         use = 0;
         meas = sig = 0.0;
-        if (tdcp && ssat && slip && !slip[i] && obs[i].L[0] != 0.0 && ssat[sat - 1].ph[0][0] != 0.0) {
-            tt = timediff(obs[i].time, ssat[sat - 1].pt[0][0]);
+        if (tdcp && ssat && slip && !slip[i] && obs[i].L[0] != 0.0 && ssat[sat - 1].sph[0] != 0.0) {
+            tt = timediff(obs[i].time, ssat[sat - 1].spt[0]);
             if (fabs(tt) >= DTTOL && fabs(tt) <= 3.0) {
-                meas = (obs[i].L[0] - ssat[sat - 1].ph[0][0]) / tt; /* == dph (cyc/s) */
-                sig = ERR_TDCP;                                     /* phase-rate Std (m/s) */
+                meas = (obs[i].L[0] - ssat[sat - 1].sph[0]) / tt; /* == dph (cyc/s) */
+                sig = ERR_TDCP;                                   /* phase-rate Std (m/s) */
                 use = 1;
             }
         }
@@ -919,10 +960,14 @@ int pntpos(mrtk_ctx_t* ctx, const obsd_t* obs, int n, const nav_t* nav, const pr
             ssat[obs[i].sat - 1].azel[1] = azel_[1 + i * 2];
             ssat[obs[i].sat - 1].snr[0] = obs[i].SNR[0];
             /* #116 P4: store carrier phase for next-epoch TDCP / slip detection
-             * (unconditional — keep continuity even for this epoch's unused sats) */
+             * (unconditional — keep continuity even for this epoch's unused sats).
+             * Private spt/sph slots: writing pt[0]/ph[0] here clobbered the
+             * engines' previous-phase bookkeeping every epoch, disabling rover
+             * detslp_ll/detslp_dop in relative RTK and detslp_dop in PPP
+             * (issue #318). */
             for (f = 0; f < NFREQ; f++) {
-                ssat[obs[i].sat - 1].ph[0][f] = obs[i].L[f];
-                ssat[obs[i].sat - 1].pt[0][f] = obs[i].time;
+                ssat[obs[i].sat - 1].sph[f] = obs[i].L[f];
+                ssat[obs[i].sat - 1].spt[f] = obs[i].time;
             }
             if (!vsat[i]) {
                 continue;

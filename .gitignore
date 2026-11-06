@@ -19,6 +19,14 @@ site/
 # Python virtual environments
 scripts/.venv/
 
+# Test data extracted by the dataset fixtures (#386)
+tests/data/has/
+
+# Dataset madocalib_mdc005-v1 extracted by ctest (#401)
+tests/data/madocalib_mdc005/*.rnx
+tests/data/madocalib_mdc005/*.l6
+tests/data/madocalib_mdc005/igs20_2290_MIZU.atx
+
 # Test data extracted from tests/data/malib/MALIB_OSS_data.tar.gz
 # (extracted by ctest fixture; cleaned up automatically, but guarded here)
 tests/data/malib/MALIB_OSS_data_*.sbf
@@ -75,6 +83,11 @@ upstream/madocalib/
 upstream/MALIB/
 upstream/demo5/
 upstream/RTKLIB/
+
+# Copyrighted reference specs / vendor guides / papers — keep local only.
+# The provenance catalogs (index.md) ARE tracked; the binaries are not.
+docs/reference/icd/**/*.pdf
+docs/reference/papers/*.pdf
 
 # PPC benchmark dataset, L6 data, and positioning results (large; download on demand)
 data/benchmark/

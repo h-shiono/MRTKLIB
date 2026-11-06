@@ -190,20 +190,24 @@ int decode_lcltrop(rtcm_t* rtcm, int type) {
     blkinf_t *blkinf, tmpblkinf = {0};
     sitetrp_t* strp;
 
+    if (!rtcm_lclblk(rtcm)) {
+        trace(NULL, 1, "decode_lcltrop: lclblk malloc error\n");
+        return -1;
+    }
     p = decode_lclhead(rtcm, type, &tmpblkinf);
     trace(NULL, 3, "decode_lcltrop : %s,bn=%4d,btype=%d,gp=%d,gnum=%d\n", time_str(rtcm->time, 0), tmpblkinf.bn,
           tmpblkinf.btype, tmpblkinf.gpitch, tmpblkinf.n);
-    for (i = 0; i < rtcm->lclblk.tnum; i++) {
-        if (rtcm->lclblk.tblkinf[i].bn == tmpblkinf.bn) {
+    for (i = 0; i < rtcm->lclblk->tnum; i++) {
+        if (rtcm->lclblk->tblkinf[i].bn == tmpblkinf.bn) {
             break;
         }
     }
     ctnum = i;
-    if (i == rtcm->lclblk.tnum) {
-        rtcm->lclblk.tnum++;
+    if (i == rtcm->lclblk->tnum) {
+        rtcm->lclblk->tnum++;
     }
-    memcpy(&rtcm->lclblk.tblkinf[i], &tmpblkinf, sizeof(blkinf_t));
-    blkinf = &rtcm->lclblk.tblkinf[i];
+    memcpy(&rtcm->lclblk->tblkinf[i], &tmpblkinf, sizeof(blkinf_t));
+    blkinf = &rtcm->lclblk->tblkinf[i];
 
     base = getbitu(rtcm->buff, p, 6) * TRP_BAS_LSB;
     p += 6;
@@ -223,7 +227,7 @@ int decode_lcltrop(rtcm_t* rtcm, int type) {
             tp = i;
         }
 
-        strp = &rtcm->lclblk.tstat[ctnum][tp];
+        strp = &rtcm->lclblk->tstat[ctnum][tp];
         trp = getbitu(rtcm->buff, p, 9) * TRP_DET_LSB;
         p += 9;
         ind = getbitu(rtcm->buff, p, 3);
@@ -261,6 +265,10 @@ int decode_lcliono(rtcm_t* rtcm, int type) {
     blkinf_t *blkinf, tmpblkinf = {0};
     ion_t* ionp;
 
+    if (!rtcm_lclblk(rtcm)) {
+        trace(NULL, 1, "decode_lcliono: lclblk malloc error\n");
+        return -1;
+    }
     switch (type) {
         case 2002:
             msys = SYS_GPS;
@@ -319,17 +327,17 @@ int decode_lcliono(rtcm_t* rtcm, int type) {
     p = decode_lclhead(rtcm, type, &tmpblkinf);
     trace(NULL, 3, "decode_lcliono : %s,bn=%4d,btype=%d,gp=%d\n", time_str(rtcm->time, 0), tmpblkinf.bn,
           tmpblkinf.btype, tmpblkinf.gpitch);
-    for (i = 0; i < rtcm->lclblk.inum; i++) {
-        if (rtcm->lclblk.iblkinf[i].bn == tmpblkinf.bn) {
+    for (i = 0; i < rtcm->lclblk->inum; i++) {
+        if (rtcm->lclblk->iblkinf[i].bn == tmpblkinf.bn) {
             break;
         }
     }
-    if (i >= rtcm->lclblk.inum) {
-        rtcm->lclblk.inum++;
+    if (i >= rtcm->lclblk->inum) {
+        rtcm->lclblk->inum++;
     }
     cinum = i;
-    memcpy(&rtcm->lclblk.iblkinf[cinum], &tmpblkinf, sizeof(blkinf_t));
-    blkinf = &rtcm->lclblk.iblkinf[cinum];
+    memcpy(&rtcm->lclblk->iblkinf[cinum], &tmpblkinf, sizeof(blkinf_t));
+    blkinf = &rtcm->lclblk->iblkinf[cinum];
 
     if (nsat > 32) {
         smask[0] = getbitu(rtcm->buff, p, 32);
@@ -373,12 +381,12 @@ int decode_lcliono(rtcm_t* rtcm, int type) {
             tp = i;
         }
         for (j = ssat - 1; j < ssat + nsat - 1; j++) {
-            ionp = &rtcm->lclblk.istat[cinum][tp].iond[j];
+            ionp = &rtcm->lclblk->istat[cinum][tp].iond[j];
             ionp->ion = 0.0;
             ionp->std = 0.0;
         }
         pos2ecef(blkinf->grid[i], ecef);
-        memcpy(rtcm->lclblk.istat[cinum][tp].site.ecef, ecef, sizeof(rtcm->lclblk.istat[cinum][tp].site.ecef));
+        memcpy(rtcm->lclblk->istat[cinum][tp].site.ecef, ecef, sizeof(rtcm->lclblk->istat[cinum][tp].site.ecef));
     }
 
     for (i = 0; i < ns; i++) {
@@ -394,7 +402,7 @@ int decode_lcliono(rtcm_t* rtcm, int type) {
             } else if (2012 <= type && type <= 2016) {
                 tp = j;
             }
-            ionp = &rtcm->lclblk.istat[cinum][tp].iond[sat - 1];
+            ionp = &rtcm->lclblk->istat[cinum][tp].iond[sat - 1];
             ion = getbitu(rtcm->buff, p, 9) * ION_DET_LSB;
             p += 9;
             ind = getbitu(rtcm->buff, p, 3);
@@ -476,7 +484,10 @@ int encode_lcltrop(rtcm_t* rtcm, int type) {
     trp_t* trpp;
     blkinf_t* blkinf;
 
-    blkinf = &rtcm->lclblk.tblkinf[rtcm->lclblk.outtn];
+    if (!rtcm->lclblk) {
+        return 0;
+    }
+    blkinf = &rtcm->lclblk->tblkinf[rtcm->lclblk->outtn];
     /* base value */
     for (i = 0, base = -1; i < blkinf->n; i++) {
         if (type == 2001) {
@@ -484,7 +495,7 @@ int encode_lcltrop(rtcm_t* rtcm, int type) {
         } else if (type == 2011) {
             tp = i;
         }
-        trpp = &rtcm->lclblk.tstat[rtcm->lclblk.outtn][tp].trpd;
+        trpp = &rtcm->lclblk->tstat[rtcm->lclblk->outtn][tp].trpd;
         if (timediff(rtcm->time, trpp->time) > 0 || trpp->time.time == 0) {
             continue;
         }
@@ -513,7 +524,7 @@ int encode_lcltrop(rtcm_t* rtcm, int type) {
         } else if (type == 2011) {
             tp = i;
         }
-        trpp = &rtcm->lclblk.tstat[rtcm->lclblk.outtn][tp].trpd;
+        trpp = &rtcm->lclblk->tstat[rtcm->lclblk->outtn][tp].trpd;
         if (trpp->std[0] == 0) {
             continue;
         }
@@ -570,6 +581,9 @@ int encode_lcliono(rtcm_t* rtcm, int type) {
     ion_t* ionp;
     blkinf_t* blkinf;
 
+    if (!rtcm->lclblk) {
+        return 0;
+    }
     switch (type) {
         case 2002:
             msys = SYS_GPS;
@@ -626,7 +640,7 @@ int encode_lcliono(rtcm_t* rtcm, int type) {
     }
 
     ssat = satno(msys, minprn);
-    blkinf = &rtcm->lclblk.iblkinf[rtcm->lclblk.outin];
+    blkinf = &rtcm->lclblk->iblkinf[rtcm->lclblk->outin];
     /* search base value */
     for (i = 0; i < nsat; i++) {
         base[i] = -1;
@@ -638,7 +652,7 @@ int encode_lcliono(rtcm_t* rtcm, int type) {
             tp = i;
         }
         for (j = ssat - 1; j < ssat + nsat - 1; j++) {
-            ionp = &rtcm->lclblk.istat[rtcm->lclblk.outin][tp].iond[j];
+            ionp = &rtcm->lclblk->istat[rtcm->lclblk->outin][tp].iond[j];
             sys = satsys(j + 1, &prn);
             prn -= minprn;
             if (ionp->ion <= 0.0) {

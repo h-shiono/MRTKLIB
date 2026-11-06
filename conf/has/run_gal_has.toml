@@ -22,7 +22,7 @@ elevation_mask = 10.0               # (deg)
 dynamics = false                    # (0:off,1:on)
 satellite_ephemeris = "brdc+ssrapc" # (0:brdc,1:precise,3:brdc+ssrapc,4:brdc+ssrcom)
 correction = "gal-has"              # Galileo HAS (E6-B SSR)
-excluded_sats = ""                  # (prn ...)
+excluded_sats = []                  # (prn ...)
 systems = ["GPS", "Galileo"]
 
 [positioning.snr_mask]
@@ -87,9 +87,6 @@ galileo = "E1/E5a/E5b/E6" # (0:E1/E5a,1:E1/E5b,3:E1/E5a/E5b/E6,4:E1/E5a/E6/E5b)
 bds2 = "B1I/B3I/B2I"      # (0:B1I/B3I,1:B1I/B2I,2:B1I/B3I/B2I)
 bds3 = "B1I/B3I/B2a"      # (0:B1I/B3I,1:B1I/B2a,2:B1I/B3I/B2a)
 
-[receiver]
-iono_correction = false # (0:off,1:on)
-
 [antenna.rover]
 position_type = "single" # (0:llh,1:xyz,2:single,3:posfile,4:rinexhead,5:rtcm,6:raw)
 type = "*"
@@ -126,8 +123,6 @@ dcb = ""
 eop = ""
 ocean_loading = ""
 temp_dir = ""
-geexe = ""
-solution_stat = ""
 trace = ""
 
 [server]
@@ -139,15 +134,6 @@ buffer_size = 32768
 nav_msg_select = "all"
 proxy = ""
 swap_margin = 30
-time_interpolation = false
-sbas_satellite = "0"
-rinex_option_1 = ""
-rinex_option_2 = ""
-ppp_option = ""
-rtcm_option = ""
-
-# ── Input streams ─────────────────────────────────────────────────────────────
-# Single SBF stream: observations + broadcast ephemeris + HAS C/NAV pages.
 
 [streams.input.rover]
 type = "file"                      # (file:replay, serial, tcpcli)
@@ -196,3 +182,19 @@ passwd = ""
 timetype = "gpst"
 soltype = "deg"
 solflag = "off"
+
+[positioning.ppp]
+options = ""
+
+[positioning.relative]
+time_interpolation = false
+
+[input.rinex]
+option_1 = ""
+option_2 = ""
+
+[input.rtcm]
+options = ""
+
+[input.sbas]
+satellite = 0

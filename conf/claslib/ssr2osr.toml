@@ -6,7 +6,7 @@ mode = "ssr2osr"                                                          # (10:
 signals = ["G1C", "G2W", "G5X", "E1C", "E5Q", "E7Q", "J1C", "J5Q", "J2X"]
 elevation_mask = 15.0                                                     # (deg)
 satellite_ephemeris = "brdc+ssrapc"                                       # (3:brdc+ssrapc)
-excluded_sats = ""                                                        # (prn ...)
+excluded_sats = []                                                        # (prn ...)
 systems = ["GPS", "Galileo", "QZSS"]
 
 [positioning.clas]
@@ -30,11 +30,6 @@ tidal_correction = "solid+otl-clasgrid+pole" # (0:off,3:solid+otl-clasgrid+pole)
 code_phase_ratio_L1 = 50.0 # code/phase error ratio
 phase = 0.01               # (m) measurement error
 phase_elevation = 0.006    # (m) measurement error elevation dependant
-
-[receiver]
-isb = true              # isb correction method (0:off,1:table)
-phase_shift = "table"   # 1/4 cycle phase shift correction method in case of L2C (0:off,1:table)
-reference_type = "CLAS" # Reference receiver type (always fixed as CLAS)
 
 [antenna.rover]
 type = "TRM59800.80     NONE" # User antenna type
@@ -66,3 +61,8 @@ eop = "./tests/data/claslib/igu00p01.erp"
 receiver_atx = "./tests/data/claslib/igs14_L5copy.atx"
 isb_table = "./tests/data/claslib/isb.tbl"
 phase_cycle = "./tests/data/claslib/l2csft.tbl"
+
+[positioning.clas.ambiguities]
+isb = true              # isb correction method (0:off,1:table)
+phase_shift = "table"   # 1/4 cycle phase shift correction method in case of L2C (0:off,1:table)
+reference_type = "CLAS" # Reference receiver type (always fixed as CLAS)

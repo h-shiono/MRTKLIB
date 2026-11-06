@@ -2247,6 +2247,11 @@ extern void rtkinit(rtk_t* rtk, const prcopt_t* opt) {
     rtk->holdamb = 0;
     rtk->opt = *opt;
     rtk->sol.thres = (float)opt->thresar[0];
+
+    /* BeiDou generation of PRN 1-18 and BDS-3 IGSO (#401) */
+    if (!set_bdsopt(opt, 0)) {
+        errmsg(rtk, "invalid bds2_sats=%s or bds3_igso_sats=%s\n", opt->bds2prn, opt->bds3igso);
+    }
 }
 /* free rtk control ------------------------------------------------------------
  * free memory for rtk control struct
@@ -2717,12 +2722,21 @@ extern int rtkpos(mrtk_ctx_t* ctx, rtk_t* rtk, const obsd_t* obs, int n, nav_t* 
         /* PPP-RTK/VRS: force broadcast ephemeris for SPP initial position */
         if (sppopt.mode == PMODE_PPP_RTK || sppopt.mode == PMODE_VRS_RTK) {
             sppopt.sateph = EPHOPT_BRDC;
+            /* Upstream CLAS applies SPP pseudorange large-residual exclusion with
+             * defaults of 20 m and 7 satellites. Keep standalone SPP bit-compatible
+             * by applying the auto-default only to this private CLAS seed copy.
+             * Set pos2-rejethres < 0 to force it off for CLAS diagnostics. */
+            if (sppopt.rejethres == 0.0) {
+                sppopt.rejethres = 20.0;
+            }
+            if (sppopt.rejeminsat <= 0) {
+                sppopt.rejeminsat = 7;
+            }
             /* Enhanced seed (default SEEDENH_BASE = cn0+tdcp; set OFF to disable):
              * apply the proven v0.6.10 SPP error model to this PRIVATE copy only.
-             * err[5]/err[6] are the C/N0 snr_max/snr_error coefficients here (varerr
-             * in mrtk_spp.c); the CLAS engine reads rtk->opt where the same slots
-             * mean the iono/trop estimation-error terms, so it stays untouched. When
-             * the profile is OFF the seed is bit-identical to prior behaviour. */
+             * err[5]/err[6] are the C/N0 snr_max/snr_error coefficients here; the
+             * CLAS measurement model uses its dedicated atmosphere-error fields.
+             * When the profile is OFF the seed is bit-identical to prior behaviour. */
             if (rtk->opt.enhanced_spp_seed >= SEEDENH_BASE) {
                 sppopt.err[5] = 50.0;  /* C/N0 reference snr_max (dB-Hz) */
                 sppopt.err[6] = 0.5;   /* C/N0 weighting coefficient (m) */

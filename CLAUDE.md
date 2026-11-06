@@ -47,10 +47,25 @@ See [`docs/releases/changelog.md`](docs/releases/changelog.md) for the full hist
 | v0.6.13 | Enhanced PPP-RTK SPP seed (C/N0 + TDCP) + RINEX converter obsdef frequency unification |
 | v0.6.14 | Real-time CLAS handover robustness + cssr2rtcm3 / VRS carrier-phase quality |
 | v0.7.0 | Galileo HAS (E6-B C/NAV) float PPP — opens the v0.7.x global SSR correction services series |
+| v0.7.1 | Two-receiver QZSS L6 (mosaic-CLAS / mosaic-G5) + single-SBF MADOCA-PPP |
+| v0.7.2 | CLAS PPP-RTK accuracy/robustness fixes + `mrtk dump --parse` (upstream-identical parse_cssr_*.csv) |
+| v0.7.3 | Real-time MADOCA-PPP PPP-AR/IONO — L6D wide-area ionospheric augmentation (QZS PRN 200/201) wired into `mrtk run` |
+| v0.7.4 | CLAS PPP-RTK claslib parity (#225) — storm-day fix 89.44%→93.54% (> upstream 92.88%); BackupCSSR gap-bridge, GAL E5a PCV fix; opt-in `MRTK_DETERMINISTIC_BLAS` |
+| v0.7.5 | Single-band CLAS PPP-RTK regression coverage (SF nf=1 + Galileo E1/E5b mismatch, independent-truth anchors) + capability record `docs/design/sf-ppp-rtk.md`; no positioning change |
+| v0.7.6 | TOML configuration redesign (taxonomy by consumer, deprecation aliases + unknown-key warning, dead keys removed, option-slot collision fixes, CI-gated config reference) + IGS PPP-AR receiver bias / unbias gate + CLAS periodic filter reset |
+| v0.7.7 | CLAS dual-channel transmit-pattern merge (#303/#309) — PPP-RTK engine merges both L6 patterns (selection byte-identical to upstream; +0.94 sats/epoch), OR-semantics fetch with graceful degradation, RT merge on by default (pattern-keyed demux), merge-sensitive regressions |
+| v0.7.8 | Kinematic-RTK slip-detection regression fix (#318) — v0.6.10 SPP TDCP snapshot clobbered ssat ph[0]/pt[0], silently disabling rover detslp_ll/detslp_dop in relpos; fix = pntpos-private spt/sph fields, RTK back at the v0.4.1 record on all 6 PPC cases, CLAS/MADOCA unchanged; benchmark harness: hourly L6 session join + per-tier `<30cm` misfix column (#316/#317) |
+| v0.7.9 | Memory footprint (#295) — `lclblock_t` (~307 MB) lazily heap-allocated in `rtcm_t` (314→7.5 MB; `rtksvr_t` 972→51 MB; `mrtk run` startup RSS 808→84 MiB, −89.5 %); latent strconvnew UB fix; first RTCM3 2001–2016 coverage (`utest_lclblk`); no positioning change |
+| v0.7.10 | RTCM3 MSM BDS-3 B2b signal IDs (#333) — `msm_sig_cmp[]` lacked IDs 25–27 (`7D`/`7P`/`7Z`, RTCM 10403.3 Amd. 2), so the decoder dropped every B2b cell and the encoder's shared `to_sigid()` lost B2b on SBF/NovAtel/BINEX→RTCM3 output; three-entry table fix, first MSM encode→decode round-trip + wire-ID coverage (`utest_msm_bds_b2b`, #296); `7D` takes the B2 slot per `sigindex()` band priority (matches RINEX); no positioning change |
+| v0.7.11 | MADOCA regression tests build-independent (#302) — references regenerated from upstream internal LU (the Accelerate reference had gone stale and PPP-AR fix decisions flip at marginal epochs under any backend change), `LAPACK_FOUND` tolerance switch removed, Q=1 fix-rate gate over the reference timeline, absolute checks for all four MADOCA cases vs week-2360 SINEX, CI backend pinned; suite 125/125; no positioning change |
+| v0.7.12 | QZSS L6 service routing (#351) — frames classified by L6 header (vendor ID + MADOCA CSID, `mrtk_l6.{h,c}`), never by PRN/container: SBF QZS5 PRN 197 CLAS no longer lost, UBX MADOCA iono out of the CLAS demux, `format = "l6e"` no longer overwrites CLAS SSR, QZNMA → code 17; `mrtk post` `.l6d`/`.l6e`; `l6extract` names by header PRN (#362, rename); CLAS drops null frames (#344); QZSS L6 handover regression tests RT + post + abs (#372, dataset `handover-v1`); test datasets as release assets of `h-shiono/mrtklib-data` (#386); stream fixes #367/#343, 64-bit byte counters (#368, API change); suite 171/171 |
+| v0.7.13 | MADOCALIB 2.2 sync — BeiDou PRN reassignment (#401): BDS-2/BDS-3 split of PRN 1–18 configured (`[positioning] bds2_sats`, `[ambiguity_resolution] bds3_igso_sats`; defaults no BDS-2 / IGSO C06–C08, warning when unset; `prcopt_t` ABI change); IS-QZSS-MDC-005 GNSS ID 3 BDS-3 signal table; ST4/ST5 decoder fixes (code-0 `[-1]` write, sparse cell-mask cursor, `sat==0` `ssr[-1]` #402 — last two also upstream); `mrtk bias -bds2prn` (#403); MDC-005 regression (dataset `madocalib_mdc005-v1`, Linux/macOS platform tolerance); bundled confs pinned, PPC + MADOCA/IGS byte-identical; suite 180/180 |
+| v0.7.14 | CLAS RT robustness — L6 frame losses + two-channel merge: lost subframe 1 takes the next code bias (#406, ~17 s Single → 1–3 s); a frame lost inside a subframe detected from the receiver frame time (`clas_set_l6tag()`, SBF/UBX) and the subframe discarded instead of decoding shifted bits (#363, drove #381 loop / metre Float / misfix); ST1 mask width check fixed (header + mask positions, wrong in upstream claslib ≥0.8.0); top-of-hour ST1 loss advances tow0 (#392); `l6_merge` refsat search takes a fresh channel (#380, 97.48→99.07 %); claslib PP byte-identical; dataset `clas_l6gap-v1`; `raw_t`/`clas_l6buf_t` ABI change; suite 191/191 |
+| v0.7.15 | CLAS RT robustness 2 — CSSR phase discontinuity indicator re-initializes PPP-RTK phase-bias states (#393, leading Single cause live); `l6_merge` week state per channel (#436, 38.85→98.95 % across a week rollover) and silent channel skipped (#443); degraded single-channel L6 lock relocks to a clean PRN (#414); partial-AR pre-trial `vsat` restore (#413) + VRS `ssat[-1]` guard (#412); MADOCA L6E/L6D-iono frame-gap discard (#363); `cssr2rtcm3` BackupCSSR bridge in `clas_ssr2osr()`, latest-PVT output epoch, **SBF input only** (#442; LLI → #453); GGA station id = CLAS L6 source; RT replays concurrent + per-run cwd (#448, 2281→~480 s at -j16); #381 loop gone via v0.7.14 #363; claslib PP byte-identical except st12/l1cl5 <0.1 mm; CLAS/MADOCA ABI change; suite 196/196 |
 
 ### Test Status
 
-Run `cd build && ctest --output-on-failure` to get current counts. Last known: 79 tests, 77 passing — 2 perennial env failures (`rtkrcv_rt` headless RT replay; `madocalib_pppar_ion_check` LAPACK-vs-reference ~1.6 cm vs 0.5 cm tol), both reproduce on a clean `develop` build and are unrelated to code changes.
+Run `cd build && ctest --output-on-failure` to get current counts. Last known (v0.7.15): 196 tests, all passing. Large datasets are fetched on first use from `h-shiono/mrtklib-data` release assets (#386; network needed once, cache `~/.cache/mrtklib-data`). The RT replay tests (label `realtime`) run concurrently, each with its own console port and working directory, and pace against the wall clock: they can still false-fail when the host is oversubscribed (`-j24` on 8 cores drops `rtkrcv_rt` epochs), and even 8 busy cores next to a single replay move a marginal AR decision (`rtkrcv_rt_clas_sf1gap` re-fixes ~150 s later after 16:40:49; its gate is unaffected). Measured on an 8-core Mac: `-j16` passes, `-j24` does not; size `-j` for other hosts by measurement, not by rule. Never run two ctest instances on the same host at once: the RT console ports (52003–52019) are host-wide, and within one tree the claslib/madocalib fixtures extract and then delete each other's files under `tests/data/` — the same applies to the PPC benchmark.
 
 ---
 
@@ -71,10 +86,11 @@ Focus areas, in priority order:
 Hard rules. No exceptions, no matter how reasonable an action seems in context.
 
 - **NEVER alter GNSS algorithms, matrix operations, or physical constants** during structural / refactoring work unless explicitly instructed.
-- **NEVER create `rtcm_t` on the stack or in static arrays** — it is ~103 MB. Always heap-allocate with `calloc`. See §7.1 for the size table of other large structs.
+- **NEVER create `rtcm_t` on the stack or in static arrays** — it is ~7.5 MB (its ~307 MB `lclblock_t` is now lazily heap-allocated). Always heap-allocate with `calloc`. See §7.1 for the size table of other large structs.
 - **NEVER mark a task complete without running `ctest --output-on-failure`** and confirming all tests pass.
 - **NEVER assume upstream library behavior** — read the actual source when integrating.
 - **NEVER silently swallow a test tolerance change** — flag it to the user with the numerical delta.
+- **NEVER commit test data of 1 MB or more** — large datasets are release assets of `h-shiono/mrtklib-data`, pinned in `tests/data/datasets.cmake` (#386). **Never replace a published asset**; a changed dataset is a new `<name>-v<N+1>`.
 - **NEVER push to `main` directly** — all changes go through a feature branch.
 - **NEVER commit changes without an explicit user request.** "Looks good, ship it" or equivalent is required.
 - **NEVER skip pre-commit hooks** (`--no-verify`, `--no-gpg-sign`) or bypass signing. Hook failures must be root-caused, not bypassed.
@@ -152,11 +168,11 @@ These hurt the codebase. Don't do them even if they seem helpful:
 |---------------|--------------------------------------------------------|
 | Configure     | `cmake --preset default`                               |
 | Build         | `cmake --build build`                                  |
-| Test (all)    | `cd build && ctest --output-on-failure`                |
+| Test (all)    | `cd build && ctest --output-on-failure -j16`           |
 | Test (filter) | `cd build && ctest -R <pattern> --output-on-failure`   |
 | Coverage      | `cd build && ctest -T Coverage`                        |
 
-For long ctest runs (regression tests can take several minutes), prefer launching a `test-summarizer` subagent so the main context is not blocked. See §9.3.
+For long ctest runs (the full suite takes ~8 min at `-j16` on 8 cores, the RT replays set the floor), prefer launching a `test-summarizer` subagent so the main context is not blocked. See §9.3.
 
 ### Unified `mrtk` binary
 
@@ -182,17 +198,20 @@ Run `./build/mrtk --help` for the current full list and per-subcommand help via 
 
 | Type | Approximate size |
 |------|-----------------|
-| `rtksvr_t` | ~972 MB |
-| `rtcm_t` | ~103 MB |
+| `rtksvr_t` | ~51 MB |
+| `rtcm_t` | ~7.5 MB |
+| `lclblock_t` | ~307 MB (lazily heap-allocated inside `rtcm_t` only when RTCM3 local-correction messages 2001–2016 are processed) |
 | `has_t` | ~1.6 MB |
 | `osb_t` | ~700 KB |
 | `clas_corr_t` | ~352 KB |
+
+Sizes measured with the default preset (NFREQ=5, NEXOBS=5, all constellations, MAXSAT=221).
 
 Never stack-allocate or place these in static arrays. Use `calloc()` and pass by pointer. For multiple instances, use an array of pointers (not an array of structs).
 
 ### 7.2 LAPACK vs embedded LU solver
 
-MRTKLIB links system LAPACK; upstream MADOCALIB uses an embedded LU solver. Expect ~1.5–3.8 cm numerical differences in PPP-AR solutions. Test tolerances are adjusted accordingly — **never tighten without explicit sign-off**.
+MRTKLIB links system LAPACK when found; upstream MADOCALIB (and the MADOCA test references) use the embedded LU solver. Expect up to ~1.6 cm (pppar) / ~3.8 cm (pppar_ion) differences in PPP-AR vs upstream across backends, from fix decisions flipping at marginal epochs. The parity tolerances are sized for that and are the same in every build; the `*_abs_check` tests gate accuracy (#302). **Never change these tolerances without explicit sign-off.**
 
 ### 7.3 `pppiono_t` design
 

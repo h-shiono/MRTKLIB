@@ -279,7 +279,11 @@ typedef struct prcopt_t {         /* processing options type */
     double maxpdopar;   /* maximum PDOP for AR (0:no limit) */
     double maxpdophold; /* maximum PDOP to hold ambiguity (0:no limit) */
     int refdop;         /* reference DOP (0:conventional, 1:single-diff) */
-    double beta;        /* ionosphere time constant for Gauss-Markov (s) */
+    double beta;        /* VRS iono Gauss-Markov time constant (s). NOTE: not
+                           wired to any config key, so it stays 0 (decay off)
+                           unless set programmatically. The PPP-RTK iono decay
+                           uses stats_tconstiono (parsed from stats-tconstiono)
+                           instead; see udion(). */
 
     /* Partial AR and AR filter options (demo5) */
     int minfixsats;     /* min sats for valid AR fix; nb >= minfixsats-1 DD pairs required (0=no minimum) */
@@ -307,11 +311,28 @@ typedef struct prcopt_t {         /* processing options type */
     /* PPP-RTK/VRS a-priori SPP seed quality (appended for ABI stability).
      * When set, the per-epoch single-point seed (pntpos) used to (re)initialize
      * the CLAS/VRS filter applies a v0.6.10 SPP profile (see SEEDENH_??? below) on
-     * its PRIVATE option copy only, so the CLAS measurement model (which reuses
-     * err[5]/err[6] as iono/trop terms) is left untouched. prcopt_default sets
-     * SEEDENH_BASE (C/N0 + TDCP): a net win on kinematic data and inert on the
-     * static regression suite. Set SEEDENH_OFF to restore prior seed behaviour. */
+     * its PRIVATE option copy only. prcopt_default sets SEEDENH_BASE (C/N0 + TDCP):
+     * a net win on kinematic data and inert on the static regression suite. Set
+     * SEEDENH_OFF to restore prior seed behaviour. */
     int enhanced_spp_seed; /* a-priori SPP seed profile (SEEDENH_???) */
+
+    /* SPP large-residual exclusion (upstream CLAS sync, appended for ABI stability) */
+    double rejethres; /* pseudorange residual rejection threshold (m, <0:off, 0:CLAS seed auto) */
+    int rejeminsat;   /* SPP residual rejection runs only when valid sats exceed this (nv > rejeminsat, as upstream) */
+
+    /* PPP day-boundary clock-jump handling (kept separate from CLAS posopt[5]) */
+    int clockjump; /* reset PPP phase biases at a GPS day boundary (0:off,1:on) */
+
+    /* CLAS PPP-RTK atmosphere terms in the measurement variance model
+     * (kept separate from err[5]/err[6], which are C/N0 weighting parameters). */
+    double stats_erriono; /* ionosphere estimation-error term (m) */
+    double stats_errtrop; /* troposphere estimation-error term (m) */
+
+    /* BeiDou PRN reassignment (MADOCALIB 2.2, #401; appended for ABI stability).
+     * Applied process-wide by set_bds2prn()/set_bds3igso() in postpos() and rtkinit(). */
+    char bds2prn[256];  /* BDS-2 satellites in PRN 1-18, e.g. "C09,C10" ("": no BDS-2) */
+    char bds3igso[256]; /* BDS-3 IGSO satellites ("": C06-C08) */
+    int bds2prn_set;    /* bds2prn given by the configuration (0: not given, see bds2prn_warning()) */
 } prcopt_t;
 
 /* enhanced_spp_seed profiles (applied to the PPP-RTK/VRS a-priori SPP seed only).
@@ -347,6 +368,7 @@ typedef struct {        /* solution options type */
     char sep[64];       /* field separator */
     char prog[64];      /* program name */
     double maxsolstd;   /* max std-dev for solution output (m) (0:all) */
+    int clasrefid;      /* CLAS L6 source id in NMEA GGA station id (0:off,1:on) */
 } solopt_t;
 
 /*============================================================================
@@ -384,6 +406,18 @@ extern const solopt_t solopt_default;
 /* resolve correction source (CORR_AUTO) and validate the (mode, correction)
  * combination; returns 1 on success, 0 with msg set on an invalid combination */
 extern int resolve_correction(prcopt_t* opt, char* msg, size_t msgsz);
+
+/**
+ * @brief Apply the BeiDou PRN-reassignment options process-wide.
+ *
+ * Calls set_bds2prn(opt->bds2prn) and set_bds3igso(opt->bds3igso). With warn,
+ * also prints to stderr when a list is invalid, or when BeiDou is enabled
+ * (opt->navsys) but bds2prn was not given by the configuration (opt->bds2prn_set).
+ * @param[in] opt   Processing options
+ * @param[in] warn  Print warnings to stderr (0: trace only)
+ * @return 1: ok, 0: an invalid list was replaced by its default
+ */
+extern int set_bdsopt(const prcopt_t* opt, int warn);
 
 #ifdef __cplusplus
 }

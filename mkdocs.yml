@@ -1,5 +1,5 @@
 site_name: MRTKLIB Documentation
-site_description: Modern RTKLIB — Unified GNSS Positioning Library
+site_description: Modern RTKLIB-based GNSS positioning library covering open PPP / PPP-RTK correction services
 site_url: https://h-shiono.github.io/MRTKLIB/
 repo_url: https://github.com/h-shiono/MRTKLIB
 repo_name: h-shiono/MRTKLIB
@@ -97,6 +97,7 @@ nav:
     - "Quick Start: MADOCA-PPP": guide/quickstart-madoca-ppp.md
     - "Quick Start: Galileo HAS PPP": guide/quickstart-gal-has.md
     - "Quick Start: IGS-RTS PPP": guide/quickstart-igs-rts.md
+    - BeiDou PRN Reassignment: guide/beidou-prn-reassignment.md
     - NTRIP Streams: guide/ntrip.md
   - Hardware:
     - CLAS Positioning with mosaic-G5: hardware/cssr2rtcm3-mosaic-g5.md
@@ -107,10 +108,27 @@ nav:
     - Benchmark (GSDC smartphone): reference/benchmark-gsdc.md
     - Real-Time CLAS: reference/rtkrcv-clas-realtime.md
     - Test Methodology: reference/test-accuracy-methodology.md
+    - Specifications (ICDs): reference/icd/index.md
+    - Reference Papers: reference/papers/index.md
   - Design:
     - Positioning Configuration Model: design/configuration.md
   - Releases:
     - Changelog: releases/changelog.md
+    - v0.7.15: releases/release-notes-v0.7.15.md
+    - v0.7.14: releases/release-notes-v0.7.14.md
+    - v0.7.13: releases/release-notes-v0.7.13.md
+    - v0.7.12: releases/release-notes-v0.7.12.md
+    - v0.7.11: releases/release-notes-v0.7.11.md
+    - v0.7.10: releases/release-notes-v0.7.10.md
+    - v0.7.9: releases/release-notes-v0.7.9.md
+    - v0.7.8: releases/release-notes-v0.7.8.md
+    - v0.7.7: releases/release-notes-v0.7.7.md
+    - v0.7.6: releases/release-notes-v0.7.6.md
+    - v0.7.5: releases/release-notes-v0.7.5.md
+    - v0.7.4: releases/release-notes-v0.7.4.md
+    - v0.7.3: releases/release-notes-v0.7.3.md
+    - v0.7.2: releases/release-notes-v0.7.2.md
+    - v0.7.1: releases/release-notes-v0.7.1.md
     - v0.7.0: releases/release-notes-v0.7.0.md
     - v0.6.14: releases/release-notes-v0.6.14.md
     - v0.6.13: releases/release-notes-v0.6.13.md

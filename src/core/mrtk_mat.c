@@ -217,6 +217,26 @@ extern void dgetri_(const int* n, double* A, const int* lda, const int* ipiv, do
 extern void dgetrs_(const char* trans, const int* n, const int* nrhs, const double* A, const int* lda, const int* ipiv,
                     double* B, const int* ldb, int* info);
 
+#ifdef MRTK_DETERMINISTIC_BLAS
+/* OpenBLAS distributes reductions across threads with a non-deterministic
+ * accumulation order, so multi-threaded results vary at the last ULP run to
+ * run. On storm-day PPP-RTK that ULP noise crosses the AR ratio threshold and
+ * flips fix/float decisions, making benchmarks irreproducible. Forcing a
+ * single thread makes every BLAS/LAPACK call bit-reproducible. This runs once
+ * at load time for any binary that links mrtklib (CLI and unit tests alike).
+ * Opt-in via the MRTK_DETERMINISTIC_BLAS CMake option, whose configure-time
+ * check guarantees the linked provider is OpenBLAS (the source of this
+ * symbol). Silent fallback is not acceptable here — an unpinned thread count
+ * would defeat the option's whole purpose — so unsupported toolchains fail
+ * the build instead. */
+#if defined(__GNUC__) || defined(__clang__)
+extern void openblas_set_num_threads(int num_threads);
+__attribute__((constructor)) static void mrtk_force_single_thread_blas(void) { openblas_set_num_threads(1); }
+#else
+#error "MRTK_DETERMINISTIC_BLAS needs GCC/Clang; use OPENBLAS_NUM_THREADS=1 at runtime instead."
+#endif
+#endif
+
 /* multiply matrix (wrapper of blas dgemm) -------------------------------------
  * multiply matrix by matrix (C=alpha*A*B+beta*C)
  * args   : char   *tr       I  transpose flags ("N":normal,"T":transpose)

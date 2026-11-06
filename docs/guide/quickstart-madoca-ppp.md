@@ -95,6 +95,10 @@ Key differences from basic PPP:
 - `ambiguity_resolution.mode = "continuous"` — AR enabled
 - `ionosphere = "est-stec"` — Slant TEC estimation (better than dual-freq for AR)
 - `systems` includes all 5 constellations (GPS, GLONASS, Galileo, QZSS, BeiDou)
+- `bds2_sats = ["C01-C18"]` / `bds3_igso_sats = ["C38-C40"]` — the sample data
+  predates the April 2026 BeiDou PRN reassignment. For your own data after
+  2026-04-21 use `bds2_sats = ["C09", "C10"]` and remove `bds3_igso_sats`; see
+  [BeiDou PRN Reassignment](beidou-prn-reassignment.md)
 
 **Expected accuracy:** Centimeter-level after convergence (Q=1 Fix).
 
@@ -112,8 +116,26 @@ mrtk post -k conf/madocalib/rnx2rtkp_pppar_iono.toml \
   tests/data/madocalib/2025091A.206.l6
 ```
 
-This adds `receiver.iono_correction = true`, enabling MADOCA-specific
+This adds `positioning.madoca.iono_correction = true`, enabling MADOCA-specific
 ionospheric corrections for faster convergence.
+
+### Real-Time PPP-AR/IONO (`mrtk run`)
+
+The same PPP-AR/IONO mode is available in real time. A single Septentrio SBF
+stream from a mosaic-G5 carries everything needed in one slot: rover
+observations + broadcast ephemeris, the MADOCA-PPP L6E SSR (QZSRawL6E 4271),
+and the L6D wide-area ionospheric augmentation on **PRN 200/201** (QZSRawL6D
+4270). The L6D iono frames are decoded into `nav.pppiono` and constrain the
+`est-stec` ionosphere states, exactly as the post-processing path does.
+
+```bash
+mrtk run -o conf/madocalib/rtkrcv_madoca_pppar_iono.toml -s
+```
+
+Requires that PRN 200/201 L6D be tracked (IS-QZSS-MDC-004 Table 3-1,
+"Technology Demonstration"). Set `correction = "qzs-madoca"` and
+`positioning.madoca.iono_correction = true`; the corrections ride on the rover SBF, so no
+separate correction stream is needed.
 
 ---
 

@@ -49,6 +49,20 @@ documentation and code comments, not as enforcement. Wording like
 If a user reports a crash with `BLA_SIZEOF_INTEGER=4` set, the remediation is
 to pass an explicit LP64 provider via `CMAKE_PREFIX_PATH` or `BLAS_LIBRARIES`.
 
+**Reproducible numerics (`-DMRTK_DETERMINISTIC_BLAS=ON`).** The default build
+links whatever LAPACK CMake finds (Accelerate on macOS, system LAPACK on
+Linux). Threaded BLAS reductions accumulate in a non-deterministic order, so
+results vary at the last ULP run to run; on storm-day PPP-RTK that ULP noise
+can cross the AR ratio threshold and flip fix/float decisions, making
+benchmarks irreproducible. For stable benchmarking/regression, configure with
+`-DMRTK_DETERMINISTIC_BLAS=ON` (needs OpenBLAS, e.g. `brew install openblas`,
+plus `-DCMAKE_PREFIX_PATH=<openblas-prefix>` if not auto-found). It pins the
+provider to OpenBLAS and forces a single thread at load time, so every run is
+bit-identical with no `OPENBLAS_NUM_THREADS` env var required. It is slower
+than the threaded default and does **not** change the algorithm — only
+reduction determinism — so reference tolerances may need re-baselining when
+switching providers.
+
 ### P-03 — `trace()` is compiled out unless `-DTRACE` is defined
 
 The build does not define `TRACE`, so `trace(level, ...)` calls are no-op
@@ -68,8 +82,9 @@ Several core types are too large for the stack or for static arrays:
 
 | Type | Approximate size |
 |------|-----------------|
-| `rtksvr_t` | ~972 MB |
-| `rtcm_t` | ~103 MB |
+| `rtksvr_t` | ~51 MB |
+| `rtcm_t` | ~7.5 MB |
+| `lclblock_t` | ~307 MB (lazily heap-allocated inside `rtcm_t`; see P-13) |
 | `osb_t` | ~700 KB |
 | `clas_corr_t` | ~352 KB |
 
@@ -109,6 +124,29 @@ When iterating satellites for `satpos()` / `ephpos()` calls, gate the loop
 against the constellation allow-list you actually use. For example,
 CLAS-based code paths process only GPS / GAL / QZS; passing a stale or
 corrupted GLONASS satellite through `ephpos()` is unnecessary and risky.
+
+### P-13 — `rtcm_t.lclblk` is a lazily-allocated pointer; upstream embeds it by value
+
+MRTKLIB stores the RTCM3 local-correction block as a pointer member
+(`lclblock_t* lclblk`) inside `rtcm_t`, allocated on first use: the block is
+~307 MB while the rest of `rtcm_t` is ~7.5 MB, and most workloads never
+process the local-correction messages (2001–2016) that populate it. Upstream
+MALIB (`rtklib.h`) still embeds `lclblock_t lclblk;` by value, so upstream
+code in `rtcm3lcl.c`, `lclcmn.c`, and `lclcmbcmn.c` accesses members as
+`rtcm->lclblk.`.
+
+When cherry-picking hunks from those files during an upstream sync, adapt
+them mechanically:
+
+- `rtcm->lclblk.` → `rtcm->lclblk->`
+- On write/decode paths, call `rtcm_lclblk(rtcm)` first — it allocates the
+  block on first use and returns NULL on allocation failure.
+- On read paths, guard with a NULL check: an unallocated block simply means
+  no local-correction message has been decoded yet.
+
+An unadapted hunk fails to compile (member access on a pointer), but a hunk
+rewritten only `.` → `->` compiles cleanly and dereferences NULL at runtime
+on read paths.
 
 ---
 
@@ -194,6 +232,17 @@ the signal as a different band, producing meter-level pseudorange errors.
 The correct per-constellation tables live in `src/rtcm/mrtk_rtcm3.c`
 (`msm_sig_gps[]`, `msm_sig_gal[]`, etc.).
 
+The same tables back the encoder as well: `to_sigid()` in
+`src/rtcm/mrtk_rtcm3e.c` performs the reverse lookup against the identical
+constellation tables, so a missing entry drops the signal in both
+directions — decode and encode — with no error: the decoder emits only a
+level-2 trace (`unknown signal id=N`), the encoder's `to_sigid()` returns 0
+and skips the cell silently. The tables encode a specific RTCM amendment's ID
+assignments and must be revisited as amendments add signals;
+[#333](https://github.com/h-shiono/MRTKLIB/issues/333) is one instance,
+where BDS-3 B2b (`7D`/`7P`/`7Z`) IDs 25–27 were left empty since the
+original MALIB import predates their assignment in RTCM 10403.3 Amendment 2.
+
 ### P-24 — MSM encoder treats `code[j] != 0` as "satellite present"
 
 The MSM7 encoder (`encode_msm_head` / `gen_msm_index` in
@@ -248,6 +297,18 @@ ambiguity resolution on a third band (E5b for GAL) where the bias
 correction is not provided, which silently degrades the fix rate. Use
 `nf=3` only after confirming that an E5b bias source is available (for
 example, from a third-party SSR provider running alongside CLAS).
+
+### P-27 — CLAS decoder state that follows a message sequence is per channel
+
+Upstream claslib keeps one `rtcm_t` per L6 stream. MRTKLIB gathers the
+channels in one `clas_ctx_t`. Any decoder state derived from the order of
+received messages belongs to the channel that received them: put it in
+`clas_l6buf_t` (`tow0`, `tow_last`, `week_ref`, `tow_ref`, …), not in
+`clas_ctx_t`. With `l6_merge`, one channel can stay silent for hours and
+resume with stale state. If that state is shared, its first messages corrupt
+the other channel's (a week reference moved one week ahead stops every clock
+lookup until restart). Set the week through `clas_set_week_ref()`, which
+initialises every channel.
 
 ---
 

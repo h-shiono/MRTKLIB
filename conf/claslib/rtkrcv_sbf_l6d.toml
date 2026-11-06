@@ -8,15 +8,12 @@ solution_type = "forward"                                          # (0:forward)
 elevation_mask = 15.0                                              # (deg)
 dynamics = true                                                    # kinematic
 satellite_ephemeris = "brdc+ssrapc"                                # (3:brdc+ssrapc)
-excluded_sats = ""
+excluded_sats = []
 systems = ["GPS", "Galileo", "QZSS"]
 
 [positioning.clas]
-grid_selection_radius = 1000  # CLAS grid selection radius (m)
+grid_selection_radius = 1000 # CLAS grid selection radius (m)
 receiver_type = ""
-position_uncertainty_x = 10.0
-position_uncertainty_y = 10.0
-position_uncertainty_z = 10.0
 
 [positioning.snr_mask]
 rover_enabled = true                      # (0:off,1:on)
@@ -103,20 +100,12 @@ troposphere = 0.001        # (m)
 iono_time_const = 10.0     # (s)
 clock_stability = 5.00e-12 # (s/s)
 
-[adaptive_filter]
+[positioning.clas.adaptive_filter]
 iono_forgetting = 0.3 # iono forgetting factor
 iono_gain = 3.0       # iono adaptive filter gain
 enabled = false
 pva_forgetting = 0.3
 pva_gain = 1.0
-
-[receiver]
-baseline_length = 0.0   # (m)
-baseline_sigma = 0.0    # (m)
-max_age = 30.0          # (s)
-isb = false             # no Septentrio in ISB table
-phase_shift = "table"   # 1/4 cycle phase shift correction
-reference_type = "CLAS" # reference receiver type (always CLAS)
 
 [antenna.rover]
 position_type = "single" # initial position from SPP
@@ -168,22 +157,17 @@ station_pos = ""
 geoid = ""
 dcb = ""
 temp_dir = ""
-geexe = ""
-solution_stat = ""
 trace = ""
 
 [server]
-cycle_ms = 10             # (ms)
-timeout_ms = 10000        # (ms)
-reconnect_ms = 10000      # (ms)
-nmea_cycle_ms = 5000      # (ms)
-buffer_size = 32768       # (bytes)
+cycle_ms = 10          # (ms)
+timeout_ms = 10000     # (ms)
+reconnect_ms = 10000   # (ms)
+nmea_cycle_ms = 5000   # (ms)
+buffer_size = 32768    # (bytes)
 nav_msg_select = "all"
 proxy = ""
-swap_margin = 30          # (s)
-time_interpolation = true # interpolate corrections between epochs
-max_obs_loss = 90.0       # max epochs without observation before reset
-float_count = 15          # float epochs before fix attempt
+swap_margin = 30
 
 [streams.input.rover]
 type = "file"                                                                  # (2:file)
@@ -230,3 +214,18 @@ passwd = ""
 timetype = "gpst"
 soltype = "deg"
 solflag = "off"
+
+[positioning.clas.ambiguities]
+isb = false             # no Septentrio in ISB table
+phase_shift = "table"   # 1/4 cycle phase shift correction
+reference_type = "CLAS" # reference receiver type (always CLAS)
+
+[positioning.clas.resilience]
+max_obs_loss = 90.0 # max epochs without observation before reset
+float_count = 15    # float epochs before fix attempt
+
+[positioning.relative]
+baseline_length = 0.0     # (m)
+baseline_sigma = 0.0      # (m)
+max_age = 30.0            # (s)
+time_interpolation = true # interpolate corrections between epochs

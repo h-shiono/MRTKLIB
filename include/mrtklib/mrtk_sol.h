@@ -54,6 +54,7 @@ typedef struct {          /* solution type */
     uint8_t stat;         /* solution status (SOLQ_???) */
     uint8_t ns;           /* number of valid satellites */
     float age;            /* age of differential (s) */
+    uint16_t refid;       /* differential reference station id (NMEA GGA, 0-1023) */
     float ratio;          /* AR ratio factor for valiation */
     float thres;          /* AR ratio threshold for valiation */
     float prev_ratio1;    /* previous initial AR ratio factor for validation */
@@ -115,6 +116,10 @@ typedef struct {                /* satellite status type */
     double phw;                 /* phase windup (cycle) */
     gtime_t pt[2][NFREQ];       /* previous carrier-phase time */
     double ph[2][NFREQ];        /* previous carrier-phase observable (cycle) */
+    gtime_t spt[NFREQ];         /* SPP TDCP: previous carrier-phase time (pntpos-private;
+                                 * pt[0] belongs to the engines' slip detectors and must
+                                 * not be written by pntpos — see issue #318) */
+    double sph[NFREQ];          /* SPP TDCP: previous carrier-phase observable (cycle) */
     int discont[NFREQ];         /* SSR phase bias discontinuity counter */
     double ionc;                /* ionospheric delay by carrier phase (m) */
     uint8_t code[NFREQ];        /* observation code indicator (CODE_???) */

@@ -40,7 +40,7 @@ import sys
 import time
 from pathlib import Path
 
-from cases import CASES, case_by_id
+from cases import CASES, case_by_id, tow_to_gpst
 from compare_ppc import _match_epochs, compute_metrics, parse_nmea, parse_reference, plot_results
 from download_l6 import ensure_case_l6
 
@@ -66,6 +66,64 @@ def _post_argv(binary: str) -> list[str]:
     standalone `rnx2rtkp` is invoked directly.
     """
     return [binary, "post"] if os.path.basename(binary).startswith("mrtk") else [binary]
+
+
+def _merge_l6_sessions(paths: list[Path], merge_dir: Path) -> list[Path]:
+    """Concatenate the hourly archive sessions of each L6 stream into one file.
+
+    A run that spans a UTC hour boundary needs two hourly archive files per
+    stream, but `mrtk post` cannot consume them as a sequence: it keeps only
+    the *first* L6E file it sees, and it assigns each CLAS `.l6` file to a
+    separate transmit-pattern channel — so the second hour is either dropped
+    or misread as a second channel, and corrections die at the boundary.
+    Concatenating the sessions of one stream into a single file sidesteps both
+    limits; the decoders resynchronise on the L6 preamble of every 250-byte
+    record, so a joined stream decodes exactly like a continuous one.
+
+    Interim workaround for the plumbing; see issue #316 for the fix in postpos.
+
+    `download_l6.py` probes for the first available L6E PRN per session, so two
+    hours of one run can carry different PRNs.  They are still merged into one
+    stream — postpos would keep a single file either way, so merging loses
+    nothing and recovers the second hour — but the merged name can only carry
+    one suffix, so every merge reports its source files by name.
+
+    Args:
+        paths: L6 file paths for one mode, in session order.
+        merge_dir: Directory for the merged files (created on demand).
+
+    Returns:
+        Path list with each multi-session stream replaced by its merged file.
+        Single-session streams are passed through untouched.
+    """
+    # Group the way postpos itself classifies the files: ".200.l6" / ".201.l6"
+    # are MADOCA-PPP L6D iono streams keyed per PRN, everything else is the one
+    # stream postpos keeps (MADOCA L6E, or the single CLAS channel of this
+    # dataset — the PPC rover records one L6 PRN, never two channels).
+    streams: dict[str, list[Path]] = {}
+    for p in paths:
+        suffix = p.name.split(".", 1)[1]  # "2024205B.204.l6" -> "204.l6"
+        streams.setdefault(suffix if suffix[:3] in ("200", "201") else "l6e", []).append(p)
+
+    merged = []
+    for group in streams.values():
+        if len(group) == 1:
+            merged.append(group[0])
+            continue
+        # "2024205B.204.l6" + "2024205C.204.l6" -> "2024205B-C.204.l6"
+        session, suffix = group[0].name.split(".", 1)
+        out = merge_dir / f"{session}-{group[-1].name.split('.', 1)[0][-1]}.{suffix}"
+        if len({p.name.split(".", 1)[1] for p in group}) > 1:
+            print(f"  NOTE: sessions carry different PRNs; {out.name} names only the first")
+        newest_in = max(p.stat().st_mtime for p in group)
+        if not out.exists() or out.stat().st_mtime <= newest_in:
+            merge_dir.mkdir(parents=True, exist_ok=True)
+            with open(out, "wb") as fo:
+                for p in group:
+                    fo.write(p.read_bytes())
+            print(f"  merged {' + '.join(p.name for p in group)} -> {out.name}")
+        merged.append(out)
+    return merged
 
 
 def _find_rnx2rtkp(hint: str = "") -> str:
@@ -127,7 +185,7 @@ def _run_rnx2rtkp(
         rnx2rtkp: Path to rnx2rtkp binary.
         conf: Path to mode configuration file.
         city_conf: Path to city override configuration file (applied after conf).
-        week: GPS week (for -ts/-te flags).
+        week: GPS week of tow_start / tow_end.
         tow_start: Run start TOW with margin already subtracted.
         tow_end: Run end TOW with margin already added.
         output: Destination NMEA file path.
@@ -140,6 +198,11 @@ def _run_rnx2rtkp(
     Returns:
         True if rnx2rtkp exited with code 0.
     """
+    # rnx2rtkp parses -ts/-te as "y/m/d" "h:m:s" in GPST; a week/TOW pair is
+    # silently discarded (epoch2time() rejects month 0 and returns t0).
+    ts = tow_to_gpst(week, tow_start)
+    te = tow_to_gpst(week, tow_end)
+
     # Resolve all file paths to absolute so they work regardless of cwd.
     output = output.resolve()
     obs = obs.resolve()
@@ -154,11 +217,11 @@ def _run_rnx2rtkp(
             "-k",
             city_conf,
             "-ts",
-            str(week),
-            f"{tow_start:.3f}",
+            ts.strftime("%Y/%m/%d"),
+            ts.strftime("%H:%M:%S"),
             "-te",
-            str(week),
-            f"{tow_end:.3f}",
+            te.strftime("%Y/%m/%d"),
+            te.strftime("%H:%M:%S"),
             "-o",
             str(output),
             str(obs),
@@ -182,9 +245,9 @@ def _run_rnx2rtkp(
 # Summary table
 # ---------------------------------------------------------------------------
 #  Three rows per case/mode: FIX (Q=4), FF (Q=4|Q=5), ALL (every epoch)
-#  Columns: Case  Mode  Tier  N  Rate%  RMS_2D  1σ  95%  TTFF_s
+#  Columns: Case  Mode  Tier  N  Rate%  <30cm  RMS_2D  1σ  95%  TTFF_s
 _HDR = (
-    f"{'Case':<20} {'Mode':<7} {'Tier':<5} {'N':>6} {'nSV':>5} {'Rate%':>7} "
+    f"{'Case':<20} {'Mode':<7} {'Tier':<5} {'N':>6} {'nSV':>5} {'Rate%':>7} {'<30cm':>7} "
     f"{'RMS_2D':>10} {'1σ':>10} {'95%':>10} {'TTFF_s':>8}"
 )
 _SEP = "-" * len(_HDR)
@@ -206,6 +269,11 @@ def _fmt_sv(v: float) -> str:
     return "—" if math.isnan(v) else f"{v:.1f}"
 
 
+def _fmt_pct(v: float) -> str:
+    """Format a percentage, or '—' when the tier has no epochs."""
+    return "—" if math.isnan(v) else f"{v:.1f}%"
+
+
 def _row(
     case_id: str,
     mode: str,
@@ -213,6 +281,7 @@ def _row(
     n: int,
     n_sv: str,
     rate: str,
+    acc: str,
     rms2: str,
     p68: str,
     p95: str,
@@ -224,7 +293,10 @@ def _row(
         prefix = f"{case_id:<20} {mode:<7}"
     else:
         prefix = _BLANK_CASE_MODE
-    return f"{prefix} {tier:<5} {n:>6} {n_sv:>5} {rate:>7} {rms2:>10} {p68:>10} {p95:>10} {ttff:>8}"
+    return (
+        f"{prefix} {tier:<5} {n:>6} {n_sv:>5} {rate:>7} {acc:>7} "
+        f"{rms2:>10} {p68:>10} {p95:>10} {ttff:>8}"
+    )
 
 
 def print_summary(rows: list[dict]) -> None:
@@ -244,6 +316,11 @@ def print_summary(rows: list[dict]) -> None:
       FIX row : Q=4 fix rate (clas/rtk)
       FF  row : Q=4|Q=5 rate (clas/rtk)
       PPP row : <30cm threshold rate (madoca)
+
+    <30cm column:
+      Fraction of that row's own N epochs within 30 cm 2D — so on the FIX row
+      it answers "of the epochs that claimed an integer fix, how many were
+      actually right", and its complement is the misfix rate.
 
     TTFF column:
       FIX row : first ≥30-consecutive-Q=4 run (clas/rtk)
@@ -282,6 +359,7 @@ def print_summary(rows: list[dict]) -> None:
                     m["n_matched"],
                     _fmt_sv(m["mean_sv_all"]),
                     ppp_rate,
+                    _fmt_pct(m["acc_rate_all"]),
                     _fmt_m(m["rms_2d_all"]),
                     _fmt_m(m["p68_2d_all"]),
                     _fmt_m(m["p95_2d_all"]),
@@ -300,6 +378,7 @@ def print_summary(rows: list[dict]) -> None:
                     m["n_fix"],
                     _fmt_sv(m["mean_sv_fix"]),
                     f"{m['fix_rate']:.1f}%",
+                    _fmt_pct(m["acc_rate_fix"]),
                     _fmt_m(m["rms_2d_fix"]),
                     _fmt_m(m["p68_2d_fix"]),
                     _fmt_m(m["p95_2d_fix"]),
@@ -316,6 +395,7 @@ def print_summary(rows: list[dict]) -> None:
                     m["n_ff"],
                     _fmt_sv(m["mean_sv_ff"]),
                     f"{m['ff_rate']:.1f}%",
+                    _fmt_pct(m["acc_rate_ff"]),
                     _fmt_m(m["rms_2d_ff"]),
                     _fmt_m(m["p68_2d_ff"]),
                     _fmt_m(m["p95_2d_ff"]),
@@ -332,6 +412,7 @@ def print_summary(rows: list[dict]) -> None:
                     m["n_matched"],
                     _fmt_sv(m["mean_sv_all"]),
                     "—",
+                    _fmt_pct(m["acc_rate_all"]),
                     _fmt_m(m["rms_2d_all"]),
                     _fmt_m(m["p68_2d_all"]),
                     _fmt_m(m["p95_2d_all"]),
@@ -344,6 +425,8 @@ def print_summary(rows: list[dict]) -> None:
     print("  CLAS/RTK tiers: FIX=Q=4 | FF=Q=4+5 (excl SPP) | ALL=every epoch")
     print("  MADOCA tier:    PPP=all valid PPP-float epochs (Q=3); Rate%=<30cm fraction")
     print("  SINGLE tier:    SPP=all valid SPP epochs (Q=1); Rate%=<2m fraction")
+    print("  <30cm column:   fraction of THAT row's N epochs within 30 cm 2D.")
+    print("                  On the FIX row, 100% minus it is the misfix rate.")
 
 
 # ---------------------------------------------------------------------------
@@ -434,7 +517,7 @@ def run_benchmark(args: argparse.Namespace) -> int:
             else:
                 # Build expected paths without downloading
                 from cases import l6_sessions
-                from download_l6 import MADOCA_PRNS
+                from download_l6 import MADOCA_L6D_PRNS, MADOCA_PRNS
 
                 sessions = l6_sessions(case["gps_week"], case["tow_start"], case["tow_end"])
                 for year, doy, session in sessions:
@@ -446,6 +529,15 @@ def run_benchmark(args: argparse.Namespace) -> int:
                         if l6e.exists():
                             l6_paths["madoca"].append(l6e)
                             break
+                    # MADOCA-PPP L6D iono: every available PRN, as ensure_case_l6 does
+                    for prn in MADOCA_L6D_PRNS:
+                        mdc_l6d = l6_dir / f"{year}{doy:03d}{session}.{prn}.l6"
+                        if mdc_l6d.exists():
+                            l6_paths["madoca"].append(mdc_l6d)
+
+            # Join multi-session streams so corrections survive the hour boundary
+            for key in list(l6_paths):
+                l6_paths[key] = _merge_l6_sessions(l6_paths[key], l6_dir / "merged")
 
         for mode in modes:
             conf = str(conf_dir / f"{mode}.toml")
@@ -541,7 +633,10 @@ def run_benchmark(args: argparse.Namespace) -> int:
                 rate_str = f"{thr_label}={m['thr_rate']:.1f}%"
                 conv_str = _fmt_s(m["conv_thr_s"])
             else:
-                rate_str = f"Fix={m['fix_rate']:.1f}%  FF={m['ff_rate']:.1f}%"
+                rate_str = (
+                    f"Fix={m['fix_rate']:.1f}%  FF={m['ff_rate']:.1f}%  "
+                    f"misfix={_fmt_pct(100.0 - m['acc_rate_fix'])}"
+                )
                 conv_str = _fmt_s(m["conv_time_s"])
             print(
                 f"  N={m['n_matched']}  {rate_str}  "

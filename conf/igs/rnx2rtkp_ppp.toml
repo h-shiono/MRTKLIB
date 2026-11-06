@@ -51,9 +51,6 @@ accel_h = 1.0
 accel_v = 0.1
 clock_stability = 5e-12
 
-[receiver]
-max_age = 30.0
-
 [output]
 format = "llh"
 height_type = "ellipsoidal"
@@ -62,3 +59,6 @@ static_solution = "all"
 [files]
 satellite_atx = "./tests/data/igs/igs20_trim.atx"
 receiver_atx = "./tests/data/igs/igs20_trim.atx"
+
+[positioning.relative]
+max_age = 30.0

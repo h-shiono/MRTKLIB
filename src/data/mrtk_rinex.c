@@ -1968,7 +1968,7 @@ static int readrnxnavb(FILE* fp, const char* opt, int ver, int sys, int* type, e
                     sat = satno(SYS_SBS, prn + 100);
                 } else if (sys == SYS_GLO) {
                     sat = satno(SYS_GLO, prn);
-                } else if (93 <= prn && prn <= 97) { /* extension */
+                } else if (93 <= prn && prn <= 99) { /* extension: J193..J199 */
                     sat = satno(SYS_QZS, prn + 100);
                 } else {
                     sat = satno(SYS_GPS, prn);

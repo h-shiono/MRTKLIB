@@ -403,15 +403,20 @@ static int readserial(serial_t* serial, uint8_t* buff, int n, char* msg) {
 }
 /* write serial --------------------------------------------------------------*/
 static int writeserial(serial_t* serial, uint8_t* buff, int n, char* msg) {
-    int ns = 0;
-
-    tracet(NULL, 3, "writeserial: dev=%d n=%d\n", serial->dev, n);
+    int ns;
 
     if (!serial) {
         return 0;
     }
-    if (write(serial->dev, buff, n) < n) {
-        serial->error = 1;
+    tracet(NULL, 3, "writeserial: dev=%d n=%d\n", serial->dev, n);
+
+    /* non-blocking port: a full output buffer (EAGAIN) or a short write is not
+     * a device error; the unsent part is not resent */
+    if ((ns = (int)write(serial->dev, buff, n)) < 0) {
+        if (errno != EAGAIN && errno != EWOULDBLOCK) {
+            serial->error = 1;
+        }
+        ns = 0;
     }
     tracet(NULL, 5, "writeserial: exit dev=%d ns=%d\n", serial->dev, ns);
     return ns;
@@ -3383,7 +3388,7 @@ extern int strread(stream_t* stream, uint8_t* buff, int n) {
  * args   : stream_t *stream I   stream
  *          unsinged char *buff I data buffer
  *          int    n         I   data length
- * return : status (0:error,1:ok)
+ * return : bytes written (0: nothing written or error; -1: error for some types)
  * notes  : write data to buffer and return immediately
  *-----------------------------------------------------------------------------*/
 extern int strwrite(stream_t* stream, uint8_t* buff, int n) {
@@ -3575,13 +3580,13 @@ extern int strstatx(stream_t* stream, char* msg) {
 /* get stream statistics summary -----------------------------------------------
  * get stream statistics summary
  * args   : stream_t *stream I   stream
- *          int    *inb      IO   bytes of input  (NULL: no output)
+ *          uint64_t *inb    IO   bytes of input  (NULL: no output)
  *          int    *inr      IO   bps of input    (NULL: no output)
- *          int    *outb     IO   bytes of output (NULL: no output)
+ *          uint64_t *outb   IO   bytes of output (NULL: no output)
  *          int    *outr     IO   bps of output   (NULL: no output)
  * return : none
  *-----------------------------------------------------------------------------*/
-extern void strsum(stream_t* stream, int* inb, int* inr, int* outb, int* outr) {
+extern void strsum(stream_t* stream, uint64_t* inb, int* inr, uint64_t* outb, int* outr) {
     tracet(NULL, 4, "strsum:\n");
 
     strlock(stream);

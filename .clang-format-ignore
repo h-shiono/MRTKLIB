@@ -6,5 +6,9 @@
 #   - src/core/tomlc99: byte-for-byte cktan/tomlc99 (MIT).
 #   - util: RTKLIB-derived utilities (BUILD_UTILS=OFF by default, never in the
 #     v0.5.3 clang-format scope). See issue #166.
+#   - apps/dumpcssr/cssr_parse.c: verbatim CLAS CSSR dump parser vendored from
+#     claslib-0.8.0 (Mitsubishi Electric); kept byte-faithful for `mrtk dump
+#     --parse` upstream-identical output. Do not reformat.
 src/core/tomlc99/**
 util/**
+apps/dumpcssr/cssr_parse.c

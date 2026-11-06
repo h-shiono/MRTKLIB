@@ -4,7 +4,7 @@
 [positioning]
 mode = "ssr2osr"                                                          # (10:ssr2osr)
 signals = ["G1C", "G2W", "G5X", "E1C", "E5Q", "E7Q", "J1C", "J5Q", "J2X"]
-excluded_sats = ""                                                        # (prn ...)
+excluded_sats = []                                                        # (prn ...)
 systems = ["GPS", "Galileo", "QZSS"]
 
 [positioning.corrections]

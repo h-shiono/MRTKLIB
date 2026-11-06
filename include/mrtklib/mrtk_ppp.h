@@ -54,6 +54,9 @@ typedef struct {
     char opt[256];     /**< MADOCA-PPP L6D dependent options */
     int rid;           /**< decoded region ID */
     miono_region_t re; /**< decoded region data */
+    double ftag;       /**< receiver time tag of the next frame (s, 0: none); consumed per frame.
+                            With a tag, a message whose frames do not follow each other by 1 s
+                            is discarded (#363) */
 } mdcl6d_t;
 
 /**

@@ -234,6 +234,15 @@ mrtk_band_t mrtk_rinex_freq_to_band(int sys, int rinex_freq_id);
 const uint8_t* mrtk_get_signal_priority(int sys, mrtk_band_t band);
 
 /**
+ * @brief Toggle the claslib-compatible QZSS L1 signal priority (C>S>L>X>Z).
+ *
+ * Enable only for CLAS processing; upstream claslib and MADOCALIB disagree on
+ * the QZSS L1 order, so the claslib order must not affect other engines.
+ * @param[in] on  1: claslib order, 0: MRTK default order
+ */
+void mrtk_use_claslib_qzs_l1_priority(int on);
+
+/**
  * @brief Convert physical band to base carrier frequency (Hz).
  * @param[in] band  Physical frequency band
  * @return Base carrier frequency (Hz), 0.0 on error.

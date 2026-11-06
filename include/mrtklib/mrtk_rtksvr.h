@@ -38,6 +38,7 @@ extern "C" {
 #include "mrtklib/mrtk_nav.h"
 #include "mrtklib/mrtk_obs.h"
 #include "mrtklib/mrtk_opt.h"
+#include "mrtklib/mrtk_ppp.h"
 #include "mrtklib/mrtk_rcvraw.h"
 #include "mrtklib/mrtk_rtcm.h"
 #include "mrtklib/mrtk_rtkpos.h"
@@ -94,6 +95,7 @@ typedef struct {                      /* RTK server type */
     clas_ctx_t* clas;                 /* CLAS CSSR decoder context (NULL if unused) */
     has_t* has;                       /* Galileo HAS decoder context (NULL if unused) */
     b2b_t* b2b;                       /* BeiDou PPP-B2b decoder context (NULL if unused) */
+    mdcl6d_t* mdciono;                /* MADOCA-PPP L6D iono decoder contexts (MIONO_MAX_PRN, NULL if unused) */
 } rtksvr_t;
 
 /*============================================================================
@@ -206,6 +208,21 @@ void rtksvrsstat(rtksvr_t* svr, int* sstat, char* msg);
  * @return status (0:error,1:ok)
  */
 int rtksvrmark(rtksvr_t* svr, const char* name, const char* comment);
+
+/**
+ * @brief Decide whether a decoded SSR result may be applied to nav.ssr_ch[0].
+ *
+ * In CLAS/PPP-RTK mode (svr->clas set) the CLAS decoder owns nav.ssr_ch[0],
+ * so MADOCA-PPP SSR from a raw L6E stream (STRFMT_L6E, code 10) or from a
+ * UBX/SBF L6E frame (code 15) is not applied. Other SSR sources (e.g. RTCM3
+ * SSR, code 10) are applied as before.
+ *
+ * @param[in] svr    RTK server struct
+ * @param[in] index  input stream index (0..2)
+ * @param[in] ret    decoder status (10 or 15)
+ * @return 1 if update_ssr() should apply the result, 0 otherwise
+ */
+int rtksvr_ssr_applicable(const rtksvr_t* svr, int index, int ret);
 
 #ifdef __cplusplus
 }

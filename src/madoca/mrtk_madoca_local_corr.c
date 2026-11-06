@@ -414,20 +414,23 @@ extern int block2stat(rtcm_t* rtcm, stat_t* stat) {
     int i, j, k, gp;
     double d;
 
-    if (rtcm->lclblk.tnum == 0 && rtcm->lclblk.inum == 0) {
+    if (!rtcm->lclblk) {
+        return 0;
+    }
+    if (rtcm->lclblk->tnum == 0 && rtcm->lclblk->inum == 0) {
         return 0;
     }
 
     /* convert trop corrections */
-    for (i = 0; i < rtcm->lclblk.tnum; i++) {
-        for (j = 0; j < rtcm->lclblk.tblkinf[i].n; j++) {
-            if (rtcm->lclblk.tblkinf[i].btype == BTYPE_GRID) {
-                gp = rtcm->lclblk.tblkinf[i].gp[j];
+    for (i = 0; i < rtcm->lclblk->tnum; i++) {
+        for (j = 0; j < rtcm->lclblk->tblkinf[i].n; j++) {
+            if (rtcm->lclblk->tblkinf[i].btype == BTYPE_GRID) {
+                gp = rtcm->lclblk->tblkinf[i].gp[j];
             } else {
                 gp = j;
             }
             for (k = 0; k < stat->nst; k++) {
-                d = posdist(rtcm->lclblk.tstat[i][gp].site.ecef, stat->strp[k].site.ecef);
+                d = posdist(rtcm->lclblk->tstat[i][gp].site.ecef, stat->strp[k].site.ecef);
                 if (d < 0.1) {
                     break;
                 }
@@ -436,20 +439,20 @@ extern int block2stat(rtcm_t* rtcm, stat_t* stat) {
                 stat->nst++;
             }
             memcpy(&stat->time[k], &rtcm->time, sizeof(gtime_t));
-            memcpy(&stat->strp[k], &rtcm->lclblk.tstat[i][gp], sizeof(sitetrp_t));
+            memcpy(&stat->strp[k], &rtcm->lclblk->tstat[i][gp], sizeof(sitetrp_t));
         }
     }
     /* update iono corrections */
-    for (i = 0; i < rtcm->lclblk.inum; i++) {
-        for (j = 0; j < rtcm->lclblk.iblkinf[i].n; j++) {
-            gp = rtcm->lclblk.iblkinf[i].gp[j];
-            if (rtcm->lclblk.iblkinf[i].btype == BTYPE_GRID) {
-                gp = rtcm->lclblk.iblkinf[i].gp[j];
+    for (i = 0; i < rtcm->lclblk->inum; i++) {
+        for (j = 0; j < rtcm->lclblk->iblkinf[i].n; j++) {
+            gp = rtcm->lclblk->iblkinf[i].gp[j];
+            if (rtcm->lclblk->iblkinf[i].btype == BTYPE_GRID) {
+                gp = rtcm->lclblk->iblkinf[i].gp[j];
             } else {
                 gp = j;
             }
             for (k = 0; k < stat->nsi; k++) {
-                d = posdist(rtcm->lclblk.istat[i][gp].site.ecef, stat->sion[k].site.ecef);
+                d = posdist(rtcm->lclblk->istat[i][gp].site.ecef, stat->sion[k].site.ecef);
                 if (d < 0.1) {
                     break;
                 }
@@ -458,7 +461,7 @@ extern int block2stat(rtcm_t* rtcm, stat_t* stat) {
                 stat->nsi++;
             }
             memcpy(&stat->time[k], &rtcm->time, sizeof(gtime_t));
-            memcpy(&stat->sion[k], &rtcm->lclblk.istat[i][gp], sizeof(siteion_t));
+            memcpy(&stat->sion[k], &rtcm->lclblk->istat[i][gp], sizeof(siteion_t));
         }
     }
     return 1;

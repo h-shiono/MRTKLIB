@@ -63,10 +63,6 @@ bias = 0.0001
 ionosphere = 0.01
 troposphere = 0.0001
 
-[receiver]
-max_age = 30.0
-max_bias_dt = 86400.0
-
 [output]
 format = "llh"
 height_type = "ellipsoidal"
@@ -76,3 +72,9 @@ static_solution = "all"
 satellite_atx = "./tests/data/igs/igs20_trim.atx"
 receiver_atx = "./tests/data/igs/igs20_trim.atx"
 bias_sinex = "./tests/data/igs/COD0MGXFIN_2026021_01D_OSB.BIA"
+
+[positioning.ppp]
+max_bias_dt = 86400
+
+[positioning.relative]
+max_age = 30.0

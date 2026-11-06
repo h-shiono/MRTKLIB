@@ -312,6 +312,7 @@ static int selfreqpair(const int sat, const prcopt_t* opt, const obsd_t* obs) {
 /* temporal update of position/velocity/acceleration -------------------------*/
 static void udpos(rtk_t* rtk, const obsd_t* obs, double tt) {
     double *F, *FP, *xp, pos[3], Q[9] = {0}, Qv[9], var = 0.0;
+    double prnpos_h, prnpos_v;
     int i, j, na, nb, nx, ni, flag_init = 0;
     double *Fx, *Pxx, *Pxi, *Pxb, *Pxi_, *Pxb_, *xp_, ki;
 
@@ -529,8 +530,11 @@ static void udpos(rtk_t* rtk, const obsd_t* obs, double tt) {
         }
     } else {
         /* process noise added to only position */
-        Q[0] = Q[4] = SQR(rtk->opt.prn[5]) * fabs(tt);
-        Q[8] = SQR(rtk->opt.prn[6]) * fabs(tt);
+        /* Keep CLAS position noise independent of PPP's IFB slot prn[6]. */
+        prnpos_h = rtk->opt.stats_prnposith;
+        prnpos_v = rtk->opt.stats_prnpositv;
+        Q[0] = Q[4] = SQR(prnpos_h) * fabs(tt);
+        Q[8] = SQR(prnpos_v) * fabs(tt);
         ecef2pos(rtk->x, pos);
         covecef(pos, Q, Qv);
         if (rtk->opt.prnadpt == 0 || flag_init) {
@@ -2384,6 +2388,7 @@ extern int relposvrs(rtk_t* rtk, const obsd_t* obs, int nu, int* nr, nav_t* nav)
         if ((nb = resamb_LAMBDA(rtk, bias, xa)) <= 1 && rtk->opt.posopt[6]) {
             int exsat = 0;
             double ratio = 0.0;
+            uint8_t vsat0[NFREQ];
             elsort(rtk, obs, isat, el, nu);
             for (l = 0; l < rtk->opt.armaxdelsat; l++) {
                 for (i = 0; i < nu; i++) {
@@ -2400,6 +2405,7 @@ extern int relposvrs(rtk_t* rtk, const obsd_t* obs, int nu, int* nr, nav_t* nav)
                         continue;
                     }
                     for (f = 0; f < nf; f++) {
+                        vsat0[f] = rtk->ssat[sati - 1].vsat[f];
                         rtk->ssat[sati - 1].vsat[f] = 0;
                     }
                     pdop = calpdop(rtk, H, azel, vflg, obs, rtk->opt.elmaskar, nu, nv);
@@ -2409,8 +2415,10 @@ extern int relposvrs(rtk_t* rtk, const obsd_t* obs, int nu, int* nr, nav_t* nav)
                               sati, el[i] * R2D, rtk->sol.ratio);
                         break;
                     } else {
+                        /* restore the pre-trial state: a frequency invalid
+                         * before the trial stays invalid (#413) */
                         for (f = 0; f < nf; f++) {
-                            rtk->ssat[sati - 1].vsat[f] = 1;
+                            rtk->ssat[sati - 1].vsat[f] = vsat0[f];
                         }
                         if (ratio < rtk->sol.ratio) {
                             exsat = sati;
@@ -2420,10 +2428,14 @@ extern int relposvrs(rtk_t* rtk, const obsd_t* obs, int nu, int* nr, nav_t* nav)
                 }
                 if (nb > 1) {
                     break;
-                } else {
-                    for (f = 0; f < nf; f++) {
-                        rtk->ssat[exsat - 1].vsat[f] = 0;
-                    }
+                }
+                /* no trial gave a ratio: nothing to exclude, and further
+                 * iterations would repeat the same trials (#412) */
+                if (exsat == 0) {
+                    break;
+                }
+                for (f = 0; f < nf; f++) {
+                    rtk->ssat[exsat - 1].vsat[f] = 0;
                 }
             }
         }

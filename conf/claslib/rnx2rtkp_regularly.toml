@@ -1,0 +1,13 @@
+# Overlay for the CLAS PPP-RTK periodic-reset regression (#264).
+#
+# Layered after rnx2rtkp.toml. It forces a full filter reset every 600 s so
+# the paired test can confirm that ppp_rtk_pos() honours reset_interval: the
+# trace must record each reset, the epoch of each reset must drop to a Single
+# solution, and the filter must re-converge to Float/Fixed afterwards.
+#
+# reset_interval was ported from upstream claslib (the VRS path already had
+# it). It is off by default (0), so this overlay is the only config that
+# exercises the branch.
+
+[positioning.clas.resilience]
+reset_interval = 600

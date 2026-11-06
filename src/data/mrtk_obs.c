@@ -891,6 +891,20 @@ extern mrtk_band_t mrtk_rinex_freq_to_band(int sys, int rinex_freq_id) {
     return MRTK_BAND_UNKNOWN;
 }
 
+/* claslib-compatible QZSS L1 priority ("CSLXZ"), applied only while CLAS
+ * processing is active: upstream claslib and MADOCALIB genuinely disagree on
+ * the QZSS L1 order, so the claslib order must not leak into other engines
+ * (it moves MADOCA-PPP solutions by centimetres against their references). */
+static const uint8_t QZS_L1_PRIORITY_CLASLIB[MRTK_MAX_SIG_PRIORITY] = {
+    CODE_L1C, CODE_L1S, CODE_L1L, CODE_L1X, CODE_L1Z,
+};
+static int qzs_l1_claslib = 0;
+
+/* mrtk_use_claslib_qzs_l1_priority: toggle claslib QZSS L1 signal priority ---
+ * args   : int on  I  1: claslib order (C>S>L>X>Z), 0: MRTK default order
+ *----------------------------------------------------------------------------*/
+extern void mrtk_use_claslib_qzs_l1_priority(int on) { qzs_l1_claslib = on; }
+
 /* mrtk_get_signal_priority: get priority-ordered code list -------------------
  * look up the priority-ordered observation code list for a (system, band) pair
  * args   : int         sys   I  satellite system (SYS_???)
@@ -902,6 +916,9 @@ extern const uint8_t* mrtk_get_signal_priority(int sys, mrtk_band_t band) {
 
     if (band == MRTK_BAND_UNKNOWN || band >= MRTK_BAND_MAX) {
         return NULL;
+    }
+    if (qzs_l1_claslib && sys == SYS_QZS && band == MRTK_BAND_QZS_L1) {
+        return QZS_L1_PRIORITY_CLASLIB;
     }
     for (i = 0; i < (int)(sizeof(SIG_PRIORITY_TABLE) / sizeof(SIG_PRIORITY_TABLE[0])); i++) {
         if (SIG_PRIORITY_TABLE[i].sys == sys && SIG_PRIORITY_TABLE[i].priority.band == band) {

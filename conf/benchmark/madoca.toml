@@ -9,7 +9,7 @@ solution_type = "forward"
 elevation_mask = 10.0
 dynamics = true                                 # kinematic
 satellite_ephemeris = "brdc+ssrapc"
-excluded_sats = ""
+excluded_sats = []
 systems = ["GPS", "GLONASS", "Galileo", "QZSS"]
 
 [positioning.snr_mask]
@@ -74,9 +74,6 @@ galileo = "E1/E5a/E5b/E6"
 bds2 = "B1I/B3I/B2I"
 bds3 = "B1I/B3I/B2a"
 
-[receiver]
-iono_correction = false
-
 [antenna.rover]
 position_type = "single"
 type = "*"
@@ -125,14 +122,24 @@ dcb = ""
 eop = ""
 ocean_loading = ""
 temp_dir = ""
-geexe = ""
-solution_stat = ""
 trace = ""
 
-[server]
+
+[positioning.madoca]
+iono_correction = false
+
+[positioning.ppp]
+options = ""
+
+[positioning.relative]
 time_interpolation = true
-sbas_satellite = "0"
-rinex_option_1 = ""
-rinex_option_2 = ""
-ppp_option = ""
-rtcm_option = ""
+
+[input.rinex]
+option_1 = ""
+option_2 = ""
+
+[input.rtcm]
+options = ""
+
+[input.sbas]
+satellite = 0
