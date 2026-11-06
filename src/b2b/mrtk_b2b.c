@@ -164,8 +164,8 @@ static int decode_b2b_head(const uint8_t* msg, int i, gtime_t time, gtime_t* t0,
  * messages: the 3-bit IOD Corr of a new orbit can equal that of an old clock.
  * iod[0] = iod[1] lets the update copy in postpos/rtksvr publish the cleared
  * entries, so the positioning channel drops them too. */
-static void b2b_clear_corr(b2b_t* b2b) {
-    int i;
+static int b2b_clear_corr(b2b_t* b2b) {
+    int i, n = 0;
 
     for (i = 0; i < MAXSAT; i++) {
         ssr_t* ssr = b2b->ssr + i;
@@ -178,14 +178,18 @@ static void b2b_clear_corr(b2b_t* b2b) {
         memset(ssr->cbias, 0, sizeof(ssr->cbias));
         memset(ssr->vcbias, 0, sizeof(ssr->vcbias));
         ssr->update = 1;
+        n++;
     }
+    return n;
 }
 
-/* decode MT1 satellite mask ([1] 6.2.2) -------------------------------------*/
+/* decode MT1 satellite mask ([1] 6.2.2) -------------------------------------
+ * returns 10 when an IOD SSR change cleared staged corrections (the caller
+ * then publishes the cleared entries), 0 otherwise, -1 on error */
 static int decode_b2b_mask(b2b_t* b2b, const uint8_t* msg, int i, gtime_t time) {
     b2b_mask_t* m = &b2b->mask;
     gtime_t t0;
-    int k, iodssr, iodp, nsat = 0;
+    int k, iodssr, iodp, nsat = 0, cleared = 0;
 
     if ((i = decode_b2b_head(msg, i, time, &t0, &iodssr)) < 0) {
         return -1;
@@ -216,12 +220,12 @@ static int decode_b2b_mask(b2b_t* b2b, const uint8_t* msg, int i, gtime_t time) 
     m->nsat = nsat;
     m->valid = 1;
     if (b2b->iodssr >= 0 && iodssr != b2b->iodssr) {
-        b2b_clear_corr(b2b);
+        cleared = b2b_clear_corr(b2b);
     }
     b2b->iodssr = iodssr;
 
     trace(NULL, 4, "decode_b2b_mask: %s, iodssr=%d, iodp=%d, nsat=%d\n", time_str(t0, 0), iodssr, iodp, nsat);
-    return i;
+    return cleared ? 10 : 0;
 }
 
 /* decode one 69-bit orbit-correction block ([1] 6.2.3, Fig. 6-4) ------------
@@ -679,7 +683,7 @@ extern int b2b_input_msg(b2b_t* b2b, int prn, const uint8_t* msg61, gtime_t time
 
     switch (mt) {
         case B2B_MT_MASK:
-            return decode_b2b_mask(b2b, msg61, 6, time) < 0 ? -1 : 0;
+            return decode_b2b_mask(b2b, msg61, 6, time);
         case B2B_MT_ORBIT:
             return decode_b2b_orbit(b2b, msg61, 6, time);
         case B2B_MT_CBIAS:
