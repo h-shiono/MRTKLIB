@@ -7,6 +7,147 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.7.16] - 2026-11-06
+
+**BeiDou PPP-B2b.** `correction = "bds-b2b"` runs BeiDou-only float PPP with
+the PPP-B2b corrections of the BDS-3 GEOs, in `mrtk post` and `mrtk run`
+([#417](https://github.com/h-shiono/MRTKLIB/issues/417)). The GEOs are on
+C01–C04 since the April 2026 PRN reassignment (C59–C62 before) and are
+configured by the new `[positioning] bds_geo_sats`. In real time the B-CNAV1
+ephemeris the corrections refer to comes from SBF `BDSCNav1` (4251). The
+decoder takes one GEO stream at a time, because the GEOs send two streams
+with different IOD SSR. On a 2 h live capture (Tokyo, mosaic-G5) after
+60 min: static 1.8 cm 2D / 3.9 cm U rms, kinematic 15.8 / 10.8 cm, real-time
+replay 14.8 / 10.7 cm. Two contributed fixes: the single-frequency NavIC L5
+group delay in SPP ([#384](https://github.com/h-shiono/MRTKLIB/pull/384)),
+and the NTRIP v2 source handshake, which sent a raw stream after advertising
+chunked transfer ([#385](https://github.com/h-shiono/MRTKLIB/pull/385)). New
+dataset `g5p3_296u-v1`, shared with the SouthPAN PVS work. ABI changes in
+`prcopt_t`, `raw_t` and `rtksvr_t`; new public API in `mrtk_b2b.h` and
+`set_bdsgeo()` / `is_bdsgeo()`.
+
+### BeiDou PPP-B2b
+
+- **New correction source `bds-b2b`**
+  ([#417](https://github.com/h-shiono/MRTKLIB/issues/417)). The decoder
+  (`src/b2b/mrtk_b2b.c`, `include/mrtklib/mrtk_b2b.h`) reads MT1–7 per
+  BDS-SIS-ICD-PPP-B2b-1.0 with the CRC-24Q, IOD SSR, IOD Corr and IODP rules,
+  bit-exact against cssrlib on a 2025 capture. It needs
+  `satellite_ephemeris = "brdc+ssrapc"` (or `brdc+ssrcom`). PPP-B2b has no
+  phase biases, so it runs as float PPP. The broadcast has no GPS code
+  biases, so the bundled configurations use BeiDou only.
+- **Post-processing.** `mrtk l6extract` writes the SBF `BDSRawB2b` (4242)
+  frames of the GEOs to `<input-basename>.b2b` (new options `-no-b2b`,
+  `-b2b-geo LIST`). `mrtk post` reads `.b2b` input and selects the B-CNAV1 /
+  B-CNAV2 ephemeris (RINEX 4 `CNV1` / `CNV2`) for BeiDou, matching the
+  correction IODN. A RINEX 4 broadcast file with CNV1 records is needed
+  (e.g. `BRD400DLR_S`); `mrtk convert` writes none.
+- **Real time.** The SBF decoder stages `BDSRawB2b` messages (raw return code
+  14) for the rtksvr B2b decoder. It also decodes `BDSCNav1` (4251, mosaic-G5
+  Firmware v1.1.0 Reference Guide pp. 245–246) into ephemeris set 1 as type
+  CNAV-1, only while the BeiDou selection is B-CNAV. The D1/D2 record of
+  `BDSNav` (4081) in set 0, other modes and `mrtk convert` are unchanged.
+  `rtksvrstart()` sets the selection as `postpos()` does, and frees a B2b
+  context left by a previous run.
+- **`[positioning] bds_geo_sats`** (legacy `pos2-bdsgeo`): the BDS-3 GEO
+  PRNs whose B2b-I frames are PPP-B2b, default `["C01-C04"]`; use
+  `["C59-C62"]` for data before 2026-04-17. IGSO / MEO B2b-I frames (B-CNAV3
+  navigation) pass the same CRC and reuse message types 1/4/5, and no header
+  bit separates them, so the GEOs cannot be told from the frames. Applied by
+  `set_bdsopt()` together with `bds2_sats` / `bds3_igso_sats`.
+- **One GEO stream at a time.** On 2026-10-23, C01–C03 sent IOD SSR 1 and
+  C04 IOD SSR 2 with the same mask (2025-08-21: C59 / C60 and C62). The
+  decoder takes the first GEO that sends a mask, until it is silent for 10 s,
+  so the orbit of one stream is never combined with the clock of the other.
+  An IOD SSR change clears every staged correction, and a withdrawn code bias
+  (−2048 / −2047) is removed.
+- **Clock age limit 30 s for PPP-B2b** (`SSR_VENDOR_B2B`; other sources keep
+  60 s). The ICD's 12 s nominal validity is not usable as an age limit: live
+  clocks arrive 6–8 s after their epoch and are renewed every 6 s.
+- **Shared code** (`mrtk_eph.c`): `eph2pos()` applies the CNAV `Adot` /
+  `ndot` terms (BDS B1C ICD Table 7-2). D1/D2 and LNAV ephemerides have both
+  at zero, so they are unchanged. RINEX 4 CNAV records are now computed
+  correctly in every mode. `satpos_ssr()` accepts an orbit correction up to
+  its `udi[0]` when that exceeds 60 s, capped at 120 s (PPP-B2b orbits are
+  valid for 96 s). Sources whose `udi[0]` is 60 s or less (MADOCA-PPP, HAS,
+  CLAS, typical RTCM-SSR streams) keep the 60 s limit.
+- **Configurations:** `conf/b2b/ppp_bds_b2b.toml` (post) and
+  `conf/b2b/run_bds_b2b.toml` (real time), with the PRN lists for data after
+  2026-04-21.
+- **Validation** (BeiDou-only float PPP, mosaic-G5 + TOPCON CR-G5, Tokyo,
+  2026-10-23 20:00–22:00 GPST, against the PPP-AR reference of the handover
+  dataset, after 60 min, 2D rms / U rms / 3D 95 %):
+
+  | | static | kinematic |
+  |---|---|---|
+  | `mrtk post` | 1.8 / 3.9 / 6.4 cm | 15.8 / 10.8 / 30.9 cm |
+  | `mrtk run` replay | — | 14.8 / 10.7 / 27.9 cm |
+
+  About 9 BeiDou satellites per epoch.
+
+### SPP
+
+- **NavIC L5-only group delay**
+  ([#384](https://github.com/h-shiono/MRTKLIB/pull/384), contributed by
+  @badaboom). `prange()` derived γ for the single-frequency NavIC TGD
+  correction from the two observation codes. With no S-band code the second
+  frequency was zero and the correction non-finite: an infinite residual,
+  then NaN and an LSQ failure once a NavIC ephemeris was available. With an
+  S-band code present, γ was the inverse of the ICD value and the correction
+  about 20× too small. γ is now the nominal (f_S / f_L5)² of ISRO SPS ICD 1.1
+  §6.2.1.5 for single-frequency NavIC. The iono-free branch and other
+  constellations are unchanged.
+
+### Streams
+
+- **NTRIP v2 source handshake**
+  ([#385](https://github.com/h-shiono/MRTKLIB/pull/385), contributed by
+  @badaboom). A caster answering the v2 `POST` with `HTTP/1.1 200 OK`
+  matched the legacy `OK\r\n` first. The stream was then taken as v1, and
+  the NTRIP server stream (e.g. `mrtk relay` output to a caster) sent a raw
+  body although the request had advertised `Transfer-Encoding: chunked`. HTTP responses now stay in the
+  HTTP parser until the headers end. Chunked output is used only after a v2
+  request answered with HTTP 200; a v1 `SOURCE` answered with an HTTP status
+  line stays raw. Bare `OK` / `ICY 200 OK` stay v1.
+
+### Build
+
+- `mrtklib` links the thread library (`Threads::Threads`, PUBLIC). The stream
+  code calls `pthread_create`, and with glibc < 2.34 the utests that pull it in
+  through the static library did not link (#385 review).
+
+### Tests and test data
+
+- **New dataset `g5p3_296u-v1`** (9.2 MB): one hour of the kubolab mosaic-G5
+  capture of 2026-10-23 (19:59:30–21:00 GPST), with GEO `BDSRawB2b`,
+  `BDSCNav1`, SouthPAN `GEORawL5` PRN 122 (for v0.7.17) and a RINEX 4
+  navigation file cut from BRD400DLR. Built reproducibly by
+  `scripts/tests/make_g5p3_296u_fixture.py`; see
+  `tests/data/g5p3_296u/README.md`.
+- New tests: `b2b_extract`, `b2b_convert`, `b2b_ppp`, `b2b_ppp_check`,
+  `rtkrcv_b2b`, `rtkrcv_b2b_check` (replay at ×20, ~190 s). The gates catch
+  regressions, not the service accuracy (performance baseline:
+  [#457](https://github.com/h-shiono/MRTKLIB/issues/457)).
+- New unit tests: `utest_b2b` (decoder, GEO list, a real `BDSCNav1` block
+  against BRD400DLR CNV1, IOD SSR change, withdrawn bias, GEO stream lock),
+  `utest_navic_l5_tgd` (#384) and `utest_ntrip_server_response` (#385).
+
+### Documentation
+
+- New guide: Quick Start: BeiDou PPP-B2b.
+- BeiDou PRN Reassignment guide: `bds_geo_sats`.
+- Design document `docs/design/bds-b2b.md` updated for the real-time path,
+  the GEO PRNs and the two streams.
+- Configuration reference: `bds_geo_sats`.
+
+### API / ABI
+
+- **ABI:** `prcopt_t` gains `bdsgeo[256]` (appended). `raw_t` gains
+  `b2b_msg[61]`, `b2b_prn` and `b2b_time`. `rtksvr_t` gains `b2b`.
+- **API:** new `b2b_new()`, `b2b_free()`, `b2b_input_msg()`,
+  `b2b_input_file()`, `b2b_sel_biascode()` (`mrtk_b2b.h`), `set_bdsgeo()`,
+  `is_bdsgeo()`; `SSR_VENDOR_B2B`; `input_raw()` return code 14.
+
 ## [v0.7.15] - 2026-11-06
 
 **CLAS real-time robustness, part 2: phase-bias discontinuities, L6 channel
