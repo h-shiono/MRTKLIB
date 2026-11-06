@@ -192,7 +192,7 @@ typedef struct {              /* SSR correction type */
     int discnt[MAXCODE];      /* phase biases discontinuity counter */
     double yaw_ang, yaw_rate; /* yaw angle and yaw rate (deg,deg/s) */
     uint8_t update;           /* update flag (0:no update,1:update) */
-    int vendor;               /* vendor type(0:L6(MADOCA-PPP),1:RTCM3(JAXA-MADOCA)) */
+    int vendor;               /* vendor type(0:L6(MADOCA-PPP),1:RTCM3(JAXA-MADOCA),2:PPP-B2b) */
 } ssr_t;
 
 typedef struct {                        /* stec data type */
@@ -534,6 +534,20 @@ int set_bds3igso(const char* str);
  * @return 1: listed, 0: not listed or out of range
  */
 int is_bds3igso(int prn);
+
+/**
+ * @brief Set the BDS-3 GEO satellites (the PPP-B2b transmitters).
+ * @param[in] str  Satellite list, e.g. "C01-C04" or "C59-C62" ("" or NULL: C01-C04)
+ * @return Number of satellites set (-1: invalid list; the default C01-C04 is set)
+ */
+int set_bdsgeo(const char* str);
+
+/**
+ * @brief Test whether a BeiDou PRN is listed as BDS-3 GEO (see set_bdsgeo()).
+ * @param[in] prn  BeiDou PRN
+ * @return 1: listed, 0: not listed or out of range
+ */
+int is_bdsgeo(int prn);
 
 /**
  * @brief BeiDou generation of a PRN.

@@ -48,6 +48,7 @@ MAPPING: list[tuple[str, str, str, str]] = [
     ("pos1-navsys", "positioning", "systems", "navsys"),
     ("pos1-exclsats", "positioning", "excluded_sats", "strlist"),
     ("pos2-bds2prn", "positioning", "bds2_sats", "siglist"),
+    ("pos2-bdsgeo", "positioning", "bds_geo_sats", "siglist"),
     ("pos1-signals", "positioning", "signals", "siglist"),
     ("pos1-robust", "positioning", "robust", "enum"),
     ("pos1-robustk0", "positioning", "robust_k0", "float"),

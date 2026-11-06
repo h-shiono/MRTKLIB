@@ -96,6 +96,7 @@ nav:
     - "Quick Start: CLAS PPP-RTK": guide/quickstart-clas.md
     - "Quick Start: MADOCA-PPP": guide/quickstart-madoca-ppp.md
     - "Quick Start: Galileo HAS PPP": guide/quickstart-gal-has.md
+    - "Quick Start: BeiDou PPP-B2b": guide/quickstart-bds-b2b.md
     - "Quick Start: IGS-RTS PPP": guide/quickstart-igs-rts.md
     - BeiDou PRN Reassignment: guide/beidou-prn-reassignment.md
     - NTRIP Streams: guide/ntrip.md
@@ -114,6 +115,7 @@ nav:
     - Positioning Configuration Model: design/configuration.md
   - Releases:
     - Changelog: releases/changelog.md
+    - v0.7.16: releases/release-notes-v0.7.16.md
     - v0.7.15: releases/release-notes-v0.7.15.md
     - v0.7.14: releases/release-notes-v0.7.14.md
     - v0.7.13: releases/release-notes-v0.7.13.md

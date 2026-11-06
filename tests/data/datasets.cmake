@@ -23,3 +23,9 @@ mrtk_dataset(madocalib_mdc005-v1 SHA256 c2179bda50c86608403a44bc4289befa2bbbcfae
 # CLAS L6 frame gaps: G5P3296u_20m.sbf (live mosaic-G5, 2026-10-23, 20 min, SBF
 # blocks dropped by the receiver); see tests/data/clas_l6gap/README.md (#363).
 mrtk_dataset(clas_l6gap-v1 SHA256 365fe0466a64badb3f52ccebe85ace855615d08e8908848ba1999323cad7bc1e)
+
+# mosaic-G5 open-service SSR hour, kubolab 2026-10-23 19:59:30-21:00 GPST:
+# BeiDou PPP-B2b (GEO BDSRawB2b + BDSCNav1) and SouthPAN PVS (GEORawL5 PRN 122),
+# plus a cut RINEX 4 broadcast navigation file; see tests/data/g5p3_296u/README.md
+# (#417, #418).
+mrtk_dataset(g5p3_296u-v1 SHA256 923b2fe8e276664b8ad809947eaca2afc5577a9eca39cb7274b50781b5d44106)

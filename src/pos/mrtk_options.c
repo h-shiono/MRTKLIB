@@ -87,6 +87,7 @@ static int bds2prn_given_; /* pos2-bds2prn was read from a configuration */
 #define CORROPT "-1:auto,0:none,1:igs,2:igs-rts,3:qzs-madoca,4:gal-has,5:bds-b2b,6:qzs-clas"
 #define BDS2OPT "satid(C01-C18),.. BDS-2 in PRN 1-18 (\"\":no BDS-2)"
 #define IGSOOPT "satid,.. BDS-3 IGSO (\"\":C06-C08)"
+#define GEOOPT "satid,.. BDS-3 GEO, PPP-B2b (\"\":C01-C04)"
 opt_t sysopts[] = {
     {"pos1-posmode", 3, (void*)&prcopt_.mode, MODOPT},
     {"pos1-correction", 3, (void*)&prcopt_.correction, CORROPT},
@@ -164,6 +165,7 @@ opt_t sysopts[] = {
     {"pos2-bds2bias", 3, (void*)&prcopt_.bds2bias, SWTOPT},
     {"pos2-bds2prn", 2, (void*)prcopt_.bds2prn, BDS2OPT},
     {"pos2-bds3igso", 2, (void*)prcopt_.bds3igso, IGSOOPT},
+    {"pos2-bdsgeo", 2, (void*)prcopt_.bdsgeo, GEOOPT},
     {"pos2-pppsatcb", 0, (void*)&prcopt_.pppsatcb, SATCB},
     {"pos2-pppsatpb", 0, (void*)&prcopt_.pppsatpb, SATPB},
     {"pos2-uncorrbias", 3, (void*)&prcopt_.unbias, SWTOPT},
@@ -383,7 +385,8 @@ extern opt_t* searchopt(const char* name, const opt_t* opts) {
 extern int str2opt(opt_t* opt, const char* str) {
     /* the TOML loader passes values up to 2047 bytes; these lists are 256 */
     if ((opt->var == (void*)prcopt_.bds2prn && strlen(str) >= sizeof(prcopt_.bds2prn)) ||
-        (opt->var == (void*)prcopt_.bds3igso && strlen(str) >= sizeof(prcopt_.bds3igso))) {
+        (opt->var == (void*)prcopt_.bds3igso && strlen(str) >= sizeof(prcopt_.bds3igso)) ||
+        (opt->var == (void*)prcopt_.bdsgeo && strlen(str) >= sizeof(prcopt_.bdsgeo))) {
         return 0;
     }
     if (opt->var == (void*)prcopt_.bds2prn) {

@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.15)
-project(MRTKLIB VERSION 0.7.15 LANGUAGES C)
+project(MRTKLIB VERSION 0.7.16 LANGUAGES C)
 
 # ── Version header generation ─────────────────────────────────────────────────
 set(MRTKLIB_VERSION_MAJOR ${PROJECT_VERSION_MAJOR})
@@ -108,6 +108,8 @@ add_library(mrtklib STATIC
     # ── has/ (Galileo HAS処理) ─────────────────────────────────────────────────
     src/has/mrtk_has.c
     src/has/mrtk_has_rs.c
+    # ── b2b/ (BeiDou PPP-B2b処理) ──────────────────────────────────────────────
+    src/b2b/mrtk_b2b.c
     # ── clas/ (CLAS CSSR処理) ──────────────────────────────────────────────────
     src/clas/mrtk_clas.c
     src/clas/mrtk_clas_grid.c
@@ -151,6 +153,11 @@ target_link_libraries(mrtklib PUBLIC m)
 if(UNIX AND NOT APPLE)
     target_link_libraries(mrtklib PUBLIC rt)
 endif()
+# The stream / server code creates threads; glibc < 2.34 keeps pthread_create
+# in libpthread, so every executable linking the static library needs it
+# (utests including mrtk_stream.c too, #385).
+find_package(Threads REQUIRED)
+target_link_libraries(mrtklib PUBLIC Threads::Threads)
 
 # ── System LAPACK/BLAS integration for fast matrix operations ────────────────
 # Request LP64 BLAS/LAPACK integer ABI; ILP64 silently breaks our int* wrappers (#108).
@@ -385,6 +392,15 @@ add_test(NAME utest_clas_l6 COMMAND utest_clas_l6
          WORKING_DIRECTORY ${_UTEST_DIR})
 set_tests_properties(utest_clas_l6 PROPERTIES LABELS "utest")
 
+# NavIC L5-only SPP group delay with the nominal S/L5 ratio (#384). Includes
+# mrtk_spp.c to reach the private prange().
+add_executable(utest_navic_l5_tgd ${_UTEST_DIR}/utest_navic_l5_tgd.c)
+# Override global -ansi (=C90): this test uses C11 (P-01).
+target_compile_options(utest_navic_l5_tgd PRIVATE -std=c11)
+target_link_libraries(utest_navic_l5_tgd PRIVATE mrtklib)
+add_test(NAME utest_navic_l5_tgd COMMAND utest_navic_l5_tgd)
+set_tests_properties(utest_navic_l5_tgd PROPERTIES LABELS "utest")
+
 # RTCM3 MSM BDS B2b round-trip test (issue #333 / #296)
 add_executable(utest_msm_bds_b2b ${_UTEST_DIR}/utest_msm_bds_b2b.c)
 # Override global -ansi (=C90): this test uses C11 (P-01).
@@ -451,6 +467,17 @@ target_link_libraries(utest_stream_bytes PRIVATE mrtklib)
 add_test(NAME utest_stream_bytes COMMAND utest_stream_bytes)
 set_tests_properties(utest_stream_bytes PROPERTIES LABELS "utest;stream")
 
+# BeiDou PPP-B2b decoder test. Drives the public b2b_input_msg() API with
+# synthetic 61-byte messages (no real signal data); same explicit registration
+# as utest_has_mt1 (source name is utest_b2b.c, not t_*.c).
+add_executable(utest_b2b ${_UTEST_DIR}/utest_b2b.c)
+# Override global -ansi (=C90): this test uses C99 for-loop declarations (P-01).
+target_compile_options(utest_b2b PRIVATE -std=c11)
+target_link_libraries(utest_b2b PRIVATE mrtklib)
+add_test(NAME utest_b2b COMMAND utest_b2b
+         WORKING_DIRECTORY ${_UTEST_DIR})
+set_tests_properties(utest_b2b PROPERTIES LABELS "utest")
+
 # NTRIP v2 chunked codec test (header-only, no library dependency)
 add_executable(t_ntrip ${_UTEST_DIR}/t_ntrip.c)
 # Override global -ansi (=C90) for this target, same as mrtklib target.
@@ -460,6 +487,15 @@ target_compile_options(t_ntrip PRIVATE -std=c11)
 add_test(NAME utest_t_ntrip COMMAND t_ntrip
          WORKING_DIRECTORY ${_UTEST_DIR})
 set_tests_properties(utest_t_ntrip PROPERTIES LABELS "utest")
+
+# NTRIP server handshake: v1/v2 decision from the request sent and the
+# response (#385). Includes mrtk_stream.c to reach the private rspntrip_s().
+add_executable(utest_ntrip_server_response ${_UTEST_DIR}/utest_ntrip_server_response.c)
+# Override global -ansi (=C90): this test uses C11 (P-01).
+target_compile_options(utest_ntrip_server_response PRIVATE -std=c11)
+target_link_libraries(utest_ntrip_server_response PRIVATE mrtklib)
+add_test(NAME utest_ntrip_server_response COMMAND utest_ntrip_server_response)
+set_tests_properties(utest_ntrip_server_response PROPERTIES LABELS "utest")
 
 # ── RINEX 4 test data fixture (decompress BRD400 NAV) ────────────────────────
 set(_RINEX4_DIR ${CMAKE_SOURCE_DIR}/tests/data/rinex4)
@@ -2617,6 +2653,136 @@ set_tests_properties(has_ppp_check PROPERTIES
     DEPENDS           has_ppp
     FIXTURES_REQUIRED has_data
     LABELS            "regression;has;ppp"
+)
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# BeiDou PPP-B2b regression (#417)
+# ═══════════════════════════════════════════════════════════════════════════════
+# Dataset: g5p3_296u-v1 (release asset of h-shiono/mrtklib-data, #386), one
+# hour of the kubolab mosaic-G5 capture of 2026-10-23 (19:59:30-21:00 GPST):
+# G5P3296u.sbf (observations, GPS/Galileo/BeiDou navigation, BDSRawB2b of the
+# GEOs C01-C04, BDSCNav1, GEORawL5 PRN 122 for SouthPAN PVS) with a synthetic
+# .tag, and BRD4296u.rnx (RINEX 4 broadcast navigation cut from
+# BRD400DLR_S_20262960000_01D_MN, for the BeiDou CNV1 records that
+# mrtk convert does not write). See tests/data/g5p3_296u/README.md.
+#
+# Post:      SBF --l6extract--> .b2b; SBF --convert--> RINEX obs;
+#            obs + BRD4296u.rnx + .b2b --post (correction = bds-b2b)--> float PPP
+# Real time: SBF replay --mrtk run--> float PPP (B-CNAV1 from BDSCNav1)
+#
+# Reference: the CR-G5 antenna reference point of the handover dataset
+# (tests/data/handover/README.md), LLH 35.666341805 139.792211221 59.7614.
+set(_B2BDATA ${CMAKE_BINARY_DIR}/tests/data/g5p3_296u)
+set(_B2B_REF_XYZ -3961905.1685 3348992.7560 3698212.4291)
+set(_B2B_TEMPLATE ${CMAKE_SOURCE_DIR}/tests/data/g5p3_296u/b2b_g5p3.toml.in)
+
+mrtk_dataset_setup_test(b2b_setup g5p3_296u-v1 ${_B2BDATA})
+set_tests_properties(b2b_setup PROPERTIES
+    FIXTURES_SETUP g5p3_296u_data
+    LABELS         "regression;b2b"
+)
+
+set(B2B_ROVER ${_B2BDATA}/G5P3296u.sbf)
+set(B2B_ATX ${CMAKE_SOURCE_DIR}/tests/data/claslib/igs14_L5copy.atx)
+set(_B2B_CONF ${CMAKE_BINARY_DIR}/b2b/b2b_g5p3.toml)
+configure_file(${_B2B_TEMPLATE} ${_B2B_CONF} @ONLY)
+
+# ── l6extract: SBF BDSRawB2b -> .b2b (GEO frames only) ────────────────────────
+# 13996 GEO records (C01-C04) in the hour; the IGSO/MEO B-CNAV3 frames
+# were dropped when the dataset was cut. A change signals a regression in the
+# B2b extractor or the GEO list.
+add_test(NAME b2b_extract
+    COMMAND bash -c "\"$0\" l6extract -in \"$1\" -o \"$2\" 2>&1 | grep -q '13996 GEO correction records'"
+        $<TARGET_FILE:mrtk>
+        ${_B2BDATA}/G5P3296u.sbf
+        ${CMAKE_BINARY_DIR}/b2b/l6
+    WORKING_DIRECTORY ${_B2BDATA}
+)
+set_tests_properties(b2b_extract PROPERTIES
+    FIXTURES_REQUIRED g5p3_296u_data
+    TIMEOUT           60
+    LABELS            "regression;b2b"
+)
+
+add_test(NAME b2b_convert
+    COMMAND $<TARGET_FILE:mrtk> convert -r sbf
+        -o ${_B2BDATA}/G5P3296u.obs -n ${_B2BDATA}/G5P3296u.nav
+        ${_B2BDATA}/G5P3296u.sbf
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+set_tests_properties(b2b_convert PROPERTIES
+    FIXTURES_REQUIRED g5p3_296u_data
+    TIMEOUT           120
+    LABELS            "regression;b2b"
+)
+
+add_test(NAME b2b_ppp
+    COMMAND $<TARGET_FILE:mrtk> post -k ${_B2B_CONF}
+        -o ${CMAKE_BINARY_DIR}/out_b2b_ppp.pos
+        ${_B2BDATA}/G5P3296u.obs
+        ${_B2BDATA}/BRD4296u.rnx
+        ${_B2BDATA}/G5P3296u.b2b
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+set_tests_properties(b2b_ppp PROPERTIES
+    FIXTURES_REQUIRED "g5p3_296u_data;claslib_data"
+    DEPENDS           "b2b_convert;b2b_extract"
+    TIMEOUT           180
+    LABELS            "regression;b2b;ppp"
+)
+
+# Thresholds: measured 2026-11-06 (igs14_L5copy.atx), mean of the last 20 min
+# vs the reference: post dENU +0.129/-0.050/+0.272 m (horiz 0.139, 3D 0.305),
+# replay +0.136/-0.043/+0.148 m (horiz 0.142, 3D 0.205). BeiDou-only float PPP
+# is still converging at the end of the hour (U), so the gates (0.30 m horiz,
+# 0.60 m 3D, ~2x) catch regressions, not the service accuracy. Post: 3499 of
+# 3557 epochs (0.984); the replay starts ~48 s later (first BDSCNav1 at
+# 20:00:32) and has 3451 (0.970) and is not bit-reproducible, hence 0.90.
+add_test(NAME b2b_ppp_check
+    COMMAND ${Python3_EXECUTABLE} ${_CHECK_HASPPP}
+        ${CMAKE_BINARY_DIR}/out_b2b_ppp.pos
+        --ref-xyz ${_B2B_REF_XYZ}
+        --expected-epochs 3557
+        --min-ratio 0.95
+        --interval 1
+        --last-min 20
+        --max-horiz 0.30
+        --max-3d 0.60
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+set_tests_properties(b2b_ppp_check PROPERTIES
+    DEPENDS           b2b_ppp
+    FIXTURES_REQUIRED g5p3_296u_data
+    LABELS            "regression;b2b;ppp"
+)
+
+# ── mrtk run: SBF replay at x20 ───────────────────────────────────────────────
+add_test(NAME rtkrcv_b2b
+    COMMAND bash ${_TESTCMAKE}/run_rtkrcv_test.sh
+        $<TARGET_FILE:mrtk> run ${CMAKE_SOURCE_DIR} 3400 20 ${_B2B_CONF} 52020 300
+        ${CMAKE_BINARY_DIR}/out_rtkrcv_b2b.pos
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+set_tests_properties(rtkrcv_b2b PROPERTIES
+    FIXTURES_REQUIRED "g5p3_296u_data;claslib_data"
+    TIMEOUT           420
+    LABELS            "regression;realtime;b2b"
+)
+add_test(NAME rtkrcv_b2b_check
+    COMMAND ${Python3_EXECUTABLE} ${_CHECK_HASPPP}
+        ${CMAKE_BINARY_DIR}/out_rtkrcv_b2b.pos
+        --ref-xyz ${_B2B_REF_XYZ}
+        --expected-epochs 3557
+        --min-ratio 0.90
+        --interval 1
+        --last-min 20
+        --max-horiz 0.30
+        --max-3d 0.60
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+set_tests_properties(rtkrcv_b2b_check PROPERTIES
+    DEPENDS           rtkrcv_b2b
+    FIXTURES_REQUIRED g5p3_296u_data
+    LABELS            "regression;realtime;b2b"
 )
 
 # ═══════════════════════════════════════════════════════════════════════════════

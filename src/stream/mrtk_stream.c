@@ -165,6 +165,7 @@ typedef struct {                /* ntrip control type */
     int ver_neg;                /* negotiated version after handshake */
     int chunked;                /* chunked transfer encoding flag */
     int v2_tried;               /* v2 attempt flag for AUTO fallback */
+    int req_v2;                 /* last server request sent was v2 (POST, chunked) */
     int nb;                     /* response buffer size */
     char url[MAXSTRPATH];       /* url for proxy */
     char host[256];             /* host header value (addr:port) */
@@ -1550,6 +1551,7 @@ static int reqntrip_s(ntrip_t* ntrip, char* msg) {
 
     tracet(NULL, 3, "reqntrip_s: send request state=%d ns=%d v2=%d\n", ntrip->state, (int)(p - buff), use_v2);
     tracet(NULL, 5, "reqntrip_s: n=%d buff=\n%s\n", (int)(p - buff), buff);
+    ntrip->req_v2 = use_v2;
     ntrip->state = 1;
     return 1;
 }
@@ -1634,7 +1636,9 @@ static int rspntrip_s(ntrip_t* ntrip, char* msg) {
     ntrip->buff[ntrip->nb] = '\0';
     tracet(NULL, 5, "rspntrip_s: n=%d buff=\n%s\n", ntrip->nb, ntrip->buff);
 
-    if ((p = strstr((char*)ntrip->buff, NTRIP_RSP_OK_SVR))) { /* v1 ok */
+    /* HTTP status/header text may contain "OK\r\n" too. Let the HTTP parser
+     * finish the headers and select v2 before enabling chunked output. */
+    if (strncmp((char*)ntrip->buff, "HTTP/", 5) && (p = strstr((char*)ntrip->buff, NTRIP_RSP_OK_SVR))) { /* v1 ok */
         q = (char*)ntrip->buff;
         p += strlen(NTRIP_RSP_OK_SVR);
         ntrip->nb -= (int)(p - q);
@@ -1652,15 +1656,17 @@ static int rspntrip_s(ntrip_t* ntrip, char* msg) {
         status = http_status_code(ntrip->buff, ntrip->nb);
 
         if (status == 200) {
+            /* chunked output only if the request advertised it: a v1 SOURCE
+             * answered with an HTTP status line stays v1 (raw body) */
             ntrip->state = 2;
-            ntrip->ver_neg = NTRIP_VER_2;
+            ntrip->ver_neg = ntrip->req_v2 ? NTRIP_VER_2 : NTRIP_VER_1;
             /* shift remaining data to start of buffer */
             ntrip->nb -= body_off;
             if (ntrip->nb > 0) {
                 memmove(ntrip->buff, ntrip->buff + body_off, ntrip->nb);
             }
             sprintf(msg, "%s/%s", ntrip->tcp->svr.saddr, ntrip->mntpnt);
-            tracet(NULL, 3, "rspntrip_s: v2 response ok nb=%d\n", ntrip->nb);
+            tracet(NULL, 3, "rspntrip_s: http response ok ver=%d nb=%d\n", ntrip->ver_neg, ntrip->nb);
             return 1;
         }
         /* HTTP error response */

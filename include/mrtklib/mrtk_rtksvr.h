@@ -30,6 +30,7 @@
 extern "C" {
 #endif
 
+#include "mrtklib/mrtk_b2b.h"
 #include "mrtklib/mrtk_clas.h"
 #include "mrtklib/mrtk_context.h"
 #include "mrtklib/mrtk_foundation.h"
@@ -93,6 +94,7 @@ typedef struct {                      /* RTK server type */
     mrtk_ctx_t* ctx;                  /* runtime context */
     clas_ctx_t* clas;                 /* CLAS CSSR decoder context (NULL if unused) */
     has_t* has;                       /* Galileo HAS decoder context (NULL if unused) */
+    b2b_t* b2b;                       /* BeiDou PPP-B2b decoder context (NULL if unused) */
     mdcl6d_t* mdciono;                /* MADOCA-PPP L6D iono decoder contexts (MIONO_MAX_PRN, NULL if unused) */
 } rtksvr_t;
 

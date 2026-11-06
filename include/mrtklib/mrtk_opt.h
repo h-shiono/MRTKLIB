@@ -333,6 +333,7 @@ typedef struct prcopt_t {         /* processing options type */
     char bds2prn[256];  /* BDS-2 satellites in PRN 1-18, e.g. "C09,C10" ("": no BDS-2) */
     char bds3igso[256]; /* BDS-3 IGSO satellites ("": C06-C08) */
     int bds2prn_set;    /* bds2prn given by the configuration (0: not given, see bds2prn_warning()) */
+    char bdsgeo[256];   /* BDS-3 GEO satellites, PPP-B2b transmitters ("": C01-C04; #417, appended) */
 } prcopt_t;
 
 /* enhanced_spp_seed profiles (applied to the PPP-RTK/VRS a-priori SPP seed only).
@@ -410,7 +411,7 @@ extern int resolve_correction(prcopt_t* opt, char* msg, size_t msgsz);
 /**
  * @brief Apply the BeiDou PRN-reassignment options process-wide.
  *
- * Calls set_bds2prn(opt->bds2prn) and set_bds3igso(opt->bds3igso). With warn,
+ * Calls set_bds2prn(opt->bds2prn), set_bds3igso(opt->bds3igso) and set_bdsgeo(opt->bdsgeo). With warn,
  * also prints to stderr when a list is invalid, or when BeiDou is enabled
  * (opt->navsys) but bds2prn was not given by the configuration (opt->bds2prn_set).
  * @param[in] opt   Processing options

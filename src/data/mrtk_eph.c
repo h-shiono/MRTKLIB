@@ -25,6 +25,7 @@
 
 #include <math.h>
 
+#include "mrtklib/mrtk_const.h"
 #include "mrtklib/mrtk_mat.h"
 #include "mrtklib/mrtk_nav.h"
 #include "mrtklib/mrtk_trace.h"
@@ -91,7 +92,9 @@
 #define MAXECORSSR 10.0            /* max orbit correction of ssr (m) */
 #define MAXCCORSSR (1E-6 * CLIGHT) /* max clock correction of ssr (m) */
 #define MAXAGESSR 60.0             /* max age of ssr orbit and clock (s) */
+#define MAXAGESSR_UDI 120.0        /* cap of the udi-extended ssr orbit age (s) */
 #define MAXAGESSR_HRCLK 10.0       /* max age of ssr high-rate clock (s) */
+#define MAXAGESSR_B2BCLK 30.0      /* max age of PPP-B2b clock correction (s) */
 #define STD_BRDCCLK 30.0           /* error of broadcast clock (m) */
 
 /*============================================================================
@@ -256,7 +259,7 @@ extern double eph2clk(gtime_t time, const eph_t* eph) {
  *          (tgd or bgd)
  *-----------------------------------------------------------------------------*/
 extern void eph2pos(gtime_t time, const eph_t* eph, double* rs, double* dts, double* var) {
-    double tk, M, E, Ek, sinE, cosE, u, r, i, O, sin2u, cos2u, x, y, sinO, cosO, cosi, mu, omge;
+    double tk, M, E, Ek, sinE, cosE, u, r, i, O, sin2u, cos2u, x, y, sinO, cosO, cosi, mu, omge, Ak;
     double xg, yg, zg, sino, coso;
     int n, sys, prn;
 
@@ -282,7 +285,13 @@ extern void eph2pos(gtime_t time, const eph_t* eph, double* rs, double* dts, dou
             omge = OMGE;
             break;
     }
-    M = eph->M0 + (sqrt(mu / (eph->A * eph->A * eph->A)) + eph->deln) * tk;
+    /* CNAV-family ephemerides (GPS CNAV, BDS B-CNAV1/2/3) broadcast a
+     * time-varying semi-major axis A(tk) = A0 + Adot*tk and a mean-motion
+     * rate correction n = n0 + deln + ndot/2*tk (e.g. BDS-SIS-ICD-B1C-1.0
+     * Table 7-2). Legacy LNAV/D1/D2/INAV records decode with Adot=ndot=0,
+     * which reduces both expressions to the previous code exactly. */
+    Ak = eph->A + eph->Adot * tk;
+    M = eph->M0 + (sqrt(mu / (eph->A * eph->A * eph->A)) + eph->deln + 0.5 * eph->ndot * tk) * tk;
 
     for (n = 0, E = M, Ek = 0.0; fabs(E - Ek) > RTOL_KEPLER && n < MAX_ITER_KEPLER; n++) {
         Ek = E;
@@ -298,7 +307,7 @@ extern void eph2pos(gtime_t time, const eph_t* eph, double* rs, double* dts, dou
     trace(NULL, 4, "kepler: sat=%2d e=%8.5f n=%2d del=%10.3e\n", eph->sat, eph->e, n, E - Ek);
 
     u = atan2(sqrt(1.0 - eph->e * eph->e) * sinE, cosE - eph->e) + eph->omg;
-    r = eph->A * (1.0 - eph->e * cosE);
+    r = Ak * (1.0 - eph->e * cosE);
     i = eph->i0 + eph->idot * tk;
     sin2u = sin(2.0 * u);
     cos2u = cos(2.0 * u);
@@ -501,7 +510,18 @@ eph_t* seleph(gtime_t time, int sat, int iode, const nav_t* nav) {
             continue;
         }
         if (sys == SYS_CMP) {
-            if (iode >= 0 && ((int)nav->eph[i].toes % 2048) != (iode * 8) % 2048) {
+            if (sel == 1) {
+                /* B-CNAV (B1C/B2a) selection for PPP-B2b: corrections reference
+                 * the CNAV IODC/IODE ([1 in mrtk_b2b.c] 6.2.3.2), so match the
+                 * explicit iode of CNAV1/CNAV2 records (RINEX 4 types CNV1/CNV2;
+                 * eph->type 2/3) instead of the D1/D2 toes-derived CSSR IODE. */
+                if (nav->eph[i].type != 2 && nav->eph[i].type != 3) {
+                    continue;
+                }
+                if (iode >= 0 && nav->eph[i].iode != iode) {
+                    continue;
+                }
+            } else if (iode >= 0 && ((int)nav->eph[i].toes % 2048) != (iode * 8) % 2048) {
                 continue;
             }
         } else {
@@ -539,7 +559,8 @@ eph_t* seleph(gtime_t time, int sat, int iode, const nav_t* nav) {
          * eph[]) before the CSSR SSR transitions to that IODE; without this
          * fallback, seleph() returns NULL for ~55 s on every Galileo IODnav
          * update, causing periodic DGPS dips. See lessons.md L-041. */
-        int slot_count = (sys == SYS_GAL) ? 2 : 1; /* GAL has I/NAV + F/NAV */
+        /* GAL has I/NAV + F/NAV, BDS B-CNAV1 (PPP-B2b) is in set 1 in real time */
+        int slot_count = (sys == SYS_GAL || (sys == SYS_CMP && sel == 1)) ? 2 : 1;
         int k;
         for (k = 0; k < slot_count; k++) {
             int slot = (sat - 1) + MAXSAT * k;
@@ -548,7 +569,11 @@ eph_t* seleph(gtime_t time, int sat, int iode, const nav_t* nav) {
                 continue;
             }
             if (sys == SYS_CMP) {
-                if (((int)e->toes % 2048) != (iode * 8) % 2048) {
+                if (sel == 1) {
+                    if ((e->type != 2 && e->type != 3) || e->iode != iode) {
+                        continue;
+                    }
+                } else if (((int)e->toes % 2048) != (iode * 8) % 2048) {
                     continue;
                 }
             } else if (e->iode != iode) {
@@ -770,7 +795,7 @@ static int satpos_ssr(gtime_t time, gtime_t teph, int sat, const nav_t* nav, int
                       double* var, int* svh) {
     const ssr_t* ssr;
     eph_t* eph;
-    double t1, t2, t3, er[3], ea[3], ec[3], rc[3], deph[3], dclk, dant[3] = {0}, tk;
+    double t1, t2, t3, er[3], ea[3], ec[3], rc[3], deph[3], dclk, dant[3] = {0}, tk, maxage1, maxage2;
     int i, sys;
 
     trace(NULL, 4, "satpos_ssr: time=%s sat=%2d\n", time_str(time, 3), sat);
@@ -796,8 +821,23 @@ static int satpos_ssr(gtime_t time, gtime_t teph, int sat, const nav_t* nav, int
     t2 = timediff(time, ssr->t0[1]);
     t3 = timediff(time, ssr->t0[2]);
 
-    /* ssr orbit and clock correction (ref [4]) */
-    if (fabs(t1) > MAXAGESSR || fabs(t2) > MAXAGESSR) {
+    /* ssr orbit and clock correction (ref [4]).
+     * The orbit age limit honours the service-declared update interval when it
+     * exceeds MAXAGESSR: PPP-B2b broadcasts orbit corrections nominally valid
+     * for 96 s (udi[0]=96, BDS-SIS-ICD-PPP-B2b-1.0 Table 6-12) and updates
+     * each satellite roughly every 57 s, so a fixed 60 s gate rejects healthy
+     * corrections. Sources with udi[0] <= MAXAGESSR (MADOCA, HAS) keep the
+     * previous behaviour, and MAXAGESSR_UDI caps the extension so an RTCM-SSR
+     * stream declaring a long udint (up to 10800 s) cannot make hours-old
+     * orbits acceptable. */
+    maxage1 = ssr->udi[0] > MAXAGESSR ? (ssr->udi[0] < MAXAGESSR_UDI ? ssr->udi[0] : MAXAGESSR_UDI) : MAXAGESSR;
+    /* PPP-B2b clocks: Table 6-12 gives a 12 s nominal validity, but the live
+     * corrections arrive 6-8 s after their epoch and are renewed every 6 s, so
+     * a 12 s age limit rejects healthy clocks. MAXAGESSR_B2BCLK (as cssrlib's
+     * clock limit) still stops a clock that is no longer renewed sooner than
+     * MAXAGESSR. Other sources keep MAXAGESSR. */
+    maxage2 = ssr->vendor == SSR_VENDOR_B2B ? MAXAGESSR_B2BCLK : MAXAGESSR;
+    if (fabs(t1) > maxage1 || fabs(t2) > maxage2) {
         trace(NULL, 2, "age of ssr error: %s sat=%2d t=%.0f %.0f\n", time_str(time, 0), sat, t1, t2);
         *svh = -1;
         return 0;

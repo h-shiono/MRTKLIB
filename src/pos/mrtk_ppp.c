@@ -108,6 +108,7 @@
 #include "mrtklib/mrtk_antenna.h"
 #include "mrtklib/mrtk_astro.h"
 #include "mrtklib/mrtk_atmos.h"
+#include "mrtklib/mrtk_b2b.h"
 #include "mrtklib/mrtk_bias_sinex.h"
 #include "mrtklib/mrtk_const.h"
 #include "mrtklib/mrtk_context.h"
@@ -677,11 +678,12 @@ static int corr_meas(const obsd_t* obs, const nav_t* nav, const double* azel, co
              * valid SSR bias is dropped (required for PPP-AR, MADOCALIB design).
              * Note: igs-rts does NOT take this path -- it uses the RTKLIB-style
              * measurement model above (RTCM-SSR has a different bias convention). */
-            ssrcode =
-                (corr == CORR_GAL_HAS) ? has_sel_biascode(sys, obs->code[i]) : mcssr_sel_biascode(sys, obs->code[i]);
+            ssrcode = (corr == CORR_GAL_HAS)   ? has_sel_biascode(sys, obs->code[i])
+                      : (corr == CORR_BDS_B2B) ? b2b_sel_biascode(sys, obs->code[i])
+                                               : mcssr_sel_biascode(sys, obs->code[i]);
 
             /* for backward compatible to IS-QZSS-MDC-003 (MADOCA-specific) */
-            if (corr != CORR_GAL_HAS && sys == SYS_GPS && ssrcode == CODE_L5Q) {
+            if (corr != CORR_GAL_HAS && corr != CORR_BDS_B2B && sys == SYS_GPS && ssrcode == CODE_L5Q) {
                 if (nav->ssr_ch[0][obs->sat - 1].pbias[ssrcode - 1] == 0.0 &&
                     nav->ssr_ch[0][obs->sat - 1].cbias[ssrcode - 1] == 0.0) {
                     ssrcode = CODE_L5X;
@@ -694,6 +696,15 @@ static int corr_meas(const obsd_t* obs, const nav_t* nav, const double* azel, co
                 }
                 if (nav->ssr_ch[0][obs->sat - 1].cbias[ssrcode - 1] != 0.0) {
                     cb = nav->ssr_ch[0][obs->sat - 1].cbias[ssrcode - 1];
+                }
+            }
+            /* PPP-B2b code biases are valid for udi[4] (86400 s, ICD Table 6-12); an
+             * older or absent MT3 drops the pseudorange like a missing bias */
+            if (corr == CORR_BDS_B2B && ssrcode != CODE_NONE) {
+                const ssr_t* ssr = nav->ssr_ch[0] + obs->sat - 1;
+                if (!ssr->t0[4].time || timediff(obs->time, ssr->t0[4]) > ssr->udi[4]) {
+                    ssrcode = CODE_NONE;
+                    cb = pb = 0.0;
                 }
             }
             if (cb != 0.0) {
@@ -720,10 +731,10 @@ static int corr_meas(const obsd_t* obs, const nav_t* nav, const double* azel, co
                 L[i] += pb;
                 trace(NULL, tl > 0 ? 4 : 4, "corr_meas: %s pbias %s obscode=L%s ssrcode=L%s pbias=%7.3f\n", tstr, satid,
                       code2obs(obs->code[i]), code2obs(ssrcode), pb);
-            } else if (sys != SYS_GLO && corr != CORR_GAL_HAS) {
-                /* HAS Initial Service may broadcast no phase bias; for float PPP the
-                 * carrier is kept and the float ambiguity absorbs the satellite phase
-                 * bias (phase bias is optional for HAS, unlike the required code bias). */
+            } else if (sys != SYS_GLO && corr != CORR_GAL_HAS && corr != CORR_BDS_B2B) {
+                /* HAS Initial Service and PPP-B2b broadcast no phase biases; for float
+                 * PPP the carrier is kept and the float ambiguity absorbs the satellite
+                 * phase bias (the code bias remains required for both services). */
                 if (ssrcode == CODE_NONE || !nav->ssr_ch[0][obs->sat - 1].vpbias[ssrcode - 1]) {
                     L[i] = 0.0;
                     trace(NULL, tl > 0 ? 3 : 4,
