@@ -38,6 +38,11 @@
  *        (12) ch0's next clock after that stays in week+1 (a shared reference
  *             was moved to week+2: clocks a week ahead, never found again)
  *        (13) ch1 reaches week+1 with its own next ST1
+ *       A channel first received after the rollover has no earlier TOW, so
+ *       its first ST1 takes the week of the channel already decoding:
+ *        (15) ch1's first ST1 at TOW 90 after ch0 rolled over: week+1
+ *        (16) ch1's first ST1 at TOW 604790 just after ch0's week-top ST1:
+ *             week, not week+1
  *
  * #393  The phase discontinuity indicators of ST5 (global) and ST6 (network)
  *       phase biases reach the bias bank, each in its own CLAS_DISC_* field:
@@ -474,6 +479,52 @@ static void test_week_ref_channels(void) {
     free_ctx(ctx);
 }
 
+static void test_week_ref_late_channel(void) {
+    clas_ctx_t* ctx = new_ctx();
+    double tow;
+    int week;
+    char msg[160];
+
+    /* ch0 decodes across the rollover, ch1 has received nothing yet */
+    sb_reset();
+    put_mask(604770);
+    put_clock(3575);
+    input_subframe_ch(ctx, 0, NULL);
+    sb_reset();
+    put_mask(30);
+    put_clock(35);
+    input_subframe_ch(ctx, 0, NULL);
+
+    sb_reset();
+    put_mask(90);
+    put_clock(95);
+    input_subframe_ch(ctx, 1, NULL);
+    tow = time2gpst(ctx->l6buf[1].time, &week);
+    sprintf(msg, "(15) ch1 first ST1 after ch0's rollover: clock dated week+1 TOW 95 (got week %+d TOW %.0f)",
+            week - WEEK, tow);
+    CHECK(week == WEEK + 1 && tow == 95.0, msg);
+    free_ctx(ctx);
+
+    ctx = new_ctx();
+    sb_reset();
+    put_mask(604770);
+    put_clock(3575);
+    input_subframe_ch(ctx, 0, NULL);
+    sb_reset();
+    put_mask(30);
+    put_clock(35);
+    input_subframe_ch(ctx, 0, NULL);
+    sb_reset();
+    put_mask(604790);
+    put_clock(3595);
+    input_subframe_ch(ctx, 1, NULL);
+    tow = time2gpst(ctx->l6buf[1].time, &week);
+    sprintf(msg, "(16) ch1 first ST1 at the end of the week: clock dated week TOW 604795 (got week %+d TOW %.0f)",
+            week - WEEK, tow);
+    CHECK(week == WEEK && tow == 604795.0, msg);
+    free_ctx(ctx);
+}
+
 /* phase discontinuity indicator of G01 L1C in the bias bank set (tow, network), -1 if none */
 static int bank_discnt(const clas_ctx_t* ctx, int tow, int network) {
     int i, j;
@@ -518,6 +569,7 @@ int main(void) {
     test_hour_wrap();
     test_l6prn();
     test_week_ref_channels();
+    test_week_ref_late_channel();
     test_discnt();
     printf("%s (%d failure%s)\n", fails ? "FAILED" : "PASSED", fails, fails == 1 ? "" : "s");
     return fails ? 1 : 0;

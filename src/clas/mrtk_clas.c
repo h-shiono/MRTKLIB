@@ -279,6 +279,32 @@ static void check_week_ref(clas_l6buf_t* l6, int tow, int i) {
     }
 }
 
+/* the week set at startup is stale for a channel first received after a week
+ * rollover, and with no earlier TOW of its own the rollover is not detected:
+ * its first ST1 takes the week of a channel already decoding */
+static void anchor_week_ref(clas_ctx_t* ctx, int ch, int tow) {
+    const clas_l6buf_t* o;
+    int i, j, d, week;
+
+    for (j = 0; j < CLAS_CH_NUM; j++) {
+        o = &ctx->l6buf[j];
+        if (j == ch || o->tow_ref[CSSR_REF_MASK] == -1) {
+            continue;
+        }
+        week = o->week_ref[CSSR_REF_MASK];
+        d = tow - o->tow_ref[CSSR_REF_MASK];
+        if (d < -86400 * 7 / 2) {
+            week++;
+        } else if (d > 86400 * 7 / 2) {
+            week--;
+        }
+        for (i = 0; i < CSSR_REF_MAX; i++) {
+            ctx->l6buf[ch].week_ref[i] = week;
+        }
+        return;
+    }
+}
+
 /* signal mask to per-satellite signal indices (position-based) */
 static int sigmask2sig_p(int nsat, int* sat, uint16_t* sigmask, uint16_t* cellmask, int* nsig, int* sig) {
     int j, k, id, sys, sys_p = -1, nsig_s = 0, code[CSSR_MAX_SIG];
@@ -1316,7 +1342,11 @@ extern void clas_restore_backup(clas_ctx_t* ctx, gtime_t time, clas_grid_t* grid
     }
     for (ch = 0; ch < nch; ch++) {
         clas_bank_ctrl_t* bank = ctx->bank[ch];
+        /* a channel without a usable backup still holds the snapshot of an
+         * earlier epoch (a failed bank fetch leaves current untouched), maybe
+         * from the previous facility: drop it so the caller does not apply it */
         if (!backup_usable(ctx, ch, time)) {
+            clas_clear_current(ctx, ch);
             continue;
         }
         memcpy(&ctx->current[ch], &ctx->backup[ch], sizeof(clas_corr_t));
@@ -1912,6 +1942,9 @@ static int decode_cssr_mask(clas_ctx_t* ctx, int ch, clas_l6buf_t* l6, int i0) {
 
     i = decode_cssr_head(ctx, l6, cssr, &sync, &tow, &iod, &udint, &ngnss, i0);
     l6->tow0 = (int)(floor(tow / 3600.0) * 3600.0);
+    if (l6->tow_ref[CSSR_REF_MASK] == -1) {
+        anchor_week_ref(ctx, ch, tow);
+    }
     check_week_ref(l6, tow, CSSR_REF_MASK);
     l6->time = gpst2time(l6->week_ref[CSSR_REF_MASK], tow);
 

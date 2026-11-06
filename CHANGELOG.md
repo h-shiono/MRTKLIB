@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.7.15] - 2026-11-06
+
+**CLAS real-time robustness, part 2: phase-bias discontinuities, L6 channel
+management and partial-AR integrity.** PPP-RTK honours the CSSR phase
+discontinuity indicator, the leading cause of Single epochs in 5.9 days of
+live data (#393). With `l6_merge`, a channel resuming across a GPS week
+rollover no longer stops the corrections until restart (#436), and a silent
+channel no longer counts as a correction source (#443). A single-channel L6
+lock moves from a degraded PRN to a clean one (#414). Partial AR restores a
+satellite's pre-trial valid flags (#413), and VRS-RTK partial AR no longer
+writes `rtk->ssat[-1]` (#412). MADOCA-PPP L6E / L6D-iono messages are no
+longer decoded across a lost frame (#363). `mrtk cssr2rtcm3` bridges a lost
+correction set with the last good one, outputs the latest PVT epoch, and
+takes SBF input only (**breaking CLI change**: raw L6 input, `-2ch` and
+`-pos` removed) (#442). The NMEA GGA station id names the CLAS L6 source.
+RT replay tests run concurrently, each in its own working directory (#448).
+claslib post-processing is byte-identical except `st12` / `l1cl5`
+(< 0.1 mm, #393); VRS-RTK, `ssr2obs` and `ssr2osr` are byte-identical.
+ABI changes in `clas_ctx_t`, `clas_l6buf_t`, `clas_bias_bank_t`,
+`clas_corr_t`, `clas_clock_bank_t`, `sol_t`, `solopt_t` and `mdcl6d_t`;
+API changes in `clas_route_l6frame()` and `decode_qzss_l6frame()`. The
+#381 reset loop is gone on current data without a change of its own (fixed by
+the v0.7.14 #363 fix).
+
 ### CLAS
 
 - **Real-time L6 demux leaves a degraded PRN**
@@ -64,6 +88,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   of the same Single period as in the baseline, which started 30 s earlier.
   Post-processing and `l6_merge = 0` are unaffected: only the RT demux sets
   the lock time.
+- **`l6_merge = 1`: a BackupCSSR restore no longer applies the stale set of
+  a channel without a usable backup.** When both merge channels fail to
+  supply corrections in an epoch (or the grid lookup fails), PPP-RTK
+  restores the last good set of each channel whose backup is usable. A
+  channel whose backup was skipped, because its facility had changed since
+  (new in this release, #442) or because the backup was older than 180 s,
+  kept its `current` set from an earlier epoch, since a failed bank fetch
+  leaves it untouched, and that set was then applied to `nav->ssr_ch`:
+  after a facility change, the previous facility's corrections. The skipped
+  channel is now cleared, as a channel that fails a normal fetch already
+  is. `l6_merge = 0`, `mrtk cssr2rtcm3`, `ssr2obs` and `ssr2osr` are not
+  affected (one channel: no restore without a usable backup). New case (8)
+  in `utest_clas_bank` (fails without the fix). Reported in a cross-review
+  of the release candidate.
 - **Partial AR restores a satellite as it was before the trial exclusion**
   ([#413](https://github.com/h-shiono/MRTKLIB/issues/413)). Both CLAS
   engines try excluding one satellite at a time; after a failed trial they
@@ -121,7 +159,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   alone. The facility is the pattern-normalized id, not the raw header bits,
   which differ between transmit patterns for the same facility. On by
   default; `[output] clas_nmea_source_id = false` writes `0000` again. VRS-RTK
-  is not covered. No positioning change.
+  is not covered, and the GGA that `mrtk run` sends to an NTRIP caster still
+  writes `0000`. No positioning change.
 - `sol_t`, `solopt_t`, `clas_clock_bank_t` and `clas_corr_t` gain fields
   (ABI change); new API `clas_nmea_refid()`.
 - **Real-time `l6_merge`: a channel resuming across a GPS week rollover no
@@ -140,7 +179,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   166 epochs; 98.87 % without merge). With `l6_merge = 0` and in claslib
   post-processing the output is byte-identical. New API `clas_set_week_ref()`
   / `clas_week_ref_isset()`. `week_ref`, `tow_ref` and the unused `obs_ref`
-  leave `clas_ctx_t` (API/ABI change).
+  leave `clas_ctx_t` (API/ABI change). The week is set once, at startup, so a
+  channel first received after a later rollover has no earlier TOW to detect
+  it from: its first ST1 now takes the week of the channel already decoding
+  (Greptile #454).
 
 ### MADOCA-PPP
 
@@ -269,6 +311,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and `rtkrcv_rt` drops epochs, so the documented default is `-j16` on this
   8-core host. CI is unchanged (`-j4 -LE realtime`). No change to the
   positioning algorithms; RT replay results can differ under load as above.
+
+### Documentation
+
+- BeiDou PRN reassignment guide: cites the official China Satellite
+  Navigation Office table (2026-03-20), adds the GEO orbital slots and the
+  C59 ↔ C62 swap of 2026-03-31 that matters for PRN-based GEO matching
+  (PR #440).
+- `docs/reference/icd/`: the ICD catalog is grouped by issuer, lists the
+  newly held documents (IS-QZSS-PNT-006, MDC-005 / SAS-002 drafts, Galileo
+  OSNMA, SouthPAN SDDs, RINEX 3.01–4.02), and `.gitignore` now covers PDFs in
+  the issuer subdirectories (PR #441).
 
 ## [v0.7.14] - 2026-11-02
 
