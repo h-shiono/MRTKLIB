@@ -557,6 +557,31 @@ void clas_osr_compensatedisp(clas_corr_t* corr, const int* index, const obsd_t* 
  * clas_osr_corrmeas -- Ionosphere/Bias/Antenna Corrected Measurements
  *===========================================================================*/
 
+extern int clas_osr_bias_smode(const clas_corr_t* corr, int sat, uint8_t code, const double* pbias) {
+    int j, smode, exact = 0, sys = satsys(sat, NULL), nsig = count_nsig(corr->smode[sat - 1]);
+
+    /* pass 1: exact code match (preferred) */
+    for (j = 0; j < nsig && j < MAXCODE; j++) {
+        smode = corr->smode[sat - 1][j];
+        if (smode != 0 && code == smode) {
+            exact = smode;
+            break;
+        }
+    }
+    if (exact && pbias[exact - 1] != CLAS_CSSRINVALID) {
+        return exact;
+    }
+    /* pass 2: same-frequency fallback (e.g. L2X<->L2W, L1X<->L1C), also taken
+     * when the exact match carries an invalid phase bias */
+    for (j = 0; j < nsig && j < MAXCODE; j++) {
+        smode = corr->smode[sat - 1][j];
+        if (smode != 0 && code_on_same_freq(sys, code, smode)) {
+            return smode;
+        }
+    }
+    return exact;
+}
+
 /**
  * @brief Assemble per-satellite ionosphere/bias/antenna corrections.
  *
@@ -586,7 +611,7 @@ int clas_osr_corrmeas(const obsd_t* obs, nav_t* nav, const double* pos, const do
     double vari, dant[NFREQPCV] = {0}, compL[NFREQ + NEXOBS] = {0};
     double stec = 0.0, rate, t5, t6;
     double pbias[NFREQ + NEXOBS] = {0}, cbias[NFREQ + NEXOBS] = {0};
-    int i, j, sat, smode, nsig, nf = opt->nf;
+    int i, sat, smode, nf = opt->nf;
     int flag;
     double dt;
 
@@ -611,31 +636,10 @@ int clas_osr_corrmeas(const obsd_t* obs, nav_t* nav, const double* pos, const do
     }
 
     /* decode phase and code bias (non-VRS / CSSR path) */
-    nsig = count_nsig(corr->smode[sat - 1]);
-    {
-        int sys = satsys(sat, NULL);
-        for (i = 0; i < nf; i++) {
-            /* pass 1: exact code match (preferred) */
-            for (j = 0; j < nsig && j < MAXCODE; j++) {
-                smode = corr->smode[sat - 1][j];
-                if (smode == 0) continue;
-                if (obs->code[i] == smode) {
-                    pbias[i] = nav->ssr_ch[ch][sat - 1].pbias[smode - 1];
-                    cbias[i] = nav->ssr_ch[ch][sat - 1].cbias[smode - 1];
-                    break;
-                }
-            }
-            if (pbias[i] != CLAS_CSSRINVALID) continue;
-            /* pass 2: same-frequency fallback (e.g. L2X↔L2W, L1X↔L1C) */
-            for (j = 0; j < nsig && j < MAXCODE; j++) {
-                smode = corr->smode[sat - 1][j];
-                if (smode == 0) continue;
-                if (code_on_same_freq(sys, obs->code[i], smode)) {
-                    pbias[i] = nav->ssr_ch[ch][sat - 1].pbias[smode - 1];
-                    cbias[i] = nav->ssr_ch[ch][sat - 1].cbias[smode - 1];
-                    break;
-                }
-            }
+    for (i = 0; i < nf; i++) {
+        if ((smode = clas_osr_bias_smode(corr, sat, obs->code[i], nav->ssr_ch[ch][sat - 1].pbias)) != 0) {
+            pbias[i] = nav->ssr_ch[ch][sat - 1].pbias[smode - 1];
+            cbias[i] = nav->ssr_ch[ch][sat - 1].cbias[smode - 1];
         }
     }
 
@@ -679,7 +683,9 @@ int clas_osr_corrmeas(const obsd_t* obs, nav_t* nav, const double* pos, const do
           "clas_osr_corrmeas: pbias_tow=%.1f, cbias_tow=%.1f, "
           "dt=%.1f\n",
           time2gpst(nav->ssr_ch[ch][sat - 1].t0[5], NULL), time2gpst(nav->ssr_ch[ch][sat - 1].t0[4], NULL), dt);
-    if ((!opt->posopt[9] && fabs(dt) > 0.0) || (opt->posopt[9] && (dt > 0.0 || dt < -30.0))) {
+    /* cbias may be newer than pbias by up to 30 s: the bank substitutes the
+     * next cbias when the one matching pbias was lost (#406) */
+    if (dt > 0.0 || dt < -30.0) {
         trace(NULL, 2, "inconsist correction (pbias-cbias): time=%s sat=%2d dt=%.2f\n", time_str(obs->time, 0), sat,
               dt);
         return 0;
@@ -1563,25 +1569,17 @@ int clas_ssr2osr(rtk_t* rtk, obsd_t* obs, int n, nav_t* nav, clas_osrd_t* osr, i
     corr = &clas->current[ch];
     ecef2pos(rtk->x, pos);
 
-    if ((nn = clas_get_grid_index(clas, pos, grid, 0, obs[0].time)) <= 0) {
-        trace(NULL, 2, "clas_ssr2osr: no valid grid\n");
-        free(rs);
-        free(dts);
-        free(var);
-        free(e);
-        free(azel);
-        rtk->sol.stat = SOLQ_SINGLE;
-        return 0;
-    }
-
     /* re-fetch corrections closest to observation time each epoch,
      * falling back to L6 buffer time if obs lookup fails. current[ch] is a
      * bank snapshot, not a live decode target, so a fetch gated on network
-     * change would keep serving the first correction set until it ages out. */
-    if (grid->network > 0) {
-        if (clas_bank_get_close(clas, obs[0].time, grid->network, ch, corr) != 0 &&
-            clas_bank_get_close(clas, clas->l6buf[ch].time, grid->network, ch, corr) != 0) {
-            trace(NULL, 2, "clas_ssr2osr: bank lookup failed\n");
+     * change would keep serving the first correction set until it ages out.
+     * When there is no grid or no complete correction set (e.g. a subframe
+     * discarded after a lost frame, #363), bridge with the last good set for
+     * up to 180 s, as upstream cssr2osr.c and PPP-RTK do (#442). Only ch 0 is
+     * fetched here, so the backup is single-channel (l6mrg = 0). */
+    if ((nn = clas_get_grid_index(clas, pos, grid, 0, obs[0].time)) <= 0) {
+        if (!clas_backup_valid(clas, obs[0].time, 0)) {
+            trace(NULL, 2, "clas_ssr2osr: no valid grid\n");
             free(rs);
             free(dts);
             free(var);
@@ -1590,7 +1588,27 @@ int clas_ssr2osr(rtk_t* rtk, obsd_t* obs, int n, nav_t* nav, clas_osrd_t* osr, i
             rtk->sol.stat = SOLQ_SINGLE;
             return 0;
         }
-        clas_check_grid_status(clas, corr, ch);
+        trace(NULL, 3, "clas_ssr2osr: no valid grid, use backup\n");
+        clas_restore_backup(clas, obs[0].time, grid, 0);
+    } else if (grid->network > 0) {
+        if (clas_bank_get_close(clas, obs[0].time, grid->network, ch, corr) != 0 &&
+            clas_bank_get_close(clas, clas->l6buf[ch].time, grid->network, ch, corr) != 0) {
+            if (!clas_backup_valid(clas, obs[0].time, 0)) {
+                trace(NULL, 2, "clas_ssr2osr: bank lookup failed\n");
+                free(rs);
+                free(dts);
+                free(var);
+                free(e);
+                free(azel);
+                rtk->sol.stat = SOLQ_SINGLE;
+                return 0;
+            }
+            trace(NULL, 3, "clas_ssr2osr: bank lookup failed, use backup\n");
+            clas_restore_backup(clas, obs[0].time, grid, 0);
+        } else {
+            clas_check_grid_status(clas, corr, ch);
+            clas_backup_current(clas, grid, 0);
+        }
     }
     clas_update_global(nav, corr, ch);
     clas_update_local(nav, corr, ch);

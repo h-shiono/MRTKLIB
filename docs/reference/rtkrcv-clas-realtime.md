@@ -249,25 +249,33 @@ With `--sync-tag`, it aligns the L6 tag to a master tag file:
 
 ## CTest Integration
 
-Two CLAS real-time tests are registered in `CMakeLists.txt`:
+The CLAS real-time tests are registered in `CMakeLists.txt` with the label
+`realtime`:
 
 ```bash
-cd build && ctest -R rtkrcv_rt_clas --output-on-failure
+cd build && ctest -R 'rtkrcv_(rt_clas|clas_l6gap|handover)' --output-on-failure
 ```
 
 | Test | Config | Dataset | Wall time |
 |------|--------|---------|-----------|
 | `rtkrcv_rt_clas` | `rtkrcv.toml` | 2019/239 (1ch) | ~370s at x10 |
 | `rtkrcv_rt_clas_2ch` | `rtkrcv_2ch.toml` | 2025/157 (2ch) | ~372s at x10 |
+| `rtkrcv_rt_clas_2ch_merge` (+ `_nsat_check`) | `rtkrcv_2ch.toml`, `l6_merge = 1` | 2025/157 (2ch) | — |
+| `rtkrcv_rt_clas_sf1gap` (+ `_setup`, `_check`) | `rtkrcv.toml` | 2019/239 with subframes 1 removed (#406) | — |
+| `rtkrcv_clas_l6gap_{nomerge,merge}` (+ `_check`) | `tests/data/handover/rtkrcv_handover.toml.in` | `clas_l6gap-v1`, live capture with L6 frame gaps (#363) | — |
+| `rtkrcv_handover_*` (+ `_check`) | `tests/data/handover/rtkrcv_handover.toml.in`, per case | `handover-v1`, QZSS L6 handovers (#372) | — |
 
-Each test:
-1. Extracts test data from `claslib_testdata.tar.gz` (fixture)
-2. Patches the TOML config with a temporary output path
-3. Runs `mrtk run` at x10 speed
-4. Compares output line count against reference (>=90% threshold)
+The first two tests:
+1. Extract test data from `claslib_testdata.tar.gz` (fixture)
+2. Patch the TOML config with a temporary output path
+3. Run `mrtk run` at x10 speed
+4. Compare output line count against reference (>=90% threshold)
 
-Both tests use `RESOURCE_LOCK rtkrcv_port` to prevent parallel execution
-conflicts with the MADOCA `rtkrcv_rt` test.
+The replays run concurrently: each has its own console port and runs `mrtk
+run` in its own empty working directory, because `mrtk run` reads and rewrites
+`rtkrcv.nav` there (#448). They pace against the wall clock, so an
+oversubscribed host can make them drop epochs; see the `ctest -j` note in the
+[installation guide](../getting-started/install.md).
 
 ---
 
@@ -290,6 +298,7 @@ conflicts with the MADOCA `rtkrcv_rt` test.
 | `positioning.relative.time_interpolation` | `true` | Interpolate corrections between epochs |
 | `positioning.clas.resilience.max_obs_loss` | `90.0` | Max epochs without obs before reset |
 | `positioning.clas.resilience.float_count` | `15` | Float epochs before fix attempt |
+| `output.clas_nmea_source_id` | `true` (default) | L6 PRN + facility of the corrections in the GGA station ID — see [GGA Station ID](../guide/quickstart-clas.md#gga-station-id-clas-l6-source) |
 
 ### Required Support Files
 

@@ -192,7 +192,7 @@ typedef struct {              /* SSR correction type */
     int discnt[MAXCODE];      /* phase biases discontinuity counter */
     double yaw_ang, yaw_rate; /* yaw angle and yaw rate (deg,deg/s) */
     uint8_t update;           /* update flag (0:no update,1:update) */
-    int vendor;               /* vendor type(0:L6(MADOCA-PPP),1:RTCM3(JAXA-MADOCA)) */
+    int vendor;               /* vendor type(0:L6(MADOCA-PPP),1:RTCM3(JAXA-MADOCA),2:PPP-B2b) */
 } ssr_t;
 
 typedef struct {                        /* stec data type */
@@ -501,6 +501,60 @@ double sat2freq(int sat, uint8_t code, const nav_t* nav);
  * @return Satellite system (SYS_CMP for BDS-3, SYS_BD2 for BDS-2)
  */
 int satsys_bd2(int sat, int* prn);
+
+/**
+ * @brief Set the BDS-2 satellites in BeiDou PRN 1-18.
+ *
+ * Since the BeiDou PRN reassignment (2026-04-10 to 04-21) BDS-3 satellites are
+ * also on PRN 1-18. A PRN 1-18 is BDS-2 only when listed here; PRN >= 19 is
+ * always BDS-3. The setting is process-global and affects satsys_bd2(),
+ * satno(SYS_BD2, prn) and all their callers, including RINEX reading.
+ * @param[in] str  Satellite list, e.g. "C09,C10" or "C01-C18" ("" or NULL: no BDS-2)
+ * @return Number of satellites set (-1: invalid list; no BDS-2 is set)
+ */
+int set_bds2prn(const char* str);
+
+/**
+ * @brief Test whether a BeiDou PRN is BDS-2 (see set_bds2prn()).
+ * @param[in] prn  BeiDou PRN
+ * @return 1: BDS-2, 0: BDS-3 or out of range
+ */
+int is_bds2prn(int prn);
+
+/**
+ * @brief Set the BDS-3 IGSO satellites (excluded as PPP-AR reference satellite).
+ * @param[in] str  Satellite list, e.g. "C06-C08" or "C38,C39,C40" ("" or NULL: C06-C08)
+ * @return Number of satellites set (-1: invalid list; the default C06-C08 is set)
+ */
+int set_bds3igso(const char* str);
+
+/**
+ * @brief Test whether a BeiDou PRN is listed as BDS-3 IGSO (see set_bds3igso()).
+ * @param[in] prn  BeiDou PRN
+ * @return 1: listed, 0: not listed or out of range
+ */
+int is_bds3igso(int prn);
+
+/**
+ * @brief Set the BDS-3 GEO satellites (the PPP-B2b transmitters).
+ * @param[in] str  Satellite list, e.g. "C01-C04" or "C59-C62" ("" or NULL: C01-C04)
+ * @return Number of satellites set (-1: invalid list; the default C01-C04 is set)
+ */
+int set_bdsgeo(const char* str);
+
+/**
+ * @brief Test whether a BeiDou PRN is listed as BDS-3 GEO (see set_bdsgeo()).
+ * @param[in] prn  BeiDou PRN
+ * @return 1: listed, 0: not listed or out of range
+ */
+int is_bdsgeo(int prn);
+
+/**
+ * @brief BeiDou generation of a PRN.
+ * @param[in] prn  BeiDou PRN
+ * @return BDSGEN_2, BDSGEN_3, or 0 (invalid PRN)
+ */
+int bds_gen(int prn);
 
 /**
  * @brief Convert frequency index to frequency number using obsdef table.

@@ -43,6 +43,7 @@ static double antpos_[2][3];
 static char exsats_[1024];
 static char snrmask_[NFREQ][1024];
 static char signals_[1024];
+static int bds2prn_given_; /* pos2-bds2prn was read from a configuration */
 
 /* system options table ------------------------------------------------------*/
 #define SWTOPT "0:off,1:on"
@@ -84,6 +85,9 @@ static char signals_[1024];
 #define SATCB "0:auto,1:ssr,2:bia,3:dcb"
 #define SATPB "0:auto,1:ssr,2:bia,3:fcb"
 #define CORROPT "-1:auto,0:none,1:igs,2:igs-rts,3:qzs-madoca,4:gal-has,5:bds-b2b,6:qzs-clas"
+#define BDS2OPT "satid(C01-C18),.. BDS-2 in PRN 1-18 (\"\":no BDS-2)"
+#define IGSOOPT "satid,.. BDS-3 IGSO (\"\":C06-C08)"
+#define GEOOPT "satid,.. BDS-3 GEO, PPP-B2b (\"\":C01-C04)"
 opt_t sysopts[] = {
     {"pos1-posmode", 3, (void*)&prcopt_.mode, MODOPT},
     {"pos1-correction", 3, (void*)&prcopt_.correction, CORROPT},
@@ -159,6 +163,9 @@ opt_t sysopts[] = {
     {"pos2-ionocorr", 3, (void*)&prcopt_.ionocorr, SWTOPT},
     {"pos2-ign_chierr", 3, (void*)&prcopt_.ign_chierr, SWTOPT},
     {"pos2-bds2bias", 3, (void*)&prcopt_.bds2bias, SWTOPT},
+    {"pos2-bds2prn", 2, (void*)prcopt_.bds2prn, BDS2OPT},
+    {"pos2-bds3igso", 2, (void*)prcopt_.bds3igso, IGSOOPT},
+    {"pos2-bdsgeo", 2, (void*)prcopt_.bdsgeo, GEOOPT},
     {"pos2-pppsatcb", 0, (void*)&prcopt_.pppsatcb, SATCB},
     {"pos2-pppsatpb", 0, (void*)&prcopt_.pppsatpb, SATPB},
     {"pos2-uncorrbias", 3, (void*)&prcopt_.unbias, SWTOPT},
@@ -212,6 +219,7 @@ opt_t sysopts[] = {
     {"out-solstatic", 3, (void*)&solopt_.solstatic, STAOPT},
     {"out-nmeaintv1", 1, (void*)&solopt_.nmeaintv[0], "s"},
     {"out-nmeaintv2", 1, (void*)&solopt_.nmeaintv[1], "s"},
+    {"out-clasrefid", 3, (void*)&solopt_.clasrefid, SWTOPT},
     {"out-outstat", 3, (void*)&solopt_.sstat, STSOPT},
 
     {"stats-eratio1", 1, (void*)&prcopt_.eratio[0], ""},
@@ -375,6 +383,15 @@ extern opt_t* searchopt(const char* name, const opt_t* opts) {
  * return : status (1:ok,0:error)
  *-----------------------------------------------------------------------------*/
 extern int str2opt(opt_t* opt, const char* str) {
+    /* the TOML loader passes values up to 2047 bytes; these lists are 256 */
+    if ((opt->var == (void*)prcopt_.bds2prn && strlen(str) >= sizeof(prcopt_.bds2prn)) ||
+        (opt->var == (void*)prcopt_.bds3igso && strlen(str) >= sizeof(prcopt_.bds3igso)) ||
+        (opt->var == (void*)prcopt_.bdsgeo && strlen(str) >= sizeof(prcopt_.bdsgeo))) {
+        return 0;
+    }
+    if (opt->var == (void*)prcopt_.bds2prn) {
+        bds2prn_given_ = 1; /* an explicit "" (no BDS-2) is still a setting */
+    }
     switch (opt->format) {
         case 0:
             *(int*)opt->var = atoi(str);
@@ -515,12 +532,14 @@ extern int saveopts(const char* file, const char* mode, const char* comment, con
 
     trace(NULL, 3, "saveopts: file=%s mode=%s\n", file, mode);
 
-    /* detect .toml extension — TOML save does not support append mode */
+    /* detect .toml extension — TOML save does not support append mode. Report
+     * it as an error: a skipped append left the file without these options
+     * while the caller reported success (#342) */
     ext = strrchr(file, '.');
     if (ext && strcmp(ext, ".toml") == 0) {
         if (mode && strcmp(mode, "a") == 0) {
-            trace(NULL, 2, "saveopts: TOML append not supported, skipping (%s)\n", file);
-            return 1; /* not an error — caller likely already wrote with "w" */
+            trace(NULL, 1, "saveopts: TOML append not supported (%s)\n", file);
+            return 0;
         }
         return saveopts_toml(file, comment, opts);
     }
@@ -569,6 +588,8 @@ static void buff2sysopts(void) {
             *ps = antpostype_[i] - 1;
         }
     }
+    prcopt_.bds2prn_set = bds2prn_given_;
+
     /* excluded satellites */
     for (i = 0; i < MAXSAT; i++) {
         prcopt_.exsats[i] = 0;
@@ -656,6 +677,8 @@ static void sysopts2buff(void) {
             antpostype_[i] = *ps + 1;
         }
     }
+    bds2prn_given_ = prcopt_.bds2prn_set;
+
     /* excluded satellites */
     exsats_[0] = '\0';
     for (sat = 1, p = exsats_; sat <= MAXSAT && p - exsats_ < (int)sizeof(exsats_) - 32; sat++) {
@@ -706,6 +729,7 @@ extern void resetsysopts(void) {
     }
     exsats_[0] = '\0';
     signals_[0] = '\0';
+    bds2prn_given_ = 0;
 }
 /* get system options ----------------------------------------------------------
  * get system options

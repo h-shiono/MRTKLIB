@@ -38,6 +38,8 @@ static const toml_map_t toml_mapping[] = {
     {"positioning", "satellite_ephemeris", "pos1-sateph"},
     {"positioning", "constellations", "pos1-navsys"},
     {"positioning", "excluded_sats", "pos1-exclsats"},
+    {"positioning", "bds2_sats", "pos2-bds2prn"},
+    {"positioning", "bds_geo_sats", "pos2-bdsgeo"},
     {"positioning", "signals", "pos1-signals"},
     {"positioning", "robust", "pos1-robust"},
     {"positioning", "robust_k0", "pos1-robustk0"},
@@ -83,6 +85,7 @@ static const toml_map_t toml_mapping[] = {
     {"ambiguity_resolution", "glonass_ar", "pos2-gloarmode"},
     {"ambiguity_resolution", "bds_ar", "pos2-bdsarmode"},
     {"ambiguity_resolution", "qzs_ar", "pos2-qzsarmode"},
+    {"ambiguity_resolution", "bds3_igso_sats", "pos2-bds3igso"},
     {"ambiguity_resolution", "systems", "pos2-arsys"},
 
     /* ── ambiguity_resolution.thresholds ───────────────────────────────────── */
@@ -247,6 +250,7 @@ static const toml_map_t toml_mapping[] = {
     {"output", "static_solution", "out-solstatic"},
     {"output", "nmea_interval_1", "out-nmeaintv1"},
     {"output", "nmea_interval_2", "out-nmeaintv2"},
+    {"output", "clas_nmea_source_id", "out-clasrefid"},
     {"output", "solution_status", "out-outstat"},
 
     /* ── files ─────────────────────────────────────────────────────────────── */

@@ -110,6 +110,11 @@ troposphere = "est-ztdgrad"
     `correction = "igs-rts"` explicitly. It requires `brdc+ssrapc` (or
     `brdc+ssrcom`) and is rejected at load time otherwise.
 
+!!! note "Adding BeiDou"
+    If you add BeiDou to `systems`, also set `[positioning] bds2_sats = ["C09", "C10"]`
+    (the BDS-2 satellites left on PRN 1–18 since April 2026). See
+    [BeiDou PRN Reassignment](beidou-prn-reassignment.md).
+
 ---
 
 ## Running

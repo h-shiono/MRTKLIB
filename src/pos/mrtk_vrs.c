@@ -2388,6 +2388,7 @@ extern int relposvrs(rtk_t* rtk, const obsd_t* obs, int nu, int* nr, nav_t* nav)
         if ((nb = resamb_LAMBDA(rtk, bias, xa)) <= 1 && rtk->opt.posopt[6]) {
             int exsat = 0;
             double ratio = 0.0;
+            uint8_t vsat0[NFREQ];
             elsort(rtk, obs, isat, el, nu);
             for (l = 0; l < rtk->opt.armaxdelsat; l++) {
                 for (i = 0; i < nu; i++) {
@@ -2404,6 +2405,7 @@ extern int relposvrs(rtk_t* rtk, const obsd_t* obs, int nu, int* nr, nav_t* nav)
                         continue;
                     }
                     for (f = 0; f < nf; f++) {
+                        vsat0[f] = rtk->ssat[sati - 1].vsat[f];
                         rtk->ssat[sati - 1].vsat[f] = 0;
                     }
                     pdop = calpdop(rtk, H, azel, vflg, obs, rtk->opt.elmaskar, nu, nv);
@@ -2413,8 +2415,10 @@ extern int relposvrs(rtk_t* rtk, const obsd_t* obs, int nu, int* nr, nav_t* nav)
                               sati, el[i] * R2D, rtk->sol.ratio);
                         break;
                     } else {
+                        /* restore the pre-trial state: a frequency invalid
+                         * before the trial stays invalid (#413) */
                         for (f = 0; f < nf; f++) {
-                            rtk->ssat[sati - 1].vsat[f] = 1;
+                            rtk->ssat[sati - 1].vsat[f] = vsat0[f];
                         }
                         if (ratio < rtk->sol.ratio) {
                             exsat = sati;
@@ -2424,10 +2428,14 @@ extern int relposvrs(rtk_t* rtk, const obsd_t* obs, int nu, int* nr, nav_t* nav)
                 }
                 if (nb > 1) {
                     break;
-                } else {
-                    for (f = 0; f < nf; f++) {
-                        rtk->ssat[exsat - 1].vsat[f] = 0;
-                    }
+                }
+                /* no trial gave a ratio: nothing to exclude, and further
+                 * iterations would repeat the same trials (#412) */
+                if (exsat == 0) {
+                    break;
+                }
+                for (f = 0; f < nf; f++) {
+                    rtk->ssat[exsat - 1].vsat[f] = 0;
                 }
             }
         }

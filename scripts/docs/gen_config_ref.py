@@ -91,6 +91,25 @@ _OPTION_META: dict[str, tuple[str, str]] = {
         "inclusion instead, overriding the health and URA checks (a satellite with no ephemeris is still "
         'dropped). The legacy space-separated string form (`"G01 G02"`) is also accepted.',
     ),
+    "pos2-bdsgeo": (
+        "PPP",
+        'BeiDou-3 GEO satellites, the PPP-B2b transmitters (`correction = "bds-b2b"`). Only B2b-I frames '
+        "from these PRNs are decoded as PPP-B2b; the IGSO/MEO B2b-I signal carries B-CNAV3 navigation frames "
+        "that pass the same CRC. Default (empty or absent): `C01-C04`, the GEO PRNs since 2026-04-21. Use "
+        '`["C59-C62"]` for data before 2026-04-17. See '
+        "[BeiDou PRN Reassignment](../guide/beidou-prn-reassignment.md).",
+    ),
+    "pos2-bds2prn": (
+        "All",
+        'BeiDou satellites in PRN 1-18 that are **BDS-2** (e.g. `["C09", "C10"]`; ranges such as '
+        '`"C01-C18"` are accepted). Since the BeiDou PRN reassignment of 2026-04-10 to 04-21, BDS-3 '
+        "satellites also use PRN 1-18, so the generation can no longer be inferred from the PRN. An unlisted "
+        "PRN 1-18 is treated as BDS-3; PRN 19 and above are always BDS-3. Default: no BDS-2 (as MADOCALIB 2.2). "
+        "When BeiDou is enabled and this key is absent, `mrtk post` and `mrtk run` print a warning; set `[]` "
+        'explicitly to silence it. Use `["C09", "C10"]` for data after 2026-04-21 and '
+        '`["C01-C18"]` for data before 2026-04-10. '
+        "See [BeiDou PRN Reassignment](../guide/beidou-prn-reassignment.md).",
+    ),
     "pos1-signals": (
         "All",
         "Explicit RINEX3-style signal code list (`{sys}{freq}{attr}`, e.g. "
@@ -197,6 +216,13 @@ _OPTION_META: dict[str, tuple[str, str]] = {
     "pos2-gloarmode": ("RTK", "GLONASS ambiguity resolution mode."),
     "pos2-bdsarmode": ("RTK, PPP-RTK", "BDS ambiguity resolution enable/disable."),
     "pos2-qzsarmode": ("PPP-RTK, VRS", "QZS ambiguity resolution mode."),
+    "pos2-bds3igso": (
+        "PPP",
+        "BeiDou-3 IGSO satellites, which PPP-AR never takes as the reference satellite and excludes first "
+        'in partial AR (ranges such as `"C06-C08"` are accepted). Default (empty or absent): '
+        '`C06-C08`, the IGSO PRNs since the 2026-04 PRN reassignment. Use `["C38-C40"]` for data before '
+        "2026-04-10. See [BeiDou PRN Reassignment](../guide/beidou-prn-reassignment.md).",
+    ),
     "pos2-arsys": (
         "PPP",
         "Constellation bitmask for AR. Limits which systems participate in integer ambiguity resolution.",
@@ -491,6 +517,11 @@ _OPTION_META: dict[str, tuple[str, str]] = {
     "out-solstatic": ("PP", "Static mode output control."),
     "out-nmeaintv1": ("All", "NMEA GGA/RMC output interval (s)."),
     "out-nmeaintv2": ("All", "NMEA GSA/GSV output interval (s)."),
+    "out-clasrefid": (
+        "PPP-RTK",
+        "Write the CLAS L6 source as the NMEA GGA station id: P1*100 + P2*10 + F, "
+        "P1/P2 = L6 PRN - 192 of channel 1/2 (0: none), F = facility + 1 (9: channels differ). On by default.",
+    ),
     "out-outstat": ("PP", "Solution status output level."),
     # ── files ────────────────────────────────────────────────────────────────
     "file-satantfile": (

@@ -95,7 +95,8 @@ const solopt_t solopt_default = {
     0,          1,          0, 0, 0, 0, 0, /* degf,outhead,outopt,outvel,datum,height,geoid */
     0,          0,          0,             /* solstatic,sstat,trace */
     {0.0, 0.0},                            /* nmeaintv */
-    " ",        ""                         /* separator/program name */
+    " ",        "",                        /* separator/program name */
+    0.0,        1                          /* maxsolstd,clasrefid */
 };
 
 /* resolve and validate correction source ------------------------------------
@@ -179,18 +180,9 @@ extern int resolve_correction(prcopt_t* opt, char* msg, size_t msgsz) {
         }
     }
 
-    /* reserved sources: present in the schema but not implemented yet.
-     * igs-rts is NOT reserved any more (#138): the RTCM-SSR / IGS-SSR(MT4076)
-     * decode-and-apply pipeline is inherited from the MADOCA-via-RTCM path and
-     * runs through the same SSR branch of corr_meas. gal-has is NOT reserved any
-     * more: HAS MT1 corrections decode into nav->ssr_ch[0] and run through the
-     * same SSR branch of corr_meas (float PPP). */
-    if (opt->correction == CORR_BDS_B2B) {
-        if (msg) {
-            snprintf(msg, msgsz, "correction source not implemented yet (correction=%s)", corr_name(opt->correction));
-        }
-        return 0;
-    }
+    /* no reserved sources remain: igs-rts (#138), gal-has and bds-b2b all
+     * decode into nav->ssr_ch[0] and run through the SSR branch of corr_meas
+     * (gal-has / bds-b2b: float PPP, no broadcast phase biases). */
 
     /* validity matrix (see docs/design/configuration.md) */
     switch (m) {
@@ -198,18 +190,20 @@ extern int resolve_correction(prcopt_t* opt, char* msg, size_t msgsz) {
         case PMODE_PPP_STATIC:
         case PMODE_PPP_FIXED:
             if (opt->correction != CORR_IGS && opt->correction != CORR_QZS_MADOCA && opt->correction != CORR_IGS_RTS &&
-                opt->correction != CORR_GAL_HAS) {
+                opt->correction != CORR_GAL_HAS && opt->correction != CORR_BDS_B2B) {
                 if (msg) {
-                    snprintf(msg, msgsz, "invalid correction=%s for mode=%s (use igs, igs-rts, qzs-madoca or gal-has)",
+                    snprintf(msg, msgsz,
+                             "invalid correction=%s for mode=%s (use igs, igs-rts, qzs-madoca, gal-has or bds-b2b)",
                              corr_name(opt->correction), mode_name(m));
                 }
                 return 0;
             }
-            /* igs-rts and gal-has apply broadcast ephemeris + SSR corrections; they
-             * need an SSR-aware satellite-ephemeris option (brdc+ssrapc or
-             * brdc+ssrcom). */
-            if ((opt->correction == CORR_IGS_RTS || opt->correction == CORR_GAL_HAS) && opt->sateph != EPHOPT_SSRAPC &&
-                opt->sateph != EPHOPT_SSRCOM) {
+            /* igs-rts, gal-has and bds-b2b apply broadcast ephemeris + SSR
+             * corrections; they need an SSR-aware satellite-ephemeris option
+             * (brdc+ssrapc or brdc+ssrcom). */
+            if ((opt->correction == CORR_IGS_RTS || opt->correction == CORR_GAL_HAS ||
+                 opt->correction == CORR_BDS_B2B) &&
+                opt->sateph != EPHOPT_SSRAPC && opt->sateph != EPHOPT_SSRCOM) {
                 if (msg) {
                     snprintf(msg, msgsz,
                              "correction=%s requires satellite_ephemeris=brdc+ssrapc or brdc+ssrcom (got %d)",

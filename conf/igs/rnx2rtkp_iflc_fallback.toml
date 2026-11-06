@@ -11,6 +11,8 @@ elevation_mask = 15.0
 dynamics = false
 satellite_ephemeris = "precise"
 systems = ["GPS", "Galileo", "QZSS", "Beidou"]
+# Test data 2026-05-01: BDS-2 IGSO left on C09/C10 after the 2026-04 BeiDou PRN reassignment
+bds2_sats = ["C09", "C10"]
 correction = "igs"
 
 [positioning.corrections]

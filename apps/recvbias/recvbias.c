@@ -74,10 +74,7 @@ static const uint8_t malib_sig_cmp[16] = {CODE_L2Q, CODE_L2X, CODE_L2I, CODE_L6Q
 /* Note: -ts here means "time span (days)", NOT a start time, so we do NOT
  * map --start to -ts. -t is the trace flag. */
 static const mrtk_optmap_t opt_aliases[] = {
-    {"--nav", "-nav"},
-    {"--output", "-out"},
-    {"--trace", "-t"},
-    {NULL, NULL},
+    {"--nav", "-nav"}, {"--bds2-sats", "-bds2prn"}, {"--output", "-out"}, {"--trace", "-t"}, {NULL, NULL},
 };
 
 /* print usage ---------------------------------------------------------------*/
@@ -111,6 +108,9 @@ static const char* help[] = {
     "                               G0(L1C/A-L2P), G1(L1C/A-L2C), G2(L1C/A-L5)",
     "                               J0(L1C-L5),    J1(L1C/A-L2C)",
     "                               C0(B1-B3),     C1(B1C-B2a)",
+    "  -bds2prn, --bds2-sats LIST BDS-2 satellites in PRN 1-18      [none]",
+    "                               e.g. C09,C10 (after 2026-04-21) or",
+    "                               C01-C18 (before 2026-04-10); \"\" = none",
     "  -allbias                   Output receiver biases per satellite",
     "  -out, --output FILE        Output bias file                  [stdout]",
     "  -t,  --trace LEVEL         Debug trace level                 [0]",
@@ -856,7 +856,7 @@ int mrtk_bias(int argc, char** argv) {
     int i;
     int tlevel = 0, req[6] = {0}, allb = 0;
     char *navfile = "", *obsfile = "", *outfile = "", *tecfile = "";
-    char *scbfile = "", *p;
+    char *scbfile = "", *bds2list = NULL, *p;
     char tracefile[MAXSTRPATH] = "recvbias.trace";
     char* reqarg[] = {"-td", "-nav", "-tec", "-scb", "-pos", "obsavation file"};
     char staname[32] = "";
@@ -924,6 +924,8 @@ int mrtk_bias(int argc, char** argv) {
             outfile = argv[++i];
         } else if (!strcmp(argv[i], "-sta") && i + 1 < argc) {
             strncpy(staname, argv[++i], sizeof(staname));
+        } else if (!strcmp(argv[i], "-bds2prn") && i + 1 < argc) {
+            bds2list = argv[++i];
         } else if (!strcmp(argv[i], "-allbias")) {
             allb = 1;
         } else if (!strcmp(argv[i], "-t") && i + 1 < argc) {
@@ -956,6 +958,19 @@ int mrtk_bias(int argc, char** argv) {
         fprintf(stderr, "error : %s required options\n", reqarg[i]);
         print_help();
         goto cleanup;
+    }
+
+    /* BDS-2 / BDS-3 split of PRN 1-18 before any RINEX is read (#403) */
+    if (set_bds2prn(bds2list) < 0) {
+        fprintf(stderr, "error : invalid -bds2prn list: %s\n", bds2list);
+        goto cleanup;
+    }
+    if (!bds2list) {
+        fprintf(stderr,
+                "warning : -bds2prn is not set, so every BeiDou PRN 1-18 is treated as BDS-3.\n"
+                "          Use -bds2prn C09,C10 for data after 2026-04-21, -bds2prn C01-C18 for data before "
+                "2026-04-10,\n"
+                "          or -bds2prn \"\" to silence this warning (see the BeiDou PRN Reassignment guide).\n");
     }
 
     /* generate receiver bias */

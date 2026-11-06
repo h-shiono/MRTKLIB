@@ -2,13 +2,15 @@
 # Converted from: rnx2rtkp_pppar_iono.conf
 
 [positioning]
-mode = "ppp-kine"                                         # (6:ppp-kine,7:ppp-static)
-frequency = "l1+2+3+4"                                    # (1:l1,2:l1+2,3:l1+2+3,4:l1+2+3+4)
-solution_type = "forward"                                 # (0:forward)
-elevation_mask = 10.0                                     # (deg)
-dynamics = false                                          # (0:off,1:on)
-satellite_ephemeris = "brdc+ssrapc"                       # (0:brdc,1:precise,3:brdc+ssrapc,4:brdc+ssrcom)
-excluded_sats = []                                        # (prn ...)
+mode = "ppp-kine"                   # (6:ppp-kine,7:ppp-static)
+frequency = "l1+2+3+4"              # (1:l1,2:l1+2,3:l1+2+3,4:l1+2+3+4)
+solution_type = "forward"           # (0:forward)
+elevation_mask = 10.0               # (deg)
+dynamics = false                    # (0:off,1:on)
+satellite_ephemeris = "brdc+ssrapc" # (0:brdc,1:precise,3:brdc+ssrapc,4:brdc+ssrcom)
+excluded_sats = []                  # (prn ...)
+# MADOCALIB 2.0 sample (2025) predates the 2026-04 BeiDou PRN reassignment: PRN 1-18 are BDS-2
+bds2_sats = ["C01-C18"]
 systems = ["GPS", "GLONASS", "Galileo", "QZSS", "BeiDou"]
 
 [positioning.snr_mask]
@@ -32,6 +34,8 @@ troposphere = "est-ztd" # (0:off,1:saas,2:sbas,3:est-ztd,4:est-ztdgrad)
 [ambiguity_resolution]
 mode = "continuous" # (0:off,1:continuous,3:fix-and-hold)
 systems = 57        # (1:gps+8:gal+16:qzs+32:bds)
+# BDS-3 IGSO before the 2026-04 PRN reassignment (default C06-C08 is for later data)
+bds3_igso_sats = ["C38-C40"]
 
 [ambiguity_resolution.thresholds]
 ratio = 1.5           # validation ratio for lambda search

@@ -7,7 +7,10 @@
  *
  * description : Extracts L6D (CLAS) and/or L6E (MADOCA) raw 250-byte frames
  *               from Septentrio SBF or u-blox UBX binary files, writing
- *               per-PRN/per-type .l6 files compatible with clas_input_cssrf().
+ *               per-PRN {prefix}.{PRN}.l6d / .l6e files that mrtk post reads.
+ *               The signal (L6D/L6E) and PRN come from the L6 frame header,
+ *               not from the receiver container (SBF block ID / Source /
+ *               SVID, UBX svId / message type), see IS-QZSS-L6-008 4.1.2.
  *
  *               For SBF input it also extracts Galileo HAS pages from
  *               GALRawCNAV blocks (block ID 4024) into a single .has file in
@@ -24,6 +27,8 @@
 #include <strings.h> /* strcasecmp */
 
 #include "mrtklib/mrtk_cli.h"
+#include "mrtklib/mrtk_l6.h"
+#include "mrtklib/mrtk_nav.h"
 
 /* byte extraction macros (little-endian, matching RTKLIB convention) */
 #define U1(p) ((uint8_t)(p)[0])
@@ -34,18 +39,19 @@
 #define L6_FRAME_LEN 250    /* L6 payload size (bytes) */
 #define SBF_SYNC_1 0x24     /* '$' */
 #define SBF_SYNC_2 0x40     /* '@' */
-#define SBF_QZSRAWL6 4069   /* SBF block ID: QZSRawL6 (L6E) */
-#define SBF_QZSRAWL6D 4270  /* SBF block ID: QZSRawL6D (L6D) */
-#define SBF_QZSRAWL6E 4271  /* SBF block ID: QZSRawL6E (L6E, mosaic-G5) */
+#define SBF_QZSRAWL6 4069   /* SBF block ID: QZSRawL6 (L6D or L6E) */
+#define SBF_QZSRAWL6D 4270  /* SBF block ID: QZSRawL6D (mosaic-G5) */
+#define SBF_QZSRAWL6E 4271  /* SBF block ID: QZSRawL6E (mosaic-G5) */
 #define SBF_GALRAWCNAV 4024 /* SBF block ID: GALRawCNAV (E6-B C/NAV / HAS) */
 #define UBX_SYNC_1 0xB5
 #define UBX_SYNC_2 0x62
 #define UBX_RXM_QZSSL6_CLS 0x02
 #define UBX_RXM_QZSSL6_ID 0x73
 
-#define MINPRNQZS 193
-#define MAX_QZS_PRN 17    /* J193..J209 (L6D uses J193..J202, L6E J203..J209) */
-#define L6E_PRN_OFFSET 10 /* mosaic-G5 numbers L6E PRNs 10 above the L6D PRN */
+/* L6 header PRNs: L6D 193..202, L6E 203..212 (L6E PRN = L6D PRN + 10) */
+#define MIN_L6_PRN 193
+#define MIN_L6E_PRN 203
+#define MAX_L6_PRN 20
 
 /* Galileo HAS constants */
 #define GAL_SVID_OFFSET 70        /* GAL PRN = SVID - 70 */
@@ -54,6 +60,13 @@
 #define HAS_RECORD_LEN 64         /* .has fixed record size (bytes) */
 #define HAS_DUMMY_HEADER 0xAF3BC3 /* 24-bit dummy-page header */
 #define TOW_INVALID 0xFFFFFFFFu   /* SBF do-not-use TOW sentinel */
+
+/* BeiDou PPP-B2b constants */
+#define SBF_BDSRAWB2B 4242   /* SBF block ID: BDSRawB2b (B2b-I PPP message) */
+#define MAX_BDS_PRN 63       /* C01..C63 */
+#define B2B_MSG_LEN 61       /* 486-bit message (bytes, MSB-first) */
+#define B2B_RECORD_LEN 72    /* .b2b fixed record size (bytes) */
+#define B2B_MSG_START_BIT 12 /* message offset in NAVBits: PRN(6)+reserved(6) */
 
 /* format type */
 enum { FMT_UNKNOWN = 0, FMT_SBF, FMT_UBX };
@@ -69,12 +82,13 @@ typedef struct {
 } l6_output_t;
 
 /* global state */
-static l6_output_t out[2][MAX_QZS_PRN]; /* [L6_D/L6_E][prn-MINPRNQZS] */
+static l6_output_t out[2][MAX_L6_PRN]; /* [L6_D/L6_E][prn-MIN_L6_PRN] */
 static char prefix[256] = "l6";
 static int filter_l6d = 0; /* -l6d flag */
 static int filter_l6e = 0; /* -l6e flag */
 static int total_frames = 0;
 static int total_skipped = 0;
+static int total_badhdr = 0;
 
 /* Galileo HAS state (SBF GALRawCNAV → single .has file) */
 static int has_enable = 1; /* HAS extraction on by default (disable: -no-has) */
@@ -86,18 +100,30 @@ static int has_crc_fail = 0;           /* CRCPassed == 0 */
 static int has_dummy = 0;              /* dummy pages skipped */
 static int has_prn_count[MAX_GAL_PRN]; /* per-PRN valid record count */
 
+/* BeiDou PPP-B2b state (SBF BDSRawB2b → single .b2b file) */
+static int b2b_enable = 1; /* B2b extraction on by default (disable: -no-b2b) */
+static char b2b_path[512];
+static FILE* b2b_fp = NULL;
+static int b2b_records = 0;            /* records written (GEO correction frames) */
+static int b2b_blocks = 0;             /* BDSRawB2b blocks seen */
+static int b2b_crc_fail = 0;           /* CRCPassed == 0 */
+static int b2b_nav_skipped = 0;        /* non-GEO B-CNAV3 nav frames skipped */
+static int b2b_prn_count[MAX_BDS_PRN]; /* per-PRN valid record count */
+
 /* ---- output file management ---- */
 
-static int prn_index(int prn) {
-    int idx = prn - MINPRNQZS;
-    if (idx < 0 || idx >= MAX_QZS_PRN) return -1;
-    return idx;
-}
-
-static int write_frame(int prn, int type, const uint8_t* data) {
+/* write one 250-byte frame to {prefix}.{PRN}.l6d|l6e by its L6 header */
+static int write_frame(const uint8_t* data) {
+    l6_header_t h;
     l6_output_t* o;
-    int idx = prn_index(prn);
-    if (idx < 0) return -1;
+    int idx, type;
+
+    if (!l6_parse_header(data, &h) || h.prn < MIN_L6_PRN || h.prn >= MIN_L6_PRN + MAX_L6_PRN) {
+        total_badhdr++;
+        return 0;
+    }
+    idx = h.prn - MIN_L6_PRN;
+    type = h.prn >= MIN_L6E_PRN ? L6_E : L6_D;
 
     /* check filter */
     if (filter_l6d && type != L6_D) return 0;
@@ -107,7 +133,7 @@ static int write_frame(int prn, int type, const uint8_t* data) {
 
     /* open file on first frame */
     if (!o->fp) {
-        snprintf(o->path, sizeof(o->path), "%s_J%d_%s.l6", prefix, prn, type == L6_D ? "l6d" : "l6e");
+        snprintf(o->path, sizeof(o->path), "%s.%d.%s", prefix, h.prn, type == L6_D ? "l6d" : "l6e");
         o->fp = fopen(o->path, "wb");
         if (!o->fp) {
             fprintf(stderr, "Error: cannot open %s\n", o->path);
@@ -127,13 +153,17 @@ static int write_frame(int prn, int type, const uint8_t* data) {
 static void close_all(void) {
     int t, i;
     for (t = 0; t < 2; t++) {
-        for (i = 0; i < MAX_QZS_PRN; i++) {
+        for (i = 0; i < MAX_L6_PRN; i++) {
             if (out[t][i].fp) fclose(out[t][i].fp);
         }
     }
     if (has_fp) {
         fclose(has_fp);
         has_fp = NULL;
+    }
+    if (b2b_fp) {
+        fclose(b2b_fp);
+        b2b_fp = NULL;
     }
 }
 
@@ -146,9 +176,9 @@ static void print_stats(void) {
     fprintf(stderr, "  %-6s %-5s %8s %10s  %s\n", "------", "-----", "--------", "----------", "----");
 
     for (t = 0; t < 2; t++) {
-        for (i = 0; i < MAX_QZS_PRN; i++) {
+        for (i = 0; i < MAX_L6_PRN; i++) {
             if (out[t][i].count > 0) {
-                fprintf(stderr, "  J%-5d %-5s %8d %10d  %s\n", i + MINPRNQZS, t == L6_D ? "L6D" : "L6E",
+                fprintf(stderr, "  %-6d %-5s %8d %10d  %s\n", i + MIN_L6_PRN, t == L6_D ? "L6D" : "L6E",
                         out[t][i].count, out[t][i].count * L6_FRAME_LEN, out[t][i].path);
                 any = 1;
             }
@@ -158,7 +188,8 @@ static void print_stats(void) {
     if (!any) {
         fprintf(stderr, "  (no L6 frames found)\n");
     }
-    fprintf(stderr, "\n  Total: %d frames extracted, %d skipped (parity/status error)\n", total_frames, total_skipped);
+    fprintf(stderr, "\n  Total: %d frames extracted, %d skipped (parity/status error), %d skipped (bad L6 header)\n",
+            total_frames, total_skipped, total_badhdr);
 }
 
 static void print_has_stats(void) {
@@ -182,6 +213,31 @@ static void print_has_stats(void) {
     }
     fprintf(stderr, "  GALRawCNAV blocks: %d, %d CRC-failed, %d dummy pages, %d valid records\n", has_blocks,
             has_crc_fail, has_dummy, has_records);
+}
+
+static void print_b2b_stats(void) {
+    int i;
+
+    if (!b2b_enable || b2b_blocks == 0) return;
+
+    fprintf(stderr, "\nBeiDou PPP-B2b Extraction Summary:\n");
+    if (b2b_records > 0) {
+        fprintf(stderr, "  %-6s %8s\n", "PRN", "Records");
+        fprintf(stderr, "  %-6s %8s\n", "------", "--------");
+        for (i = 0; i < MAX_BDS_PRN; i++) {
+            if (b2b_prn_count[i] > 0) {
+                fprintf(stderr, "  C%-5d %8d\n", i + 1, b2b_prn_count[i]);
+            }
+        }
+        fprintf(stderr, "\n  File: %s (%d records x %d bytes = %ld bytes)\n", b2b_path, b2b_records, B2B_RECORD_LEN,
+                (long)b2b_records * B2B_RECORD_LEN);
+    } else {
+        fprintf(stderr,
+                "  (no PPP-B2b corrections found: the GEO satellites that broadcast\n"
+                "   PPP-B2b were not tracked/output in this capture, or are not in -b2b-geo)\n");
+    }
+    fprintf(stderr, "  BDSRawB2b blocks: %d, %d CRC-failed, %d B-CNAV3 nav skipped, %d GEO correction records\n",
+            b2b_blocks, b2b_crc_fail, b2b_nav_skipped, b2b_records);
 }
 
 /* ---- SBF L6 extraction ---- */
@@ -306,13 +362,110 @@ static void sbf_extract_has_page(const uint8_t* block) {
     has_prn_count[prn - 1]++;
 }
 
+/* ---- SBF BeiDou PPP-B2b extraction ---- */
+
+/**
+ * @brief Extract one 72-byte .b2b record from an SBF BDSRawB2b block (4242).
+ *
+ * Payload (after the 8-byte SBF header) is: TOW u4, WNc u2, SVID u1,
+ * CRCPassed u1, ViterbiCnt u1, Source u1, FreqNr u1, RxChannel u1,
+ * NAVBits u4[16]. The 16 little-endian words are concatenated MSB-first into
+ * 512 bits. The receiver has performed LDPC channel decoding; the NAVBits
+ * carry PRN(6) + reserved(6) followed by the 486-bit PPP-B2b message
+ * (MesType + data + CRC-24Q), so the message starts at bit 12. CRC failures
+ * and TOW sentinels are skipped. The output record matches b2b_input_file():
+ * [tow_ms u4][wnc u2][prn u1][flags u1][msg u8[61]][pad u8[3]].
+ */
+static void sbf_extract_b2b_msg(const uint8_t* block) {
+    uint8_t bits[64]; /* 512 bits, MSB-first */
+    uint8_t msg[B2B_MSG_LEN];
+    uint8_t rec[B2B_RECORD_LEN];
+    uint32_t tow;
+    uint16_t wnc;
+    uint8_t svid, crc_ok;
+    int prn, i, srcbit, b;
+
+    b2b_blocks++;
+
+    tow = U4(block + 8);
+    wnc = U2(block + 12);
+    svid = U1(block + 14);
+    crc_ok = U1(block + 15);
+
+    if (tow == TOW_INVALID) return;
+    if (crc_ok == 0) {
+        b2b_crc_fail++;
+        return;
+    }
+
+    /* Septentrio BDS SVID -> PRN: 141..180 = C01..C40, 223..245 = C41..C63 */
+    if (svid >= 141 && svid <= 180)
+        prn = (int)svid - 140;
+    else if (svid >= 223 && svid <= 245)
+        prn = (int)svid - 182;
+    else
+        return;
+    if (prn < 1 || prn > MAX_BDS_PRN) return;
+
+    /* PPP-B2b SSR corrections are broadcast only by the BDS-3 GEO satellites
+     * (set_bdsgeo(), -b2b-geo). The B2b-I frames from IGSO/MEO are B-CNAV3
+     * navigation, not corrections, so they are not written to the .b2b file. */
+    if (!is_bdsgeo(prn)) {
+        b2b_nav_skipped++;
+        return;
+    }
+
+    /* concatenate 16 NAVBits words MSB-first into a 512-bit buffer */
+    for (i = 0; i < 16; i++) {
+        uint32_t w = U4(block + 20 + i * 4);
+        bits[i * 4] = (w >> 24) & 0xFF;
+        bits[i * 4 + 1] = (w >> 16) & 0xFF;
+        bits[i * 4 + 2] = (w >> 8) & 0xFF;
+        bits[i * 4 + 3] = w & 0xFF;
+    }
+
+    /* 486-bit message = bits 12..497 (after PRN(6)+reserved(6)), MSB-first */
+    memset(msg, 0, sizeof(msg));
+    for (i = 0; i < 486; i++) {
+        srcbit = B2B_MSG_START_BIT + i;
+        b = (bits[srcbit >> 3] >> (7 - (srcbit & 7))) & 1;
+        if (b) msg[i >> 3] |= (uint8_t)(1 << (7 - (i & 7)));
+    }
+
+    /* open output on first valid message */
+    if (!b2b_fp) {
+        b2b_fp = fopen(b2b_path, "wb");
+        if (!b2b_fp) {
+            fprintf(stderr, "Error: cannot open %s\n", b2b_path);
+            return;
+        }
+    }
+
+    memset(rec, 0, sizeof(rec));
+    rec[0] = tow & 0xFF;
+    rec[1] = (tow >> 8) & 0xFF;
+    rec[2] = (tow >> 16) & 0xFF;
+    rec[3] = (tow >> 24) & 0xFF;
+    rec[4] = wnc & 0xFF;
+    rec[5] = (wnc >> 8) & 0xFF;
+    rec[6] = (uint8_t)prn;
+    rec[7] = 0x01; /* flags bit0 = receiver CRC pass */
+    memcpy(rec + 8, msg, B2B_MSG_LEN);
+
+    if (fwrite(rec, 1, B2B_RECORD_LEN, b2b_fp) != B2B_RECORD_LEN) {
+        fprintf(stderr, "Error: write failed to %s\n", b2b_path);
+        return;
+    }
+    b2b_records++;
+    b2b_prn_count[prn - 1]++;
+}
+
 static int process_sbf(FILE* fp) {
     uint8_t hdr[8];
     uint8_t* block = NULL;
     uint8_t payload[L6_FRAME_LEN];
     uint16_t id, len;
-    uint8_t svid, parity;
-    int type, prn;
+    uint8_t parity;
     int c, synced = 0;
 
     while (1) {
@@ -360,29 +513,27 @@ static int process_sbf(FILE* fp) {
             continue;
         }
 
-        /* check for L6 blocks (4069/4271 = L6E, 4270 = L6D) */
+        /* BeiDou PPP-B2b messages from BDSRawB2b (block 4242).
+         * Payload needs 8 hdr + 12 fields + 64 NAVBits = 84 bytes. */
+        if (id == SBF_BDSRAWB2B) {
+            if (b2b_enable && len >= 84) sbf_extract_b2b_msg(block);
+            continue;
+        }
+
+        /* L6 blocks. The block ID, Source and SVID are not used for the
+         * signal or PRN: 4069 (mosaic-CLAS) carries L6D with Source = 1, and
+         * 4271 (mosaic-G5) carries the L6D satellite's SVID. */
         if (id != SBF_QZSRAWL6 && id != SBF_QZSRAWL6D && id != SBF_QZSRAWL6E) continue;
         if (len < 272) continue;
 
-        type = (id == SBF_QZSRAWL6D) ? L6_D : L6_E;
-        svid = U1(block + 14);
         parity = U1(block + 15);
-        prn = svid - 180 + MINPRNQZS - 1;
-
-        /* mosaic-G5 QZSRawL6E (4271) carries the same SVID as the L6D block;
-         * its L6E stream is published under a PRN offset by +10 (J204/J205/J209
-         * for J194/J195/J199) to match the MADOCA .l6 PRN convention. */
-        if (id == SBF_QZSRAWL6E) prn += L6E_PRN_OFFSET;
-
-        if (prn < MINPRNQZS || prn >= MINPRNQZS + MAX_QZS_PRN) continue;
-
         if (parity == 0) {
             total_skipped++;
             continue;
         }
 
         sbf_extract_l6_payload(block, payload);
-        write_frame(prn, type, payload);
+        write_frame(payload);
     }
 
     free(block);
@@ -396,7 +547,7 @@ static int process_ubx(FILE* fp) {
     uint8_t* msg = NULL;
     uint8_t cls;
     uint16_t len;
-    int prn, mtyp, stat, type;
+    int stat;
     int c, synced = 0;
 
     while (1) {
@@ -440,19 +591,12 @@ static int process_ubx(FILE* fp) {
         if (cls != UBX_RXM_QZSSL6_CLS || hdr[3] != UBX_RXM_QZSSL6_ID) continue;
         if (len < 264) continue; /* minimum: 14 header + 250 payload */
 
-        prn = U1(msg + 1) + 192;
-        mtyp = (U2(msg + 10) >> 10) & 1; /* 0=L6D, 1=L6E */
         stat = (U2(msg + 10) >> 12) & 3; /* 1=error-free */
-
-        if (prn < MINPRNQZS || prn >= MINPRNQZS + MAX_QZS_PRN) continue;
-
         if (stat != 1) {
             total_skipped++;
             continue;
         }
-
-        type = (mtyp == 0) ? L6_D : L6_E;
-        write_frame(prn, type, msg + 14);
+        write_frame(msg + 14);
     }
 
     free(msg);
@@ -475,12 +619,13 @@ static int detect_format(const char* path) {
 static const mrtk_optmap_t opt_aliases[] = {
     {"--input", "-in"},
     {"--output", "-o"},
+    {"--b2b-geo", "-b2b-geo"},
     {NULL, NULL},
 };
 
 static void print_usage(void) {
     static const char* lines[] = {
-        "mrtk l6extract: extract QZSS L6 frames and Galileo HAS pages from SBF/UBX files",
+        "mrtk l6extract: extract QZSS L6 / Galileo HAS / BeiDou PPP-B2b from SBF/UBX files",
         "",
         "Usage: mrtk l6extract [OPTIONS] [FILE]",
         "",
@@ -488,17 +633,28 @@ static void print_usage(void) {
         "  -in, --input  FILE     Input SBF or UBX binary file (required)",
         "  -r   FORMAT            Receiver format: sbf, ubx (auto-detect)",
         "  -o,  --output PREFIX   Output file prefix                  [\"l6\"]",
-        "  -l6d                   Extract L6D frames only (CLAS)",
-        "  -l6e                   Extract L6E frames only (MADOCA)",
+        "  -l6d                   Extract L6D frames only (CLAS, MADOCA iono)",
+        "  -l6e                   Extract L6E frames only (MADOCA, QZNMA)",
         "  -no-has                Disable Galileo HAS extraction",
+        "  -no-b2b                Disable BeiDou PPP-B2b extraction",
+        "  -b2b-geo, --b2b-geo LIST",
+        "                         BeiDou GEO PRNs carrying PPP-B2b    [\"C01-C04\"]",
+        "                         (use C59-C62 for data before 2026-04-17)",
         "  -h,  --help            Show this help",
         "",
         "Output files:",
-        "  {prefix}_J{PRN}_{l6d|l6e}.l6  Concatenated 250-byte QZSS L6 frames.",
+        "  {prefix}.{PRN}.l6d            Concatenated 250-byte QZSS L6 frames,",
+        "  {prefix}.{PRN}.l6e            one file per L6 signal. Signal and PRN",
+        "                                (L6D 193-202, L6E 203-212) come from",
+        "                                the L6 frame header.",
         "  {input-basename}.has          Galileo HAS pages from SBF GALRawCNAV",
         "                                (block 4024), 64-byte records per",
         "                                docs/design/gal-has.md §3, all PRNs in",
         "                                one file. SBF input only; on by default.",
+        "  {input-basename}.b2b          BeiDou PPP-B2b messages from SBF BDSRawB2b",
+        "                                (block 4242), 72-byte records per",
+        "                                docs/design/bds-b2b.md §5, all GEO PRNs",
+        "                                in one file. SBF input only; on by default.",
         "",
         "Examples:",
         "  mrtk l6extract --input rover.sbf --output session1",
@@ -543,6 +699,13 @@ int mrtk_l6extract(int argc, char** argv) {
             filter_l6e = 1;
         } else if (!strcmp(argv[i], "-no-has")) {
             has_enable = 0;
+        } else if (!strcmp(argv[i], "-no-b2b")) {
+            b2b_enable = 0;
+        } else if (!strcmp(argv[i], "-b2b-geo") && i + 1 < argc) {
+            if (set_bdsgeo(argv[++i]) < 0) {
+                fprintf(stderr, "Error: invalid -b2b-geo list '%s'\n", argv[i]);
+                return 1;
+            }
         } else if (argv[i][0] != '-' && !infile) {
             infile = argv[i];
         } else if (!strcmp(argv[i], "-h") || !strcmp(argv[i], "--help")) {
@@ -600,6 +763,20 @@ int mrtk_l6extract(int argc, char** argv) {
         has_enable = 0;
     }
 
+    /* PPP-B2b output path: <input-basename>.b2b (UBX carries no BDSRawB2b) */
+    if (b2b_enable && fmt == FMT_SBF) {
+        const char* base = strrchr(infile, '/');
+        const char* dot;
+        base = base ? base + 1 : infile;
+        dot = strrchr(base, '.');
+        if (dot && dot != base)
+            snprintf(b2b_path, sizeof(b2b_path), "%.*s.b2b", (int)(dot - base), base);
+        else
+            snprintf(b2b_path, sizeof(b2b_path), "%s.b2b", base);
+    } else {
+        b2b_enable = 0;
+    }
+
     if (fmt == FMT_SBF) {
         process_sbf(fp);
     } else {
@@ -610,6 +787,7 @@ int mrtk_l6extract(int argc, char** argv) {
     close_all();
     print_stats();
     print_has_stats();
+    print_b2b_stats();
 
     return 0;
 }

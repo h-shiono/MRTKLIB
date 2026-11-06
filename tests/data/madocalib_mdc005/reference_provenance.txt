@@ -1,0 +1,8 @@
+# Provenance of the madocalib_MIZU_20260328-0000.*.pos references.
+# Written by generate_reference_mdc005.sh; do not edit by hand.
+generated : 2026-10-30T13:21:07Z
+upstream  : VER_MADOCALIB=2.2 commit f59215c6ca0874cfb28df43d2b6724390e53edcf
+backend   : internal LU (no -DLAPACK)
+cflags    : -Wall -O3 -ansi -pedantic -Iupstream/madocalib/src -DTRACE -DENAGLO -DENAQZS -DENAGAL -DENACMP -DENAIRN -DNFREQ=5 -DNEXOBS=5 -g
+compiler  : Apple clang version 21.0.0 (clang-2100.3.34.2)
+platform  : Darwin 25.6.0 arm64

@@ -103,6 +103,10 @@ typedef struct {
     uint8_t has_page[56];                   /**< Galileo HAS page (56-byte, staged for ret=13) */
     int has_prn;                            /**< Galileo HAS transmitting PRN (1-40) */
     gtime_t has_time;                       /**< Galileo HAS page reception time (GPST) */
+    double l6tag;                           /**< receiver time tag of the last QZSS L6 frame (s, 0: none) */
+    uint8_t b2b_msg[61];                    /**< BeiDou PPP-B2b message (486-bit, staged for ret=14) */
+    int b2b_prn;                            /**< BeiDou PPP-B2b transmitting PRN (1-63) */
+    gtime_t b2b_time;                       /**< BeiDou PPP-B2b message reception time (GPST) */
     char opt[256];                          /**< receiver dependent options */
     mrtk_sigcfg_t sigcfg[MRTK_NSYS]; /**< #189: per-constellation signal config (drives decoder code selection) */
     int sigcfg_set;                  /**< #189: 1 if sigcfg is configured (else fall back to opt/-Rxxx defaults) */
@@ -135,8 +139,13 @@ void free_raw(raw_t* raw);
  * @param[in]     format Receiver raw data format (STRFMT_???)
  * @param[in]     data   Stream data (1 byte)
  * @return Status (-1:error, 0:no message, 1:obs data, 2:ephemeris,
- *                 3:sbas message, 9:ion/utc parameter, 10:ssr/L6 payload,
- *                 13:Galileo HAS page staged in raw->has_page/has_prn/has_time)
+ *                 3:sbas message, 9:ion/utc parameter,
+ *                 10:ssr message, or (UBX/SBF) CLAS L6 frame in rtcm->buff,
+ *                 13:Galileo HAS page staged in raw->has_page/has_prn/has_time,
+ *                 14:BeiDou PPP-B2b message staged in raw->b2b_msg/b2b_prn/b2b_time,
+ *                 15:MADOCA-PPP L6E SSR decoded (UBX/SBF),
+ *                 16:MADOCA-PPP iono L6 frame in rtcm->buff (UBX/SBF),
+ *                 17:QZNMA L6 frame in rtcm->buff (UBX/SBF))
  */
 int input_raw(raw_t* raw, rtcm_t* rtcm, int format, uint8_t data);
 
@@ -162,6 +171,22 @@ int decode_bds_d2(const uint8_t* buff, eph_t* eph, double* utc);
 int decode_gal_inav(const uint8_t* buff, eph_t* eph, double* ion, double* utc);
 int decode_gal_fnav(const uint8_t* buff, eph_t* eph, double* ion, double* utc);
 int decode_irn_nav(const uint8_t* buff, eph_t* eph, double* ion, double* utc);
+
+/**
+ * @brief Route one QZSS L6 frame received in a UBX/SBF container.
+ *
+ * The service is taken from the L6 header (vendor ID + MADOCA CSID), not from
+ * the PRN or the receiver's L6D/L6E channel. MADOCA-PPP frames are decoded
+ * into rtcm->ssr; other services are left in rtcm->buff for the caller.
+ *
+ * @param[in,out] rtcm    RTCM control struct; rtcm->buff holds the 250-byte frame.
+ * @param[in]     is_l6d  1 if the receiver reports the L6D signal (only used for null messages).
+ * @param[in]     tag     Receiver time tag of the frame (s, 0: none); lets the MADOCA-PPP decoder
+ *                        detect a frame lost inside a message (see set_mcssr_ftag()).
+ * @return 10: CLAS frame, 15: MADOCA SSR decoded, 16: MADOCA iono frame,
+ *         17: QZNMA frame, 0: no message / reserved vendor, -1: error.
+ */
+int decode_qzss_l6frame(rtcm_t* rtcm, int is_l6d, double tag);
 
 /*============================================================================
  * Receiver-Specific Initialization Functions

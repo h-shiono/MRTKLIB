@@ -24,8 +24,10 @@
 #include <string.h>
 
 #include "mrtklib/mrtk_antenna.h"
+#include "mrtklib/mrtk_b2b.h"
 #include "mrtklib/mrtk_bits.h"
 #include "mrtklib/mrtk_clas.h"
+#include "mrtklib/mrtk_const.h"
 #include "mrtklib/mrtk_coords.h"
 #include "mrtklib/mrtk_geoid.h"
 #include "mrtklib/mrtk_has.h"
@@ -49,9 +51,7 @@
 #include "mrtklib/mrtk_tides.h"
 #include "mrtklib/mrtk_trace.h"
 
-/* local constants (duplicated from rtklib.h to avoid rtklib.h dependency) ----*/
-#define R2D (180.0 / 3.1415926535897932384626433832795)
-#define D2R (3.1415926535897932384626433832795 / 180.0)
+/* R2D / D2R / SYS_CMP come from mrtk_const.h */
 
 #define COMMENTH "%" /* comment line indicator for solution */
 
@@ -108,6 +108,10 @@ static has_t* gal_has = NULL;                  /* Galileo HAS decode context (he
 static char gal_has_file[1024] = "";           /* Galileo HAS data file */
 static char gal_has_path[1024] = "";           /* Galileo HAS data path */
 static FILE* fp_gal_has = NULL;                /* Galileo HAS data file pointer */
+static b2b_t* bds_b2b = NULL;                  /* BeiDou PPP-B2b decode context (heap) */
+static char bds_b2b_file[1024] = "";           /* BeiDou PPP-B2b data file */
+static char bds_b2b_path[1024] = "";           /* BeiDou PPP-B2b data path */
+static FILE* fp_bds_b2b = NULL;                /* BeiDou PPP-B2b data file pointer */
 static mdcl6d_t mdcl6d[MIONO_MAX_PRN];         /* QZSS L6D control struct */
 static char qzssl6d_file[MIONO_MAX_PRN][1024]; /* QZSS L6D data file */
 static char qzssl6d_path[MIONO_MAX_PRN][1024]; /* QZSS L6D data path */
@@ -400,6 +404,45 @@ static void update_gal_has(gtime_t time) {
         gal_has->ssr[i].update = 0;
     }
 }
+/* update BeiDou PPP-B2b corrections -----------------------------------------*/
+static void update_bds_b2b(gtime_t time) {
+    char path[1024];
+    int i;
+
+    /* open or swap PPP-B2b .b2b file (72-byte little-endian records) */
+    reppath(bds_b2b_file, path, time, "", "");
+
+    if (strcmp(path, bds_b2b_path)) {
+        strcpy(bds_b2b_path, path);
+
+        if (fp_bds_b2b) {
+            fclose(fp_bds_b2b);
+        }
+        fp_bds_b2b = fopen(path, "rb");
+        if (fp_bds_b2b) {
+            trace(NULL, 2, "bds_b2b file open: %s\n", path);
+        }
+    }
+    if (!fp_bds_b2b || !bds_b2b) {
+        return;
+    }
+
+    /* feed all records up to the current epoch (b2b_input_file rewinds the
+     * first future record, so a single call per epoch advances in lock-step) */
+    b2b_input_file(bds_b2b, fp_bds_b2b, time);
+
+    trace(NULL, 3, "update_bds_b2b: %s\n", time_str(time, 3));
+
+    /* copy updated PPP-B2b corrections into the SSR channel */
+    for (i = 0; i < MAXSAT; i++) {
+        if (!bds_b2b->ssr[i].update || bds_b2b->ssr[i].iod[0] != bds_b2b->ssr[i].iod[1] ||
+            timediff(time, bds_b2b->ssr[i].t0[0]) < -1E-3) {
+            continue;
+        }
+        navs.ssr_ch[0][i] = bds_b2b->ssr[i];
+        bds_b2b->ssr[i].update = 0;
+    }
+}
 /* initialize QZSS L6D control struct ----------------------------------------*/
 static void init_mdcl6d(gtime_t time, const char* pppopt) {
     int i, j, k;
@@ -543,13 +586,10 @@ static void update_clas(gtime_t time) {
     char path[1024];
 
     /* initialize GPS week reference from observation time (once) */
-    if (clas_ctx && clas_ctx->week_ref[0] == 0 && time.time != 0) {
-        int i, week;
+    if (clas_ctx && !clas_week_ref_isset(clas_ctx) && time.time != 0) {
+        int week;
         time2gpst(time, &week);
-        for (i = 0; i < CSSR_REF_MAX; i++) {
-            clas_ctx->week_ref[i] = week;
-            clas_ctx->tow_ref[i] = -1; /* mark as unset for rollover detection */
-        }
+        clas_set_week_ref(clas_ctx, week);
         trace(NULL, 2, "clas week_ref initialized: week=%d\n", week);
     }
 
@@ -678,6 +718,10 @@ static int inputobs(obsd_t* obs, int solq, const prcopt_t* popt) {
         /* update Galileo HAS PPP corrections */
         if (*gal_has_file) {
             update_gal_has(obs[0].time);
+        }
+        /* update BeiDou PPP-B2b corrections */
+        if (*bds_b2b_file) {
+            update_bds_b2b(obs[0].time);
         }
         /* update QZSS L6D MADOCA-PPP ionospheric corrections */
         if (popt->ionocorr) {
@@ -963,7 +1007,7 @@ static void combres(FILE* fp, const prcopt_t* popt, const solopt_t* sopt) {
     }
 }
 /* read prec ephemeris, sbas data, tec grid and open rtcm --------------------*/
-static void readpreceph(char** infile, int n, const prcopt_t* prcopt, nav_t* nav, sbs_t* sbs) {
+static void readpreceph(char** infile, int n, const prcopt_t* prcopt, nav_t* nav, sbs_t* sbs, gtime_t ts) {
     seph_t seph0 = {0};
     int i;
     char* ext;
@@ -983,7 +1027,7 @@ static void readpreceph(char** infile, int n, const prcopt_t* prcopt, nav_t* nav
     }
     /* read precise clock files */
     for (i = 0; i < n; i++) {
-        if (strstr(infile[i], "%r") || strstr(infile[i], "%b")) {
+        if (strstr(infile[i], "%r") || strstr(infile[i], "%b") || l6_file_type(infile[i])) {
             continue;
         }
         readrnxc(infile[i], nav);
@@ -1058,7 +1102,31 @@ static void readpreceph(char** infile, int n, const prcopt_t* prcopt, nav_t* nav
         }
     }
 
-    /* MADOCA-PPP L6 and CLAS L6 files: discriminate by PRN and mode */
+    /* BeiDou PPP-B2b .b2b file (first match only) */
+    for (i = 0; i < n; i++) {
+        if ((ext = strrchr(infile[i], '.')) && (!strcmp(ext, ".b2b") || !strcmp(ext, ".B2B"))) {
+            strcpy(bds_b2b_file, infile[i]);
+            if (!bds_b2b) {
+                bds_b2b = b2b_new();
+                if (!bds_b2b) {
+                    bds_b2b_file[0] = '\0';
+                    break;
+                }
+            }
+            break;
+        }
+    }
+    /* PPP-B2b orbit/clock corrections reference the B-CNAV1 (B1C) ephemeris,
+     * not the D1/D2 AODE; switch the BDS ephemeris selection accordingly. */
+    setseleph(SYS_CMP, prcopt->correction == CORR_BDS_B2B ? 1 : 0);
+
+    /* QZSS L6 files (.l6 / .l6d / .l6e): MADOCA-PPP iono L6D, CLAS L6D, MADOCA-PPP L6E.
+     * Legacy .l6: *.200.l6 / *.201.l6 are iono, others CLAS in CLAS mode, else L6E.
+     * .l6d: iono by name (*.200.l6d / *.201.l6d) or by the first frame header,
+     *       otherwise CLAS (CLAS mode only). A time-keyword path (%Y ...) is
+     *       expanded at the session start for the content check only; the
+     *       template itself is kept for the per-epoch file switching.
+     * .l6e: MADOCA-PPP L6E; in CLAS mode reserved for CLAS CMA (not yet used). */
     {
         int nf_l6d = 0, nf_clas = 0;
         int clas_mode = (prcopt->mode == PMODE_PPP_RTK) ||
@@ -1066,36 +1134,53 @@ static void readpreceph(char** infile, int n, const prcopt_t* prcopt, nav_t* nav
                         strstr(prcopt->pppopt, "-clas") != NULL;
 
         for (i = 0; i < n; i++) {
-            if ((ext = strrchr(infile[i], '.')) && (!strcmp(ext, ".l6") || !strcmp(ext, ".L6"))) {
-                /* L6D (PRN=200,201) — always detected */
-                if ((ext - infile[i] >= 4) && (!strcmp(ext - 4, ".200.l6") || !strcmp(ext - 4, ".200.L6") ||
-                                               !strcmp(ext - 4, ".201.l6") || !strcmp(ext - 4, ".201.L6"))) {
-                    if (nf_l6d < MIONO_MAX_PRN) {
-                        strcpy(qzssl6d_file[nf_l6d++], infile[i]);
-                    }
+            l6_file_type_t type = l6_file_type(infile[i]);
+            int is_l6d = type == L6_FILE_L6D, is_l6e = type == L6_FILE_L6E, iono;
+
+            if (type == L6_FILE_NONE) {
+                continue;
+            }
+            ext = strrchr(infile[i], '.');
+            iono = !is_l6e && ext - infile[i] >= 4 && (!strncmp(ext - 4, ".200", 4) || !strncmp(ext - 4, ".201", 4));
+            if (is_l6d && !iono) {
+                char probe[1024];
+                if (strchr(infile[i], '%') && ts.time) {
+                    reppath(infile[i], probe, ts, "", "");
+                } else {
+                    snprintf(probe, sizeof(probe), "%s", infile[i]);
                 }
-                /* CLAS: all non-L6D .l6 files in PPP-RTK or -clas mode */
-                else if (clas_mode) {
-                    if (nf_clas < CLAS_CH_NUM) {
-                        strcpy(clas_file[nf_clas++], infile[i]);
-                    }
-                } else if (!*qzssl6e_file) { /* L6E (first match only) */
-                    strcpy(qzssl6e_file, infile[i]);
+                iono = l6_file_service(probe) == L6_SVC_MADOCA_IONO;
+            }
+            if (iono) { /* MADOCA-PPP L6D iono (PRN 200/201) — always detected */
+                if (nf_l6d < MIONO_MAX_PRN) {
+                    strcpy(qzssl6d_file[nf_l6d++], infile[i]);
+                }
+            } else if (is_l6e && clas_mode) {
+                showmsg("warning: CLAS CMA input not supported yet, ignored: %s", infile[i]);
+                trace(NULL, 2, "L6E file ignored in CLAS mode (CMA not supported): %s\n", infile[i]);
+            } else if (clas_mode && !is_l6e) { /* CLAS L6D */
+                if (nf_clas < CLAS_CH_NUM) {
+                    strcpy(clas_file[nf_clas++], infile[i]);
+                }
+            } else if (is_l6d) {
+                showmsg("warning: L6D file ignored outside CLAS mode: %s", infile[i]);
+                trace(NULL, 2, "L6D file ignored outside CLAS mode: %s\n", infile[i]);
+            } else if (!*qzssl6e_file) { /* MADOCA-PPP L6E (first match only) */
+                strcpy(qzssl6e_file, infile[i]);
+                if (!l6e) {
+                    l6e = (rtcm_t*)calloc(1, sizeof(rtcm_t));
                     if (!l6e) {
-                        l6e = (rtcm_t*)calloc(1, sizeof(rtcm_t));
-                        if (!l6e) {
-                            qzssl6e_file[0] = '\0';
-                            continue;
-                        }
-                    }
-                    if (!init_rtcm(l6e)) {
                         qzssl6e_file[0] = '\0';
-                        free(l6e);
-                        l6e = NULL;
                         continue;
                     }
-                    strcpy(l6e->opt, prcopt->rtcmopt);
                 }
+                if (!init_rtcm(l6e)) {
+                    qzssl6e_file[0] = '\0';
+                    free(l6e);
+                    l6e = NULL;
+                    continue;
+                }
+                strcpy(l6e->opt, prcopt->rtcmopt);
             }
         }
 
@@ -1173,6 +1258,17 @@ static void freepreceph(nav_t* nav, sbs_t* sbs) {
     }
     gal_has_file[0] = gal_has_path[0] = '\0';
 
+    /* free BeiDou PPP-B2b context */
+    if (fp_bds_b2b) {
+        fclose(fp_bds_b2b);
+        fp_bds_b2b = NULL;
+    }
+    if (bds_b2b) {
+        b2b_free(bds_b2b);
+        bds_b2b = NULL;
+    }
+    bds_b2b_file[0] = bds_b2b_path[0] = '\0';
+
     /* free CLAS context */
     if (clas_ctx) {
         for (i = 0; i < CLAS_CH_NUM; i++) {
@@ -1215,6 +1311,10 @@ static int readobsnav(gtime_t ts, gtime_t te, double ti, char** infile, const in
             }
             ind = index[i];
             nobs = obs->n;
+        }
+        if (l6_file_type(infile[i])) {
+            continue; /* QZSS L6 frames, not RINEX (".l6d" would also trip the
+                       * Hatanaka 4th-char-'d' test in rtk_uncompress) */
         }
         ext = strrchr(infile[i], '.');
         if (ext && !strcmp(ext, ".bnx")) {
@@ -1800,7 +1900,7 @@ static int execses_b(mrtk_ctx_t* ctx, gtime_t ts, gtime_t te, double ti, const p
     trace(ctx, 3, "execses_b: n=%d outfile=%s\n", n, outfile);
 
     /* read prec ephemeris and sbas data */
-    readpreceph(infile, n, popt, &navs, &sbss);
+    readpreceph(infile, n, popt, &navs, &sbss, ts);
 
     for (i = 0; i < n; i++) {
         if (strstr(infile[i], "%b")) {
@@ -1890,6 +1990,7 @@ static int execses_b(mrtk_ctx_t* ctx, gtime_t ts, gtime_t te, double ti, const p
  *              .sp3,.SP3,.eph*,.EPH*: precise ephemeris (sp3c)
  *              .sbs,.SBS,.ems,.EMS  : sbas message log files (rtklib or ems)
  *              .rtcm3,.RTCM3        : ssr message log files (rtcm3)
+ *              .l6,.l6d,.l6e        : QZSS L6 frame files, case-insensitive (CLAS, MADOCA-PPP)
  *              .*i,.*I              : tec grid files (ionex)
  *              others               : rinex obs, nav, gnav, hnav, qnav or clock
  *
@@ -1916,6 +2017,10 @@ extern int postpos(mrtk_ctx_t* ctx, gtime_t ts, gtime_t te, double ti, double tu
     char *ifile[MAXINFILE], ofile[1024], *ext;
 
     trace(ctx, 3, "postpos : ti=%.0f tu=%.0f n=%d outfile=%s\n", ti, tu, n, outfile);
+
+    /* BeiDou generation of PRN 1-18 and BDS-3 IGSO (#401): set before reading
+       files, since RINEX reading already depends on the generation */
+    set_bdsopt(popt, 1);
 
     /* open processing session */
     if (!openses(ctx, popt, sopt, fopt, &navs, &pcvss, &pcvsr)) {
@@ -1966,8 +2071,7 @@ extern int postpos(mrtk_ctx_t* ctx, gtime_t ts, gtime_t te, double ti, double tu
             for (j = k = nf = 0; j < n; j++) {
                 ext = strrchr(infile[j], '.');
 
-                if (ext &&
-                    (!strcmp(ext, ".rtcm3") || !strcmp(ext, ".RTCM3") || !strcmp(ext, ".l6") || !strcmp(ext, ".L6"))) {
+                if ((ext && (!strcmp(ext, ".rtcm3") || !strcmp(ext, ".RTCM3"))) || l6_file_type(infile[j])) {
                     strcpy(ifile[nf++], infile[j]);
                 } else {
                     /* include next day precise ephemeris or rinex brdc nav */

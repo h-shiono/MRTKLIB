@@ -7,13 +7,15 @@
 
 [positioning]
 mode = "single"
-correction = "none"                            # SPP uses broadcast ephemeris only, no SSR correction (explicit)
+correction = "none"          # SPP uses broadcast ephemeris only, no SSR correction (explicit)
 frequency = "l1"
 solution_type = "forward"
 elevation_mask = 15.0
-dynamics = false                               # snapshot SPP does not use dynamics
+dynamics = false             # snapshot SPP does not use dynamics
 satellite_ephemeris = "brdc"
 excluded_sats = []
+# PPC / GSDC data predates the 2026-04 BeiDou PRN reassignment: PRN 1-18 are BDS-2
+bds2_sats = ["C01-C18"]
 systems = ["GPS", "Galileo", "QZSS", "BeiDou"]
 robust = "igg3"                                # #116 P2: "off" | "igg3" (IGG-III robust pseudorange re-weighting)
 robust_k0 = 1.5                                # IGG-III lower threshold (full weight below)

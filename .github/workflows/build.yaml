@@ -67,6 +67,15 @@ jobs:
     # so MRTKLIB runs its internal LU solver; the thread pins below only matter
     # if that is ever changed to a BLAS provider (one BLAS thread per test
     # process keeps -j4 from oversubscribing the cores).
+    # Test datasets are release assets of h-shiono/mrtklib-data (#386),
+    # fetched by the ctest fixtures into this cache; the key changes only when
+    # tests/data/datasets.cmake pins a different asset.
+    - name: Cache test datasets
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/mrtklib-data
+        key: mrtklib-data-${{ hashFiles('tests/data/datasets.cmake') }}
+
     - name: Run PPP / SPP regression tests
       env:
         OPENBLAS_NUM_THREADS: 1

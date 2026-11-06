@@ -82,6 +82,13 @@ Supported constellation names (case-insensitive):
 
     When both `systems` and `constellations` are present, `systems` takes priority.
 
+!!! warning "BeiDou: set `bds2_sats`"
+    Since the BeiDou PRN reassignment of April 2026, BDS-3 satellites also use PRN
+    1–18, and MRTKLIB cannot tell BDS-2 from BDS-3 there by itself. When BeiDou is
+    enabled, list the BDS-2 satellites in `[positioning] bds2_sats`:
+    `["C09", "C10"]` for data after 2026-04-21, `["C01-C18"]` for data before
+    2026-04-10. See [BeiDou PRN Reassignment](beidou-prn-reassignment.md).
+
 ## Satellite Exclusion
 
 Exclude specific satellites using a string list:
