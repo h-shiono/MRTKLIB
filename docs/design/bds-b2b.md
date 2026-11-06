@@ -194,17 +194,40 @@ data first (HAS lesson: thresholds set loose, then tightened).
   `getseleph(SYS_CMP) == 1`. `rtksvrstart()` sets that for
   `correction = bds-b2b`, as `postpos()` does. `BDSCNav1` is output only
   when the ephemeris changes, so a replay waits for the next hourly update.
-- **Live broadcast content (2026-10-23).** MT1/2/3/4/63, one common stream on
-  all four GEOs. Orbit corrections for 12 BDS-3 (C06–C42) and 15 GPS satellites
+- **Live broadcast content (2026-10-23).** MT1/2/3/4/63 with the same mask
+  (IODP 14, 62 satellites) on all four GEOs, but **two streams**: C01–C03
+  send IOD SSR 1 and C04 IOD SSR 2. doy2025-233 has the same split (C59/C60:
+  1, C62: 2). Orbit corrections for 12 BDS-3 (C06–C42) and 15 GPS satellites
   per hour; code biases (modes 0, 1, 2, 4, 5, 7, 8, 12) for BDS only, still no
   GPS DCB. The mosaic-G5 tracks B1I + B3I on every BDS-3 satellite, so
   `bds3 = "B1I/B3I"`.
 - **Validation** (BeiDou-only float PPP, 2026-10-23 20:00–22:00, vs the
-  TPSCR.G5 reference of `tests/data/handover`), statistics after 60 min:
-  post kinematic 2D rms 11.8 / U rms 9.6 / 3D95 20.9 cm, static
-  3.6 / 7.0 / 10.2 cm; `mrtk run` replay kinematic 14.8 / 10.7 / 27.9 cm,
-  8.9 satellites on average. doy2025-233 post output is byte-identical to
-  Phase 1 with `bds_geo_sats = ["C59-C62"]`.
+  TPSCR.G5 reference of `tests/data/handover`), statistics after 60 min,
+  2D rms / U rms / 3D95:
+
+  | | static | kinematic |
+  |---|---|---|
+  | post, IOD SSR 1 stream (C01, taken first) | 1.8 / 3.9 / 6.4 cm | 15.8 / 10.8 / 30.9 cm |
+  | post, IOD SSR 2 stream (C04 only) | 3.6 / 7.0 / 10.2 cm | 11.8 / 9.6 / 20.9 cm |
+  | `mrtk run` replay | — | 14.8 / 10.7 / 27.9 cm |
+
+  9.2 satellites on average. Neither stream is better on both counts.
+  doy2025-233 post: same epochs (3571), 785 of them changed by the
+  single-stream rule, last-20-min scatter unchanged.
+- **Decoder rules added in review (#458).**
+  - One GEO stream at a time: the first GEO that sends a mask, until it is
+    silent for 10 s. Before, PP decoded the C04 stream in effect (the last
+    MT1 of each second set IOD SSR 2 and C01–C03 frames were rejected), and
+    in real time the arrival order could pair one stream's orbit with the
+    other's clock when their 3-bit IOD Corr matched.
+  - An IOD SSR change in MT1 clears all staged orbit / clock / code bias.
+  - A withdrawn code bias (−2048 / −2047) clears `cbias` / `vcbias`, so the
+    pseudorange is dropped.
+  - Clock age limit 30 s for PPP-B2b (vendor `SSR_VENDOR_B2B`), other sources
+    keep 60 s. Table 6-12's 12 s nominal validity is not usable as an age
+    limit: clocks arrive 6–8 s after their epoch and are renewed every 6 s,
+    and a 12 s gate turned the 2 h kinematic 2D rms from 0.16 to 0.34 m.
+  - `rtksvrstart()` frees a B2b context of a previous run.
 - **Regression.** Dataset `g5p3_296u-v1` (1 h of hour u, GEO `BDSRawB2b`,
   `BDSCNav1`, SouthPAN `GEORawL5` PRN 122 for #418, cut RINEX 4 nav);
   tests `b2b_extract/convert/ppp/ppp_check` and `rtkrcv_b2b(_check)`. The

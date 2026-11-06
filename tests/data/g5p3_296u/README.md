@@ -52,8 +52,10 @@ writes no BeiDou CNV1 records.
 
 ## PPP-B2b content
 
-The C01-C04 frames carry one common stream with MT1/2/3/4/63 (no MT5-7). It
-has orbit corrections for 12 BDS-3 satellites (C06-C42) and 15 GPS satellites
+The C01-C04 frames carry MT1/2/3/4/63 (no MT5-7) with the same mask (IODP
+14, 62 satellites), but two streams: C01-C03 send IOD SSR 1 and C04 IOD SSR 2.
+The decoder takes one GEO at a time (the first to send a mask). The streams have
+orbit corrections for 12 BDS-3 satellites (C06-C42) and 15 GPS satellites
 in the hour (the mask lists 30 BDS and 32 GPS), and code biases (modes 0, 1,
 2, 4, 5, 7, 8, 12) for BeiDou only. Without GPS code biases the tests are
 BeiDou-only float PPP (B1I/B3I).
