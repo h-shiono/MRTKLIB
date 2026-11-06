@@ -899,9 +899,12 @@ static void uniqeph(nav_t* nav) {
 
     qsort(nav->eph, nav->n, sizeof(eph_t), cmpeph);
 
+    /* Galileo I/NAV and F/NAV of one IODnav are different ephemerides (clock
+     * for E1/E5b vs E1/E5a); seleph() picks one of them by the data source */
     for (i = 1, j = 0; i < nav->n; i++) {
         if (nav->eph[i].sat != nav->eph[j].sat || nav->eph[i].iode != nav->eph[j].iode ||
-            nav->eph[i].type != nav->eph[j].type) {
+            nav->eph[i].type != nav->eph[j].type ||
+            (satsys(nav->eph[i].sat, NULL) == SYS_GAL && (nav->eph[i].code & 0x300) != (nav->eph[j].code & 0x300))) {
             nav->eph[++j] = nav->eph[i];
         }
     }
