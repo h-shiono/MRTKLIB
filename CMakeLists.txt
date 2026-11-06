@@ -387,6 +387,15 @@ add_test(NAME utest_clas_l6 COMMAND utest_clas_l6
          WORKING_DIRECTORY ${_UTEST_DIR})
 set_tests_properties(utest_clas_l6 PROPERTIES LABELS "utest")
 
+# NavIC L5-only SPP group delay with the nominal S/L5 ratio (#384). Includes
+# mrtk_spp.c to reach the private prange().
+add_executable(utest_navic_l5_tgd ${_UTEST_DIR}/utest_navic_l5_tgd.c)
+# Override global -ansi (=C90): this test uses C11 (P-01).
+target_compile_options(utest_navic_l5_tgd PRIVATE -std=c11)
+target_link_libraries(utest_navic_l5_tgd PRIVATE mrtklib)
+add_test(NAME utest_navic_l5_tgd COMMAND utest_navic_l5_tgd)
+set_tests_properties(utest_navic_l5_tgd PROPERTIES LABELS "utest")
+
 # RTCM3 MSM BDS B2b round-trip test (issue #333 / #296)
 add_executable(utest_msm_bds_b2b ${_UTEST_DIR}/utest_msm_bds_b2b.c)
 # Override global -ansi (=C90): this test uses C11 (P-01).

@@ -179,7 +179,10 @@ static double prange(const obsd_t* obs, const nav_t* nav, const prcopt_t* opt, d
 
     freq1 = sat2freq(sat, obs->code[0], nav);
     freq2 = sat2freq(sat, obs->code[i2], nav);
-    gamma = SQR(freq1 / freq2);
+    /* NavIC L5 SPS TGD is referenced to the nominal S/L5 frequency ratio,
+     * including when no S-band observation is available (ISRO SPS ICD 1.1,
+     * section 6.2.1.5). Do not divide by the absent second observation code. */
+    gamma = (sys == SYS_IRN && opt->ionoopt != IONOOPT_IFLC) ? SQR(FREQ9 / FREQ5) : SQR(freq1 / freq2);
 
     /* P1-C1,P2-C2 DCB correction */
     if (sys == SYS_GPS || sys == SYS_GLO) {
