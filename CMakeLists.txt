@@ -348,6 +348,13 @@ add_test(NAME utest_lclblk COMMAND utest_lclblk
          WORKING_DIRECTORY ${_UTEST_DIR})
 set_tests_properties(utest_lclblk PROPERTIES LABELS "utest")
 
+# cssr2rtcm3 output epoch scheduling after input gaps, duplicate / backward
+# PVT times, week rollover and non-default -t (issue #442).
+add_executable(utest_cssr2rtcm3_sched ${_UTEST_DIR}/utest_cssr2rtcm3_sched.c)
+target_link_libraries(utest_cssr2rtcm3_sched PRIVATE mrtklib)
+add_test(NAME utest_cssr2rtcm3_sched COMMAND utest_cssr2rtcm3_sched)
+set_tests_properties(utest_cssr2rtcm3_sched PROPERTIES LABELS "utest")
+
 # CLAS correction-set assembly after a lost subframe 1 (issue #406 / #242).
 add_executable(utest_clas_bank ${_UTEST_DIR}/utest_clas_bank.c)
 # Override global -ansi (=C90): this test uses C11 (P-01).
@@ -2828,18 +2835,27 @@ endfunction()
 _clas_l6gap_rt(nomerge 52018 0)
 _clas_l6gap_rt(merge   52019 1)
 
-# cssr2rtcm3 on the same window: the OSR path bridges a discarded subframe
-# with the last good correction set (BackupCSSR, #442). Measured 2026-11-05:
-# 1164 epochs, longest interval 11 s; without the bridge 1067 epochs and 33 s.
-add_test(NAME cssr2rtcm3_clas_l6gap
-    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/scripts/tests/check_cssr2rtcm3_gap.py
-        $<TARGET_FILE:mrtk> conf/cssr2rtcm3.toml ${_L6GAPDATA}/G5P3296u_20m.sbf
-        ${CMAKE_BINARY_DIR}/out_cssr2rtcm3_clas_l6gap.rtcm3 --min-epochs 1150 --max-gap 15
-    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
-set_tests_properties(cssr2rtcm3_clas_l6gap PROPERTIES
-    FIXTURES_REQUIRED "clas_l6gap_data;claslib_data"
-    TIMEOUT           120
-    LABELS            "regression;claslib;vrs")
+# cssr2rtcm3 on the same window (check_cssr2rtcm3_gap.py). The OSR path
+# bridges a discarded subframe with the last good correction set (BackupCSSR,
+# #442): 1067 epochs and outages up to 33 s without it. Each output epoch is
+# the latest valid PVT time on the -t grid, and the MSM epoch times in the
+# RTCM3 output must match it: stepping one interval per PVT lagged the
+# receiver by 2-10 s after input gaps (#442). Measured 2026-11-05: -t 1 1162
+# epochs, longest interval 3 s, lag 0; -t 5 236 epochs, longest interval 5 s.
+function(_cssr2rtcm3_l6gap name interval min_epochs max_gap)
+    add_test(NAME cssr2rtcm3_clas_l6gap${name}
+        COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/scripts/tests/check_cssr2rtcm3_gap.py
+            $<TARGET_FILE:mrtk> conf/cssr2rtcm3.toml ${_L6GAPDATA}/G5P3296u_20m.sbf
+            ${CMAKE_BINARY_DIR}/out_cssr2rtcm3_clas_l6gap${name}.rtcm3
+            --interval ${interval} --min-epochs ${min_epochs} --max-gap ${max_gap}
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+    set_tests_properties(cssr2rtcm3_clas_l6gap${name} PROPERTIES
+        FIXTURES_REQUIRED "clas_l6gap_data;claslib_data"
+        TIMEOUT           120
+        LABELS            "regression;claslib;vrs")
+endfunction()
+_cssr2rtcm3_l6gap(""    1 1150 5)
+_cssr2rtcm3_l6gap(_t5   5  230 10)
 
 add_test(NAME clas_l6gap_checker_selftest
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/scripts/tests/check_clas_l6gap.py --selftest)
