@@ -130,8 +130,8 @@ clas_nmea_source_id = false
 ```
 
 The ID is written for CLAS PPP-RTK only; VRS-RTK and the other modes write
-`0000`. The GGA sent upstream to an NTRIP caster carries the ID regardless of
-this option.
+`0000`. The GGA that `mrtk run` sends upstream to an NTRIP caster always
+writes `0000`.
 
 ---
 
