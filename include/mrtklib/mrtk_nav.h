@@ -192,7 +192,7 @@ typedef struct {              /* SSR correction type */
     int discnt[MAXCODE];      /* phase biases discontinuity counter */
     double yaw_ang, yaw_rate; /* yaw angle and yaw rate (deg,deg/s) */
     uint8_t update;           /* update flag (0:no update,1:update) */
-    int vendor;               /* vendor type(0:L6(MADOCA-PPP),1:RTCM3(JAXA-MADOCA)) */
+    int vendor;               /* vendor type(0:L6(MADOCA-PPP),1:RTCM3(JAXA-MADOCA),2:PPP-B2b) */
 } ssr_t;
 
 typedef struct {                        /* stec data type */

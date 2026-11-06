@@ -43,6 +43,7 @@ extern char* time_str(gtime_t t, int n);
 #define B2B_UDI_ORBIT 96.0    /* nominal orbit validity (s) [1] Table 6-12 */
 #define B2B_UDI_CLOCK 12.0    /* nominal clock validity (s) [1] Table 6-12 */
 #define B2B_UDI_CBIAS 86400.0 /* nominal DCB validity (s) [1] Table 6-12 */
+#define B2B_SRC_TIMEOUT 10.0  /* silence (s) after which another GEO stream is taken */
 
 /* BDS signal-and-tracking mode -> obs code ([1] Table 6-5) ------------------*/
 static const uint8_t b2b_sig_bds[16] = {CODE_L2I,  CODE_L1D,  CODE_L1P,  CODE_NONE, CODE_L5D,  CODE_L5P,
@@ -157,6 +158,29 @@ static int decode_b2b_head(const uint8_t* msg, int i, gtime_t time, gtime_t* t0,
     return i;
 }
 
+/* clear all staged corrections ----------------------------------------------
+ * After an IOD SSR change ([1] 6.2.1.2: data of different IOD SSR must not be
+ * used together) nothing staged under the old IOD SSR may combine with the new
+ * messages: the 3-bit IOD Corr of a new orbit can equal that of an old clock.
+ * iod[0] = iod[1] lets the update copy in postpos/rtksvr publish the cleared
+ * entries, so the positioning channel drops them too. */
+static void b2b_clear_corr(b2b_t* b2b) {
+    int i;
+
+    for (i = 0; i < MAXSAT; i++) {
+        ssr_t* ssr = b2b->ssr + i;
+        if (!ssr->t0[0].time && !ssr->t0[1].time && !ssr->t0[4].time) {
+            continue;
+        }
+        ssr->t0[0].time = ssr->t0[1].time = ssr->t0[4].time = 0;
+        ssr->t0[0].sec = ssr->t0[1].sec = ssr->t0[4].sec = 0.0;
+        ssr->iod[0] = ssr->iod[1] = -1;
+        memset(ssr->cbias, 0, sizeof(ssr->cbias));
+        memset(ssr->vcbias, 0, sizeof(ssr->vcbias));
+        ssr->update = 1;
+    }
+}
+
 /* decode MT1 satellite mask ([1] 6.2.2) -------------------------------------*/
 static int decode_b2b_mask(b2b_t* b2b, const uint8_t* msg, int i, gtime_t time) {
     b2b_mask_t* m = &b2b->mask;
@@ -191,6 +215,9 @@ static int decode_b2b_mask(b2b_t* b2b, const uint8_t* msg, int i, gtime_t time) 
     m->iodp = iodp;
     m->nsat = nsat;
     m->valid = 1;
+    if (b2b->iodssr >= 0 && iodssr != b2b->iodssr) {
+        b2b_clear_corr(b2b);
+    }
     b2b->iodssr = iodssr;
 
     trace(NULL, 4, "decode_b2b_mask: %s, iodssr=%d, iodp=%d, nsat=%d\n", time_str(t0, 0), iodssr, iodp, nsat);
@@ -350,7 +377,7 @@ static int decode_b2b_cbias(b2b_t* b2b, const uint8_t* msg, int i, gtime_t time)
             dcb = getbits(msg, i, 12);
             i += 12;
 
-            if (sat == 0 || b2b_invalid(dcb, 12)) {
+            if (sat == 0) {
                 continue;
             }
             switch (sys) {
@@ -374,6 +401,14 @@ static int decode_b2b_cbias(b2b_t* b2b, const uint8_t* msg, int i, gtime_t time)
                 continue;
             }
             ssr = b2b->ssr + sat - 1;
+            if (b2b_invalid(dcb, 12)) {
+                /* bias withdrawn: corr_meas then drops the signal's pseudorange */
+                ssr->cbias[code - 1] = 0.0f;
+                ssr->vcbias[code - 1] = 0;
+                ssr->update = 1;
+                updated = 1;
+                continue;
+            }
             /* sign convention: [1] Eq. 7-1 corrected = observed - DCB;
              * corr_meas applies P += cbias -> store the negated value. */
             ssr->cbias[code - 1] = (float)(-dcb * 0.017);
@@ -586,10 +621,14 @@ static int decode_b2b_comb2(b2b_t* b2b, const uint8_t* msg, int i, gtime_t time)
 /* ---------------------------------------------------------------------------*/
 extern b2b_t* b2b_new(void) {
     b2b_t* b2b;
+    int i;
 
     b2b = (b2b_t*)calloc(1, sizeof(b2b_t));
     if (b2b) {
         b2b->iodssr = -1;
+        for (i = 0; i < MAXSAT; i++) {
+            b2b->ssr[i].vendor = SSR_VENDOR_B2B; /* clock age gate in satpos_ssr() */
+        }
     }
     return b2b;
 }
@@ -602,8 +641,8 @@ extern int b2b_input_msg(b2b_t* b2b, int prn, const uint8_t* msg61, gtime_t time
     int mt;
 
     /* PPP-B2b SSR corrections are broadcast only by the BDS-3 GEO satellites
-     * ([1] 4.1), and all GEOs carry the same correction stream. The B2b-I
-     * signal from the IGSO/MEO satellites instead carries B-CNAV3 navigation,
+     * ([1] 4.1). The B2b-I signal from the IGSO/MEO satellites instead carries
+     * B-CNAV3 navigation,
      * which passes the same CRC and whose message-type field collides with
      * the PPP-B2b MTs (1/4/5 seen on live data), so it would corrupt the
      * mask/orbit/clock state. The GEO PRNs changed with the 2026-04 PRN
@@ -620,6 +659,23 @@ extern int b2b_input_msg(b2b_t* b2b, int prn, const uint8_t* msg61, gtime_t time
         trace(NULL, 2, "b2b_input_msg: CRC error mt=%d\n", mt);
         return -1;
     }
+    /* The GEOs do not all carry the same stream: on 2026-10-23 C01-C03 sent
+     * IOD SSR 1 and C04 IOD SSR 2, with the same mask. Interleaving them would
+     * pair an orbit of one stream with a clock of the other whenever the 3-bit
+     * IOD Corr matches, so only one GEO is decoded: the first that sends a mask,
+     * until it is silent for B2B_SRC_TIMEOUT. The next source is taken on its
+     * mask; decode_b2b_mask() clears the corrections if its IOD SSR differs. */
+    if (prn != b2b->src_prn) {
+        if (b2b->src_prn && timediff(time, b2b->src_time) <= B2B_SRC_TIMEOUT) {
+            return 0;
+        }
+        if (mt != B2B_MT_MASK) {
+            return 0;
+        }
+        trace(NULL, 2, "b2b_input_msg: PPP-B2b source C%02d -> C%02d\n", b2b->src_prn, prn);
+        b2b->src_prn = prn;
+    }
+    b2b->src_time = time;
 
     switch (mt) {
         case B2B_MT_MASK:

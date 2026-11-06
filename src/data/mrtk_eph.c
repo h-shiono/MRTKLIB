@@ -25,6 +25,7 @@
 
 #include <math.h>
 
+#include "mrtklib/mrtk_const.h"
 #include "mrtklib/mrtk_mat.h"
 #include "mrtklib/mrtk_nav.h"
 #include "mrtklib/mrtk_trace.h"
@@ -93,6 +94,7 @@
 #define MAXAGESSR 60.0             /* max age of ssr orbit and clock (s) */
 #define MAXAGESSR_UDI 120.0        /* cap of the udi-extended ssr orbit age (s) */
 #define MAXAGESSR_HRCLK 10.0       /* max age of ssr high-rate clock (s) */
+#define MAXAGESSR_B2BCLK 30.0      /* max age of PPP-B2b clock correction (s) */
 #define STD_BRDCCLK 30.0           /* error of broadcast clock (m) */
 
 /*============================================================================
@@ -793,7 +795,7 @@ static int satpos_ssr(gtime_t time, gtime_t teph, int sat, const nav_t* nav, int
                       double* var, int* svh) {
     const ssr_t* ssr;
     eph_t* eph;
-    double t1, t2, t3, er[3], ea[3], ec[3], rc[3], deph[3], dclk, dant[3] = {0}, tk, maxage1;
+    double t1, t2, t3, er[3], ea[3], ec[3], rc[3], deph[3], dclk, dant[3] = {0}, tk, maxage1, maxage2;
     int i, sys;
 
     trace(NULL, 4, "satpos_ssr: time=%s sat=%2d\n", time_str(time, 3), sat);
@@ -829,7 +831,13 @@ static int satpos_ssr(gtime_t time, gtime_t teph, int sat, const nav_t* nav, int
      * stream declaring a long udint (up to 10800 s) cannot make hours-old
      * orbits acceptable. */
     maxage1 = ssr->udi[0] > MAXAGESSR ? (ssr->udi[0] < MAXAGESSR_UDI ? ssr->udi[0] : MAXAGESSR_UDI) : MAXAGESSR;
-    if (fabs(t1) > maxage1 || fabs(t2) > MAXAGESSR) {
+    /* PPP-B2b clocks: Table 6-12 gives a 12 s nominal validity, but the live
+     * corrections arrive 6-8 s after their epoch and are renewed every 6 s, so
+     * a 12 s age limit rejects healthy clocks. MAXAGESSR_B2BCLK (as cssrlib's
+     * clock limit) still stops a clock that is no longer renewed sooner than
+     * MAXAGESSR. Other sources keep MAXAGESSR. */
+    maxage2 = ssr->vendor == SSR_VENDOR_B2B ? MAXAGESSR_B2BCLK : MAXAGESSR;
+    if (fabs(t1) > maxage1 || fabs(t2) > maxage2) {
         trace(NULL, 2, "age of ssr error: %s sat=%2d t=%.0f %.0f\n", time_str(time, 0), sat, t1, t2);
         *svh = -1;
         return 0;

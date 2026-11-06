@@ -1328,8 +1328,15 @@ extern int rtksvrstart(rtksvr_t* svr, int cycle, int buffsize, int* strs, char**
     }
 
     /* initialize BeiDou PPP-B2b context for B2b float PPP (correction = bds-b2b).
-     * Any input stream may carry SBF BDSRawB2b messages; routing is index-agnostic. */
-    if (prcopt->correction == CORR_BDS_B2B && !svr->b2b) {
+     * Any input stream may carry SBF BDSRawB2b messages; routing is index-agnostic.
+     * A context left by a previous run (rtkrcv `load` + `restart`) is freed, so
+     * another correction source is not overwritten by B2b and a new B2b run
+     * starts without the old mask and corrections. */
+    if (svr->b2b) {
+        b2b_free(svr->b2b);
+        svr->b2b = NULL;
+    }
+    if (prcopt->correction == CORR_BDS_B2B) {
         svr->b2b = b2b_new();
         if (!svr->b2b) {
             tracet(NULL, 1, "rtksvrstart: PPP-B2b context alloc error\n");

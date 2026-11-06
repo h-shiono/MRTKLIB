@@ -62,6 +62,8 @@ typedef struct {            /* PPP-B2b satellite mask (MT1) */
 } b2b_mask_t;
 
 typedef struct {       /* BeiDou PPP-B2b decode context */
+    int src_prn;       /* GEO PRN whose message stream is decoded (0:none yet) */
+    gtime_t src_time;  /* reception time of its last valid message */
     int iodssr;        /* current IOD SSR (-1:none yet) */
     b2b_mask_t mask;   /* current satellite mask */
     ssr_t ssr[MAXSAT]; /* decoded SSR corrections */

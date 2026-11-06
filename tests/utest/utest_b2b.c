@@ -26,6 +26,12 @@
  *      kubolab mosaic-G5, 2026-10-23 20:00:32 GPST) decodes to the values of
  *      the same record in BRD400DLR_S_20262960000_01D_MN.rnx (CNV1), into
  *      ephemeris set 1, and only while the BeiDou selection is B-CNAV.
+ *  13. IOD SSR change in MT1 clears every staged orbit/clock/code bias, so a
+ *      new orbit cannot pair with an old clock of the same IOD Corr.
+ *  14. a withdrawn code bias (-2048 / -2047) clears cbias and vcbias.
+ *  15. one GEO stream at a time: interleaved frames of another GEO (C04 with
+ *      a different IOD SSR, as on 2026-10-23) are ignored until the decoded
+ *      source has been silent for 10 s; the next source is taken on its mask.
  *
  * Explicit CHECK macro (not assert) so it is robust under -DNDEBUG.
  *-----------------------------------------------------------------------------*/
@@ -55,6 +61,7 @@ extern gtime_t bdt2time(int week, double sec);
 extern double time2bdt(gtime_t t, int* week);
 extern double timediff(gtime_t t1, gtime_t t2);
 extern double time2gpst(gtime_t t, int* week);
+extern gtime_t timeadd(gtime_t t, double sec);
 
 static int fails = 0;
 
@@ -70,6 +77,15 @@ static int fails = 0;
 
 #define B2B_CRC_BITS 462
 #define GEO_PRN 1 /* BDS-3 GEO in the default set_bdsgeo() list (C01-C04) */
+
+/* MT1 mask with only C09 (slot 9) */
+static void make_mask_c09(uint8_t* m, int tod, int iodssr, int iodp);
+/* MT2 with one C09 orbit block (IOD Corr 3) */
+static void make_orbit_c09(uint8_t* m, int tod, int iodssr);
+/* MT4 subtype 0, C09 = mask index 0, IOD Corr 3 */
+static void make_clock_c09(uint8_t* m, int tod, int iodssr, int iodp);
+/* MT3 with one C09 bias, mode 0 (B1I) */
+static void make_cbias_c09(uint8_t* m, int tod, int iodssr, int dcb);
 
 /* SBF BDSCNav1 (4251) block of C28 as logged (header, CRC and padding included) */
 static const uint8_t sbf_bdscnav1_c28[160] = {
@@ -713,6 +729,147 @@ int main(void) {
         setseleph(SYS_CMP, 0);
     }
 
+    /* ===================================================================== *
+     * 13. IOD SSR change clears the staged corrections                       *
+     * ===================================================================== */
+    {
+        b2b_t* b2b = b2b_new();
+        uint8_t m[B2B_MSG_BYTES];
+        ssr_t* s9 = &b2b->ssr[bds9 - 1];
+
+        make_mask_c09(m, tod, 1, 2);
+        b2b_input_msg(b2b, GEO_PRN, m, time);
+        make_orbit_c09(m, tod, 1);
+        b2b_input_msg(b2b, GEO_PRN, m, time);
+        make_clock_c09(m, tod, 1, 2);
+        b2b_input_msg(b2b, GEO_PRN, m, time);
+        make_cbias_c09(m, tod, 1, 100);
+        b2b_input_msg(b2b, GEO_PRN, m, time);
+        CHECK(s9->t0[0].time && s9->t0[1].time && s9->vcbias[CODE_L2I - 1] && s9->vendor == SSR_VENDOR_B2B,
+              "13: C09 orbit/clock/bias staged under IOD SSR 1, vendor PPP-B2b");
+
+        s9->update = 0;
+        make_mask_c09(m, tod, 1, 2); /* same IOD SSR: nothing cleared */
+        b2b_input_msg(b2b, GEO_PRN, m, time);
+        CHECK(s9->t0[0].time && s9->t0[1].time && !s9->update, "13: repeated MT1 keeps the corrections");
+
+        make_mask_c09(m, tod, 2, 2); /* IOD SSR 1 -> 2 */
+        b2b_input_msg(b2b, GEO_PRN, m, time);
+        CHECK(!s9->t0[0].time && !s9->t0[1].time && !s9->t0[4].time && !s9->vcbias[CODE_L2I - 1] &&
+                  s9->cbias[CODE_L2I - 1] == 0.0f,
+              "13: IOD SSR change clears orbit, clock and code bias");
+        CHECK(s9->update && s9->iod[0] == s9->iod[1], "13: cleared entry is flagged for the copy (iod[0] == iod[1])");
+
+        make_orbit_c09(m, tod, 2); /* new orbit, IOD Corr 3 as the old clock */
+        b2b_input_msg(b2b, GEO_PRN, m, time);
+        CHECK(s9->t0[0].time && !s9->t0[1].time, "13: new orbit does not pair with the old clock");
+        b2b_free(b2b);
+    }
+
+    /* ===================================================================== *
+     * 14. withdrawn code bias                                               *
+     * ===================================================================== */
+    {
+        b2b_t* b2b = b2b_new();
+        uint8_t m[B2B_MSG_BYTES];
+        ssr_t* s9 = &b2b->ssr[bds9 - 1];
+        int dnu[2] = {-2048, -2047}, k;
+
+        make_mask_c09(m, tod, 1, 2);
+        b2b_input_msg(b2b, GEO_PRN, m, time);
+        for (k = 0; k < 2; k++) {
+            make_cbias_c09(m, tod, 1, 100);
+            b2b_input_msg(b2b, GEO_PRN, m, time);
+            s9->update = 0;
+            make_cbias_c09(m, tod, 1, dnu[k]);
+            int ret = b2b_input_msg(b2b, GEO_PRN, m, time);
+            CHECK(ret == 10 && s9->update && !s9->vcbias[CODE_L2I - 1] && s9->cbias[CODE_L2I - 1] == 0.0f,
+                  k ? "14: DCB -2047 withdraws the C09 B1I bias" : "14: DCB -2048 withdraws the C09 B1I bias");
+        }
+        b2b_free(b2b);
+    }
+
+    /* ===================================================================== *
+     * 15. GEO source lock                                                   *
+     * ===================================================================== */
+    {
+        b2b_t* b2b = b2b_new();
+        uint8_t m[B2B_MSG_BYTES];
+        ssr_t* s9 = &b2b->ssr[bds9 - 1];
+        gtime_t t5 = timeadd(time, 5.0), t20 = timeadd(time, 20.0);
+
+        make_orbit_c09(m, tod, 1);
+        b2b_input_msg(b2b, 1, m, time);
+        CHECK(b2b->src_prn == 0, "15: no source before a mask");
+        make_mask_c09(m, tod, 1, 2);
+        b2b_input_msg(b2b, 1, m, time);
+        CHECK(b2b->src_prn == 1 && b2b->iodssr == 1, "15: C01 taken on its mask");
+
+        make_mask_c09(m, tod, 2, 2); /* C04 stream, IOD SSR 2 */
+        b2b_input_msg(b2b, 4, m, t5);
+        make_clock_c09(m, tod, 2, 2);
+        b2b_input_msg(b2b, 4, m, t5);
+        CHECK(b2b->src_prn == 1 && b2b->iodssr == 1 && !s9->t0[1].time, "15: interleaved C04 frames ignored");
+
+        make_orbit_c09(m, tod, 1);
+        CHECK(b2b_input_msg(b2b, 1, m, t5) == 10 && s9->t0[0].time, "15: C01 orbit still decoded");
+
+        make_clock_c09(m, tod, 2, 2);
+        CHECK(b2b_input_msg(b2b, 4, m, t20) == 0 && b2b->src_prn == 1, "15: C01 silent 15 s: no switch on a clock");
+        make_mask_c09(m, tod, 2, 2);
+        b2b_input_msg(b2b, 4, m, t20);
+        CHECK(b2b->src_prn == 4 && b2b->iodssr == 2 && !s9->t0[0].time,
+              "15: C04 taken on its mask; IOD SSR 1 -> 2 clears the C01 orbit");
+        b2b_free(b2b);
+    }
+
     printf("\n%s: %d failure(s)\n", fails ? "FAILED" : "PASSED", fails);
     return fails ? 1 : 0;
+}
+
+static void make_mask_c09(uint8_t* m, int tod, int iodssr, int iodp) {
+    int i = begin_msg(m, MT_MASK);
+    i = put_head(m, i, tod, iodssr);
+    setbitu(m, i, 4, (uint32_t)iodp);
+    i += 4;
+    setbitu(m, i + 8, 1, 1); /* slot 9 (BDS C09) */
+    finish_msg(m);
+}
+
+static void make_orbit_c09(uint8_t* m, int tod, int iodssr) {
+    int i = begin_msg(m, MT_ORBIT);
+    i = put_head(m, i, tod, iodssr);
+    put_orb(m, i, /*slot*/ 9, 0x055, /*iodcorr*/ 3, 1600, 0, 0, 0, 0);
+    finish_msg(m);
+}
+
+static void make_clock_c09(uint8_t* m, int tod, int iodssr, int iodp) {
+    int i = begin_msg(m, MT_CLOCK), k;
+    i = put_head(m, i, tod, iodssr);
+    setbitu(m, i, 4, (uint32_t)iodp);
+    i += 4;
+    setbitu(m, i, 5, 0); /* subtype 0 */
+    i += 5;
+    for (k = 0; k < 23; k++) {
+        setbitu(m, i, 3, 3); /* iodcorr 3 */
+        i += 3;
+        setbits(m, i, 15, k == 0 ? -1500 : 0);
+        i += 15;
+    }
+    finish_msg(m);
+}
+
+static void make_cbias_c09(uint8_t* m, int tod, int iodssr, int dcb) {
+    int i = begin_msg(m, MT_CBIAS);
+    i = put_head(m, i, tod, iodssr);
+    setbitu(m, i, 5, 1); /* nsat */
+    i += 5;
+    setbitu(m, i, 9, 9); /* slot 9 (C09) */
+    i += 9;
+    setbitu(m, i, 4, 1); /* ncb */
+    i += 4;
+    setbitu(m, i, 4, 0); /* mode 0 -> CODE_L2I (B1I) */
+    i += 4;
+    setbits(m, i, 12, dcb);
+    finish_msg(m);
 }
