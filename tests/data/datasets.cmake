@@ -29,3 +29,8 @@ mrtk_dataset(clas_l6gap-v1 SHA256 365fe0466a64badb3f52ccebe85ace855615d08e890884
 # plus a cut RINEX 4 broadcast navigation file; see tests/data/g5p3_296u/README.md
 # (#417, #418).
 mrtk_dataset(g5p3_296u-v1 SHA256 923b2fe8e276664b8ad809947eaca2afc5577a9eca39cb7274b50781b5d44106)
+
+# SouthPAN PVS in the service area: ALBY 2025-233 h (SIS, Kamakura log) and
+# ALIC 2025-110 f (DAS log) from cssrlib-data, with cut DLR broadcast
+# navigation; see tests/data/southpan/README.md (#418).
+mrtk_dataset(southpan-v1 SHA256 cf55f6ce2ffb900606078cd2366d0ccf4a843fb7707c8709314befb3e73ddefe)

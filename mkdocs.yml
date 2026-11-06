@@ -97,6 +97,7 @@ nav:
     - "Quick Start: MADOCA-PPP": guide/quickstart-madoca-ppp.md
     - "Quick Start: Galileo HAS PPP": guide/quickstart-gal-has.md
     - "Quick Start: BeiDou PPP-B2b": guide/quickstart-bds-b2b.md
+    - "Quick Start: SouthPAN PVS": guide/quickstart-southpan-pvs.md
     - "Quick Start: IGS-RTS PPP": guide/quickstart-igs-rts.md
     - BeiDou PRN Reassignment: guide/beidou-prn-reassignment.md
     - NTRIP Streams: guide/ntrip.md

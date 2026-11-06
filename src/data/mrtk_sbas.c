@@ -43,6 +43,7 @@
 #define SYS_GPS 0x01
 #define SYS_SBS 0x02
 #define SYS_GLO 0x04
+#define SYS_GAL 0x08
 #define SYS_QZS 0x10
 
 static const double PI = 3.1415926535897932;
@@ -52,10 +53,13 @@ static const double CLIGHT = 299792458.0;
 static const double RE_WGS84 = 6378137.0;
 
 #define P2_11 4.882812500000000E-04 /* 2^-11 */
+#define P2_12 2.441406250000000E-04 /* 2^-12 */
 #define P2_31 4.656612873077393E-10 /* 2^-31 */
 #define P2_39 1.818989403545856E-12 /* 2^-39 */
 #define MAXSBSAGEF 30.0             /* max age of SBAS fast correction (s) */
 #define MAXSBSAGEL 1800.0           /* max age of SBAS long term corr (s) */
+#define SSR_VENDOR_PVS 3            /* = mrtk_const.h SSR_VENDOR_PVS */
+#define SBS_PRN_PVS 122             /* SouthPAN GEO carrying PVS in the IOC (SBAS-STN-0001 5.3.1) */
 
 /*--- forward declarations for legacy functions resolved at link time -------*/
 
@@ -519,7 +523,8 @@ int sbsupdatecorr(const sbsmsg_t* msg, nav_t* nav) {
 
     trace(NULL, 3, "sbsupdatecorr: type=%d\n", type);
 
-    if (msg->week == 0) {
+    /* L5 DFMC messages have another layout: never feed them to the L1 decoders */
+    if (msg->week == 0 || msg->band == SBS_BAND_L5) {
         return -1;
     }
 
@@ -564,10 +569,86 @@ int sbsupdatecorr(const sbsmsg_t* msg, nav_t* nav) {
     }
     return stat ? type : -1;
 }
+/* message type of an sbas message -------------------------------------------*/
+int sbsmsgtype(const sbsmsg_t* msg) {
+    return msg->band == SBS_BAND_L5 ? (int)getbitu(msg->msg, 4, 6) : (int)getbitu(msg->msg, 8, 6);
+}
+/* update southpan pvs corrections (DFMC L5 MT32) ------------------------------
+ * MT32 layout as cssrlib sbas.py / cssr_pvs.py (ED-259 not held), scales from
+ * SBAS-STN-0001 Rev 04 Table 7. The orbit correction is ECEF (added to the
+ * broadcast position) and the clock correction is added to the broadcast clock
+ * (dts += dB/c), the same signs as cssrlib.
+ *-----------------------------------------------------------------------------*/
+int sbsupdatepvs(const sbsmsg_t* msg, nav_t* nav) {
+    ssr_t ssr = {{{0}}};
+    gtime_t time;
+    int i = 10, slot, iodn, td, sys, prn, sat;
+    double dpos[3], dvel[3], db, dbd;
+
+    /* other DFMC L5 GEOs (e.g. BDSBAS PRN 130/143/144, received with PRN 122
+     * in Japan) send MT32 for their own service: PVS is PRN 122 only */
+    if (msg->week == 0 || msg->band != SBS_BAND_L5 || msg->prn != SBS_PRN_PVS || sbsmsgtype(msg) != 32) {
+        return 0;
+    }
+    slot = getbitu(msg->msg, i, 8);
+    i += 8;
+    iodn = getbitu(msg->msg, i, 10);
+    i += 10;
+    if (slot == 0) {
+        return 0; /* no correction */
+    }
+    dpos[0] = getbits(msg->msg, i, 11) * 0.0625;
+    dpos[1] = getbits(msg->msg, i + 11, 11) * 0.0625;
+    dpos[2] = getbits(msg->msg, i + 22, 11) * 0.0625;
+    db = getbits(msg->msg, i + 33, 12) * 0.03125;
+    i += 45;
+    dvel[0] = getbits(msg->msg, i, 8) * P2_11;
+    dvel[1] = getbits(msg->msg, i + 8, 8) * P2_11;
+    dvel[2] = getbits(msg->msg, i + 16, 8) * P2_11;
+    dbd = getbits(msg->msg, i + 24, 9) * P2_12;
+    td = getbitu(msg->msg, i + 33, 13);
+
+    /* PVS takes only the messages for both SBAS and PVS: tD/16 odd */
+    if (td % 2 == 0) {
+        return 0;
+    }
+    if (1 <= slot && slot <= 32) {
+        sys = SYS_GPS;
+        prn = slot;
+    } else if (75 <= slot && slot <= 110) {
+        sys = SYS_GAL;
+        prn = slot - 74;
+    } else {
+        return 0; /* PVS augments GPS and Galileo only */
+    }
+    if (!(sat = satno(sys, prn))) {
+        return 0;
+    }
+    time = gpst2time(msg->week, msg->tow);
+
+    for (i = 0; i < 2; i++) {
+        ssr.t0[i] = time;
+    }
+    /* GPS: IODN carries the LNAV IODC, whose 8 LSBs are the IODE */
+    ssr.iode = sys == SYS_GPS ? (iodn & 0xFF) : iodn;
+    for (i = 0; i < 3; i++) {
+        ssr.deph[i] = dpos[i];
+        ssr.ddeph[i] = dvel[i];
+    }
+    ssr.dclk[0] = db;
+    ssr.dclk[1] = dbd;
+    ssr.vendor = SSR_VENDOR_PVS;
+    ssr.update = 1;
+    nav->ssr_ch[0][sat - 1] = ssr;
+
+    trace(NULL, 4, "sbsupdatepvs: %s sat=%2d iodn=%4d td=%5d dpos=%7.3f %7.3f %7.3f db=%7.3f\n", time_str(time, 0), sat,
+          iodn, td * 16, dpos[0], dpos[1], dpos[2], db);
+    return sat;
+}
 /* read sbas log file --------------------------------------------------------*/
 static void readmsgs(const char* file, int sel, gtime_t ts, gtime_t te, sbs_t* sbs) {
     sbsmsg_t* sbs_msgs;
-    int i, week, prn, ch, msg;
+    int i, week, prn, ch, msg, type;
     uint32_t b;
     double tow, ep[6] = {0};
     char buff[256], *p;
@@ -581,7 +662,9 @@ static void readmsgs(const char* file, int sel, gtime_t ts, gtime_t te, sbs_t* s
         return;
     }
     while (fgets(buff, sizeof(buff), fp)) {
+        type = -1;
         if (sscanf(buff, "%d %lf %d", &week, &tow, &prn) == 3 && (p = strstr(buff, ": "))) {
+            sscanf(buff, "%*d %*f %*d %d", &type);
             p += 2; /* rtklib form */
         } else if (sscanf(buff, "%d %lf %lf %lf %lf %lf %lf %d", &prn, ep, ep + 1, ep + 2, ep + 3, ep + 4, ep + 5,
                           &msg) == 8) {
@@ -654,7 +737,20 @@ static void readmsgs(const char* file, int sel, gtime_t ts, gtime_t te, sbs_t* s
                 sbs->msgs[sbs->n].msg[i] = (uint8_t)b;
             }
         }
-        sbs->msgs[sbs->n++].msg[28] &= 0xC0;
+        sbs->msgs[sbs->n].msg[28] &= 0xC0;
+
+        /* the rtklib form gives the message type: an L5 DFMC frame is one whose
+         * type matches the L5 field (bits 4-9) but not the L1 field (bits 8-13).
+         * When both match (an L5 frame with bits 4-13 zero, e.g. MT0), the L1
+         * preamble decides: an L1 frame starts with 0x53, 0x9A or 0xC6 */
+        sbs->msgs[sbs->n].band = SBS_BAND_L1;
+        if (type >= 0 && (int)getbitu(sbs->msgs[sbs->n].msg, 4, 6) == type) {
+            b = sbs->msgs[sbs->n].msg[0];
+            if ((int)getbitu(sbs->msgs[sbs->n].msg, 8, 6) != type || (b != 0x53 && b != 0x9A && b != 0xC6)) {
+                sbs->msgs[sbs->n].band = SBS_BAND_L5;
+            }
+        }
+        sbs->n++;
     }
     fclose(fp);
 }
@@ -730,7 +826,7 @@ int sbsreadmsg(const char* file, int sel, sbs_t* sbs) {
  * return : none
  *-----------------------------------------------------------------------------*/
 void sbsoutmsg(FILE* fp, sbsmsg_t* sbsmsg) {
-    int i, prn = sbsmsg->prn, type = sbsmsg->msg[1] >> 2;
+    int i, prn = sbsmsg->prn, type = sbsmsgtype(sbsmsg);
 
     trace(NULL, 4, "sbsoutmsg:\n");
 

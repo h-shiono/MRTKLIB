@@ -7,6 +7,64 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### SouthPAN PVS
+
+- **New correction source `southpan-pvs`**
+  ([#418](https://github.com/h-shiono/MRTKLIB/issues/418)): float PPP with
+  the PPP via SouthPAN corrections, the DFMC L5 MT32 messages of GEO PRN 122
+  with odd `tD/16`, on GPS L1 C/A + L5 (LNAV) and Galileo E1 + E5a (F/NAV), in
+  `mrtk post` and `mrtk run`. The ECEF orbit / clock corrections go to the SSR
+  store with vendor `SSR_VENDOR_PVS`. `satpos_ssr()` adds them without the
+  radial/along/cross rotation, accepts them for 100 s from reception and
+  removes the GPS TGD: the DFMC clock refers to the L1/L5 iono-free clock,
+  and without it GPS-only PPP on ALBY 2025-233 has a 5.7 m vertical bias.
+  `corr_meas()` applies no satellite bias. Needs
+  `satellite_ephemeris = "brdc+ssrapc"` (or `brdc+ssrcom`) and the GPS L1/L5 +
+  Galileo E1/E5a signal pairs; ambiguity resolution, other signal pairs and,
+  in `mrtk post`, backward / combined solutions (a correction is valid only
+  after its reception) are rejected. In `mrtk run` the PVS corrections own the
+  SSR store: MADOCA or RTCM3 SSR on the same streams is not applied. Only
+  PRN 122 is used: other DFMC GEOs (BDSBAS PRN 130/143/144 in Japan) send
+  MT32 for their own service.
+- **SBAS L5 messages.** `sbsmsg_t` gains `band` (`SBS_BAND_L1` /
+  `SBS_BAND_L5`) in its padding byte, so `sizeof` is unchanged. SBF
+  `GEORawL5` (4021) is decoded (raw return code 3, as `GEORawL1`).
+  `sbsmsgtype()` reads the L5 type at bit 4. `sbsoutmsg()` writes it to the
+  `.sbs` type column, so `mrtk convert -s` now also writes L5 messages, and the
+  `.sbs` reader marks a message L5 when the type column matches the L5 field
+  and not the L1 field, or matches both and the frame has no L1 preamble
+  (an L5 MT0 with bits 4–13 zero; cssrlib `*_sbas.txt` files read as well). L5 messages
+  never reach the L1 decoders (`sbsupdatecorr()` returns −1), and `mrtk post`
+  applies them from their reception time, independent of the L1 messages of
+  the same second. New `sbsupdatepvs()`.
+- **DAS logs:** `scripts/tests/das2sbs.py` converts SouthPAN Data Access
+  Service logs (SISNeT `*MSG` lines, SINCA) to `.sbs`. The DAS path is not
+  validated (#462) and a real-time DAS input is not implemented.
+- **Configurations:** `conf/pvs/ppp_southpan_pvs.toml` (post) and
+  `conf/pvs/run_southpan_pvs.toml` (real time). Guide
+  `docs/guide/quickstart-southpan-pvs.md`; design `docs/design/southpan-pvs.md`.
+- **Validation** (last 20 min of one hour vs the RINEX header position): ALBY
+  2025-233 h kinematic 6.0 cm 2D / 12.6 cm U rms, static 8.0 / 6.4 cm, 11.7
+  satellites. ALIC 2025-110 f (DAS log) ends about 1 m off in MRTKLIB and in
+  cssrlib; the reference positions agree with IGS SINEX to ~1 cm and
+  CODE-products PPP of the same observations ends within 0.17 m, so the offset
+  is in the DAS-logged corrections of that hour (#462).
+- **Tests:** `utest_pvs`; `pvs_sbs_check`, `pvs_ppp`, `rtkrcv_pvs` on
+  `g5p3_296u-v1` (Tokyo, out of the service area: pipeline only); new dataset
+  `southpan-v1` (ALBY / ALIC from cssrlib-data, MIT; SouthPAN data CC BY 4.0)
+  for `pvs_alby_kin`, `pvs_alby_static`, `pvs_alic_das2sbs`, `pvs_alic_kin`.
+
+### Fixed
+
+- **SBF `GALNav` (4002) F/NAV** is stored in ephemeris set 1, as
+  `GALRawFNAV` does. It used set 0 and overwrote the I/NAV ephemeris; `mrtk
+  convert` of a one-hour mosaic-G5 capture wrote 1 F/NAV record instead of 29.
+- **Galileo I/NAV and F/NAV records of one IODnav** are no longer merged by
+  the ephemeris de-duplication (`uniqeph()`) when they sort next to each
+  other, which dropped one of them. With both fixes the HAS and CLAS regression
+  outputs are bit-identical, and the MADOCA ones stay within their ≤ 6 mm
+  run-to-run variation (fix quality unchanged); tolerances unchanged.
+
 ## [v0.7.16] - 2026-11-06
 
 **BeiDou PPP-B2b.** `correction = "bds-b2b"` runs BeiDou-only float PPP with
