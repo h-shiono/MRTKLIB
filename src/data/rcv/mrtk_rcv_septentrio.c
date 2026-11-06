@@ -1409,7 +1409,7 @@ static int decode_glonav(raw_t* raw) {
 static int decode_galnav(raw_t* raw) {
     eph_t eph = {0};
     uint8_t* p = raw->buff + 8;
-    int prn, sat, code;
+    int prn, sat, code, set;
     uint16_t week_toe, week_toc, health;
     uint32_t tocs;
     uint8_t sva;
@@ -1474,13 +1474,16 @@ static int decode_galnav(raw_t* raw) {
     eph.toc = gpst2time(week_toc, tocs);
     eph.ttr = gpst2time(eph.week, U4(p) * 0.001);
 
+    /* F/NAV goes to set 1 like GALRawFNAV, so it does not overwrite the I/NAV
+     * ephemeris that seleph() selects by default */
+    set = code == 16 ? 1 : 0;
     if (!strstr(raw->opt, "-EPHALL")) {
-        if (eph.iode == raw->nav.eph[sat - 1].iode) return 0;
+        if (eph.iode == raw->nav.eph[sat - 1 + MAXSAT * set].iode) return 0;
     }
     eph.sat = sat;
-    raw->nav.eph[sat - 1] = eph;
+    raw->nav.eph[sat - 1 + MAXSAT * set] = eph;
     raw->ephsat = sat;
-    raw->ephset = 0;
+    raw->ephset = set;
     return 2;
 }
 /* decode SBF BDS decoded navigation (BDSNav 4081) ---------------------------*/
