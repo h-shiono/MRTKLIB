@@ -27,7 +27,8 @@
  *      the same record in BRD400DLR_S_20262960000_01D_MN.rnx (CNV1), into
  *      ephemeris set 1, and only while the BeiDou selection is B-CNAV.
  *  13. IOD SSR change in MT1 clears every staged orbit/clock/code bias, so a
- *      new orbit cannot pair with an old clock of the same IOD Corr.
+ *      new orbit cannot pair with an old clock of the same IOD Corr, and
+ *      returns 10 so the caller publishes the cleared entries.
  *  14. a withdrawn code bias (-2048 / -2047) clears cbias and vcbias.
  *  15. one GEO stream at a time: interleaved frames of another GEO (C04 with
  *      a different IOD SSR, as on 2026-10-23) are ignored until the decoded
@@ -750,11 +751,11 @@ int main(void) {
 
         s9->update = 0;
         make_mask_c09(m, tod, 1, 2); /* same IOD SSR: nothing cleared */
-        b2b_input_msg(b2b, GEO_PRN, m, time);
+        CHECK(b2b_input_msg(b2b, GEO_PRN, m, time) == 0, "13: repeated MT1 returns 0");
         CHECK(s9->t0[0].time && s9->t0[1].time && !s9->update, "13: repeated MT1 keeps the corrections");
 
         make_mask_c09(m, tod, 2, 2); /* IOD SSR 1 -> 2 */
-        b2b_input_msg(b2b, GEO_PRN, m, time);
+        CHECK(b2b_input_msg(b2b, GEO_PRN, m, time) == 10, "13: MT1 with a new IOD SSR returns 10 (publish the clear)");
         CHECK(!s9->t0[0].time && !s9->t0[1].time && !s9->t0[4].time && !s9->vcbias[CODE_L2I - 1] &&
                   s9->cbias[CODE_L2I - 1] == 0.0f,
               "13: IOD SSR change clears orbit, clock and code bias");
