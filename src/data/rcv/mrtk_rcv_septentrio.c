@@ -127,11 +127,12 @@
 #define SBF_NAVICRAW 4093   /* SBF NavIC/IRNSS subframe */
 
 /* Decoded navigation blocks */
-#define SBF_GPSNAV 5891  /* SBF GPS decoded ephemeris */
-#define SBF_GLONAV 4004  /* SBF GLONASS decoded ephemeris */
-#define SBF_GALNAV 4002  /* SBF Galileo decoded ephemeris */
-#define SBF_BDSNAV 4081  /* SBF BDS decoded ephemeris */
-#define SBF_QZSSNAV 4095 /* SBF QZSS decoded ephemeris */
+#define SBF_GPSNAV 5891   /* SBF GPS decoded ephemeris */
+#define SBF_GLONAV 4004   /* SBF GLONASS decoded ephemeris */
+#define SBF_GALNAV 4002   /* SBF Galileo decoded ephemeris */
+#define SBF_BDSNAV 4081   /* SBF BDS decoded ephemeris */
+#define SBF_BDSCNAV1 4251 /* SBF BDS decoded B-CNAV1 ephemeris (B1C) */
+#define SBF_QZSSNAV 4095  /* SBF QZSS decoded ephemeris */
 
 /* Position blocks */
 #define SBF_PVTGEOD 4007 /* SBF PVTGeodetic */
@@ -980,12 +981,14 @@ static int decode_galrawcnav(raw_t* raw) {
 /**
  * @brief Decode an SBF BDSRawB2b block (4242) into a staged PPP-B2b message.
  *
- * The block payload (after the 8-byte SBF header) is: TOW u4, WNc u2, SVID u1,
- * CRCPassed u1, ViterbiCnt u1, Source u1, FreqNr u1, RxChannel u1,
- * NAVBits u4[16]. The 16 little-endian words are concatenated MSB-first into
- * 512 bits. The receiver has already performed LDPC channel decoding; the
- * NAVBits carry PRN(6) + reserved(6) followed by the 486-bit PPP-B2b message
- * (MesType(6) + data(456) + CRC-24Q(24)), so the message starts at bit 12.
+ * Layout per the mosaic-G5 Firmware v1.1.0 Reference Guide, 4 SBF Reference,
+ * BDSRawB2b (p. 215): after the 8-byte header, TOW u4, WNc u2, SVID u1,
+ * CRCPassed u1 (CRC over the 486 message bits), Reserved1 u1, Source u1,
+ * Reserved2 u1, RxChannel u1, NAVBits u4[31] (the 984 frame symbols without the
+ * preamble, first symbol = MSB of the PRN field in the MSB of NAVBits[0]). The
+ * receiver corrects bit errors with the LDPC parity; the first 16 words, joined
+ * MSB-first, hold PRN(6) + reserved(6) and the 486-bit message (MesType(6) +
+ * data(456) + CRC-24Q(24)), so the message starts at bit 12.
  * The staged message is routed to svr->b2b by decoderaw(). CRC failures and
  * non-BDS SVIDs are skipped here (return 0); TOW sentinels are filtered
  * upstream in decode_sbf.
@@ -1544,6 +1547,91 @@ static int decode_bdsnav(raw_t* raw) {
     raw->ephset = 0;
     return 2;
 }
+/* decode SBF BDS decoded B-CNAV1 ephemeris (BDSCNav1 4251) -------------------
+ * PPP-B2b orbit corrections reference the B-CNAV1 IODC/IODE (IODN), which the
+ * D1/D2 ephemeris of BDSNav (4081) does not carry. The record goes to ephemeris
+ * set 1 as type 2 (CNAV-1, as RINEX 4 CNV1) so it does not replace the D1/D2
+ * record in set 0. Decoded only while the BeiDou ephemeris selection is B-CNAV
+ * (setseleph(SYS_CMP, 1), correction = bds-b2b): the D1/D2 selection and the
+ * RINEX navigation writer do not tell CNAV-1 records from D1/D2 records.
+ * Layout per the mosaic-G5 Firmware v1.1.0 Reference Guide, 4 SBF Reference,
+ * BDSCNav1 (pp. 245-246): PRNidx is the index within BeiDou (1: C01), not the
+ * SBF SVID; angles are in semi-circles; ISC/T_GD have no Do-Not-Use value.
+ *-----------------------------------------------------------------------------*/
+static int decode_bdscnav1(raw_t* raw) {
+    eph_t eph = {0};
+    const uint8_t* p = raw->buff;
+    eph_t* eph0;
+    gtime_t t;
+    double tt;
+    int prn, sat, week;
+
+    trace(NULL, 4, "SBF decode_bdscnav1: len=%d\n", raw->len);
+
+    if (getseleph(SYS_CMP) != 1) {
+        return 0;
+    }
+    if (raw->len < 160) {
+        trace(NULL, 2, "SBF decode_bdscnav1 frame length error: len=%d\n", raw->len);
+        return -1;
+    }
+    prn = U1(p + 14);
+    if (!(prn >= 1 && prn <= 63) || !(sat = satno(SYS_CMP, prn))) {
+        trace(NULL, 2, "SBF decode_bdscnav1 prn error: prn=%d\n", prn);
+        return -1;
+    }
+    eph.toes = U4(p + 16);
+    eph.A = R8(p + 20);
+    eph.Adot = R8(p + 28);
+    eph.deln = R4(p + 36) * PI;
+    eph.ndot = R4(p + 40) * PI;
+    eph.M0 = R8(p + 44) * PI;
+    eph.e = R8(p + 52);
+    eph.omg = R8(p + 60) * PI;
+    eph.OMG0 = R8(p + 68) * PI;
+    eph.OMGd = R4(p + 76) * PI;
+    eph.i0 = R8(p + 80) * PI;
+    eph.idot = R4(p + 88) * PI;
+    eph.cis = R4(p + 92);
+    eph.cic = R4(p + 96);
+    eph.crs = R4(p + 100);
+    eph.crc = R4(p + 104);
+    eph.cus = R4(p + 108);
+    eph.cuc = R4(p + 112);
+    eph.f2 = R4(p + 120);
+    eph.f1 = R4(p + 124);
+    eph.f0 = R8(p + 128);
+    eph.sva = U1(p + 143); /* SISMAI */
+    eph.svh = U1(p + 144);
+    eph.iode = U1(p + 145);
+    eph.iodc = U2(p + 146);
+    eph.tgd[4] = R4(p + 148); /* ISC_B1Cd */
+    eph.tgd[2] = R4(p + 152); /* T_GDB1Cp */
+    eph.tgd[3] = R4(p + 156); /* T_GDB2ap */
+    eph.type = 2;             /* CNAV-1 */
+
+    /* t_oe / t_oc are BDT seconds of week: take the week nearest the block time */
+    tt = time2bdt(gpst2bdt(raw->time), &week);
+    if (eph.toes - tt > 302400.0) week--;
+    if (eph.toes - tt < -302400.0) week++;
+    eph.week = week;
+    eph.toe = bdt2gpst(bdt2time(week, eph.toes));
+    t = bdt2gpst(bdt2time(week, (double)U4(p + 116)));
+    if (timediff(t, eph.toe) > 302400.0) t = timeadd(t, -604800.0);
+    if (timediff(t, eph.toe) < -302400.0) t = timeadd(t, 604800.0);
+    eph.toc = t;
+    eph.ttr = raw->time;
+
+    eph0 = raw->nav.eph + sat - 1 + MAXSAT;
+    if (!strstr(raw->opt, "-EPHALL")) {
+        if (eph.iode == eph0->iode && eph.iodc == eph0->iodc && timediff(eph.toe, eph0->toe) == 0.0) return 0;
+    }
+    eph.sat = sat;
+    *eph0 = eph;
+    raw->ephsat = sat;
+    raw->ephset = 1;
+    return 2;
+}
 /* decode SBF QZSS decoded navigation (QZSNav 4095) -------------------------*/
 static int decode_qzssnav(raw_t* raw) {
     eph_t eph = {0};
@@ -1698,6 +1786,8 @@ static int decode_sbf(raw_t* raw, rtcm_t* rtcm) {
             return decode_glonav(raw);
         case SBF_GALNAV:
             return decode_galnav(raw);
+        case SBF_BDSCNAV1:
+            return decode_bdscnav1(raw);
         case SBF_BDSNAV:
             return decode_bdsnav(raw);
         case SBF_QZSSNAV:
@@ -1728,7 +1818,7 @@ static int sync_sbf(uint8_t* buff, uint8_t data) {
  *
  *           MEASEPOCH(4027), GPSRAWCA(4017), GLORAWCA(4026), GALRAWFNAV(4022),
  *           GALRAWINAV(4023), GALRAWCNAV(4024), GEORAWL1(4020), BDSRAW(4047),
- *           QZSRAWL1CA(4066), NAVICRAW(4093)
+ *           QZSRAWL1CA(4066), NAVICRAW(4093), BDSRAWB2B(4242), BDSCNAV1(4251)
  *
  *          to specify input options for sbf, set raw->opt to the following
  *          option strings separated by spaces.

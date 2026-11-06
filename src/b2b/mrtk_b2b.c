@@ -18,6 +18,7 @@
 
 #include "mrtklib/mrtk_bits.h"
 #include "mrtklib/mrtk_const.h"
+#include "mrtklib/mrtk_nav.h"
 #include "mrtklib/mrtk_time.h"
 #include "mrtklib/mrtk_trace.h"
 
@@ -601,13 +602,13 @@ extern int b2b_input_msg(b2b_t* b2b, int prn, const uint8_t* msg61, gtime_t time
     int mt;
 
     /* PPP-B2b SSR corrections are broadcast only by the BDS-3 GEO satellites
-     * (C59-C63; [1] 4.1), and all GEOs carry the same correction stream. The
-     * B2b-I signal from the IGSO/MEO satellites instead carries B-CNAV3
-     * navigation, whose message-type field collides numerically with the
-     * PPP-B2b MTs and would corrupt the mask/orbit/clock state. Drop any
-     * non-GEO PRN so a mixed real-time B2b stream is filtered to corrections
-     * only (the post-processing .b2b path already carries GEO frames only). */
-    if (prn < 59 || prn > 63) {
+     * ([1] 4.1), and all GEOs carry the same correction stream. The B2b-I
+     * signal from the IGSO/MEO satellites instead carries B-CNAV3 navigation,
+     * which passes the same CRC and whose message-type field collides with
+     * the PPP-B2b MTs (1/4/5 seen on live data), so it would corrupt the
+     * mask/orbit/clock state. The GEO PRNs changed with the 2026-04 PRN
+     * reassignment (C59-C62 -> C01-C04), so they come from set_bdsgeo(). */
+    if (!is_bdsgeo(prn)) {
         return 0;
     }
 

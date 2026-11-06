@@ -1335,6 +1335,9 @@ extern int rtksvrstart(rtksvr_t* svr, int cycle, int buffsize, int* strs, char**
             tracet(NULL, 1, "rtksvrstart: PPP-B2b context alloc error\n");
         }
     }
+    /* PPP-B2b orbit corrections reference the B-CNAV1 ephemeris (SBF BDSCNav1,
+     * ephemeris set 1), not the D1/D2 AODE; as postpos(). */
+    setseleph(SYS_CMP, prcopt->correction == CORR_BDS_B2B ? 1 : 0);
 
     /* free any iono state left over from a previous run so an in-process restart
      * (the rtkrcv shell can `load` a new config and `restart` in the same

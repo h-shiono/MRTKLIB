@@ -87,7 +87,8 @@ void b2b_free(b2b_t* b2b);
 /**
  * @brief Input one received PPP-B2b message.
  * @param[in,out] b2b    PPP-B2b decode context
- * @param[in]     prn    BDS PRN of the transmitting GEO satellite (59-63)
+ * @param[in]     prn    BDS PRN of the transmitting satellite; frames from PRNs
+ *                       not listed by set_bdsgeo() are ignored
  * @param[in]     msg61  61-byte message buffer (486 bits MSB-first:
  *                       MesType(6) + data(456) + CRC-24; trailing 2 bits 0)
  * @param[in]     time   Message reception time (GPST)

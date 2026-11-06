@@ -536,6 +536,20 @@ int set_bds3igso(const char* str);
 int is_bds3igso(int prn);
 
 /**
+ * @brief Set the BDS-3 GEO satellites (the PPP-B2b transmitters).
+ * @param[in] str  Satellite list, e.g. "C01-C04" or "C59-C62" ("" or NULL: C01-C04)
+ * @return Number of satellites set (-1: invalid list; the default C01-C04 is set)
+ */
+int set_bdsgeo(const char* str);
+
+/**
+ * @brief Test whether a BeiDou PRN is listed as BDS-3 GEO (see set_bdsgeo()).
+ * @param[in] prn  BeiDou PRN
+ * @return 1: listed, 0: not listed or out of range
+ */
+int is_bdsgeo(int prn);
+
+/**
  * @brief BeiDou generation of a PRN.
  * @param[in] prn  BeiDou PRN
  * @return BDSGEN_2, BDSGEN_3, or 0 (invalid PRN)

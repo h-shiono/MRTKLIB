@@ -20,19 +20,29 @@
  *   9. b2b_sel_biascode exact + fallback + unmapped (all four systems).
  *  10. out-of-range orbit slot (200) is skipped, cursor stays aligned, the
  *      following valid block in the same message still decodes.
+ *  11. GEO gate (#417): frames from PRNs outside set_bdsgeo() (default
+ *      C01-C04) are ignored; C59-C62 only when listed (pre-2026-04 data).
+ *  12. SBF BDSCNav1 (4251) B-CNAV1 ephemeris (#417): one real block (C28,
+ *      kubolab mosaic-G5, 2026-10-23 20:00:32 GPST) decodes to the values of
+ *      the same record in BRD400DLR_S_20262960000_01D_MN.rnx (CNV1), into
+ *      ephemeris set 1, and only while the BeiDou selection is B-CNAV.
  *
  * Explicit CHECK macro (not assert) so it is robust under -DNDEBUG.
  *-----------------------------------------------------------------------------*/
 #include <math.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "mrtklib/mrtk_b2b.h"
 #include "mrtklib/mrtk_bits.h"
 #include "mrtklib/mrtk_const.h"
+#include "mrtklib/mrtk_eph.h"
 #include "mrtklib/mrtk_foundation.h"
 #include "mrtklib/mrtk_nav.h"
+#include "mrtklib/mrtk_rcvraw.h"
+#include "mrtklib/mrtk_rtcm.h"
 #include "mrtklib/mrtk_time.h"
 
 extern void setbitu(uint8_t* buff, int pos, int len, uint32_t data);
@@ -44,6 +54,7 @@ extern gtime_t bdt2gpst(gtime_t t);
 extern gtime_t bdt2time(int week, double sec);
 extern double time2bdt(gtime_t t, int* week);
 extern double timediff(gtime_t t1, gtime_t t2);
+extern double time2gpst(gtime_t t, int* week);
 
 static int fails = 0;
 
@@ -58,6 +69,45 @@ static int fails = 0;
     } while (0)
 
 #define B2B_CRC_BITS 462
+#define GEO_PRN 1 /* BDS-3 GEO in the default set_bdsgeo() list (C01-C04) */
+
+/* SBF BDSCNav1 (4251) block of C28 as logged (header, CRC and padding included) */
+static const uint8_t sbf_bdscnav1_c28[160] = {
+    0x24, 0x40, 0x2c, 0x5f, 0x9b, 0x10, 0xa0, 0x00, 0x00, 0xeb, 0x0a, 0x1e, 0x89, 0x09, 0x1c, 0x03, 0xc0, 0xb0,
+    0x07, 0x00, 0x00, 0x00, 0xb0, 0x20, 0x04, 0x9d, 0x7a, 0x41, 0x00, 0x00, 0x00, 0x00, 0x80, 0x9b, 0x71, 0x3f,
+    0x00, 0xce, 0xc3, 0x30, 0x00, 0x80, 0x22, 0xa8, 0x00, 0x00, 0x00, 0x59, 0xc1, 0xe5, 0xe7, 0xbf, 0x00, 0x00,
+    0x00, 0xc0, 0xa0, 0x5c, 0x30, 0x3f, 0x00, 0x00, 0x00, 0x65, 0xc6, 0xf7, 0xde, 0xbf, 0x00, 0x00, 0x80, 0xa4,
+    0x0b, 0x88, 0xdf, 0xbf, 0x00, 0xe5, 0x21, 0xb1, 0x00, 0x00, 0xc0, 0xfe, 0x91, 0x43, 0xd3, 0x3f, 0x00, 0x60,
+    0x1d, 0xaf, 0x00, 0x00, 0x40, 0x32, 0x00, 0x00, 0x80, 0xb1, 0x00, 0x48, 0x82, 0xc2, 0x00, 0xcf, 0x94, 0x43,
+    0x00, 0xa0, 0x3b, 0x36, 0x00, 0x80, 0x5b, 0xb6, 0xc0, 0xb0, 0x07, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x90,
+    0x82, 0x2c, 0x00, 0x00, 0x00, 0x00, 0x7d, 0xbd, 0x42, 0x3f, 0xc0, 0xb0, 0x07, 0x00, 0x1e, 0x3f, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x88, 0xb0, 0x00, 0x00, 0x30, 0xb1, 0x00, 0x00, 0x2e, 0xb2,
+};
+
+/* feed the C28 block to a fresh SBF decoder; return the last input_sbf status
+ * and copy ephemeris set 0/1 of C28 */
+static int decode_cnav1_block(eph_t* set0, eph_t* set1, int* ephset) {
+    raw_t* raw = (raw_t*)calloc(1, sizeof(raw_t));
+    rtcm_t* rtcm = (rtcm_t*)calloc(1, sizeof(rtcm_t)); /* ~7.5 MB: heap only */
+    int i, ret = -9, sat = satno(SYS_CMP, 28);
+
+    if (!raw || !rtcm || !init_raw(raw, STRFMT_SEPT) || !init_rtcm(rtcm)) {
+        free(raw);
+        free(rtcm);
+        return -9;
+    }
+    for (i = 0; i < (int)sizeof(sbf_bdscnav1_c28); i++) {
+        ret = input_sbf(raw, rtcm, sbf_bdscnav1_c28[i]);
+    }
+    *set0 = raw->nav.eph[sat - 1];
+    *set1 = raw->nav.eph[sat - 1 + MAXSAT];
+    *ephset = raw->ephset;
+    free_rtcm(rtcm);
+    free_raw(raw);
+    free(raw);
+    free(rtcm);
+    return ret;
+}
 
 /* MesType values mirrored from the module (kept local to avoid leaking the
  * decoder's private #defines into the test). */
@@ -172,7 +222,7 @@ int main(void) {
         setbitu(m, i + 8, 1, 1);  /* slot 9 (BDS C09) */
         setbitu(m, i + 65, 1, 1); /* slot 66 (GPS G03) */
         finish_msg(m);
-        int ret = b2b_input_msg(b2b, 60, m, time);
+        int ret = b2b_input_msg(b2b, GEO_PRN, m, time);
         CHECK(ret == 0, "1: MT1 returns 0 (mask only)");
 
         /* --- MT2: 2 valid BDS orbit blocks (C05, C09) + 4 slot-0 fillers -- */
@@ -186,7 +236,7 @@ int main(void) {
         i = put_orb(m, i, 0, 0, 0, 0, 0, 0, 0, 0);
         i = put_orb(m, i, 0, 0, 0, 0, 0, 0, 0, 0);
         finish_msg(m);
-        ret = b2b_input_msg(b2b, 60, m, time);
+        ret = b2b_input_msg(b2b, GEO_PRN, m, time);
         CHECK(ret == 10, "1: MT2 returns 10 (orbit updated)");
 
         ssr_t* s5 = &b2b->ssr[bds5 - 1];
@@ -226,7 +276,7 @@ int main(void) {
             }
         }
         finish_msg(m);
-        ret = b2b_input_msg(b2b, 60, m, time);
+        ret = b2b_input_msg(b2b, GEO_PRN, m, time);
         CHECK(ret == 10, "1: MT4 returns 10 (clock updated)");
         CHECK(fabs(s5->dclk[0] - (-2000 * 0.0016)) < 1e-9, "1: C05 dclk[0]=-c0*0.0016");
         CHECK(s5->iod[1] == 3, "1: C05 iod[1]=iodcorr");
@@ -254,7 +304,7 @@ int main(void) {
         setbits(m, i, 12, -50);
         i += 12;
         finish_msg(m);
-        ret = b2b_input_msg(b2b, 60, m, time);
+        ret = b2b_input_msg(b2b, GEO_PRN, m, time);
         CHECK(ret == 10, "1: MT3 returns 10 (cbias updated)");
         CHECK(fabs(s5->cbias[CODE_L2I - 1] - (float)(-100 * 0.017)) < 1e-5, "1: C05 cbias L2I=-dcb*0.017");
         CHECK(s5->vcbias[CODE_L2I - 1] == 1, "1: C05 vcbias L2I set");
@@ -278,7 +328,7 @@ int main(void) {
         finish_msg(m);
         /* flip one data bit AFTER the CRC was computed -> CRC mismatch. */
         m[10] ^= 0x01;
-        int ret = b2b_input_msg(b2b, 60, m, time);
+        int ret = b2b_input_msg(b2b, GEO_PRN, m, time);
         CHECK(ret == -1, "2: CRC error returns -1");
         CHECK(b2b->mask.valid == 0, "2: mask not populated on CRC error");
         CHECK(b2b->iodssr == -1, "2: iodssr untouched on CRC error");
@@ -293,7 +343,7 @@ int main(void) {
         uint8_t m[B2B_MSG_BYTES];
         begin_msg(m, MT_NULL);
         /* no CRC needed: null is rejected before the CRC check. */
-        int ret = b2b_input_msg(b2b, 60, m, time);
+        int ret = b2b_input_msg(b2b, GEO_PRN, m, time);
         CHECK(ret == 0, "3: MT63 null returns 0");
         CHECK(b2b->mask.valid == 0, "3: no mask state after null");
         CHECK(b2b->iodssr == -1, "3: iodssr untouched after null");
@@ -312,13 +362,13 @@ int main(void) {
         i += 4;
         setbitu(m, i + 4, 1, 1); /* slot 5 */
         finish_msg(m);
-        b2b_input_msg(b2b, 60, m, time);
+        b2b_input_msg(b2b, GEO_PRN, m, time);
 
         i = begin_msg(m, MT_ORBIT);
         i = put_head(m, i, tod, /*iodssr*/ 2); /* mismatched */
         i = put_orb(m, i, 5, 0x100, 3, 1000, 0, 0, 0, 0);
         finish_msg(m);
-        int ret = b2b_input_msg(b2b, 60, m, time);
+        int ret = b2b_input_msg(b2b, GEO_PRN, m, time);
         CHECK(ret == 0, "4: MT2 with wrong iodssr returns 0");
         CHECK(b2b->ssr[bds5 - 1].t0[0].time == 0, "4: no orbit stored on iodssr mismatch");
         b2b_free(b2b);
@@ -336,7 +386,7 @@ int main(void) {
         i += 4;
         setbitu(m, i + 4, 1, 1);
         finish_msg(m);
-        b2b_input_msg(b2b, 60, m, time);
+        b2b_input_msg(b2b, GEO_PRN, m, time);
 
         i = begin_msg(m, MT_CLOCK);
         i = put_head(m, i, tod, 1);
@@ -354,7 +404,7 @@ int main(void) {
             }
         }
         finish_msg(m);
-        int ret = b2b_input_msg(b2b, 60, m, time);
+        int ret = b2b_input_msg(b2b, GEO_PRN, m, time);
         CHECK(ret == 0, "5: MT4 with wrong iodp returns 0");
         CHECK(b2b->ssr[bds5 - 1].t0[1].time == 0, "5: no clock stored on iodp mismatch");
         b2b_free(b2b);
@@ -374,14 +424,14 @@ int main(void) {
         i += 4;
         setbitu(m, i + 4, 1, 1);
         finish_msg(m);
-        b2b_input_msg(b2b, 60, m, time);
+        b2b_input_msg(b2b, GEO_PRN, m, time);
 
         /* MT2 valid orbit, then MT4 valid clock, to set t0[0] and t0[1]. */
         i = begin_msg(m, MT_ORBIT);
         i = put_head(m, i, tod, 1);
         i = put_orb(m, i, 5, 0x100, 3, 1000, 100, 100, 0, 0);
         finish_msg(m);
-        b2b_input_msg(b2b, 60, m, time);
+        b2b_input_msg(b2b, GEO_PRN, m, time);
         i = begin_msg(m, MT_CLOCK);
         i = put_head(m, i, tod, 1);
         setbitu(m, i, 4, 2);
@@ -398,7 +448,7 @@ int main(void) {
             }
         }
         finish_msg(m);
-        b2b_input_msg(b2b, 60, m, time);
+        b2b_input_msg(b2b, GEO_PRN, m, time);
         CHECK(b2b->ssr[bds5 - 1].t0[0].time != 0, "6: orbit t0[0] set before clear");
         CHECK(b2b->ssr[bds5 - 1].t0[1].time != 0, "6: clock t0[1] set before clear");
 
@@ -407,7 +457,7 @@ int main(void) {
         i = put_head(m, i, tod, 1);
         i = put_orb(m, i, 5, 0x100, 3, /*dr*/ -16384, 0, 0, 0, 0);
         finish_msg(m);
-        int ret = b2b_input_msg(b2b, 60, m, time);
+        int ret = b2b_input_msg(b2b, GEO_PRN, m, time);
         CHECK(ret == 10, "6: MT2 sentinel still returns 10");
         CHECK(b2b->ssr[bds5 - 1].t0[0].time == 0, "6: radial=-16384 clears orbit t0[0]");
 
@@ -428,7 +478,7 @@ int main(void) {
             }
         }
         finish_msg(m);
-        b2b_input_msg(b2b, 60, m, time);
+        b2b_input_msg(b2b, GEO_PRN, m, time);
         CHECK(b2b->ssr[bds5 - 1].t0[1].time == 0, "6: c0=-16383 clears clock t0[1]");
         b2b_free(b2b);
     }
@@ -455,7 +505,7 @@ int main(void) {
             }
         }
         finish_msg(m);
-        int ret = b2b_input_msg(b2b, 60, m, time);
+        int ret = b2b_input_msg(b2b, GEO_PRN, m, time);
         CHECK(ret == 0, "7: MT4 before any MT1 returns 0");
         CHECK(b2b->ssr[bds5 - 1].t0[1].time == 0, "7: no clock stored without mask");
         b2b_free(b2b);
@@ -473,13 +523,13 @@ int main(void) {
         i += 4;
         setbitu(m, i + 4, 1, 1); /* slot 5 */
         finish_msg(m);
-        b2b_input_msg(b2b, 60, m, time);
+        b2b_input_msg(b2b, GEO_PRN, m, time);
 
         i = begin_msg(m, MT_ORBIT);
         i = put_head(m, i, tod, 1);
         i = put_orb(m, i, 5, 0x100, 3, /*dr*/ -1234, /*da*/ -777, /*dc*/ -321, 0, 0);
         finish_msg(m);
-        b2b_input_msg(b2b, 60, m, time);
+        b2b_input_msg(b2b, GEO_PRN, m, time);
         ssr_t* s = &b2b->ssr[bds5 - 1];
         CHECK(fabs(s->deph[0] - (-1234 * 0.0016)) < 1e-9, "8: deph[0] negative radial");
         CHECK(fabs(s->deph[1] - (-777 * 0.0064)) < 1e-9, "8: deph[1] negative along");
@@ -502,7 +552,7 @@ int main(void) {
             }
         }
         finish_msg(m);
-        b2b_input_msg(b2b, 60, m, time);
+        b2b_input_msg(b2b, GEO_PRN, m, time);
         /* dclk = -c0*0.0016; c0 negative -> dclk positive (sign reversal). */
         CHECK(fabs(s->dclk[0] - (-(-2222) * 0.0016)) < 1e-9, "8: dclk negative c0 -> positive");
         CHECK(s->dclk[0] > 0, "8: dclk sign reversed");
@@ -521,7 +571,7 @@ int main(void) {
         setbits(m, i, 12, -333);
         i += 12;
         finish_msg(m);
-        b2b_input_msg(b2b, 60, m, time);
+        b2b_input_msg(b2b, GEO_PRN, m, time);
         CHECK(fabs(s->cbias[CODE_L2I - 1] - (float)(-(-333) * 0.017)) < 1e-5, "8: cbias negative dcb -> positive");
         CHECK(s->cbias[CODE_L2I - 1] > 0, "8: cbias sign reversed");
         b2b_free(b2b);
@@ -569,7 +619,7 @@ int main(void) {
         i += 4;
         setbitu(m, i + 8, 1, 1); /* slot 9 (BDS C09) */
         finish_msg(m);
-        b2b_input_msg(b2b, 60, m, time);
+        b2b_input_msg(b2b, GEO_PRN, m, time);
 
         i = begin_msg(m, MT_ORBIT);
         i = put_head(m, i, tod, 1);
@@ -578,12 +628,89 @@ int main(void) {
         /* second block: valid C09; must still decode after the skipped one. */
         i = put_orb(m, i, /*slot*/ 9, 0x055, 3, /*dr*/ 1600, 0, 0, 0, 0);
         finish_msg(m);
-        int ret = b2b_input_msg(b2b, 60, m, time);
+        int ret = b2b_input_msg(b2b, GEO_PRN, m, time);
         CHECK(ret == 10, "10: MT2 with out-of-range slot still returns 10");
         CHECK(b2b->ssr[bds9 - 1].t0[0].time != 0, "10: valid block after skipped slot decoded");
         CHECK(fabs(b2b->ssr[bds9 - 1].deph[0] - 1600 * 0.0016) < 1e-9, "10: cursor aligned -> C09 deph correct");
         CHECK(b2b->ssr[bds9 - 1].iode == 0x55, "10: C09 iode correct (cursor aligned)");
         b2b_free(b2b);
+    }
+
+    /* ===================================================================== *
+     * 11. GEO gate: only set_bdsgeo() PRNs feed the decoder                  *
+     * ===================================================================== */
+    {
+        uint8_t m[B2B_MSG_BYTES];
+        int i = begin_msg(m, MT_MASK);
+        i = put_head(m, i, tod, 1);
+        setbitu(m, i, 4, 2);
+        i += 4;
+        setbitu(m, i + 8, 1, 1); /* slot 9 (BDS C09) */
+        finish_msg(m);
+        uint8_t o[B2B_MSG_BYTES];
+        i = begin_msg(o, MT_ORBIT);
+        i = put_head(o, i, tod, 1);
+        i = put_orb(o, i, /*slot*/ 9, 0x055, 3, 1600, 0, 0, 0, 0);
+        finish_msg(o);
+
+        CHECK(set_bdsgeo(NULL) == 4 && is_bdsgeo(1) && is_bdsgeo(4) && !is_bdsgeo(5) && !is_bdsgeo(59),
+              "11: default GEO list is C01-C04");
+        b2b_t* b2b = b2b_new();
+        b2b_input_msg(b2b, 33, m, time); /* MEO C33: B-CNAV3, must be ignored */
+        CHECK(b2b_input_msg(b2b, 33, o, time) == 0 && b2b->ssr[bds9 - 1].t0[0].time == 0,
+              "11: non-GEO C33 frames ignored");
+        CHECK(b2b_input_msg(b2b, 60, o, time) == 0 && b2b->ssr[bds9 - 1].t0[0].time == 0,
+              "11: C60 ignored with the default list");
+        b2b_input_msg(b2b, 4, m, time);
+        CHECK(b2b_input_msg(b2b, 4, o, time) == 10, "11: GEO C04 decodes");
+        b2b_free(b2b);
+
+        CHECK(set_bdsgeo("C59-C62") == 4 && is_bdsgeo(59) && is_bdsgeo(62) && !is_bdsgeo(1),
+              "11: C59-C62 list (pre-reassignment)");
+        b2b = b2b_new();
+        b2b_input_msg(b2b, 60, m, time);
+        CHECK(b2b_input_msg(b2b, 60, o, time) == 10, "11: C60 decodes when listed");
+        b2b_free(b2b);
+        CHECK(set_bdsgeo("C59-C99") == -1 && is_bdsgeo(1) && !is_bdsgeo(59), "11: invalid list falls back to C01-C04");
+        set_bdsgeo(NULL);
+    }
+
+    /* ===================================================================== *
+     * 12. SBF BDSCNav1 (4251) B-CNAV1 ephemeris                              *
+     * ===================================================================== */
+    {
+        eph_t e0, e1;
+        int ephset = -1, week, sat28 = satno(SYS_CMP, 28);
+        double tow, sqrta = 5.282623783970e+03;
+
+        setseleph(SYS_CMP, 0);
+        CHECK(decode_cnav1_block(&e0, &e1, &ephset) == 0 && e1.sat == 0,
+              "12: BDSCNav1 ignored with the D1/D2 selection");
+
+        setseleph(SYS_CMP, 1);
+        int ret = decode_cnav1_block(&e0, &e1, &ephset);
+        CHECK(ret == 2 && ephset == 1 && e1.sat == sat28 && e0.sat == 0,
+              "12: BDSCNav1 -> ephemeris set 1 of C28 (set 0 untouched)");
+        CHECK(e1.type == 2 && e1.iode == 0 && e1.iodc == 0, "12: type CNAV-1, IODE 0 / IODC 0");
+        /* BRD400DLR CNV1 C28 2026 10 23 20 00 00 (RINEX prints 13 digits) */
+        CHECK(fabs(e1.f0 - 5.719051696360e-04) < 1e-15 && fabs(e1.f1 - 3.710809437507e-12) < 1e-23, "12: a0 / a1");
+        CHECK(fabs(e1.Adot - 4.298686981201e-03) < 1e-14 && fabs(e1.crs - (-6.514062500000e+01)) < 1e-9,
+              "12: A_DOT / C_rs");
+        CHECK(fabs(e1.deln - 4.475722146078e-09) < 1e-20 && fabs(e1.M0 - (-2.346129760099)) < 1e-11,
+              "12: DELTA_n0 / M_0 (semi-circles -> rad)");
+        CHECK(fabs(e1.e - 2.496616798453e-04) < 1e-15 && fabs(e1.A - sqrta * sqrta) < 1e-3, "12: e / A");
+        CHECK(fabs(e1.i0 - 9.456167605280e-01) < 1e-12 && fabs(e1.OMG0 - (-1.547795335431)) < 1e-11 &&
+                  fabs(e1.omg - (-1.520131813489)) < 1e-11,
+              "12: i_0 / OMEGA_0 / omega");
+        CHECK(fabs(e1.ndot - (-2.833893154632e-14)) < 1e-25 && fabs(e1.idot - (-4.496615873529e-10)) < 1e-21,
+              "12: DELTA_n0_DOT / IDOT");
+        CHECK(fabs(e1.tgd[2] - (-2.561137080193e-09)) < 1e-20 && fabs(e1.tgd[3] - (-1.012813299894e-08)) < 1e-19 &&
+                  fabs(e1.tgd[4] - (-9.895302355289e-10)) < 1e-20,
+              "12: T_GDB1Cp / T_GDB2ap / ISC_B1Cd");
+        tow = time2gpst(e1.toe, &week);
+        CHECK(e1.toes == 504000.0 && week == 2441 && fabs(tow - 504014.0) < 1e-6, "12: t_oe 504000 BDT = GPST 504014");
+        CHECK(fabs(timediff(e1.toc, e1.toe)) < 1e-6, "12: t_oc = t_oe");
+        setseleph(SYS_CMP, 0);
     }
 
     printf("\n%s: %d failure(s)\n", fails ? "FAILED" : "PASSED", fails);

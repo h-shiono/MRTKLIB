@@ -39,6 +39,7 @@ static const toml_map_t toml_mapping[] = {
     {"positioning", "constellations", "pos1-navsys"},
     {"positioning", "excluded_sats", "pos1-exclsats"},
     {"positioning", "bds2_sats", "pos2-bds2prn"},
+    {"positioning", "bds_geo_sats", "pos2-bdsgeo"},
     {"positioning", "signals", "pos1-signals"},
     {"positioning", "robust", "pos1-robust"},
     {"positioning", "robust_k0", "pos1-robustk0"},

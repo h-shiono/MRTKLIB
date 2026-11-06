@@ -2248,9 +2248,10 @@ extern void rtkinit(rtk_t* rtk, const prcopt_t* opt) {
     rtk->opt = *opt;
     rtk->sol.thres = (float)opt->thresar[0];
 
-    /* BeiDou generation of PRN 1-18 and BDS-3 IGSO (#401) */
+    /* BeiDou generation of PRN 1-18, BDS-3 IGSO (#401) and GEO (#417) */
     if (!set_bdsopt(opt, 0)) {
-        errmsg(rtk, "invalid bds2_sats=%s or bds3_igso_sats=%s\n", opt->bds2prn, opt->bds3igso);
+        errmsg(rtk, "invalid bds2_sats=%s, bds3_igso_sats=%s or bds_geo_sats=%s\n", opt->bds2prn, opt->bds3igso,
+               opt->bdsgeo);
     }
 }
 /* free rtk control ------------------------------------------------------------

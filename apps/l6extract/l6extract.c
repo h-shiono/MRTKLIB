@@ -28,6 +28,7 @@
 
 #include "mrtklib/mrtk_cli.h"
 #include "mrtklib/mrtk_l6.h"
+#include "mrtklib/mrtk_nav.h"
 
 /* byte extraction macros (little-endian, matching RTKLIB convention) */
 #define U1(p) ((uint8_t)(p)[0])
@@ -232,8 +233,8 @@ static void print_b2b_stats(void) {
                 (long)b2b_records * B2B_RECORD_LEN);
     } else {
         fprintf(stderr,
-                "  (no PPP-B2b corrections found: the GEO satellites C59-C63 that\n"
-                "   broadcast PPP-B2b were not tracked/output in this capture)\n");
+                "  (no PPP-B2b corrections found: the GEO satellites that broadcast\n"
+                "   PPP-B2b were not tracked/output in this capture, or are not in -b2b-geo)\n");
     }
     fprintf(stderr, "  BDSRawB2b blocks: %d, %d CRC-failed, %d B-CNAV3 nav skipped, %d GEO correction records\n",
             b2b_blocks, b2b_crc_fail, b2b_nav_skipped, b2b_records);
@@ -407,9 +408,9 @@ static void sbf_extract_b2b_msg(const uint8_t* block) {
     if (prn < 1 || prn > MAX_BDS_PRN) return;
 
     /* PPP-B2b SSR corrections are broadcast only by the BDS-3 GEO satellites
-     * (C59-C63). The B2b-I frames from IGSO/MEO are B-CNAV3 navigation, not
-     * corrections, so they are not written to the .b2b file. */
-    if (prn < 59) {
+     * (set_bdsgeo(), -b2b-geo). The B2b-I frames from IGSO/MEO are B-CNAV3
+     * navigation, not corrections, so they are not written to the .b2b file. */
+    if (!is_bdsgeo(prn)) {
         b2b_nav_skipped++;
         return;
     }
@@ -618,6 +619,7 @@ static int detect_format(const char* path) {
 static const mrtk_optmap_t opt_aliases[] = {
     {"--input", "-in"},
     {"--output", "-o"},
+    {"--b2b-geo", "-b2b-geo"},
     {NULL, NULL},
 };
 
@@ -635,6 +637,9 @@ static void print_usage(void) {
         "  -l6e                   Extract L6E frames only (MADOCA, QZNMA)",
         "  -no-has                Disable Galileo HAS extraction",
         "  -no-b2b                Disable BeiDou PPP-B2b extraction",
+        "  -b2b-geo, --b2b-geo LIST",
+        "                         BeiDou GEO PRNs carrying PPP-B2b    [\"C01-C04\"]",
+        "                         (use C59-C62 for data before 2026-04-17)",
         "  -h,  --help            Show this help",
         "",
         "Output files:",
@@ -648,8 +653,8 @@ static void print_usage(void) {
         "                                one file. SBF input only; on by default.",
         "  {input-basename}.b2b          BeiDou PPP-B2b messages from SBF BDSRawB2b",
         "                                (block 4242), 72-byte records per",
-        "                                docs/design/bds-b2b.md §5, all PRNs in",
-        "                                one file. SBF input only; on by default.",
+        "                                docs/design/bds-b2b.md §5, all GEO PRNs",
+        "                                in one file. SBF input only; on by default.",
         "",
         "Examples:",
         "  mrtk l6extract --input rover.sbf --output session1",
@@ -696,7 +701,11 @@ int mrtk_l6extract(int argc, char** argv) {
             has_enable = 0;
         } else if (!strcmp(argv[i], "-no-b2b")) {
             b2b_enable = 0;
-
+        } else if (!strcmp(argv[i], "-b2b-geo") && i + 1 < argc) {
+            if (set_bdsgeo(argv[++i]) < 0) {
+                fprintf(stderr, "Error: invalid -b2b-geo list '%s'\n", argv[i]);
+                return 1;
+            }
         } else if (argv[i][0] != '-' && !infile) {
             infile = argv[i];
         } else if (!strcmp(argv[i], "-h") || !strcmp(argv[i], "--help")) {
