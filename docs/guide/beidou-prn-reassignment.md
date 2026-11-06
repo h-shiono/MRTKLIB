@@ -6,12 +6,13 @@ longer a reliable marker of BDS-2**: most of C01–C14 are now BDS-3, and two
 BDS-2 satellites are still in service on C09 and C10.
 
 MRTKLIB (like MADOCALIB 2.2) cannot tell the generation of a satellite on PRN
-1–18 from the data. You tell it with two configuration keys:
+1–18 from the data. You tell it with configuration keys:
 
 | Key | Section | Meaning | Default |
 |:----|:--------|:--------|:--------|
 | `bds2_sats` | `[positioning]` | Which of PRN 1–18 are **BDS-2** | none (all BDS-3) |
 | `bds3_igso_sats` | `[ambiguity_resolution]` | Which PRNs are **BDS-3 IGSO** (PPP-AR only) | `C06-C08` |
+| `bds_geo_sats` | `[positioning]` | Which PRNs are the **BDS-3 GEOs** that broadcast PPP-B2b (`correction = "bds-b2b"` only) | `C01-C04` |
 
 !!! warning "Set `bds2_sats` whenever BeiDou is enabled"
     With the default, every satellite on PRN 1–18 is treated as BDS-3, which
@@ -23,11 +24,11 @@ MRTKLIB (like MADOCALIB 2.2) cannot tell the generation of a satellite on PRN
 
 ## Which value to use
 
-| Data taken | `bds2_sats` | `bds3_igso_sats` |
-|:-----------|:------------|:-----------------|
-| Before 2026-04-10 | `["C01-C18"]` | `["C38-C40"]` |
-| After 2026-04-21 (current) | `["C09", "C10"]` | leave unset (`C06-C08`) |
-| 2026-04-10 to 2026-04-21 | no single list is right, see [below](#data-from-the-transition-window) | |
+| Data taken | `bds2_sats` | `bds3_igso_sats` | `bds_geo_sats` (PPP-B2b) |
+|:-----------|:------------|:-----------------|:-------------------------|
+| Before 2026-04-10 | `["C01-C18"]` | `["C38-C40"]` | `["C59-C62"]` |
+| After 2026-04-21 (current) | `["C09", "C10"]` | leave unset (`C06-C08`) | leave unset (`C01-C04`) |
+| 2026-04-10 to 2026-04-21 | no single list is right, see [below](#data-from-the-transition-window) | | |
 
 ```toml
 [positioning]
@@ -54,6 +55,12 @@ Entries are BeiDou satellite IDs (`"C09"`) or ranges (`"C01-C18"`), in any mix.
   default, but it counts as set, so it silences the warning. Use it only when
   you know the data has no BDS-2 satellite.
 - **An empty or absent `bds3_igso_sats` means `C06-C08`.**
+- **An empty or absent `bds_geo_sats` means `C01-C04`.** Only PPP-B2b uses it:
+  the B2b-I signal of the IGSO and MEO satellites carries B-CNAV3 navigation
+  frames, which pass the same CRC as PPP-B2b and reuse its message type
+  numbers, so the GEOs cannot be told from the frames. The four GEOs moved
+  from C59–C62 to C01–C04 between 2026-04-17 and 04-21 (C59 and C62 had
+  already swapped on 2026-03-31).
 - **An invalid list falls back to the default.** The run prints a warning.
 
 ---

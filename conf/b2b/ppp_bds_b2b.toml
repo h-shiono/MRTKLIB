@@ -1,7 +1,10 @@
 # MRTKLIB Configuration (TOML v1.0.0)
 # BeiDou PPP-B2b float PPP sample.
 # PPP-B2b carries no ionosphere/troposphere or phase-bias corrections, so this
-# is a float iono-free PPP setup (no ambiguity resolution).
+# is a float iono-free PPP setup (no ambiguity resolution). The broadcast has
+# no GPS code biases, so only BeiDou is used.
+# BeiDou PRNs are for data after 2026-04-21 (PRN reassignment); for older data
+# set bds2_sats = ["C01-C18"] and bds_geo_sats = ["C59-C62"].
 
 [positioning]
 mode = "ppp-kine"                   # (6:ppp-kine,7:ppp-static)
@@ -11,8 +14,10 @@ elevation_mask = 10.0               # (deg)
 dynamics = false                    # (0:off,1:on)
 satellite_ephemeris = "brdc+ssrapc" # (0:brdc,1:precise,3:brdc+ssrapc,4:brdc+ssrcom)
 correction = "bds-b2b"              # BeiDou PPP-B2b (B2b-I SSR)
-excluded_sats = ""                  # (prn ...)
-systems = ["GPS", "BeiDou"]
+excluded_sats = []                  # (prn ...)
+systems = ["BeiDou"]
+bds2_sats = ["C09", "C10"]          # BDS-2 in PRN 1-18 (data after 2026-04-21)
+bds_geo_sats = ["C01-C04"]          # PPP-B2b GEOs (data after 2026-04-21)
 
 [positioning.snr_mask]
 rover_enabled = false            # (0:off,1:on)
@@ -76,9 +81,6 @@ galileo = "E1/E5a/E5b/E6" # (0:E1/E5a,1:E1/E5b,3:E1/E5a/E5b/E6,4:E1/E5a/E6/E5b)
 bds2 = "B1I/B3I/B2I"      # (0:B1I/B3I,1:B1I/B2I,2:B1I/B3I/B2I)
 bds3 = "B1I/B3I"          # (0:B1I/B3I,1:B1I/B2a,2:B1I/B3I/B2a)
 
-[receiver]
-iono_correction = false # (0:off,1:on)
-
 [antenna.rover]
 position_type = "llh"      # (0:llh,1:xyz,2:single,3:posfile,4:rinexhead,5:rtcm,6:raw)
 position_1 = 90.0          # (deg|m)
@@ -118,14 +120,21 @@ dcb = ""
 eop = ""
 ocean_loading = ""
 temp_dir = ""
-geexe = ""
-solution_stat = ""
 trace = ""
 
-[server]
+
+[positioning.ppp]
+options = ""
+
+[positioning.relative]
 time_interpolation = false # (0:off,1:on)
-sbas_satellite = "0"       # (0:all)
-rinex_option_1 = ""
-rinex_option_2 = ""
-ppp_option = ""
-rtcm_option = ""
+
+[input.rinex]
+option_1 = ""
+option_2 = ""
+
+[input.rtcm]
+options = ""
+
+[input.sbas]
+satellite = 0 # (0:all)
