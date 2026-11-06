@@ -805,15 +805,7 @@ static int inputobs(obsd_t* obs, int solq, const prcopt_t* popt) {
             }
             isbs--;
         }
-        for (; ipvs >= 0; ipvs--) {
-            time = gpst2time(sbss.msgs[ipvs].week, sbss.msgs[ipvs].tow);
-            if (timediff(time, obs[0].time) < -DTTOL) {
-                break;
-            }
-            if (sbss.msgs[ipvs].band == SBS_BAND_L5 && popt->correction == CORR_SOUTHPAN_PVS) {
-                sbsupdatepvs(sbss.msgs + ipvs, &navs);
-            }
-        }
+        /* no SouthPAN PVS update: postpos() runs PVS forward only */
     }
     return n;
 }
@@ -1816,7 +1808,7 @@ static int execses(mrtk_ctx_t* ctx, gtime_t ts, gtime_t te, double ti, const prc
         if ((fp = openfile(outfile))) {
             revs = 1;
             iobsu = iobsr = obss.n - 1;
-            isbs = ipvs = sbss.n - 1;
+            isbs = sbss.n - 1;
             procpos(ctx, fp, &popt_, sopt, 0); /* backward */
             fclose(fp);
         }
@@ -1831,7 +1823,7 @@ static int execses(mrtk_ctx_t* ctx, gtime_t ts, gtime_t te, double ti, const prc
             procpos(ctx, NULL, &popt_, sopt, 1); /* forward */
             revs = 1;
             iobsu = iobsr = obss.n - 1;
-            isbs = ipvs = sbss.n - 1;
+            isbs = sbss.n - 1;
             procpos(ctx, NULL, &popt_, sopt, 1); /* backward */
 
             /* combine forward/backward solutions */
@@ -2049,6 +2041,14 @@ extern int postpos(mrtk_ctx_t* ctx, gtime_t ts, gtime_t te, double ti, double tu
     char *ifile[MAXINFILE], ofile[1024], *ext;
 
     trace(ctx, 3, "postpos : ti=%.0f tu=%.0f n=%d outfile=%s\n", ti, tu, n, outfile);
+
+    /* a SouthPAN PVS correction is valid for 100 s from its reception: the
+     * backward pass would apply corrections received after the observation */
+    if (popt->correction == CORR_SOUTHPAN_PVS && popt->soltype != 0) {
+        showmsg("error : correction=southpan-pvs supports solution_type = \"forward\" only");
+        trace(ctx, 1, "southpan-pvs with soltype=%d\n", popt->soltype);
+        return -1;
+    }
 
     /* BeiDou generation of PRN 1-18 and BDS-3 IGSO (#401): set before reading
        files, since RINEX reading already depends on the generation */

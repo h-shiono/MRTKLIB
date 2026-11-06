@@ -740,11 +740,15 @@ static void readmsgs(const char* file, int sel, gtime_t ts, gtime_t te, sbs_t* s
         sbs->msgs[sbs->n].msg[28] &= 0xC0;
 
         /* the rtklib form gives the message type: an L5 DFMC frame is one whose
-         * type matches the L5 field (bits 4-9) but not the L1 field (bits 8-13) */
+         * type matches the L5 field (bits 4-9) but not the L1 field (bits 8-13).
+         * When both match (an L5 frame with bits 4-13 zero, e.g. MT0), the L1
+         * preamble decides: an L1 frame starts with 0x53, 0x9A or 0xC6 */
         sbs->msgs[sbs->n].band = SBS_BAND_L1;
-        if (type >= 0 && (int)getbitu(sbs->msgs[sbs->n].msg, 4, 6) == type &&
-            (int)getbitu(sbs->msgs[sbs->n].msg, 8, 6) != type) {
-            sbs->msgs[sbs->n].band = SBS_BAND_L5;
+        if (type >= 0 && (int)getbitu(sbs->msgs[sbs->n].msg, 4, 6) == type) {
+            b = sbs->msgs[sbs->n].msg[0];
+            if ((int)getbitu(sbs->msgs[sbs->n].msg, 8, 6) != type || (b != 0x53 && b != 0x9A && b != 0xC6)) {
+                sbs->msgs[sbs->n].band = SBS_BAND_L5;
+            }
         }
         sbs->n++;
     }

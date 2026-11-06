@@ -14,9 +14,12 @@
  *   4. PRN other than 122 (other DFMC GEOs send MT32 too) and L1 frames: not
  *      used; sbsupdatecorr() ignores L5 frames.
  *   5. .sbs round trip: sbsoutmsg() writes the L5 type, the reader sets the band
- *      from the type column, an L1 frame stays L1.
+ *      from the type column, an L1 frame stays L1; an L5 MT0 whose two type
+ *      fields both read 0 is L5 (no L1 preamble), an L1 MT0 stays L1.
  *   6. satpos: rs = broadcast + ECEF correction, dts = broadcast + dB/c - TGD;
  *      rejected 100 s after reception and on an IODE mismatch.
+ *   7. resolve_correction(): PVS accepts only GPS L1/L5 and Galileo E1/E5a,
+ *      from [signals] (pppsig) or the explicit signal list (sigcfg).
  *
  * Explicit CHECK macro (not assert) so it is robust under -DNDEBUG.
  *-----------------------------------------------------------------------------*/
@@ -177,7 +180,7 @@ int main(void) {
     {
         const char* file = "utest_pvs_tmp.sbs";
         mt32_t f = {18, 29, 1, 2, 3, 4, 0, 0, 0, 0, 1579};
-        sbsmsg_t l1;
+        sbsmsg_t l1, l5mt0, l1mt0;
         sbs_t sbs = {0};
         FILE* fp = fopen(file, "w");
 
@@ -187,11 +190,25 @@ int main(void) {
         l1.prn = 122;
         setbitu(l1.msg, 0, 8, 0x53);
         setbitu(l1.msg, 8, 6, 25);
+        /* L5 MT0 with bits 4-13 zero: both type fields read 0 */
+        memset(&l5mt0, 0, sizeof(l5mt0));
+        l5mt0.week = WEEK;
+        l5mt0.tow = TOW + 2;
+        l5mt0.prn = 122;
+        l5mt0.band = SBS_BAND_L5;
+        setbitu(l5mt0.msg, 0, 4, 0x3);
+        setbitu(l5mt0.msg, 16, 8, 0xFF);
+        l1mt0 = l1;
+        l1mt0.tow = TOW + 3;
+        setbitu(l1mt0.msg, 0, 8, 0x9A);
+        setbitu(l1mt0.msg, 8, 6, 0);
         m = make_mt32(&f, 122, SBS_BAND_L5);
         CHECK(fp != NULL, "5: open temp file");
         if (fp) {
             sbsoutmsg(fp, &m);
             sbsoutmsg(fp, &l1);
+            sbsoutmsg(fp, &l5mt0);
+            sbsoutmsg(fp, &l1mt0);
             fclose(fp);
             fp = fopen(file, "r");
             char line[256] = "";
@@ -200,10 +217,13 @@ int main(void) {
                 fclose(fp);
             }
             sbsreadmsg(file, 0, &sbs);
-            CHECK(sbs.n == 2, "5: two messages read");
-            if (sbs.n == 2) {
+            CHECK(sbs.n == 4, "5: four messages read");
+            if (sbs.n == 4) {
                 CHECK(sbs.msgs[0].band == SBS_BAND_L5 && !memcmp(sbs.msgs[0].msg, m.msg, 29), "5: L5 frame + band");
                 CHECK(sbs.msgs[1].band == SBS_BAND_L1 && sbsmsgtype(sbs.msgs + 1) == 25, "5: L1 frame stays L1");
+                CHECK(sbs.msgs[2].band == SBS_BAND_L5 && sbsmsgtype(sbs.msgs + 2) == 0,
+                      "5: L5 MT0 (bits 4-13 zero) is L5");
+                CHECK(sbs.msgs[3].band == SBS_BAND_L1 && sbsmsgtype(sbs.msgs + 3) == 0, "5: L1 MT0 stays L1");
             }
             free(sbs.msgs);
             remove(file);
@@ -251,6 +271,39 @@ int main(void) {
         CHECK(!satpos(trcv, trcv, g18, EPHOPT_SSRAPC, nav, rs1, dts1, &var, &svh), "6: rejected on IODE mismatch");
         nav->eph = NULL;
         nav->n = nav->nmax = 0;
+    }
+
+    /* ===================================================================== *
+     * 7. resolve_correction: PVS signal pairs                                *
+     * ===================================================================== */
+    {
+        prcopt_t opt = prcopt_default;
+        char msg[256];
+
+        opt.mode = PMODE_PPP_KINEMA;
+        opt.correction = CORR_SOUTHPAN_PVS;
+        opt.sateph = EPHOPT_SSRAPC;
+        opt.navsys = SYS_GPS | SYS_GAL;
+        opt.modear = ARMODE_OFF;
+        opt.pppsig[0] = 1; /* GPS L1/L5 */
+        opt.pppsig[2] = 0; /* Galileo E1/E5a */
+        CHECK(resolve_correction(&opt, msg, sizeof(msg)), "7: L1/L5 + E1/E5a accepted");
+        opt.pppsig[0] = 0;
+        CHECK(!resolve_correction(&opt, msg, sizeof(msg)), "7: GPS L1/L2 rejected");
+        opt.navsys = SYS_GAL;
+        CHECK(resolve_correction(&opt, msg, sizeof(msg)), "7: GPS pair ignored without GPS");
+        opt.navsys = SYS_GPS | SYS_GAL;
+        opt.pppsig[0] = 1;
+        opt.pppsig[2] = 1;
+        CHECK(!resolve_correction(&opt, msg, sizeof(msg)), "7: Galileo E1/E5b rejected");
+        opt.pppsig[2] = 0;
+        opt.sigcfg_set = 1;
+        opt.sigcfg[0].nsig = 2;
+        opt.sigcfg[0].sig[0].band = MRTK_BAND_GPS_L1;
+        opt.sigcfg[0].sig[1].band = MRTK_BAND_GPS_L2;
+        CHECK(!resolve_correction(&opt, msg, sizeof(msg)), "7: signals GPS L1+L2 rejected");
+        opt.sigcfg[0].sig[1].band = MRTK_BAND_GPS_L5;
+        CHECK(resolve_correction(&opt, msg, sizeof(msg)), "7: signals GPS L1+L5 accepted");
     }
 
     free(nav);

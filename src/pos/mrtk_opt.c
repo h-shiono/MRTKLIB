@@ -25,6 +25,7 @@
 static const double D2R = 3.1415926535897932 / 180.0;
 
 #define SYS_GPS 0x01
+#define SYS_GAL 0x08
 
 /*--- default option instances -----------------------------------------------*/
 
@@ -165,6 +166,21 @@ static const char* mode_name(int mode) {
             return "?";
     }
 }
+/* SouthPAN PVS signal pair of one system: the DFMC clock refers to the GPS
+ * L1 C/A + L5 / Galileo E1 + E5a iono-free combination and PVS sends no
+ * satellite biases, so another pair would carry an uncorrected code bias.
+ * idx is the system index of both pppsig[] and sigcfg[] (0:GPS, 2:GAL). */
+static int pvs_signals_ok(const prcopt_t* opt, int sys, int idx, int pppsig, mrtk_band_t b1, mrtk_band_t b2) {
+    const mrtk_sigcfg_t* c = &opt->sigcfg[idx];
+
+    if (!(opt->navsys & sys)) {
+        return 1;
+    }
+    if (opt->sigcfg_set && c->nsig > 0) {
+        return c->nsig >= 2 && c->sig[0].band == b1 && c->sig[1].band == b2;
+    }
+    return opt->pppsig[idx] == pppsig;
+}
 extern int resolve_correction(prcopt_t* opt, char* msg, size_t msgsz) {
     int m = opt->mode;
 
@@ -215,12 +231,6 @@ extern int resolve_correction(prcopt_t* opt, char* msg, size_t msgsz) {
                 }
                 return 0;
             }
-            /* #142: integer PPP-AR for IGS precise products needs the uncombined
-             * measurement model. ppp_amb_ILS resolves per-frequency ambiguity
-             * states, which only exist when ionosphere=est-stec; with the
-             * iono-free combination there is one ambiguity per satellite and
-             * ppp_ar() is a no-op. Flag the misconfiguration rather than silently
-             * returning a float-only solution. */
             /* PVS broadcasts orbit and clock only: no phase biases, float PPP */
             if (opt->correction == CORR_SOUTHPAN_PVS && opt->modear >= ARMODE_CONT) {
                 if (msg) {
@@ -228,6 +238,22 @@ extern int resolve_correction(prcopt_t* opt, char* msg, size_t msgsz) {
                 }
                 return 0;
             }
+            if (opt->correction == CORR_SOUTHPAN_PVS &&
+                (!pvs_signals_ok(opt, SYS_GPS, 0, 1, MRTK_BAND_GPS_L1, MRTK_BAND_GPS_L5) ||
+                 !pvs_signals_ok(opt, SYS_GAL, 2, 0, MRTK_BAND_GAL_E1, MRTK_BAND_GAL_E5a))) {
+                if (msg) {
+                    snprintf(msg, msgsz,
+                             "correction=southpan-pvs needs GPS L1/L5 and Galileo E1/E5a "
+                             "([signals] gps = \"L1/L5\", galileo = \"E1/E5a\")");
+                }
+                return 0;
+            }
+            /* #142: integer PPP-AR for IGS precise products needs the uncombined
+             * measurement model. ppp_amb_ILS resolves per-frequency ambiguity
+             * states, which only exist when ionosphere=est-stec; with the
+             * iono-free combination there is one ambiguity per satellite and
+             * ppp_ar() is a no-op. Flag the misconfiguration rather than silently
+             * returning a float-only solution. */
             if (opt->correction == CORR_IGS && opt->modear >= ARMODE_CONT && opt->ionoopt != IONOOPT_EST) {
                 if (msg) {
                     snprintf(msg, msgsz,

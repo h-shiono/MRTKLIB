@@ -329,6 +329,12 @@ static void test_ssr_applicable(void) {
     CHECK(!rtksvr_ssr_applicable(svr, 0, 10), "CLAS: raw L6E MADOCA SSR not applied");
     CHECK(rtksvr_ssr_applicable(svr, 1, 10), "CLAS: RTCM3 SSR still applied");
     CHECK(!rtksvr_ssr_applicable(svr, 2, 15), "CLAS: SBF L6E MADOCA SSR not applied");
+
+    svr->clas = NULL; /* SouthPAN PVS: the PVS decoder owns ssr_ch[0] */
+    svr->rtk.opt.correction = CORR_SOUTHPAN_PVS;
+    CHECK(!rtksvr_ssr_applicable(svr, 0, 10), "PVS: raw L6E MADOCA SSR not applied");
+    CHECK(!rtksvr_ssr_applicable(svr, 1, 10), "PVS: RTCM3 SSR not applied");
+    CHECK(!rtksvr_ssr_applicable(svr, 2, 15), "PVS: SBF L6E MADOCA SSR not applied");
     free(svr);
     free(ctx);
     printf("ok  : rtksvr_ssr_applicable\n");

@@ -156,6 +156,8 @@ in the DAS-logged corrections of that hour (#462).
 
 - **Float PPP only.** No phase biases are broadcast.
 - **GPS and Galileo only**, on L1 C/A + L5 and E1 + E5a.
+- **Forward solutions only** in `mrtk post` (`solution_type = "forward"`): a
+  correction is valid for 100 s after its reception.
 - **No ionosphere / troposphere corrections** (estimated locally).
 - **Regional.** The corrections are for Australia and New Zealand.
 - **IOC format.** PVS will move to a new signal (L5b) with a new data format on

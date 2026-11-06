@@ -172,7 +172,7 @@ path then needs no new `raw_t` return code.
 
 | Part | Where | What |
 |------|-------|------|
-| Input | `sbsmsg_t.band` (`SBS_BAND_L1` / `SBS_BAND_L5`, in the padding byte: `sizeof` stays 40) | SBF GEORawL5 (4021) → `sbsmsg_t` with band L5 (`decode_georaw()`), ret = 3 as L1; `sbsmsgtype()` reads the type at bit 4 (L5) or 8 (L1); `sbsoutmsg()` writes the L5 type in the type column; the `.sbs` reader sets band L5 when the type column matches the L5 field and not the L1 field (also reads the cssrlib `*_sbas.txt` form) |
+| Input | `sbsmsg_t.band` (`SBS_BAND_L1` / `SBS_BAND_L5`, in the padding byte: `sizeof` stays 40) | SBF GEORawL5 (4021) → `sbsmsg_t` with band L5 (`decode_georaw()`), ret = 3 as L1; `sbsmsgtype()` reads the type at bit 4 (L5) or 8 (L1); `sbsoutmsg()` writes the L5 type in the type column; the `.sbs` reader sets band L5 when the type column matches the L5 field and not the L1 field, or both without an L1 preamble (also reads the cssrlib `*_sbas.txt` form) |
 | DAS | `scripts/tests/das2sbs.py` | SISNeT `*MSG` lines → `.sbs` (SINCA expansion, CRC-24Q check); not validated (#462); the C DAS reader / stream is left for later |
 | Decode | `sbsupdatepvs()` (`mrtk_sbas.c`) | PRN 122 MT32, odd tD/16, GPS slots 1–32 and Galileo 75–110 → `ssr_t`: ECEF `deph`/`ddeph`, `dclk[0..1]`, `iode` (GPS IODC & 0xFF), `t0[0..1]` = reception time, `udi` = 0 |
 | L1 isolation | `sbsupdatecorr()`; postpos SBAS loops | L5 frames never reach the L1 decoders; postpos feeds L5 frames from their reception time through a separate index, so the L1 frames of the same second do not delay them |

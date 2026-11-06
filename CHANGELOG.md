@@ -19,16 +19,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   removes the GPS TGD: the DFMC clock refers to the L1/L5 iono-free clock,
   and without it GPS-only PPP on ALBY 2025-233 has a 5.7 m vertical bias.
   `corr_meas()` applies no satellite bias. Needs
-  `satellite_ephemeris = "brdc+ssrapc"` (or `brdc+ssrcom`); ambiguity
-  resolution is rejected. Only PRN 122 is used: other DFMC GEOs (BDSBAS PRN
-  130/143/144 in Japan) send MT32 for their own service.
+  `satellite_ephemeris = "brdc+ssrapc"` (or `brdc+ssrcom`) and the GPS L1/L5 +
+  Galileo E1/E5a signal pairs; ambiguity resolution, other signal pairs and,
+  in `mrtk post`, backward / combined solutions (a correction is valid only
+  after its reception) are rejected. In `mrtk run` the PVS corrections own the
+  SSR store: MADOCA or RTCM3 SSR on the same streams is not applied. Only
+  PRN 122 is used: other DFMC GEOs (BDSBAS PRN 130/143/144 in Japan) send
+  MT32 for their own service.
 - **SBAS L5 messages.** `sbsmsg_t` gains `band` (`SBS_BAND_L1` /
   `SBS_BAND_L5`) in its padding byte, so `sizeof` is unchanged. SBF
   `GEORawL5` (4021) is decoded (raw return code 3, as `GEORawL1`).
   `sbsmsgtype()` reads the L5 type at bit 4. `sbsoutmsg()` writes it to the
   `.sbs` type column, so `mrtk convert -s` now also writes L5 messages, and the
   `.sbs` reader marks a message L5 when the type column matches the L5 field
-  and not the L1 field (cssrlib `*_sbas.txt` files read as well). L5 messages
+  and not the L1 field, or matches both and the frame has no L1 preamble
+  (an L5 MT0 with bits 4–13 zero; cssrlib `*_sbas.txt` files read as well). L5 messages
   never reach the L1 decoders (`sbsupdatecorr()` returns −1), and `mrtk post`
   applies them from their reception time, independent of the L1 messages of
   the same second. New `sbsupdatepvs()`.
