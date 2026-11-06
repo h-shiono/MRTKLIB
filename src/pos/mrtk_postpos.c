@@ -24,8 +24,10 @@
 #include <string.h>
 
 #include "mrtklib/mrtk_antenna.h"
+#include "mrtklib/mrtk_b2b.h"
 #include "mrtklib/mrtk_bits.h"
 #include "mrtklib/mrtk_clas.h"
+#include "mrtklib/mrtk_const.h"
 #include "mrtklib/mrtk_coords.h"
 #include "mrtklib/mrtk_geoid.h"
 #include "mrtklib/mrtk_has.h"
@@ -49,9 +51,7 @@
 #include "mrtklib/mrtk_tides.h"
 #include "mrtklib/mrtk_trace.h"
 
-/* local constants (duplicated from rtklib.h to avoid rtklib.h dependency) ----*/
-#define R2D (180.0 / 3.1415926535897932384626433832795)
-#define D2R (3.1415926535897932384626433832795 / 180.0)
+/* R2D / D2R / SYS_CMP come from mrtk_const.h */
 
 #define COMMENTH "%" /* comment line indicator for solution */
 
@@ -108,6 +108,10 @@ static has_t* gal_has = NULL;                  /* Galileo HAS decode context (he
 static char gal_has_file[1024] = "";           /* Galileo HAS data file */
 static char gal_has_path[1024] = "";           /* Galileo HAS data path */
 static FILE* fp_gal_has = NULL;                /* Galileo HAS data file pointer */
+static b2b_t* bds_b2b = NULL;                  /* BeiDou PPP-B2b decode context (heap) */
+static char bds_b2b_file[1024] = "";           /* BeiDou PPP-B2b data file */
+static char bds_b2b_path[1024] = "";           /* BeiDou PPP-B2b data path */
+static FILE* fp_bds_b2b = NULL;                /* BeiDou PPP-B2b data file pointer */
 static mdcl6d_t mdcl6d[MIONO_MAX_PRN];         /* QZSS L6D control struct */
 static char qzssl6d_file[MIONO_MAX_PRN][1024]; /* QZSS L6D data file */
 static char qzssl6d_path[MIONO_MAX_PRN][1024]; /* QZSS L6D data path */
@@ -400,6 +404,45 @@ static void update_gal_has(gtime_t time) {
         gal_has->ssr[i].update = 0;
     }
 }
+/* update BeiDou PPP-B2b corrections -----------------------------------------*/
+static void update_bds_b2b(gtime_t time) {
+    char path[1024];
+    int i;
+
+    /* open or swap PPP-B2b .b2b file (72-byte little-endian records) */
+    reppath(bds_b2b_file, path, time, "", "");
+
+    if (strcmp(path, bds_b2b_path)) {
+        strcpy(bds_b2b_path, path);
+
+        if (fp_bds_b2b) {
+            fclose(fp_bds_b2b);
+        }
+        fp_bds_b2b = fopen(path, "rb");
+        if (fp_bds_b2b) {
+            trace(NULL, 2, "bds_b2b file open: %s\n", path);
+        }
+    }
+    if (!fp_bds_b2b || !bds_b2b) {
+        return;
+    }
+
+    /* feed all records up to the current epoch (b2b_input_file rewinds the
+     * first future record, so a single call per epoch advances in lock-step) */
+    b2b_input_file(bds_b2b, fp_bds_b2b, time);
+
+    trace(NULL, 3, "update_bds_b2b: %s\n", time_str(time, 3));
+
+    /* copy updated PPP-B2b corrections into the SSR channel */
+    for (i = 0; i < MAXSAT; i++) {
+        if (!bds_b2b->ssr[i].update || bds_b2b->ssr[i].iod[0] != bds_b2b->ssr[i].iod[1] ||
+            timediff(time, bds_b2b->ssr[i].t0[0]) < -1E-3) {
+            continue;
+        }
+        navs.ssr_ch[0][i] = bds_b2b->ssr[i];
+        bds_b2b->ssr[i].update = 0;
+    }
+}
 /* initialize QZSS L6D control struct ----------------------------------------*/
 static void init_mdcl6d(gtime_t time, const char* pppopt) {
     int i, j, k;
@@ -675,6 +718,10 @@ static int inputobs(obsd_t* obs, int solq, const prcopt_t* popt) {
         /* update Galileo HAS PPP corrections */
         if (*gal_has_file) {
             update_gal_has(obs[0].time);
+        }
+        /* update BeiDou PPP-B2b corrections */
+        if (*bds_b2b_file) {
+            update_bds_b2b(obs[0].time);
         }
         /* update QZSS L6D MADOCA-PPP ionospheric corrections */
         if (popt->ionocorr) {
@@ -1055,6 +1102,24 @@ static void readpreceph(char** infile, int n, const prcopt_t* prcopt, nav_t* nav
         }
     }
 
+    /* BeiDou PPP-B2b .b2b file (first match only) */
+    for (i = 0; i < n; i++) {
+        if ((ext = strrchr(infile[i], '.')) && (!strcmp(ext, ".b2b") || !strcmp(ext, ".B2B"))) {
+            strcpy(bds_b2b_file, infile[i]);
+            if (!bds_b2b) {
+                bds_b2b = b2b_new();
+                if (!bds_b2b) {
+                    bds_b2b_file[0] = '\0';
+                    break;
+                }
+            }
+            break;
+        }
+    }
+    /* PPP-B2b orbit/clock corrections reference the B-CNAV1 (B1C) ephemeris,
+     * not the D1/D2 AODE; switch the BDS ephemeris selection accordingly. */
+    setseleph(SYS_CMP, prcopt->correction == CORR_BDS_B2B ? 1 : 0);
+
     /* QZSS L6 files (.l6 / .l6d / .l6e): MADOCA-PPP iono L6D, CLAS L6D, MADOCA-PPP L6E.
      * Legacy .l6: *.200.l6 / *.201.l6 are iono, others CLAS in CLAS mode, else L6E.
      * .l6d: iono by name (*.200.l6d / *.201.l6d) or by the first frame header,
@@ -1192,6 +1257,17 @@ static void freepreceph(nav_t* nav, sbs_t* sbs) {
         gal_has = NULL;
     }
     gal_has_file[0] = gal_has_path[0] = '\0';
+
+    /* free BeiDou PPP-B2b context */
+    if (fp_bds_b2b) {
+        fclose(fp_bds_b2b);
+        fp_bds_b2b = NULL;
+    }
+    if (bds_b2b) {
+        b2b_free(bds_b2b);
+        bds_b2b = NULL;
+    }
+    bds_b2b_file[0] = bds_b2b_path[0] = '\0';
 
     /* free CLAS context */
     if (clas_ctx) {

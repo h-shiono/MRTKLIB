@@ -91,6 +91,14 @@ _OPTION_META: dict[str, tuple[str, str]] = {
         "inclusion instead, overriding the health and URA checks (a satellite with no ephemeris is still "
         'dropped). The legacy space-separated string form (`"G01 G02"`) is also accepted.',
     ),
+    "pos2-bdsgeo": (
+        "PPP",
+        'BeiDou-3 GEO satellites, the PPP-B2b transmitters (`correction = "bds-b2b"`). Only B2b-I frames '
+        "from these PRNs are decoded as PPP-B2b; the IGSO/MEO B2b-I signal carries B-CNAV3 navigation frames "
+        "that pass the same CRC. Default (empty or absent): `C01-C04`, the GEO PRNs since 2026-04-21. Use "
+        '`["C59-C62"]` for data before 2026-04-17. See '
+        "[BeiDou PRN Reassignment](../guide/beidou-prn-reassignment.md).",
+    ),
     "pos2-bds2prn": (
         "All",
         'BeiDou satellites in PRN 1-18 that are **BDS-2** (e.g. `["C09", "C10"]`; ranges such as '

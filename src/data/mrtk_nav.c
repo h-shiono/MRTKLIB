@@ -184,6 +184,12 @@ static uint8_t bdsgen_[NBDSTBL] = {0, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 
  * Default C06-C08 (since the PRN reassignment; C38-C40 before it). */
 static uint8_t bds3igso_[NBDSTBL] = {0, 0, 0, 0, 0, 0, 1, 1, 1};
 
+/* BDS-3 GEO satellites, the PPP-B2b transmitters. Default C01-C04 (since the
+ * PRN reassignment; C59-C62 before it). IGSO/MEO B2b-I frames (B-CNAV3) pass
+ * the same CRC and reuse message type numbers 1/4/5, so the PPP-B2b decoder
+ * needs the GEO identity from configuration, not from the frame. */
+static uint8_t bdsgeo_[NBDSTBL] = {0, 1, 1, 1, 1};
+
 /* parse a BeiDou satellite list ("C09,C10", "C01-C18", comma/space separated)
  * into list[prn]=val for prn in [MINPRNCMP,maxprn]; return the number of
  * satellites listed, or -1 on a malformed entry */
@@ -270,6 +276,28 @@ extern int is_bds3igso(int prn) {
     }
     return bds3igso_[prn];
 }
+extern int set_bdsgeo(const char* str) {
+    uint8_t list[NBDSTBL] = {0};
+    int n;
+
+    memset(bdsgeo_, 0, sizeof(bdsgeo_));
+    bdsgeo_[1] = bdsgeo_[2] = bdsgeo_[3] = bdsgeo_[4] = 1;
+
+    if (!str || !*str) {
+        return 4;
+    }
+    if ((n = parse_bdslist(str, MAXPRNCMP, 1, list)) < 0) {
+        return -1;
+    }
+    memcpy(bdsgeo_, list, sizeof(bdsgeo_));
+    return n;
+}
+extern int is_bdsgeo(int prn) {
+    if (prn < MINPRNCMP || MAXPRNCMP < prn) {
+        return 0;
+    }
+    return bdsgeo_[prn];
+}
 extern int bds_gen(int prn) {
     if (prn < MINPRNCMP || MAXPRNCMP < prn) {
         return 0;
@@ -296,6 +324,13 @@ extern int set_bdsopt(const prcopt_t* opt, int warn) {
         if (warn) {
             fprintf(stderr, "warning : invalid [ambiguity_resolution] bds3_igso_sats = \"%s\"; C06-C08 used\n",
                     opt->bds3igso);
+        }
+        stat = 0;
+    }
+    if (set_bdsgeo(opt->bdsgeo) < 0) {
+        trace(NULL, 1, "set_bdsopt: invalid bdsgeo=%s (C01-C04)\n", opt->bdsgeo);
+        if (warn) {
+            fprintf(stderr, "warning : invalid [positioning] bds_geo_sats = \"%s\"; C01-C04 used\n", opt->bdsgeo);
         }
         stat = 0;
     }
