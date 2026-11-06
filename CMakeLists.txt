@@ -146,6 +146,11 @@ target_link_libraries(mrtklib PUBLIC m)
 if(UNIX AND NOT APPLE)
     target_link_libraries(mrtklib PUBLIC rt)
 endif()
+# The stream / server code creates threads; glibc < 2.34 keeps pthread_create
+# in libpthread, so every executable linking the static library needs it
+# (utests including mrtk_stream.c too, #385).
+find_package(Threads REQUIRED)
+target_link_libraries(mrtklib PUBLIC Threads::Threads)
 
 # ── System LAPACK/BLAS integration for fast matrix operations ────────────────
 # Request LP64 BLAS/LAPACK integer ABI; ILP64 silently breaks our int* wrappers (#108).
