@@ -118,8 +118,11 @@ correction = "southpan-pvs"
 satellite_ephemeris = "brdc+ssrapc"
 ```
 
-`correction = "southpan-pvs"` must be paired with `brdc+ssrapc` (or
-`brdc+ssrcom`), and ambiguity resolution must be off.
+`correction = "southpan-pvs"` must be paired with `brdc+ssrapc` and two
+frequencies (`frequency = "l1+2"`), and ambiguity resolution must be off.
+`brdc+ssrcom` is rejected: the corrected broadcast orbit already refers to the
+antenna phase centre. With PVS, `mrtk post` ignores `.rtcm3` and L6E files,
+with a warning.
 
 ### Validity
 

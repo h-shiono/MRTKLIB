@@ -897,13 +897,11 @@ static int satpos_ssr(gtime_t time, gtime_t teph, int sat, const nav_t* nav, int
         }
     }
     /* SouthPAN PVS: the MT32 orbit correction is ECEF and is added to the
-     * broadcast position */
+     * broadcast position, which already refers to the antenna phase centre:
+     * no satellite antenna offset is added (brdc+ssrcom is rejected for PVS) */
     if (ssr->vendor == SSR_VENDOR_PVS) {
-        if (opt) {
-            satantoff(time, rs, sat, nav, dant);
-        }
         for (i = 0; i < 3; i++) {
-            rs[i] += deph[i] + dant[i];
+            rs[i] += deph[i];
         }
         dts[0] += dclk / CLIGHT;
         *var = var_urassr(ssr->ura);

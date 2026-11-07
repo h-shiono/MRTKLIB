@@ -304,6 +304,14 @@ int main(void) {
         CHECK(!resolve_correction(&opt, msg, sizeof(msg)), "7: signals GPS L1+L2 rejected");
         opt.sigcfg[0].sig[1].band = MRTK_BAND_GPS_L5;
         CHECK(resolve_correction(&opt, msg, sizeof(msg)), "7: signals GPS L1+L5 accepted");
+        /* the broadcast orbit refers to the antenna phase centre */
+        opt.sateph = EPHOPT_SSRCOM;
+        CHECK(!resolve_correction(&opt, msg, sizeof(msg)), "7: brdc+ssrcom rejected");
+        opt.sateph = EPHOPT_SSRAPC;
+        opt.nf = 1;
+        CHECK(!resolve_correction(&opt, msg, sizeof(msg)), "7: single frequency rejected");
+        opt.nf = 2;
+        CHECK(resolve_correction(&opt, msg, sizeof(msg)), "7: two frequencies accepted");
     }
 
     free(nav);

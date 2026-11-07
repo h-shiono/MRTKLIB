@@ -1030,7 +1030,7 @@ static void combres(FILE* fp, const prcopt_t* popt, const solopt_t* sopt) {
 /* read prec ephemeris, sbas data, tec grid and open rtcm --------------------*/
 static void readpreceph(char** infile, int n, const prcopt_t* prcopt, nav_t* nav, sbs_t* sbs, gtime_t ts) {
     seph_t seph0 = {0};
-    int i;
+    int i, ssr_owner;
     char* ext;
 
     trace(NULL, 2, "readpreceph: n=%d\n", n);
@@ -1087,8 +1087,18 @@ static void readpreceph(char** infile, int n, const prcopt_t* prcopt, nav_t* nav
     stat_file[0] = cstat_file[0] = '\0';
     fp_stat = NULL;
 
+    /* Galileo HAS, PPP-B2b and SouthPAN PVS own nav.ssr_ch[0], as in mrtk run
+     * (#464): RTCM3 SSR and MADOCA L6E files would replace their corrections */
+    ssr_owner = prcopt->correction == CORR_GAL_HAS || prcopt->correction == CORR_BDS_B2B ||
+                prcopt->correction == CORR_SOUTHPAN_PVS;
+
     for (i = 0; i < n; i++) {
         if ((ext = strrchr(infile[i], '.')) && (!strcmp(ext, ".rtcm3") || !strcmp(ext, ".RTCM3"))) {
+            if (ssr_owner) {
+                showmsg("warning: RTCM3 SSR file ignored, corrections come from the selected service: %s", infile[i]);
+                trace(NULL, 2, "rtcm3 file ignored (ssr_ch[0] owned by the correction source): %s\n", infile[i]);
+                break;
+            }
             strcpy(rtcm_file, infile[i]);
             if (!rtcm) {
                 rtcm = (rtcm_t*)calloc(1, sizeof(rtcm_t));
@@ -1108,8 +1118,8 @@ static void readpreceph(char** infile, int n, const prcopt_t* prcopt, nav_t* nav
         }
     }
 
-    /* Galileo HAS .has file (first match only) */
-    for (i = 0; i < n; i++) {
+    /* Galileo HAS .has file (first match only), only for correction = gal-has */
+    for (i = 0; i < n && prcopt->correction == CORR_GAL_HAS; i++) {
         if ((ext = strrchr(infile[i], '.')) && (!strcmp(ext, ".has") || !strcmp(ext, ".HAS"))) {
             strcpy(gal_has_file, infile[i]);
             if (!gal_has) {
@@ -1189,6 +1199,9 @@ static void readpreceph(char** infile, int n, const prcopt_t* prcopt, nav_t* nav
             } else if (is_l6d) {
                 showmsg("warning: L6D file ignored outside CLAS mode: %s", infile[i]);
                 trace(NULL, 2, "L6D file ignored outside CLAS mode: %s\n", infile[i]);
+            } else if (ssr_owner) {
+                showmsg("warning: L6E file ignored, corrections come from the selected service: %s", infile[i]);
+                trace(NULL, 2, "L6E file ignored (ssr_ch[0] owned by the correction source): %s\n", infile[i]);
             } else if (!*qzssl6e_file) { /* MADOCA-PPP L6E (first match only) */
                 strcpy(qzssl6e_file, infile[i]);
                 if (!l6e) {
