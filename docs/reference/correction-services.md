@@ -22,8 +22,15 @@ starts.
 | **Galileo HAS** | `gal-has` | Global | Float PPP | GPS, Galileo | ✅ | ✅ |
 | **BeiDou PPP-B2b** | `bds-b2b` | China and the Asia-Pacific region | Float PPP | BeiDou-3 | ✅ | ✅ |
 | **SouthPAN PVS** | `southpan-pvs` | Australia and New Zealand | Float PPP | GPS (L1 C/A + L5), Galileo (E1 + E5a) | ✅ | ✅ |
-| **IGS products** | `igs` | Global | Float PPP, integer PPP-AR (Bias-SINEX OSB phase biases) | GPS, Galileo (PPP-AR: GPS, GPS + Galileo) | ✅ | — |
-| **IGS-RTS** | `igs-rts` | Global | Float PPP | GPS, Galileo | ✅ (recorded stream) | ✅ |
+| **IGS products** | `igs` | Global | Float PPP, integer PPP-AR (Bias-SINEX OSB phase biases) | GPS, Galileo validated (PPP-AR: GPS, GPS + Galileo); others as in the products¹ | ✅ | — |
+| **IGS-RTS** | `igs-rts` | Global | Float PPP | GPS, Galileo validated; others as in the stream¹ | ✅ (recorded stream) | ✅ |
+
+For the five satellite-broadcast services, the constellations are those the
+service sends corrections for. ¹ For IGS products and IGS-RTS they depend on
+the product or stream; the regression tests and the quick starts cover GPS and
+Galileo. Other constellations can be added to `systems` (for BeiDou, also set
+`[positioning] bds2_sats`; see
+[BeiDou PRN reassignment](../guide/beidou-prn-reassignment.md)).
 
 The five satellite-broadcast services (CLAS, MADOCA-PPP, HAS, PPP-B2b, PVS)
 run in real time directly from the correction messages the receiver outputs.

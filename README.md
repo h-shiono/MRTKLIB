@@ -152,7 +152,9 @@ tar xzf tests/data/claslib/claslib_testdata.tar.gz -C tests/data/claslib
     tests/data/claslib/0627239Q.obs tests/data/claslib/sept_2019239.nav tests/data/claslib/2019239Q.l6
 
 # Real time: the same hour replayed at 10x speed through mrtk run
-# (output: tests/data/claslib/out/rtkrcv_clas_test.nmea; type "shutdown" to stop)
+# (output: tests/data/claslib/out/rtkrcv_clas_test.nmea; type "shutdown" to stop).
+# Run it from a terminal: the console needs a TTY. "no navigation data: rtkrcv.nav"
+# on the first start is normal (the file is written at shutdown).
 mkdir -p tests/data/claslib/out
 ./build/mrtk run -s -o conf/claslib/rtkrcv.toml
 ```
@@ -165,7 +167,7 @@ For the other services and for live receivers, see the quick starts under [`docs
 
 MRTKLIB is developed with AI assistance.
 Algorithm porting, tests, code migration and documentation are written with
-**[Claude Code](https://claude.ai/claude-code)** (Anthropic); commits made with it
+**[Claude Code](https://claude.com/claude-code)** (Anthropic); commits made with it
 carry a `Co-Authored-By: Claude` trailer. Porting strategy was also discussed with
 **Gemini Pro** (Google).
 
