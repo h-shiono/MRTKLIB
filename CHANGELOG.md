@@ -73,6 +73,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   satellites to MADOCA orbit / clock while the HAS biases were applied: a
   one-hour HAS replay (G5P3 2026-286 p) ended −11.8 / −0.3 / −31.1 m dENU,
   now −0.11 / −0.13 / −0.17 m, the same as the capture without its L6 blocks.
+- **`[output] geoid_model`** is read again. v0.7.16 defined the value list of
+  the new `bds_geo_sats` option under the same macro name as the geoid model
+  list (`GEOOPT`), so `geoid_model` was checked against the BeiDou GEO list:
+  every value was rejected with `TOML: invalid value for output.geoid_model`
+  and the default (`internal`) was used. The bundled configurations all set
+  `internal`, so their output is unchanged; `egm96`, `egm08_2.5`, `egm08_1`
+  and `gsi2000` take effect again.
 
 ## [v0.7.16] - 2026-11-06
 

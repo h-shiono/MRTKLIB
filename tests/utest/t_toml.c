@@ -1,7 +1,8 @@
 /*------------------------------------------------------------------------------
  * t_toml.c : unit test for the TOML loader deprecation aliases and unknown-key
  *            detection (#286), the TOML saveopts() append error (#342), and
- *            the BeiDou PRN-reassignment lists and their presence flag (#401).
+ *            the BeiDou PRN-reassignment lists and their presence flag (#401),
+ *            and the enum options that share a value list (geoid_model).
  *
  * Uses explicit failure returns (not assert) so the checks run even in
  * NDEBUG builds where assert() is a no-op (see #277).
@@ -79,6 +80,9 @@ int main(void) {
             "systems = [\"GPS\", \"GAL\"]\n"
             "excluded_sats = [\"G05\"]\n"
             "bds2_sats = [\"C09\", \"C10\"]\n"
+            "bds_geo_sats = \"C59-C62\"\n"
+            "[output]\n"
+            "geoid_model = \"egm96\"\n"
             "[ambiguity_resolution]\n"
             "bds3_igso_sats = [\"C38-C40\"]\n"
             "[positioning.corrections]\n"
@@ -112,6 +116,10 @@ int main(void) {
     expect(!strcmp(prcopt.bds2prn, "C09,C10") && prcopt.bds2prn_set,
            "bds2_sats string list joins into bds2prn and marks it set");
     expect(!strcmp(prcopt.bds3igso, "C38-C40"), "bds3_igso_sats string list joins into bds3igso");
+    expect(!strcmp(prcopt.bdsgeo, "C59-C62"), "bds_geo_sats string parses into bdsgeo");
+    /* out-geoid read the B2b GEO list as its value list after v0.7.16 redefined
+     * GEOOPT, so every geoid_model value was rejected. */
+    expect(solopt.geoid == 1, "geoid_model = \"egm96\" sets solopt.geoid=1");
 
     /* Warnings emitted. */
     expect(capture_contains("[receiver].phase_shift is deprecated; move it to"),
@@ -127,6 +135,7 @@ int main(void) {
     expect(capture_contains("unknown key [positioning].elevaton_mask"), "unknown-key warning for typo");
     expect(capture_contains("invalid value for receiver.iono_correction"),
            "invalid-value warning for a deprecated key with a bad value");
+    expect(!capture_contains("invalid value for output.geoid_model"), "geoid_model = \"egm96\" is a valid value");
     /* The specially-handled string-list keys must not trip the unknown-key sweep. */
     expect(capture_count("unknown key [positioning].systems") == 0 &&
                capture_count("unknown key [positioning].excluded_sats") == 0 &&
