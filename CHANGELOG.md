@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.7.17] - 2026-11-07
+
+**SouthPAN PVS.** `correction = "southpan-pvs"` runs float PPP with the PPP
+via SouthPAN corrections (DFMC L5 MT32 of GEO PRN 122) on GPS L1 C/A + L5 and
+Galileo E1 + E5a, in `mrtk post` and `mrtk run`
+([#418](https://github.com/h-shiono/MRTKLIB/issues/418)). With it MRTKLIB runs
+all five open satellite-broadcast PPP / PPP-RTK services (QZSS CLAS, QZSS
+MADOCA-PPP, Galileo HAS, BeiDou PPP-B2b, SouthPAN PVS) in post-processing and
+in real time; a new reference page lists their capabilities
+([#419](https://github.com/h-shiono/MRTKLIB/issues/419)). On ALBY (Albany)
+2025-08-21, last 20 min of one hour: kinematic 6.0 cm 2D / 12.6 cm U rms,
+static 8.0 / 6.4 cm. SBAS messages carry their band (L1 / L5) and SBF
+`GEORawL5` (4021) is decoded. Fixes: SBF `GALNav` F/NAV no longer overwrites
+the I/NAV ephemeris; in `mrtk run`, MADOCA or RTCM3 SSR no longer overwrites
+Galileo HAS / PPP-B2b corrections
+([#464](https://github.com/h-shiono/MRTKLIB/issues/464)); `[output]
+geoid_model` is read again (broken in v0.7.16). New dataset `southpan-v1`.
+No ABI break (`sbsmsg_t.band` uses a padding byte); new API `sbsmsgtype()`,
+`sbsupdatepvs()`.
+
 ### SouthPAN PVS
 
 - **New correction source `southpan-pvs`**
@@ -101,6 +121,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   AI-assistance statement describes the actual process (Claude Code
   `Co-Authored-By` trailers; the author reviews, tests and merges). The LP64
   BLAS/LAPACK details move to the installation guide.
+
+### API / ABI
+
+- **No ABI break:** `sbsmsg_t` gains `band` in a padding byte; `sizeof`
+  is unchanged.
+- **API:** new `sbsmsgtype()`, `sbsupdatepvs()` (`mrtk_sbas.h`),
+  `SBS_BAND_L1` / `SBS_BAND_L5`, `SSR_VENDOR_PVS`, `CORR_SOUTHPAN_PVS`.
 
 ## [v0.7.16] - 2026-11-06
 
