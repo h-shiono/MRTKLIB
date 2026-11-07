@@ -58,13 +58,18 @@ lists, for each service and for IGS products / IGS-RTS:
 
   `corr_meas()` applies no satellite bias.
 - **Options:**
-  - Needs `satellite_ephemeris = "brdc+ssrapc"` (or `brdc+ssrcom`) and the
+  - Needs `satellite_ephemeris = "brdc+ssrapc"`, two frequencies and the
     GPS L1/L5 + Galileo E1/E5a signal pairs.
-  - Ambiguity resolution and other signal pairs are rejected.
+  - `brdc+ssrcom` is rejected. The corrected broadcast orbit already refers to
+    the antenna phase centre, so the satellite antenna offset would be added
+    twice.
+  - Ambiguity resolution, other signal pairs and a single frequency are
+    rejected.
   - In `mrtk post`, backward and combined solutions are rejected too,
     because a correction is valid only after its reception.
-- **Real time:** the PVS corrections own the SSR store. MADOCA or RTCM3 SSR
-  arriving on the same streams is not applied.
+- **SSR store:** the PVS corrections own it. In real time, MADOCA or RTCM3
+  SSR arriving on the same streams is not applied. In post-processing,
+  `.rtcm3` and L6E files are ignored with a warning.
 - **SBAS L5 messages:**
   - `sbsmsg_t` gains `band` (`SBS_BAND_L1` / `SBS_BAND_L5`).
   - SBF `GEORawL5` (4021) is decoded. `mrtk convert -s` writes L5 messages
@@ -118,6 +123,9 @@ is in the DAS-logged corrections of that hour (#462).
   mosaic-G5 SBF stream logging GALRawCNAV and QZSRawL6E. A one-hour HAS
   replay ended −11.8 / −0.3 / −31.1 m dENU and now ends
   −0.11 / −0.13 / −0.17 m, the same as the capture without its L6 blocks.
+  `mrtk post` follows the same rule (PR #468 review): with `gal-has`,
+  `bds-b2b` or `southpan-pvs` it ignores `.rtcm3` and L6E files with a
+  warning, and reads a `.has` file only with `gal-has`.
 - **`[output] geoid_model`** is read again. v0.7.16 defined the value list of
   `bds_geo_sats` under the macro name of the geoid model list, so every
   `geoid_model` value was rejected and the internal model was used. The
@@ -163,11 +171,13 @@ is in the DAS-logged corrections of that hour (#462).
   - In real time, log SBF `GEORawL5` (4021).
   - In post-processing, give the `.sbs` file as input
     (`mrtk convert -s` writes the L5 messages).
-  - Use `solution_type = "forward"`.
+  - Use `satellite_ephemeris = "brdc+ssrapc"`, `frequency = "l1+2"` and
+    `solution_type = "forward"`.
 - **`geoid_model`:** configurations that set `egm96`, `egm08_2.5`, `egm08_1`
   or `gsi2000` take effect again. On v0.7.16 they used the internal model.
-- **`mrtk run` with `gal-has` / `bds-b2b`:** MADOCA / RTCM3 SSR on the same
-  streams is no longer applied.
+- **`gal-has` / `bds-b2b` / `southpan-pvs`:** MADOCA / RTCM3 SSR on the same
+  streams is no longer applied in `mrtk run`, and `mrtk post` ignores
+  `.rtcm3` and L6E files (and `.has` files unless `gal-has`).
 - **API:**
   - new `sbsmsgtype()` and `sbsupdatepvs()`;
   - new constants `SBS_BAND_L1` / `SBS_BAND_L5`, `SSR_VENDOR_PVS` and

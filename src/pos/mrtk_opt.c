@@ -231,6 +231,22 @@ extern int resolve_correction(prcopt_t* opt, char* msg, size_t msgsz) {
                 }
                 return 0;
             }
+            /* PVS corrects the broadcast orbit, which refers to the antenna
+             * phase centre: brdc+ssrcom would add the satellite antenna
+             * offset a second time */
+            if (opt->correction == CORR_SOUTHPAN_PVS && opt->sateph != EPHOPT_SSRAPC) {
+                if (msg) {
+                    snprintf(msg, msgsz, "correction=southpan-pvs requires satellite_ephemeris=brdc+ssrapc");
+                }
+                return 0;
+            }
+            /* the PVS clock is the L1/L5 (E1/E5a) iono-free clock */
+            if (opt->correction == CORR_SOUTHPAN_PVS && opt->nf < 2) {
+                if (msg) {
+                    snprintf(msg, msgsz, "correction=southpan-pvs requires two frequencies (frequency = \"l1+2\")");
+                }
+                return 0;
+            }
             /* PVS broadcasts orbit and clock only: no phase biases, float PPP */
             if (opt->correction == CORR_SOUTHPAN_PVS && opt->modear >= ARMODE_CONT) {
                 if (msg) {

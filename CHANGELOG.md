@@ -39,11 +39,15 @@ No ABI break (`sbsmsg_t.band` uses a padding byte); new API `sbsmsgtype()`,
   removes the GPS TGD: the DFMC clock refers to the L1/L5 iono-free clock,
   and without it GPS-only PPP on ALBY 2025-233 has a 5.7 m vertical bias.
   `corr_meas()` applies no satellite bias. Needs
-  `satellite_ephemeris = "brdc+ssrapc"` (or `brdc+ssrcom`) and the GPS L1/L5 +
-  Galileo E1/E5a signal pairs; ambiguity resolution, other signal pairs and,
-  in `mrtk post`, backward / combined solutions (a correction is valid only
-  after its reception) are rejected. In `mrtk run` the PVS corrections own the
-  SSR store: MADOCA or RTCM3 SSR on the same streams is not applied. Only
+  `satellite_ephemeris = "brdc+ssrapc"`, two frequencies and the GPS L1/L5 +
+  Galileo E1/E5a signal pairs. `brdc+ssrcom` is rejected: the corrected
+  broadcast orbit already refers to the antenna phase centre, so the
+  satellite antenna offset would be added twice. Ambiguity resolution, other
+  signal pairs, a single frequency and, in `mrtk post`, backward / combined
+  solutions (a correction is valid only after its reception) are rejected.
+  The PVS corrections own the SSR store: in `mrtk run` MADOCA or RTCM3 SSR on
+  the same streams is not applied, and `mrtk post` ignores `.rtcm3` and L6E
+  files with a warning. Only
   PRN 122 is used: other DFMC GEOs (BDSBAS PRN 130/143/144 in Japan) send
   MT32 for their own service.
 - **SBAS L5 messages.** `sbsmsg_t` gains `band` (`SBS_BAND_L1` /
@@ -93,6 +97,9 @@ No ABI break (`sbsmsg_t.band` uses a padding byte); new API `sbsmsgtype()`,
   satellites to MADOCA orbit / clock while the HAS biases were applied: a
   one-hour HAS replay (G5P3 2026-286 p) ended −11.8 / −0.3 / −31.1 m dENU,
   now −0.11 / −0.13 / −0.17 m, the same as the capture without its L6 blocks.
+  `mrtk post` now follows the same rule: with `gal-has`, `bds-b2b` or
+  `southpan-pvs` it ignores `.rtcm3` and L6E files with a warning, and reads
+  a `.has` file only with `gal-has` (as `.b2b` only with `bds-b2b`).
 - **`[output] geoid_model`** is read again. v0.7.16 defined the value list of
   the new `bds_geo_sats` option under the same macro name as the geoid model
   list (`GEOOPT`), so `geoid_model` was checked against the BeiDou GEO list:

@@ -292,6 +292,13 @@ When MALIB / CLASLIB / MADOCALIB upstream updates are available:
 4. Cherry-pick only after explicit user approval for algorithm changes.
 5. Run the full test suite. Document numerical deltas.
 
+### Releases
+
+1. Branch `release/vX.Y.Z` from `develop`. Bump `CMakeLists.txt` VERSION, add the CHANGELOG section and `docs/releases/release-notes-vX.Y.Z.md` (and its mkdocs nav entry), update the README Latest block and the §1 table above. Open a PR to `main`.
+2. After the merge, put an annotated tag `vX.Y.Z` on the merge commit.
+3. Create a **GitHub Release for every version, patch releases included** (since v0.7.17). Zenodo archives a version, with its own DOI, only when a GitHub Release is published; a bare tag does not count. The body is the release notes with absolute links (docs site / GitHub URLs; the `../` links of the notes break on the Release page). Earlier tag-only versions (v0.7.1–v0.7.16) are not back-filled.
+4. Back-merge `chore/back-merge-vX.Y.Z` → `develop`, then close the release's issues and milestone.
+
 ---
 
 ## 9. Workflow Rules
