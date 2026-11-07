@@ -104,6 +104,7 @@ nav:
   - Hardware:
     - CLAS Positioning with mosaic-G5: hardware/cssr2rtcm3-mosaic-g5.md
   - Reference:
+    - Correction Services: reference/correction-services.md
     - Configuration Options: reference/config-options.md
     - API Reference (Doxygen): reference/api.md
     - Benchmark (PPC kinematic): reference/benchmark.md
