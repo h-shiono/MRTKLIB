@@ -1,7 +1,7 @@
 # MRTKLIB : Modernized RTKLIB for Next-Generation GNSS
 
 [![License](https://img.shields.io/badge/License-BSD_2--Clause-blue.svg)](LICENSE)
-[![Build](https://img.shields.io/badge/build-CMake-success.svg)]()
+[![Build](https://github.com/h-shiono/MRTKLIB/actions/workflows/build.yaml/badge.svg?branch=main)](https://github.com/h-shiono/MRTKLIB/actions/workflows/build.yaml)
 [![C11](https://img.shields.io/badge/standard-C11-blue.svg)]()
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.20373746.svg)](https://doi.org/10.5281/zenodo.20373746)
 
@@ -9,7 +9,7 @@
 
 In the spirit of RTKLIB, it aims to be both a readable reference for how each service is applied and practical software for day-to-day and production use. The CLAS and MADOCA-PPP engines are regression-tested for parity with the official [CLASLIB](https://github.com/QZSS-Strategy-Office/claslib) / [MADOCALIB](https://github.com/QZSS-Strategy-Office/madocalib), and absolute accuracy is checked against independent truth (e.g. IGS SINEX). Standard positioning (SPP, RTK) is maintained alongside, with selected algorithm improvements from [demo5 RTKLIB](https://github.com/rtklibexplorer/RTKLIB).
 
-To our knowledge, MRTKLIB is the first open-source positioning engine that runs all five satellite-broadcast open PPP / PPP-RTK services — QZSS CLAS, QZSS MADOCA-PPP, Galileo HAS, BeiDou PPP-B2b and SouthPAN PVS — in real time, from the correction messages output by the receiver to the position solution, in one code base. CSSRlib provides Python processing examples for the same services; open-source tools for single services include CLASLIB and MADOCALIB, HASlib and HASPPP (Galileo HAS), and B2bLIB and RTKLIB-B2b (PPP-B2b).
+To our knowledge, MRTKLIB is the first open-source positioning engine that runs all five of these services in real time, from the correction messages output by the receiver to the position solution, in one code base. [CSSRlib](https://github.com/hirokawa/cssrlib) provides Python processing examples for the same services; open-source tools for single services include [CLASLIB](https://github.com/QZSS-Strategy-Office/claslib) and [MADOCALIB](https://github.com/QZSS-Strategy-Office/madocalib), [HASlib](https://github.com/nlsfi/HASlib) and [HASPPP](https://github.com/ZhangRunzhi20/HASPPP) (Galileo HAS), and [B2bLIB](https://github.com/GCCLib/B2bLIB) and [RTKLIB-B2b](https://github.com/UCAS-Liuchunbo/RTKLIB-B2b) (PPP-B2b).
 
 ---
 
@@ -42,7 +42,7 @@ Standard positioning — SPP (C/N0 weighting, IGG-III robust estimation, TDCP) a
 
 ### Lineage
 
-MRTKLIB began by unifying the QZSS augmentation libraries into one conflict-free code base on a modernized RTKLIB core; that integration is complete:
+MRTKLIB began by unifying the QZSS augmentation libraries into one code base on a modernized RTKLIB core; that integration is complete:
 
 | Component | Version | Description | Status |
 |-----------|---------|-------------|--------|
@@ -50,7 +50,7 @@ MRTKLIB began by unifying the QZSS augmentation libraries into one conflict-free
 | **[MADOCALIB](https://github.com/QZSS-Strategy-Office/madocalib)** | ver.2.0 (`8091004`) | PPP/PPP-AR engine, L6E SSR decoder, L6D ionospheric decoder | Integrated |
 | **[CLASLIB](https://github.com/QZSS-Strategy-Office/claslib)** | ver.0.8.2 (`9e714b9`) | Centimeter Level Augmentation Service (PPP-RTK, VRS-RTK, CSSR decoder) | Integrated |
 
-MRTKLIB was the first open-source implementation of real-time CLAS PPP-RTK positioning.
+Real-time CLAS PPP-RTK (`mrtk run`) has been available since v0.4.3 (March 2026); the release in which each service was added is listed in the [capability matrix](docs/reference/correction-services.md#release-history).
 
 ### Algorithm Improvements
 
@@ -90,6 +90,10 @@ is in the [CHANGELOG](CHANGELOG.md) and [release notes](docs/releases/):
 
 * **Real-time CLAS L6D**: Dual-channel support uses stream 3 for L6 ch1 and stream 2 (base slot, unused in PPP-RTK) for L6 ch2.
 * **Real-time L6E**: The rtksvr provides a single correction input (`inpstr3`). Multiple QZSS L6E channels (e.g., QZS-3 and QZS-4) are supported when the receiver multiplexes them into one SBF stream.
+* **Galileo HAS**: float PPP on GPS and Galileo. On the regression dataset the solution sits ~0.6 m horizontally from the reference coordinate; the cause is under investigation ([#215](https://github.com/h-shiono/MRTKLIB/issues/215)).
+* **BeiDou PPP-B2b**: float PPP on BeiDou only. The broadcast has GPS orbit and clock corrections but no GPS code biases.
+* **SouthPAN PVS**: float PPP on GPS L1 C/A + L5 and Galileo E1 + E5a; forward solutions only in `mrtk post`. The decoder handles the current MT32 messages on L5. SouthPAN plans to move PVS to a new signal, L5b (1207.14 MHz), with a new message format on new GEOs, which will need a new decoder. DAS log input is not validated ([#462](https://github.com/h-shiono/MRTKLIB/issues/462)).
+* **Real-time input for HAS, PPP-B2b and PVS**: Septentrio SBF only (see the [capability matrix](docs/reference/correction-services.md#inputs)).
 
 ## Live Dashboard
 
@@ -116,7 +120,7 @@ Ready-to-use packages for trying MRTKLIB without building it from source:
 ### Prerequisites
 * CMake (>= 3.15)
 * C11 compatible compiler (GCC, Clang)
-* LAPACK/BLAS (Optional but recommended for fast matrix operations. e.g., `liblapack-dev` on Ubuntu, Accelerate framework on macOS) — **requires the LP64 (32-bit integer) interface**; ILP64 providers are not supported (for example, avoid OpenBLAS built with `INTERFACE64=1`). On CMake ≥ 3.22, MRTKLIB requests a 32-bit integer BLAS/LAPACK interface by setting `BLA_SIZEOF_INTEGER=4`. This is a CMake selection hint, not a complete ABI verifier for all BLAS/LAPACK package layouts: if `FindBLAS`/`FindLAPACK` still resolves an ILP64 provider (e.g. an ILP64 OpenBLAS published as plain `libopenblas.so` with no `64`-suffixed name), make an LP64 BLAS/LAPACK provider visible to CMake explicitly. On older CMake, install an LP64 build of your BLAS/LAPACK provider (the default for most distributions).
+* LAPACK/BLAS (optional; e.g. `liblapack-dev` on Ubuntu, the Accelerate framework on macOS). It must be an **LP64** (32-bit integer) build; see the [installation guide](docs/getting-started/install.md#lapack-and-blas-lp64-interface).
 
 ### Build Instructions
 MRTKLIB uses standard CMake workflow. Out-of-source builds are strictly recommended.
@@ -136,31 +140,40 @@ cmake --build build -j
 The unified `mrtk` binary will be located in the `build/` directory.
 
 ### Running Applications
-Configuration files (TOML) are stored in the `conf/` directory.
-Test data and regression datasets are available in `tests/data/`.
+Configuration files (TOML) are stored in the `conf/` directory. The repository includes a one-hour CLAS sample (2019-08-27, a station in Japan), which the commands below use:
 
 ```bash
-# Example: Running post-processing analysis
-./build/mrtk post -k conf/malib/rnx2rtkp.toml tests/data/rtklib/rinex/xxxx.obs ...
+# Unpack the CLAS sample data
+tar xzf tests/data/claslib/claslib_testdata.tar.gz -C tests/data/claslib
 
-# Example: Real-time positioning
+# Post-processing: CLAS PPP-RTK over one hour (NMEA output)
+./build/mrtk post -k conf/claslib/rnx2rtkp.toml \
+    -ts 2019/08/27 16:00:00 -te 2019/08/27 16:59:59 -o clas.nmea \
+    tests/data/claslib/0627239Q.obs tests/data/claslib/sept_2019239.nav tests/data/claslib/2019239Q.l6
+
+# Real time: the same hour replayed at 10x speed through mrtk run
+# (output: tests/data/claslib/out/rtkrcv_clas_test.nmea; type "shutdown" to stop)
+mkdir -p tests/data/claslib/out
 ./build/mrtk run -s -o conf/claslib/rtkrcv.toml
 ```
+
+For the other services and for live receivers, see the quick starts under [`docs/guide/`](docs/guide/).
 
 ## For Developers
 
 ### Development Workflow
 
-MRTKLIB is developed using an AI-assisted workflow.
-Algorithm porting, test authoring, and code migration are performed with
-**[Claude Code](https://claude.ai/claude-code)** (Anthropic).
-Architecture, implementation strategy, and final review are directed by the project author;
-porting strategy design is also supported by **Gemini Pro** (Google).
+MRTKLIB is developed with AI assistance.
+Algorithm porting, tests, code migration and documentation are written with
+**[Claude Code](https://claude.ai/claude-code)** (Anthropic); commits made with it
+carry a `Co-Authored-By: Claude` trailer. Porting strategy was also discussed with
+**Gemini Pro** (Google).
 
-All commits, test results, and architectural decisions remain under human authorship and review.
+The project author sets the architecture and implementation strategy, reviews every
+change, runs the regression suite and merges it.
 
 ### Running Tests
-MRTKLIB includes both robust unit tests (utest) and regression tests to ensure core stability when merging complex GNSS algorithms.
+MRTKLIB has unit tests (utest) and regression tests; the regression tests compare against upstream outputs and independent reference coordinates (see the [test methodology](docs/reference/test-accuracy-methodology.md)).
 
 ```bash
 cd build
@@ -168,7 +181,7 @@ ctest --output-on-failure
 ```
 
 ### Generating Documentation
-The codebase is fully documented using Doxygen. To generate the API reference and call graphs:
+The public API is documented with Doxygen comments. To generate the API reference and call graphs:
 
 ```bash
 cmake --build build --target doc

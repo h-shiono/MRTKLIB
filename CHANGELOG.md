@@ -87,6 +87,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   real-time replays, full suite on macOS Apple Silicon); SouthPAN PVS no
   longer listed as planned;
   emoji removed from the README headings.
+- README: the build badge shows the `build.yaml` workflow status (it was a
+  static "success" image); the other open-source projects are linked; Known
+  Limitations covers Galileo HAS, BeiDou PPP-B2b and SouthPAN PVS; the
+  "Running Applications" commands run on the bundled CLAS sample; the
+  AI-assistance statement describes the actual process (Claude Code
+  `Co-Authored-By` trailers; the author reviews, tests and merges). The LP64
+  BLAS/LAPACK details move to the installation guide.
 
 ## [v0.7.16] - 2026-11-06
 
