@@ -338,11 +338,16 @@ static void update_lcl(rtksvr_t* svr, int index) {
  * L6D+L6E stream (code 15) or a raw L6E stream (STRFMT_L6E, code 10). In
  * PPP/MADOCA mode svr->clas is NULL and MADOCA SSR is applied like any other
  * ssr_ch[0] source; RTCM3 SSR (code 10) is applied in every mode except
- * SouthPAN PVS, whose MT32 corrections own ssr_ch[0] and are applied without
- * satellite biases (a MADOCA / RTCM3 entry there would silently replace them).
+ * Galileo HAS, PPP-B2b and SouthPAN PVS (#464): their own decoders own
+ * ssr_ch[0], and corr_meas() applies the biases of that source, so a MADOCA /
+ * RTCM3 entry there would silently replace the corrections of some satellites.
+ * The UBX / SBF L6 decoders return code 15 for any MADOCA L6E frame, whatever
+ * the correction source.
  *-----------------------------------------------------------------------------*/
 extern int rtksvr_ssr_applicable(const rtksvr_t* svr, int index, int ret) {
-    if (svr->rtk.opt.correction == CORR_SOUTHPAN_PVS) {
+    int corr = svr->rtk.opt.correction;
+
+    if (corr == CORR_GAL_HAS || corr == CORR_BDS_B2B || corr == CORR_SOUTHPAN_PVS) {
         return 0;
     }
     if (!svr->clas) {

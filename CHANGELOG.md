@@ -64,6 +64,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   other, which dropped one of them. With both fixes the HAS and CLAS regression
   outputs are bit-identical, and the MADOCA ones stay within their ≤ 6 mm
   run-to-run variation (fix quality unchanged); tolerances unchanged.
+- **`mrtk run` with `correction = "gal-has"` or `"bds-b2b"`** no longer lets
+  MADOCA L6E SSR (UBX / SBF L6 frames, raw L6E stream) or RTCM3 SSR overwrite
+  the HAS / PPP-B2b corrections in `nav.ssr_ch[0]`
+  ([#464](https://github.com/h-shiono/MRTKLIB/issues/464)), as for SouthPAN
+  PVS. The L6 decoders deliver MADOCA frames whatever the correction source,
+  so one mosaic-G5 SBF stream logging GALRawCNAV and QZSRawL6E switched
+  satellites to MADOCA orbit / clock while the HAS biases were applied: a
+  one-hour HAS replay (G5P3 2026-286 p) ended −11.8 / −0.3 / −31.1 m dENU,
+  now −0.11 / −0.13 / −0.17 m, the same as the capture without its L6 blocks.
 
 ## [v0.7.16] - 2026-11-06
 

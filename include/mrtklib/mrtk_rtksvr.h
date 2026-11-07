@@ -215,8 +215,9 @@ int rtksvrmark(rtksvr_t* svr, const char* name, const char* comment);
  * In CLAS/PPP-RTK mode (svr->clas set) the CLAS decoder owns nav.ssr_ch[0],
  * so MADOCA-PPP SSR from a raw L6E stream (STRFMT_L6E, code 10) or from a
  * UBX/SBF L6E frame (code 15) is not applied. Other SSR sources (e.g. RTCM3
- * SSR, code 10) are applied as before. With correction = southpan-pvs the PVS
- * decoder owns nav.ssr_ch[0] and no code 10 / 15 result is applied.
+ * SSR, code 10) are applied as before. With correction = gal-has, bds-b2b or
+ * southpan-pvs that source's decoder owns nav.ssr_ch[0] and no code 10 / 15
+ * result is applied.
  *
  * @param[in] svr    RTK server struct
  * @param[in] index  input stream index (0..2)
