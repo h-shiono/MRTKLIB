@@ -5,22 +5,24 @@
 [![C11](https://img.shields.io/badge/standard-C11-blue.svg)]()
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.20373746.svg)](https://doi.org/10.5281/zenodo.20373746)
 
-**MRTKLIB** is a modern, thread-safe C11 GNSS positioning library built on [RTKLIB](https://www.rtklib.com/), covering the **open PPP / PPP-RTK correction services** — QZSS CLAS and MADOCA-PPP, Galileo HAS, and IGS products and real-time streams — in a single code base, for both post-processing (`mrtk post`) and real-time processing (`mrtk run`).
+**MRTKLIB** is a thread-safe C11 GNSS positioning library built on [RTKLIB](https://www.rtklib.com/). It processes the **open PPP / PPP-RTK correction services broadcast by satellites** — QZSS CLAS and MADOCA-PPP, Galileo HAS, BeiDou PPP-B2b and SouthPAN PVS — as well as IGS products and real-time streams, in one code base, for both post-processing (`mrtk post`) and real-time processing (`mrtk run`).
 
 In the spirit of RTKLIB, it aims to be both a readable reference for how each service is applied and practical software for day-to-day and production use. The CLAS and MADOCA-PPP engines are regression-tested for parity with the official [CLASLIB](https://github.com/QZSS-Strategy-Office/claslib) / [MADOCALIB](https://github.com/QZSS-Strategy-Office/madocalib), and absolute accuracy is checked against independent truth (e.g. IGS SINEX). Standard positioning (SPP, RTK) is maintained alongside, with selected algorithm improvements from [demo5 RTKLIB](https://github.com/rtklibexplorer/RTKLIB).
 
+To our knowledge, MRTKLIB is the first open-source positioning engine that runs all five satellite-broadcast open PPP / PPP-RTK services — QZSS CLAS, QZSS MADOCA-PPP, Galileo HAS, BeiDou PPP-B2b and SouthPAN PVS — in real time, from the correction messages output by the receiver to the position solution, in one code base. CSSRlib provides Python processing examples for the same services; open-source tools for single services include CLASLIB and MADOCALIB, HASlib and HASPPP (Galileo HAS), and B2bLIB and RTKLIB-B2b (PPP-B2b).
+
 ---
 
-## 🚀 Key Architectural Overhauls (Departure from Legacy)
+## Changes from RTKLIB
 
-MRTKLIB is not just another fork; it is a ground-up architectural redesign aimed at modern software engineering standards:
+MRTKLIB keeps the RTKLIB algorithms and data structures where they work, and changes the parts that limited reuse:
 
-* **Thread-Safe Design:** Introduced the `mrtk_ctx_t` context structure to encapsulate states, error handling, and logging on a per-instance basis, replacing legacy global variables in the major processing pipelines and enabling parallel processing (e.g., handling multiple streams in a single server).
-* **POSIX & C11 Pure:** Purged all Win32 API and legacy `#ifdef` macros. The core library is purely POSIX/C11 compliant, ensuring perfect portability across Linux, macOS (Apple Silicon), and embedded ARM/RISC-V devices.
-* **Modern Build System (CMake):** Replaced scattered Makefiles with a unified, clean CMake build system. It natively supports standard `find_package(LAPACK)` for hardware-accelerated matrix operations (replacing bundled proprietary Intel MKL binaries).
-* **Domain-Driven Directory Structure:** Flat source files have been beautifully categorized into specific domains (`src/core/`, `src/pos/`, `src/rtcm/`, `src/models/`, etc.) for high maintainability.
+* **Per-instance state:** a context structure (`mrtk_ctx_t`) holds state, error handling and logging for each instance, in place of global variables in the main processing paths, so that several solvers can run in one process (for example, several streams in one server).
+* **POSIX / C11:** the library does not use the Win32 API. CI builds it and runs the regression tests, without the real-time replays, on Linux (Ubuntu, x86-64); the full suite, including the replays, is run on macOS (Apple Silicon).
+* **CMake build:** a single CMake build replaces the per-platform Makefiles. LAPACK is located with `find_package(LAPACK)` instead of the bundled Intel MKL binaries; without it, the internal LU solver is used.
+* **Source layout by function:** the flat source directory is split into `src/core/`, `src/pos/`, `src/rtcm/`, `src/models/` and others.
 
-## 🛰️ Supported Correction Services
+## Supported Correction Services
 
 | Service | Delivery | Positioning modes | Post (`mrtk post`) | Real-time (`mrtk run`) |
 |---------|----------|-------------------|:-:|:-:|
@@ -30,13 +32,15 @@ MRTKLIB is not just another fork; it is a ground-up architectural redesign aimed
 | **IGS products** | SP3 / CLK / Bias-SINEX files | Float PPP, integer PPP-AR (OSB phase biases) | ✅ | — |
 | **IGS-RTS** | RTCM-SSR over NTRIP | Float PPP | ✅ (recorded stream) | ✅ |
 | **BeiDou PPP-B2b** | BDS-3 GEO B2b-I | Float PPP (BeiDou) | ✅ | ✅ |
-| **SouthPAN PVS** | SouthPAN SBAS GEO | PPP | planned (v0.7.17) | planned |
+| **SouthPAN PVS** | SBAS L5 MT32 (PRN 122) | Float PPP (GPS L1/L5, Galileo E1/E5a) | ✅ | ✅ |
+
+For each service's constellations, receiver inputs, release history and regression tests, see the [capability matrix](docs/reference/correction-services.md).
 
 The service is selected with the `correction` configuration axis; see the [configuration guide](docs/guide/configuration.md) and the per-service quick starts under [`docs/guide/`](docs/guide/). The CLAS engine also handles single-band configurations (single-frequency signal sets and the Galileo E1/E5b mismatch of u-blox ZED-F9P-class receivers); see [`docs/design/sf-ppp-rtk.md`](docs/design/sf-ppp-rtk.md).
 
 Standard positioning — SPP (C/N0 weighting, IGG-III robust estimation, TDCP) and RTK (demo5 back-ports) — is supported in both post-processing and real time.
 
-### 🧬 Lineage
+### Lineage
 
 MRTKLIB began by unifying the QZSS augmentation libraries into one conflict-free code base on a modernized RTKLIB core; that integration is complete:
 
@@ -46,7 +50,7 @@ MRTKLIB began by unifying the QZSS augmentation libraries into one conflict-free
 | **[MADOCALIB](https://github.com/QZSS-Strategy-Office/madocalib)** | ver.2.0 (`8091004`) | PPP/PPP-AR engine, L6E SSR decoder, L6D ionospheric decoder | Integrated |
 | **[CLASLIB](https://github.com/QZSS-Strategy-Office/claslib)** | ver.0.8.2 (`9e714b9`) | Centimeter Level Augmentation Service (PPP-RTK, VRS-RTK, CSSR decoder) | Integrated |
 
-MRTKLIB was the first open-source implementation of real-time CLAS PPP-RTK positioning. Later releases extended it beyond QZSS to Galileo HAS and IGS corrections.
+MRTKLIB was the first open-source implementation of real-time CLAS PPP-RTK positioning.
 
 ### Algorithm Improvements
 
@@ -59,7 +63,7 @@ is in the [CHANGELOG](CHANGELOG.md) and [release notes](docs/releases/):
 | **v0.4.x** | demo5 RTK / PPP-RTK algorithm port (PAR, `detslp_dop` / `detslp_code`, full-constellation `varerr`, false-fix fixes); real-time CLAS PPP-RTK (1ch / 2ch) |
 | **v0.5.x** | TOML configuration; code-quality sweeps (`clang-format`, mandatory braces); signals restructuring; RINEX 4.00 CNAV; `convbin` / `str2str` ports |
 | **v0.6.x** | Unified `mrtk` CLI; NTRIP v2; `mrtk cssr2rtcm3` (CSSR→RTCM3); IGS-products float / RTS / integer PPP-AR (the `correction` axis); SPP accuracy; formatter CI gate; GSDC smartphone benchmark; real-time MADOCA-PPP multi-GNSS signal selection |
-| **v0.7.x** | Global SSR correction services: Galileo HAS (E6-B C/NAV) float PPP; two-receiver QZSS L6 (mosaic-CLAS / mosaic-G5) with single-SBF MADOCA-PPP; CLAS PPP-RTK accuracy/robustness fixes and an upstream-identical CSSR dump (`mrtk dump --parse`); real-time MADOCA-PPP PPP-AR/IONO (L6D wide-area ionosphere); CLAS PPP-RTK claslib parity closing the storm-day fix-rate gap; TOML configuration redesign with deprecation aliases; CLAS dual-channel transmit-pattern merge in post-processing and real-time; kinematic-RTK slip-detection regression fix; `rtcm_t` memory-footprint refactor (lazy `lclblock_t`: ~1.2 GB → tens of MB per real-time solver); RTCM3 MSM BDS-3 B2b observation support (decoder + encoder); build-independent MADOCA regression tests with absolute checks; QZSS L6 service routing by frame header with QZSS L6 handover regression tests; MADOCALIB 2.2 sync with configurable BDS-2 / BDS-3 classification for the April 2026 BeiDou PRN reassignment; real-time CLAS robustness to L6 frame losses, phase-bias discontinuities and degraded L6 channels, in the two-channel merge and in `mrtk cssr2rtcm3`; BeiDou PPP-B2b float PPP (post and real time) — SouthPAN PVS planned next |
+| **v0.7.x** | Global SSR correction services: Galileo HAS (E6-B C/NAV) float PPP; two-receiver QZSS L6 (mosaic-CLAS / mosaic-G5) with single-SBF MADOCA-PPP; CLAS PPP-RTK accuracy/robustness fixes and an upstream-identical CSSR dump (`mrtk dump --parse`); real-time MADOCA-PPP PPP-AR/IONO (L6D wide-area ionosphere); CLAS PPP-RTK claslib parity closing the storm-day fix-rate gap; TOML configuration redesign with deprecation aliases; CLAS dual-channel transmit-pattern merge in post-processing and real-time; kinematic-RTK slip-detection regression fix; `rtcm_t` memory-footprint refactor (lazy `lclblock_t`: ~1.2 GB → tens of MB per real-time solver); RTCM3 MSM BDS-3 B2b observation support (decoder + encoder); build-independent MADOCA regression tests with absolute checks; QZSS L6 service routing by frame header with QZSS L6 handover regression tests; MADOCALIB 2.2 sync with configurable BDS-2 / BDS-3 classification for the April 2026 BeiDou PRN reassignment; real-time CLAS robustness to L6 frame losses, phase-bias discontinuities and degraded L6 channels, in the two-channel merge and in `mrtk cssr2rtcm3`; BeiDou PPP-B2b float PPP (post and real time); SouthPAN PVS float PPP (post and real time) |
 
 **Latest — v0.7.16:** **BeiDou PPP-B2b.** `correction = "bds-b2b"` runs BeiDou-only float PPP with the PPP-B2b corrections of the four BDS-3 GEOs, in `mrtk post` and `mrtk run` ([#417](https://github.com/h-shiono/MRTKLIB/issues/417)). The GEOs moved to C01–C04 with the April 2026 PRN reassignment (C59–C62 before) and are configured by the new `[positioning] bds_geo_sats`. In real time the B-CNAV1 ephemeris the corrections refer to comes from SBF `BDSCNav1` (4251), and the decoder takes one GEO stream at a time, because C01–C03 and C04 send different IOD SSR. On a 2 h live capture in Tokyo after 60 min: static 1.8 cm 2D / 3.9 cm U rms, kinematic 15.8 / 10.8 cm, real-time replay 14.8 / 10.7 cm. Two contributed fixes: the single-frequency NavIC L5 group delay in SPP ([#384](https://github.com/h-shiono/MRTKLIB/pull/384)) and the NTRIP v2 source handshake, which sent a raw stream after advertising chunked transfer ([#385](https://github.com/h-shiono/MRTKLIB/pull/385)). New dataset `g5p3_296u-v1`. ABI changes in `prcopt_t`, `raw_t`, `rtksvr_t`. See the [Quick Start: BeiDou PPP-B2b](docs/guide/quickstart-bds-b2b.md) and the [release notes](docs/releases/release-notes-v0.7.16.md).
 
@@ -67,7 +71,7 @@ is in the [CHANGELOG](CHANGELOG.md) and [release notes](docs/releases/):
 
 **v0.7.14:** **CLAS real-time robustness: L6 frame losses and the two-channel merge.** Four real-time CLAS PPP-RTK faults found on live mosaic-G5 data are fixed. Losing subframe 1 of a CLAS frame no longer costs ~17 s of Single: the code bias of the next frame is used, as the consistency check allows ([#406](https://github.com/h-shiono/MRTKLIB/issues/406)). An L6 frame lost inside a subframe (a 1–2 s input loss or an RS failure) is detected from the receiver frame time (SBF / UBX), and the rest of the subframe is discarded instead of being decoded from shifted bits; those garbage corrections drove metre-level Float, false fixes and the reset loop of [#381](https://github.com/h-shiono/MRTKLIB/issues/381) ([#363](https://github.com/h-shiono/MRTKLIB/issues/363)). For this the ST1 mask width check was fixed: it counted from the wrong bits, as upstream claslib has since 0.8.0. Losing the top-of-hour ST1 no longer dates the following messages one hour old ([#392](https://github.com/h-shiono/MRTKLIB/issues/392)), and with `l6_merge` an epoch in which one channel already has the new clock no longer drops to Single ([#380](https://github.com/h-shiono/MRTKLIB/issues/380)). On live replays the fix rate rises by up to 6 points (92.2 % → 98.4 % on the worst hour) and Float errors of tens of metres disappear; claslib post-processing is byte-identical. New RT regression on a live capture with frame losses (dataset `clas_l6gap-v1`). `raw_t` and `clas_l6buf_t` gain fields (ABI change); new API `clas_set_l6tag()`. The regression suite is 191 / 191.
 
-**Next:** SouthPAN PVS (v0.7.17) as the next v0.7.x correction service ([#418](https://github.com/h-shiono/MRTKLIB/issues/418)); GPS with PPP-B2b without broadcast GPS code biases; phase-bias discontinuities signalled to the RTK engine as MSM lock-time resets in `mrtk cssr2rtcm3` ([#453](https://github.com/h-shiono/MRTKLIB/issues/453)); real-time CLAS fix loss after a handover and wrong ambiguity sets after a reset ([#389](https://github.com/h-shiono/MRTKLIB/issues/389), [#394](https://github.com/h-shiono/MRTKLIB/issues/394)); extend the CLAS-style CSSR dump to MADOCA / Galileo HAS / BeiDou B2b ([#229](https://github.com/h-shiono/MRTKLIB/issues/229)); investigate the HAS absolute-accuracy offset ([#215](https://github.com/h-shiono/MRTKLIB/issues/215))
+**Next:** GPS with PPP-B2b without broadcast GPS code biases; phase-bias discontinuities signalled to the RTK engine as MSM lock-time resets in `mrtk cssr2rtcm3` ([#453](https://github.com/h-shiono/MRTKLIB/issues/453)); real-time CLAS fix loss after a handover and wrong ambiguity sets after a reset ([#389](https://github.com/h-shiono/MRTKLIB/issues/389), [#394](https://github.com/h-shiono/MRTKLIB/issues/394)); extend the CLAS-style CSSR dump to MADOCA / Galileo HAS / BeiDou B2b ([#229](https://github.com/h-shiono/MRTKLIB/issues/229)); investigate the HAS absolute-accuracy offset ([#215](https://github.com/h-shiono/MRTKLIB/issues/215))
 
 > [!NOTE]
 > demo5 algorithm improvements are adapted from **[demo5 RTKLIB](https://github.com/rtklibexplorer/RTKLIB)**
@@ -87,7 +91,7 @@ is in the [CHANGELOG](CHANGELOG.md) and [release notes](docs/releases/):
 * **Real-time CLAS L6D**: Dual-channel support uses stream 3 for L6 ch1 and stream 2 (base slot, unused in PPP-RTK) for L6 ch2.
 * **Real-time L6E**: The rtksvr provides a single correction input (`inpstr3`). Multiple QZSS L6E channels (e.g., QZS-3 and QZS-4) are supported when the receiver multiplexes them into one SBF stream.
 
-## 📊 Live Dashboard
+## Live Dashboard
 
 Real-time CLAS PPP-RTK positioning performance can be monitored on a public Grafana dashboard:
 
@@ -98,7 +102,7 @@ streamed from an active `mrtk run` session.
 
 ---
 
-## 🧰 Related Projects
+## Related Projects
 
 Ready-to-use packages for trying MRTKLIB without building it from source:
 
@@ -107,7 +111,7 @@ Ready-to-use packages for trying MRTKLIB without building it from source:
 | **[mrtklib-docker-ui](https://github.com/h-shiono/mrtklib-docker-ui)** | Web UI for MRTKLIB in a Docker container — post-processing (`mrtk post`) and real-time positioning (`mrtk run`) from the browser, with TOML import / export and result visualization. No compilation required: `docker compose up`. |
 | **[mrtklib-quickstart](https://github.com/h-shiono/mrtklib-quickstart)** ([docs](https://h-shiono.github.io/mrtklib-quickstart/), 日本語 / English) | One-script quickstart for real-time MADOCA-PPP with a Septentrio mosaic-G5 receiver — configures the receiver, launches the Docker web UI, and includes teaching material for Windows / macOS / Linux. |
 
-## 🛠️ Getting Started (How to Build)
+## Getting Started (How to Build)
 
 ### Prerequisites
 * CMake (>= 3.15)
@@ -143,7 +147,7 @@ Test data and regression datasets are available in `tests/data/`.
 ./build/mrtk run -s -o conf/claslib/rtkrcv.toml
 ```
 
-## 👨‍💻 For Developers
+## For Developers
 
 ### Development Workflow
 
@@ -171,7 +175,7 @@ cmake --build build --target doc
 ```
 Documentation will be generated in `build/doc/html/index.html`.
 
-## 📚 How to Cite
+## How to Cite
 
 If you use MRTKLIB in your research or product, please cite it via its archived
 release on [Zenodo](https://zenodo.org/). You can cite **all versions** by using
@@ -190,7 +194,7 @@ DOI for each individual release.
 }
 ```
 
-## 📄 License & Attributions
+## License & Attributions
 MRTKLIB is distributed under the BSD 2-Clause License.
 
 This project stands on the shoulders of giants:
@@ -209,7 +213,7 @@ This project stands on the shoulders of giants:
 
 For detailed licensing information, please refer to [LICENSE](LICENSE).
 
-## 🗄️ Benchmark Datasets
+## Benchmark Datasets
 
 **Kinematic (geodetic).** The **PPC-Dataset** (Precise Positioning Challenge
 2024), kindly released as open data by:

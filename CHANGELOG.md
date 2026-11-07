@@ -74,6 +74,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   one-hour HAS replay (G5P3 2026-286 p) ended −11.8 / −0.3 / −31.1 m dENU,
   now −0.11 / −0.13 / −0.17 m, the same as the capture without its L6 blocks.
 
+### Documentation
+
+- New reference page `docs/reference/correction-services.md`: capability
+  matrix of the open correction services (post / real time, modes,
+  constellations, receiver inputs, release history, regression tests)
+  ([#419](https://github.com/h-shiono/MRTKLIB/issues/419)), linked from the
+  README and the docs site.
+- README and docs home: the introduction names all five satellite-broadcast
+  services; "Key Architectural Overhauls" becomes "Changes from RTKLIB", with
+  the platform statement matched to what is tested (CI on Linux without the
+  real-time replays, full suite on macOS Apple Silicon); SouthPAN PVS no
+  longer listed as planned;
+  emoji removed from the README headings.
+
 ## [v0.7.16] - 2026-11-06
 
 **BeiDou PPP-B2b.** `correction = "bds-b2b"` runs BeiDou-only float PPP with
