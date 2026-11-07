@@ -86,6 +86,7 @@ static int nepoch = 0;                         /* number of observation epochs *
 static int iobsu = 0;                          /* current rover observation data index */
 static int iobsr = 0;                          /* current reference observation data index */
 static int isbs = 0;                           /* current sbas message index */
+static int ipvs = 0;                           /* current sbas message index for SouthPAN PVS */
 static int revs = 0;                           /* analysis direction (0:forward,1:backward) */
 static int aborts = 0;                         /* abort status */
 static sol_t* solf;                            /* forward solutions */
@@ -699,6 +700,10 @@ static int inputobs(obsd_t* obs, int solq, const prcopt_t* popt) {
         while (isbs < sbss.n) {
             time = gpst2time(sbss.msgs[isbs].week, sbss.msgs[isbs].tow);
 
+            if (sbss.msgs[isbs].band == SBS_BAND_L5) { /* L5 DFMC: SouthPAN PVS below */
+                isbs++;
+                continue;
+            }
             if (getbitu(sbss.msgs[isbs].msg, 8, 6) != 9) { /* except for geo nav */
                 sbsupdatecorr(sbss.msgs + isbs, &navs);
             }
@@ -706,6 +711,17 @@ static int inputobs(obsd_t* obs, int solq, const prcopt_t* popt) {
                 break;
             }
             isbs++;
+        }
+        /* update southpan pvs corrections: an L5 message applies from its
+         * reception time, independent of the L1 messages of the same second */
+        for (; ipvs < sbss.n; ipvs++) {
+            time = gpst2time(sbss.msgs[ipvs].week, sbss.msgs[ipvs].tow);
+            if (timediff(time, obs[0].time) > DTTOL) {
+                break;
+            }
+            if (sbss.msgs[ipvs].band == SBS_BAND_L5 && popt->correction == CORR_SOUTHPAN_PVS) {
+                sbsupdatepvs(sbss.msgs + ipvs, &navs);
+            }
         }
         /* update rtcm ssr corrections */
         if (*rtcm_file) {
@@ -777,6 +793,10 @@ static int inputobs(obsd_t* obs, int solq, const prcopt_t* popt) {
         while (isbs >= 0) {
             time = gpst2time(sbss.msgs[isbs].week, sbss.msgs[isbs].tow);
 
+            if (sbss.msgs[isbs].band == SBS_BAND_L5) { /* L5 DFMC: SouthPAN PVS below */
+                isbs--;
+                continue;
+            }
             if (getbitu(sbss.msgs[isbs].msg, 8, 6) != 9) { /* except for geo nav */
                 sbsupdatecorr(sbss.msgs + isbs, &navs);
             }
@@ -785,6 +805,7 @@ static int inputobs(obsd_t* obs, int solq, const prcopt_t* popt) {
             }
             isbs--;
         }
+        /* no SouthPAN PVS update: postpos() runs PVS forward only */
     }
     return n;
 }
@@ -1009,7 +1030,7 @@ static void combres(FILE* fp, const prcopt_t* popt, const solopt_t* sopt) {
 /* read prec ephemeris, sbas data, tec grid and open rtcm --------------------*/
 static void readpreceph(char** infile, int n, const prcopt_t* prcopt, nav_t* nav, sbs_t* sbs, gtime_t ts) {
     seph_t seph0 = {0};
-    int i;
+    int i, ssr_owner;
     char* ext;
 
     trace(NULL, 2, "readpreceph: n=%d\n", n);
@@ -1066,8 +1087,18 @@ static void readpreceph(char** infile, int n, const prcopt_t* prcopt, nav_t* nav
     stat_file[0] = cstat_file[0] = '\0';
     fp_stat = NULL;
 
+    /* Galileo HAS, PPP-B2b and SouthPAN PVS own nav.ssr_ch[0], as in mrtk run
+     * (#464): RTCM3 SSR and MADOCA L6E files would replace their corrections */
+    ssr_owner = prcopt->correction == CORR_GAL_HAS || prcopt->correction == CORR_BDS_B2B ||
+                prcopt->correction == CORR_SOUTHPAN_PVS;
+
     for (i = 0; i < n; i++) {
         if ((ext = strrchr(infile[i], '.')) && (!strcmp(ext, ".rtcm3") || !strcmp(ext, ".RTCM3"))) {
+            if (ssr_owner) {
+                showmsg("warning: RTCM3 SSR file ignored, corrections come from the selected service: %s", infile[i]);
+                trace(NULL, 2, "rtcm3 file ignored (ssr_ch[0] owned by the correction source): %s\n", infile[i]);
+                break;
+            }
             strcpy(rtcm_file, infile[i]);
             if (!rtcm) {
                 rtcm = (rtcm_t*)calloc(1, sizeof(rtcm_t));
@@ -1087,8 +1118,8 @@ static void readpreceph(char** infile, int n, const prcopt_t* prcopt, nav_t* nav
         }
     }
 
-    /* Galileo HAS .has file (first match only) */
-    for (i = 0; i < n; i++) {
+    /* Galileo HAS .has file (first match only), only for correction = gal-has */
+    for (i = 0; i < n && prcopt->correction == CORR_GAL_HAS; i++) {
         if ((ext = strrchr(infile[i], '.')) && (!strcmp(ext, ".has") || !strcmp(ext, ".HAS"))) {
             strcpy(gal_has_file, infile[i]);
             if (!gal_has) {
@@ -1120,6 +1151,8 @@ static void readpreceph(char** infile, int n, const prcopt_t* prcopt, nav_t* nav
     /* PPP-B2b orbit/clock corrections reference the B-CNAV1 (B1C) ephemeris,
      * not the D1/D2 AODE; switch the BDS ephemeris selection accordingly. */
     setseleph(SYS_CMP, prcopt->correction == CORR_BDS_B2B ? 1 : 0);
+    /* SouthPAN PVS corrects the Galileo F/NAV ephemeris (E1/E5a clock) */
+    setseleph(SYS_GAL, prcopt->correction == CORR_SOUTHPAN_PVS ? 1 : 0);
 
     /* QZSS L6 files (.l6 / .l6d / .l6e): MADOCA-PPP iono L6D, CLAS L6D, MADOCA-PPP L6E.
      * Legacy .l6: *.200.l6 / *.201.l6 are iono, others CLAS in CLAS mode, else L6E.
@@ -1166,6 +1199,9 @@ static void readpreceph(char** infile, int n, const prcopt_t* prcopt, nav_t* nav
             } else if (is_l6d) {
                 showmsg("warning: L6D file ignored outside CLAS mode: %s", infile[i]);
                 trace(NULL, 2, "L6D file ignored outside CLAS mode: %s\n", infile[i]);
+            } else if (ssr_owner) {
+                showmsg("warning: L6E file ignored, corrections come from the selected service: %s", infile[i]);
+                trace(NULL, 2, "L6E file ignored (ssr_ch[0] owned by the correction source): %s\n", infile[i]);
             } else if (!*qzssl6e_file) { /* MADOCA-PPP L6E (first match only) */
                 strcpy(qzssl6e_file, infile[i]);
                 if (!l6e) {
@@ -1768,7 +1804,7 @@ static int execses(mrtk_ctx_t* ctx, gtime_t ts, gtime_t te, double ti, const prc
         freeobsnav(&obss, &navs);
         return 0;
     }
-    iobsu = iobsr = isbs = revs = aborts = 0;
+    iobsu = iobsr = isbs = ipvs = revs = aborts = 0;
 
     /* check and set station name */
     if (strlen(popt_.staname) == 0) {
@@ -2018,6 +2054,14 @@ extern int postpos(mrtk_ctx_t* ctx, gtime_t ts, gtime_t te, double ti, double tu
     char *ifile[MAXINFILE], ofile[1024], *ext;
 
     trace(ctx, 3, "postpos : ti=%.0f tu=%.0f n=%d outfile=%s\n", ti, tu, n, outfile);
+
+    /* a SouthPAN PVS correction is valid for 100 s from its reception: the
+     * backward pass would apply corrections received after the observation */
+    if (popt->correction == CORR_SOUTHPAN_PVS && popt->soltype != 0) {
+        showmsg("error : correction=southpan-pvs supports solution_type = \"forward\" only");
+        trace(ctx, 1, "southpan-pvs with soltype=%d\n", popt->soltype);
+        return -1;
+    }
 
     /* BeiDou generation of PRN 1-18 and BDS-3 IGSO (#401): set before reading
        files, since RINEX reading already depends on the generation */

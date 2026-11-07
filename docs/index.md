@@ -1,6 +1,6 @@
 # MRTKLIB: Modernized RTKLIB for Next-Generation GNSS
 
-**MRTKLIB** is a modern, thread-safe C11 GNSS positioning library built on [RTKLIB](https://www.rtklib.com/), covering the **open PPP / PPP-RTK correction services** — QZSS CLAS and MADOCA-PPP, Galileo HAS, and IGS products and real-time streams — for both post-processing and real-time processing.
+**MRTKLIB** is a thread-safe C11 GNSS positioning library built on [RTKLIB](https://www.rtklib.com/). It processes the **open PPP / PPP-RTK correction services broadcast by satellites** — QZSS CLAS and MADOCA-PPP, Galileo HAS, BeiDou PPP-B2b and SouthPAN PVS — as well as IGS products and real-time streams, in one code base, for both post-processing (`mrtk post`) and real-time processing (`mrtk run`).
 
 In the spirit of RTKLIB, it aims to be both a readable reference for how each service is applied and practical software for day-to-day and production use.
 
@@ -44,12 +44,12 @@ In the spirit of RTKLIB, it aims to be both a readable reference for how each se
 
 ## Key Features
 
-### Architectural Overhauls
+### Changes from RTKLIB
 
-- **Thread-Safe Design** — `mrtk_ctx_t` context structure replaces global variables, enabling parallel processing
-- **POSIX & C11 Pure** — No Win32 API; fully portable across Linux, macOS (Apple Silicon), and embedded ARM/RISC-V
-- **Modern Build System** — Unified CMake with `find_package(LAPACK)` for hardware-accelerated matrix operations
-- **Domain-Driven Layout** — Source organized into `src/core/`, `src/pos/`, `src/rtcm/`, `src/models/`, etc.
+- **Per-instance state** — a context structure (`mrtk_ctx_t`) replaces global variables in the main processing paths, so that several solvers can run in one process
+- **POSIX / C11** — no Win32 API; CI builds and runs the regression tests, without the real-time replays, on Linux (Ubuntu, x86-64); the full suite, including the replays, runs on macOS (Apple Silicon)
+- **CMake build** — one CMake build; LAPACK via `find_package(LAPACK)`, with an internal LU solver when it is absent
+- **Source layout by function** — `src/core/`, `src/pos/`, `src/rtcm/`, `src/models/` and others
 
 ### Supported Correction Services
 
@@ -61,7 +61,9 @@ In the spirit of RTKLIB, it aims to be both a readable reference for how each se
 | **IGS products** | SP3 / CLK / Bias-SINEX | Float PPP, PPP-AR | :white_check_mark: | — |
 | **IGS-RTS** | RTCM-SSR over NTRIP | Float PPP | :white_check_mark: | :white_check_mark: |
 | **BeiDou PPP-B2b** | BDS-3 GEO B2b-I | Float PPP (BeiDou) | :white_check_mark: | :white_check_mark: |
-| **SouthPAN PVS** | SouthPAN SBAS GEO | PPP | planned (v0.7.17) | planned |
+| **SouthPAN PVS** | SBAS L5 MT32 (PRN 122) | Float PPP | :white_check_mark: | :white_check_mark: |
+
+Constellations, receiver inputs, release history and regression tests per service: [Correction Service Capability Matrix](reference/correction-services.md).
 
 ### Lineage
 

@@ -212,7 +212,13 @@ static void update_sbs(rtksvr_t* svr, sbsmsg_t* sbsmsg, int index) {
             }
             svr->sbsmsg[i] = *sbsmsg;
         }
-        sbsupdatecorr(sbsmsg, &svr->nav);
+        if (sbsmsg->band == SBS_BAND_L5) {
+            if (svr->rtk.opt.correction == CORR_SOUTHPAN_PVS) {
+                sbsupdatepvs(sbsmsg, &svr->nav);
+            }
+        } else {
+            sbsupdatecorr(sbsmsg, &svr->nav);
+        }
     }
     svr->nmsg[index][3]++;
 }
@@ -331,9 +337,19 @@ static void update_lcl(rtksvr_t* svr, int index) {
  * must not overwrite the CLAS biases, whether it comes from a mixed UBX/SBF
  * L6D+L6E stream (code 15) or a raw L6E stream (STRFMT_L6E, code 10). In
  * PPP/MADOCA mode svr->clas is NULL and MADOCA SSR is applied like any other
- * ssr_ch[0] source; RTCM3 SSR (code 10) is applied in every mode.
+ * ssr_ch[0] source; RTCM3 SSR (code 10) is applied in every mode except
+ * Galileo HAS, PPP-B2b and SouthPAN PVS (#464): their own decoders own
+ * ssr_ch[0], and corr_meas() applies the biases of that source, so a MADOCA /
+ * RTCM3 entry there would silently replace the corrections of some satellites.
+ * The UBX / SBF L6 decoders return code 15 for any MADOCA L6E frame, whatever
+ * the correction source.
  *-----------------------------------------------------------------------------*/
 extern int rtksvr_ssr_applicable(const rtksvr_t* svr, int index, int ret) {
+    int corr = svr->rtk.opt.correction;
+
+    if (corr == CORR_GAL_HAS || corr == CORR_BDS_B2B || corr == CORR_SOUTHPAN_PVS) {
+        return 0;
+    }
     if (!svr->clas) {
         return 1;
     }
@@ -1345,6 +1361,7 @@ extern int rtksvrstart(rtksvr_t* svr, int cycle, int buffsize, int* strs, char**
     /* PPP-B2b orbit corrections reference the B-CNAV1 ephemeris (SBF BDSCNav1,
      * ephemeris set 1), not the D1/D2 AODE; as postpos(). */
     setseleph(SYS_CMP, prcopt->correction == CORR_BDS_B2B ? 1 : 0);
+    setseleph(SYS_GAL, prcopt->correction == CORR_SOUTHPAN_PVS ? 1 : 0);
 
     /* free any iono state left over from a previous run so an in-process restart
      * (the rtkrcv shell can `load` a new config and `restart` in the same

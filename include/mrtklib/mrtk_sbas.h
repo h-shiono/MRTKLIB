@@ -35,6 +35,9 @@ extern "C" {
 #include "mrtklib/mrtk_nav.h"
 #include "mrtklib/mrtk_time.h"
 
+#define SBS_BAND_L1 0 /* SBAS message band: L1 (8-bit preamble, type at bit 8) */
+#define SBS_BAND_L5 1 /* SBAS message band: L5 DFMC (4-bit preamble, type at bit 4) */
+
 /*============================================================================
  * SBAS Global Variables
  *===========================================================================*/
@@ -90,6 +93,26 @@ int sbsdecodemsg(gtime_t time, int prn, const uint32_t* words, sbsmsg_t* sbsmsg)
  * @return Message type (0:error)
  */
 int sbsupdatecorr(const sbsmsg_t* msg, nav_t* nav);
+
+/**
+ * @brief Message type of an SBAS message (L1: bits 8-13, L5 DFMC: bits 4-9).
+ * @param[in] msg  SBAS message
+ * @return Message type
+ */
+int sbsmsgtype(const sbsmsg_t* msg);
+
+/**
+ * @brief Update SouthPAN PVS corrections from an L5 DFMC message.
+ *
+ * Only MT32 messages of PRN 122 flagged for PVS (odd tD/16) of GPS and
+ * Galileo slots are used. The ECEF orbit and clock corrections go to nav->ssr_ch[0] with vendor
+ * SSR_VENDOR_PVS; their epoch is the reception time (100 s validity from
+ * reception, SBAS-STN-0001 5.3.2).
+ * @param[in]     msg  SBAS message (band SBS_BAND_L5)
+ * @param[in,out] nav  Navigation data
+ * @return Satellite number updated (0: message not used)
+ */
+int sbsupdatepvs(const sbsmsg_t* msg, nav_t* nav);
 
 /**
  * @brief SBAS satellite ephemeris and clock correction.

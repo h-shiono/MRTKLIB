@@ -7,6 +7,135 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.7.17] - 2026-11-07
+
+**SouthPAN PVS.** `correction = "southpan-pvs"` runs float PPP with the PPP
+via SouthPAN corrections (DFMC L5 MT32 of GEO PRN 122) on GPS L1 C/A + L5 and
+Galileo E1 + E5a, in `mrtk post` and `mrtk run`
+([#418](https://github.com/h-shiono/MRTKLIB/issues/418)). With it MRTKLIB runs
+all five open satellite-broadcast PPP / PPP-RTK services (QZSS CLAS, QZSS
+MADOCA-PPP, Galileo HAS, BeiDou PPP-B2b, SouthPAN PVS) in post-processing and
+in real time; a new reference page lists their capabilities
+([#419](https://github.com/h-shiono/MRTKLIB/issues/419)). On ALBY (Albany)
+2025-08-21, last 20 min of one hour: kinematic 6.0 cm 2D / 12.6 cm U rms,
+static 8.0 / 6.4 cm. SBAS messages carry their band (L1 / L5) and SBF
+`GEORawL5` (4021) is decoded. Fixes: SBF `GALNav` F/NAV no longer overwrites
+the I/NAV ephemeris; in `mrtk run`, MADOCA or RTCM3 SSR no longer overwrites
+Galileo HAS / PPP-B2b corrections
+([#464](https://github.com/h-shiono/MRTKLIB/issues/464)); `[output]
+geoid_model` is read again (broken in v0.7.16). New dataset `southpan-v1`.
+No ABI break (`sbsmsg_t.band` uses a padding byte); new API `sbsmsgtype()`,
+`sbsupdatepvs()`.
+
+### SouthPAN PVS
+
+- **New correction source `southpan-pvs`**
+  ([#418](https://github.com/h-shiono/MRTKLIB/issues/418)): float PPP with
+  the PPP via SouthPAN corrections, the DFMC L5 MT32 messages of GEO PRN 122
+  with odd `tD/16`, on GPS L1 C/A + L5 (LNAV) and Galileo E1 + E5a (F/NAV), in
+  `mrtk post` and `mrtk run`. The ECEF orbit / clock corrections go to the SSR
+  store with vendor `SSR_VENDOR_PVS`. `satpos_ssr()` adds them without the
+  radial/along/cross rotation, accepts them for 100 s from reception and
+  removes the GPS TGD: the DFMC clock refers to the L1/L5 iono-free clock,
+  and without it GPS-only PPP on ALBY 2025-233 has a 5.7 m vertical bias.
+  `corr_meas()` applies no satellite bias. Needs
+  `satellite_ephemeris = "brdc+ssrapc"`, two frequencies and the GPS L1/L5 +
+  Galileo E1/E5a signal pairs. `brdc+ssrcom` is rejected: the corrected
+  broadcast orbit already refers to the antenna phase centre, so the
+  satellite antenna offset would be added twice. Ambiguity resolution, other
+  signal pairs, a single frequency and, in `mrtk post`, backward / combined
+  solutions (a correction is valid only after its reception) are rejected.
+  The PVS corrections own the SSR store: in `mrtk run` MADOCA or RTCM3 SSR on
+  the same streams is not applied, and `mrtk post` ignores `.rtcm3` and L6E
+  files with a warning. Only
+  PRN 122 is used: other DFMC GEOs (BDSBAS PRN 130/143/144 in Japan) send
+  MT32 for their own service.
+- **SBAS L5 messages.** `sbsmsg_t` gains `band` (`SBS_BAND_L1` /
+  `SBS_BAND_L5`) in its padding byte, so `sizeof` is unchanged. SBF
+  `GEORawL5` (4021) is decoded (raw return code 3, as `GEORawL1`).
+  `sbsmsgtype()` reads the L5 type at bit 4. `sbsoutmsg()` writes it to the
+  `.sbs` type column, so `mrtk convert -s` now also writes L5 messages, and the
+  `.sbs` reader marks a message L5 when the type column matches the L5 field
+  and not the L1 field, or matches both and the frame has no L1 preamble
+  (an L5 MT0 with bits 4–13 zero; cssrlib `*_sbas.txt` files read as well). L5 messages
+  never reach the L1 decoders (`sbsupdatecorr()` returns −1), and `mrtk post`
+  applies them from their reception time, independent of the L1 messages of
+  the same second. New `sbsupdatepvs()`.
+- **DAS logs:** `scripts/tests/das2sbs.py` converts SouthPAN Data Access
+  Service logs (SISNeT `*MSG` lines, SINCA) to `.sbs`. The DAS path is not
+  validated (#462) and a real-time DAS input is not implemented.
+- **Configurations:** `conf/pvs/ppp_southpan_pvs.toml` (post) and
+  `conf/pvs/run_southpan_pvs.toml` (real time). Guide
+  `docs/guide/quickstart-southpan-pvs.md`; design `docs/design/southpan-pvs.md`.
+- **Validation** (last 20 min of one hour vs the RINEX header position): ALBY
+  2025-233 h kinematic 6.0 cm 2D / 12.6 cm U rms, static 8.0 / 6.4 cm, 11.7
+  satellites. ALIC 2025-110 f (DAS log) ends about 1 m off in MRTKLIB and in
+  cssrlib; the reference positions agree with IGS SINEX to ~1 cm and
+  CODE-products PPP of the same observations ends within 0.17 m, so the offset
+  is in the DAS-logged corrections of that hour (#462).
+- **Tests:** `utest_pvs`; `pvs_sbs_check`, `pvs_ppp`, `rtkrcv_pvs` on
+  `g5p3_296u-v1` (Tokyo, out of the service area: pipeline only); new dataset
+  `southpan-v1` (ALBY / ALIC from cssrlib-data, MIT; SouthPAN data CC BY 4.0)
+  for `pvs_alby_kin`, `pvs_alby_static`, `pvs_alic_das2sbs`, `pvs_alic_kin`.
+
+### Fixed
+
+- **SBF `GALNav` (4002) F/NAV** is stored in ephemeris set 1, as
+  `GALRawFNAV` does. It used set 0 and overwrote the I/NAV ephemeris; `mrtk
+  convert` of a one-hour mosaic-G5 capture wrote 1 F/NAV record instead of 29.
+- **Galileo I/NAV and F/NAV records of one IODnav** are no longer merged by
+  the ephemeris de-duplication (`uniqeph()`) when they sort next to each
+  other, which dropped one of them. With both fixes the HAS and CLAS regression
+  outputs are bit-identical, and the MADOCA ones stay within their ≤ 6 mm
+  run-to-run variation (fix quality unchanged); tolerances unchanged.
+- **`mrtk run` with `correction = "gal-has"` or `"bds-b2b"`** no longer lets
+  MADOCA L6E SSR (UBX / SBF L6 frames, raw L6E stream) or RTCM3 SSR overwrite
+  the HAS / PPP-B2b corrections in `nav.ssr_ch[0]`
+  ([#464](https://github.com/h-shiono/MRTKLIB/issues/464)), as for SouthPAN
+  PVS. The L6 decoders deliver MADOCA frames whatever the correction source,
+  so one mosaic-G5 SBF stream logging GALRawCNAV and QZSRawL6E switched
+  satellites to MADOCA orbit / clock while the HAS biases were applied: a
+  one-hour HAS replay (G5P3 2026-286 p) ended −11.8 / −0.3 / −31.1 m dENU,
+  now −0.11 / −0.13 / −0.17 m, the same as the capture without its L6 blocks.
+  `mrtk post` now follows the same rule: with `gal-has`, `bds-b2b` or
+  `southpan-pvs` it ignores `.rtcm3` and L6E files with a warning, and reads
+  a `.has` file only with `gal-has` (as `.b2b` only with `bds-b2b`).
+- **`[output] geoid_model`** is read again. v0.7.16 defined the value list of
+  the new `bds_geo_sats` option under the same macro name as the geoid model
+  list (`GEOOPT`), so `geoid_model` was checked against the BeiDou GEO list:
+  every value was rejected with `TOML: invalid value for output.geoid_model`
+  and the default (`internal`) was used. The bundled configurations all set
+  `internal`, so their output is unchanged; `egm96`, `egm08_2.5`, `egm08_1`
+  and `gsi2000` take effect again.
+
+### Documentation
+
+- New reference page `docs/reference/correction-services.md`: capability
+  matrix of the open correction services (post / real time, modes,
+  constellations, receiver inputs, release history, regression tests)
+  ([#419](https://github.com/h-shiono/MRTKLIB/issues/419)), linked from the
+  README and the docs site.
+- README and docs home: the introduction names all five satellite-broadcast
+  services; "Key Architectural Overhauls" becomes "Changes from RTKLIB", with
+  the platform statement matched to what is tested (CI on Linux without the
+  real-time replays, full suite on macOS Apple Silicon); SouthPAN PVS no
+  longer listed as planned;
+  emoji removed from the README headings.
+- README: the build badge shows the `build.yaml` workflow status (it was a
+  static "success" image); the other open-source projects are linked; Known
+  Limitations covers Galileo HAS, BeiDou PPP-B2b and SouthPAN PVS; the
+  "Running Applications" commands run on the bundled CLAS sample; the
+  AI-assistance statement describes the actual process (Claude Code
+  `Co-Authored-By` trailers; the author reviews, tests and merges). The LP64
+  BLAS/LAPACK details move to the installation guide.
+
+### API / ABI
+
+- **No ABI break:** `sbsmsg_t` gains `band` in a padding byte; `sizeof`
+  is unchanged.
+- **API:** new `sbsmsgtype()`, `sbsupdatepvs()` (`mrtk_sbas.h`),
+  `SBS_BAND_L1` / `SBS_BAND_L5`, `SSR_VENDOR_PVS`, `CORR_SOUTHPAN_PVS`.
+
 ## [v0.7.16] - 2026-11-06
 
 **BeiDou PPP-B2b.** `correction = "bds-b2b"` runs BeiDou-only float PPP with

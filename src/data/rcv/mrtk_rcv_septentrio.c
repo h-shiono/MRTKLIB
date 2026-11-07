@@ -28,6 +28,7 @@
 #include "mrtklib/mrtk_obs.h"
 #include "mrtklib/mrtk_rcvraw.h"
 #include "mrtklib/mrtk_rtcm.h"
+#include "mrtklib/mrtk_sbas.h"
 #include "mrtklib/mrtk_sys.h"
 #include "mrtklib/mrtk_time.h"
 #include "mrtklib/mrtk_trace.h"
@@ -118,6 +119,7 @@
 #define SBF_GALRAWINAV 4023 /* SBF Galileo I/NAV navigation page */
 #define SBF_GALRAWCNAV 4024 /* SBF Galileo E6-B C/NAV page (HAS) */
 #define SBF_GEORAWL1 4020   /* SBF SBAS L1 navigation frame */
+#define SBF_GEORAWL5 4021   /* SBF SBAS L5 navigation frame */
 #define SBF_BDSRAW 4047     /* SBF BDS navigation page */
 #define SBF_BDSRAWB2B 4242  /* SBF BDS PPP-B2b message (B2b-I, MT1-7) */
 #define SBF_QZSRAWL1CA 4066 /* SBF QZSS C/A subframe */
@@ -1048,22 +1050,25 @@ static int decode_bdsrawb2b(raw_t* raw) {
     raw->b2b_time = raw->time; /* set by input_sbf from this block's TOW/WNc */
     return 14;
 }
-/* decode SBF SBAS L1 navigation frame ---------------------------------------*/
-static int decode_georawl1(raw_t* raw) {
+/* decode SBF SBAS L1 / L5 navigation frame (GEORawL1 4020, GEORawL5 4021) ---
+ * both blocks carry the 250-bit frame after Viterbi decoding in NAVBits; the
+ * L5 DFMC frame has a 4-bit preamble, so its message type is at bit 4 */
+static int decode_georaw(raw_t* raw, int band) {
     uint8_t *p = raw->buff + 14, buff[32];
     int i, svid, sat, prn;
+    const char* name = band == SBS_BAND_L5 ? "georawl5" : "georawl1";
 
     if (raw->len < 52) {
-        trace(NULL, 2, "sbf georawl1 length error: len=%d\n", raw->len);
+        trace(NULL, 2, "sbf %s length error: len=%d\n", name, raw->len);
         return -1;
     }
     svid = U1(p);
     if (!(sat = svid2sat(svid)) || satsys(sat, &prn) != SYS_SBS) {
-        trace(NULL, 2, "sbf georawl1 svid error: svid=%d\n", svid);
+        trace(NULL, 2, "sbf %s svid error: svid=%d\n", name, svid);
         return -1;
     }
     if (!U1(p + 1)) {
-        trace(NULL, 3, "sbf georawl1 parity/crc error: prn=%d err=%d\n", prn, U1(p + 2));
+        trace(NULL, 3, "sbf %s parity/crc error: prn=%d err=%d\n", name, prn, U1(p + 2));
         return 0;
     }
     if (raw->outtype) {
@@ -1071,6 +1076,7 @@ static int decode_georawl1(raw_t* raw) {
     }
     raw->sbsmsg.tow = (int)time2gpst(raw->time, &raw->sbsmsg.week);
     raw->sbsmsg.prn = prn;
+    raw->sbsmsg.band = (uint8_t)band;
 
     for (i = 0; i < 8; i++) {
         setbitu(buff, 32 * i, 32, U4(p + 6 + 4 * i));
@@ -1409,7 +1415,7 @@ static int decode_glonav(raw_t* raw) {
 static int decode_galnav(raw_t* raw) {
     eph_t eph = {0};
     uint8_t* p = raw->buff + 8;
-    int prn, sat, code;
+    int prn, sat, code, set;
     uint16_t week_toe, week_toc, health;
     uint32_t tocs;
     uint8_t sva;
@@ -1474,13 +1480,16 @@ static int decode_galnav(raw_t* raw) {
     eph.toc = gpst2time(week_toc, tocs);
     eph.ttr = gpst2time(eph.week, U4(p) * 0.001);
 
+    /* F/NAV goes to set 1 like GALRawFNAV, so it does not overwrite the I/NAV
+     * ephemeris that seleph() selects by default */
+    set = code == 16 ? 1 : 0;
     if (!strstr(raw->opt, "-EPHALL")) {
-        if (eph.iode == raw->nav.eph[sat - 1].iode) return 0;
+        if (eph.iode == raw->nav.eph[sat - 1 + MAXSAT * set].iode) return 0;
     }
     eph.sat = sat;
-    raw->nav.eph[sat - 1] = eph;
+    raw->nav.eph[sat - 1 + MAXSAT * set] = eph;
     raw->ephsat = sat;
-    raw->ephset = 0;
+    raw->ephset = set;
     return 2;
 }
 /* decode SBF BDS decoded navigation (BDSNav 4081) ---------------------------*/
@@ -1766,7 +1775,9 @@ static int decode_sbf(raw_t* raw, rtcm_t* rtcm) {
         case SBF_GALRAWCNAV:
             return decode_galrawcnav(raw);
         case SBF_GEORAWL1:
-            return decode_georawl1(raw);
+            return decode_georaw(raw, SBS_BAND_L1);
+        case SBF_GEORAWL5:
+            return decode_georaw(raw, SBS_BAND_L5);
         case SBF_BDSRAW:
             return decode_bdsraw(raw);
         case SBF_BDSRAWB2B:
@@ -1817,7 +1828,7 @@ static int sync_sbf(uint8_t* buff, uint8_t data) {
  * notes  : supported SBF block (block ID):
  *
  *           MEASEPOCH(4027), GPSRAWCA(4017), GLORAWCA(4026), GALRAWFNAV(4022),
- *           GALRAWINAV(4023), GALRAWCNAV(4024), GEORAWL1(4020), BDSRAW(4047),
+ *           GALRAWINAV(4023), GALRAWCNAV(4024), GEORAWL1(4020), GEORAWL5(4021), BDSRAW(4047),
  *           QZSRAWL1CA(4066), NAVICRAW(4093), BDSRAWB2B(4242), BDSCNAV1(4251)
  *
  *          to specify input options for sbf, set raw->opt to the following

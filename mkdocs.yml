@@ -97,12 +97,14 @@ nav:
     - "Quick Start: MADOCA-PPP": guide/quickstart-madoca-ppp.md
     - "Quick Start: Galileo HAS PPP": guide/quickstart-gal-has.md
     - "Quick Start: BeiDou PPP-B2b": guide/quickstart-bds-b2b.md
+    - "Quick Start: SouthPAN PVS": guide/quickstart-southpan-pvs.md
     - "Quick Start: IGS-RTS PPP": guide/quickstart-igs-rts.md
     - BeiDou PRN Reassignment: guide/beidou-prn-reassignment.md
     - NTRIP Streams: guide/ntrip.md
   - Hardware:
     - CLAS Positioning with mosaic-G5: hardware/cssr2rtcm3-mosaic-g5.md
   - Reference:
+    - Correction Services: reference/correction-services.md
     - Configuration Options: reference/config-options.md
     - API Reference (Doxygen): reference/api.md
     - Benchmark (PPC kinematic): reference/benchmark.md
@@ -115,6 +117,7 @@ nav:
     - Positioning Configuration Model: design/configuration.md
   - Releases:
     - Changelog: releases/changelog.md
+    - v0.7.17: releases/release-notes-v0.7.17.md
     - v0.7.16: releases/release-notes-v0.7.16.md
     - v0.7.15: releases/release-notes-v0.7.15.md
     - v0.7.14: releases/release-notes-v0.7.14.md
