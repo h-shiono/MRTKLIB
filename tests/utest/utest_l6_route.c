@@ -30,7 +30,8 @@
  *     subframe, must leave the assembly and delivery state untouched;
  *   - rtksvr_ssr_applicable(): in CLAS mode MADOCA SSR from a raw L6E stream
  *     (code 10) or a UBX/SBF L6E frame (code 15) must not be applied to
- *     nav.ssr_ch[0], while RTCM3 SSR still is (D4).
+ *     nav.ssr_ch[0], while RTCM3 SSR still is (D4); with correction =
+ *     gal-has, bds-b2b or southpan-pvs no code 10 / 15 result is (#464).
  * Null messages (#344): no capture contains one, so the real fixtures are
  * rewritten in memory with every L6 frame replaced by a null message (UBX
  * checksum / SBF CRC recomputed). L6D null frames must route nowhere (no 10:
@@ -330,11 +331,29 @@ static void test_ssr_applicable(void) {
     CHECK(rtksvr_ssr_applicable(svr, 1, 10), "CLAS: RTCM3 SSR still applied");
     CHECK(!rtksvr_ssr_applicable(svr, 2, 15), "CLAS: SBF L6E MADOCA SSR not applied");
 
-    svr->clas = NULL; /* SouthPAN PVS: the PVS decoder owns ssr_ch[0] */
-    svr->rtk.opt.correction = CORR_SOUTHPAN_PVS;
-    CHECK(!rtksvr_ssr_applicable(svr, 0, 10), "PVS: raw L6E MADOCA SSR not applied");
-    CHECK(!rtksvr_ssr_applicable(svr, 1, 10), "PVS: RTCM3 SSR not applied");
-    CHECK(!rtksvr_ssr_applicable(svr, 2, 15), "PVS: SBF L6E MADOCA SSR not applied");
+    svr->clas = NULL; /* HAS / B2b / PVS: that decoder owns ssr_ch[0] (#464) */
+    {
+        static const struct {
+            int corr;
+            const char* name;
+        } own[] = {{CORR_GAL_HAS, "HAS"}, {CORR_BDS_B2B, "B2b"}, {CORR_SOUTHPAN_PVS, "PVS"}};
+        char m[64];
+        int k;
+
+        for (k = 0; k < (int)(sizeof(own) / sizeof(own[0])); k++) {
+            svr->rtk.opt.correction = own[k].corr;
+            snprintf(m, sizeof(m), "%s: raw L6E MADOCA SSR not applied", own[k].name);
+            CHECK(!rtksvr_ssr_applicable(svr, 0, 10), m);
+            snprintf(m, sizeof(m), "%s: RTCM3 SSR not applied", own[k].name);
+            CHECK(!rtksvr_ssr_applicable(svr, 1, 10), m);
+            snprintf(m, sizeof(m), "%s: SBF L6E MADOCA SSR not applied", own[k].name);
+            CHECK(!rtksvr_ssr_applicable(svr, 2, 15), m);
+        }
+        svr->rtk.opt.correction = CORR_QZS_MADOCA; /* the SSR consumers keep it */
+        CHECK(rtksvr_ssr_applicable(svr, 2, 15), "MADOCA: SBF L6E MADOCA SSR applied");
+        svr->rtk.opt.correction = CORR_IGS_RTS;
+        CHECK(rtksvr_ssr_applicable(svr, 1, 10), "IGS-RTS: RTCM3 SSR applied");
+    }
     free(svr);
     free(ctx);
     printf("ok  : rtksvr_ssr_applicable\n");
