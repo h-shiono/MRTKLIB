@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v0.7.17] - 2026-11-07
+
+**SouthPAN PVS.** `correction = "southpan-pvs"` runs float PPP with the PPP
+via SouthPAN corrections (DFMC L5 MT32 of GEO PRN 122) on GPS L1 C/A + L5 and
+Galileo E1 + E5a, in `mrtk post` and `mrtk run`
+([#418](https://github.com/h-shiono/MRTKLIB/issues/418)). With it MRTKLIB runs
+all five open satellite-broadcast PPP / PPP-RTK services (QZSS CLAS, QZSS
+MADOCA-PPP, Galileo HAS, BeiDou PPP-B2b, SouthPAN PVS) in post-processing and
+in real time; a new reference page lists their capabilities
+([#419](https://github.com/h-shiono/MRTKLIB/issues/419)). On ALBY (Albany)
+2025-08-21, last 20 min of one hour: kinematic 6.0 cm 2D / 12.6 cm U rms,
+static 8.0 / 6.4 cm. SBAS messages carry their band (L1 / L5) and SBF
+`GEORawL5` (4021) is decoded. Fixes: SBF `GALNav` F/NAV no longer overwrites
+the I/NAV ephemeris; in `mrtk run`, MADOCA or RTCM3 SSR no longer overwrites
+Galileo HAS / PPP-B2b corrections
+([#464](https://github.com/h-shiono/MRTKLIB/issues/464)); `[output]
+geoid_model` is read again (broken in v0.7.16). New dataset `southpan-v1`.
+No ABI break (`sbsmsg_t.band` uses a padding byte); new API `sbsmsgtype()`,
+`sbsupdatepvs()`.
+
 ### SouthPAN PVS
 
 - **New correction source `southpan-pvs`**
@@ -19,11 +39,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   removes the GPS TGD: the DFMC clock refers to the L1/L5 iono-free clock,
   and without it GPS-only PPP on ALBY 2025-233 has a 5.7 m vertical bias.
   `corr_meas()` applies no satellite bias. Needs
-  `satellite_ephemeris = "brdc+ssrapc"` (or `brdc+ssrcom`) and the GPS L1/L5 +
-  Galileo E1/E5a signal pairs; ambiguity resolution, other signal pairs and,
-  in `mrtk post`, backward / combined solutions (a correction is valid only
-  after its reception) are rejected. In `mrtk run` the PVS corrections own the
-  SSR store: MADOCA or RTCM3 SSR on the same streams is not applied. Only
+  `satellite_ephemeris = "brdc+ssrapc"`, two frequencies and the GPS L1/L5 +
+  Galileo E1/E5a signal pairs. `brdc+ssrcom` is rejected: the corrected
+  broadcast orbit already refers to the antenna phase centre, so the
+  satellite antenna offset would be added twice. Ambiguity resolution, other
+  signal pairs, a single frequency and, in `mrtk post`, backward / combined
+  solutions (a correction is valid only after its reception) are rejected.
+  The PVS corrections own the SSR store: in `mrtk run` MADOCA or RTCM3 SSR on
+  the same streams is not applied, and `mrtk post` ignores `.rtcm3` and L6E
+  files with a warning. Only
   PRN 122 is used: other DFMC GEOs (BDSBAS PRN 130/143/144 in Japan) send
   MT32 for their own service.
 - **SBAS L5 messages.** `sbsmsg_t` gains `band` (`SBS_BAND_L1` /
@@ -73,6 +97,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   satellites to MADOCA orbit / clock while the HAS biases were applied: a
   one-hour HAS replay (G5P3 2026-286 p) ended −11.8 / −0.3 / −31.1 m dENU,
   now −0.11 / −0.13 / −0.17 m, the same as the capture without its L6 blocks.
+  `mrtk post` now follows the same rule: with `gal-has`, `bds-b2b` or
+  `southpan-pvs` it ignores `.rtcm3` and L6E files with a warning, and reads
+  a `.has` file only with `gal-has` (as `.b2b` only with `bds-b2b`).
 - **`[output] geoid_model`** is read again. v0.7.16 defined the value list of
   the new `bds_geo_sats` option under the same macro name as the geoid model
   list (`GEOOPT`), so `geoid_model` was checked against the BeiDou GEO list:
@@ -101,6 +128,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   AI-assistance statement describes the actual process (Claude Code
   `Co-Authored-By` trailers; the author reviews, tests and merges). The LP64
   BLAS/LAPACK details move to the installation guide.
+
+### API / ABI
+
+- **No ABI break:** `sbsmsg_t` gains `band` in a padding byte; `sizeof`
+  is unchanged.
+- **API:** new `sbsmsgtype()`, `sbsupdatepvs()` (`mrtk_sbas.h`),
+  `SBS_BAND_L1` / `SBS_BAND_L5`, `SSR_VENDOR_PVS`, `CORR_SOUTHPAN_PVS`.
 
 ## [v0.7.16] - 2026-11-06
 
