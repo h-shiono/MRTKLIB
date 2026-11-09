@@ -29,8 +29,8 @@ tar xzf tests/data/madocalib/madocalib_testdata.tar.gz -C tests/data/madocalib/
 | Antenna model (`.atx`) | `files.receiver_atx` | Receiver/satellite antenna phase center model |
 
 !!! note "ANTEX File: IGS20 for MADOCA"
-    Unlike CLAS (which requires IGS14), MADOCA-PPP uses the **IGS20/ITRF2020**
-    reference frame. Use `igs20.atx` for antenna corrections.
+    MADOCA-PPP uses the **IGS20/ITRF2020** reference frame. Use `igs20.atx` for
+    antenna corrections.
 
 ### Optional Files (for PPP-AR)
 
@@ -201,8 +201,8 @@ ura_ratio = 0.1
 | **Signal** | QZSS L6E | QZSS L6D |
 | **Convergence** | 10-30 minutes | 1-2 minutes |
 | **Accuracy (converged)** | cm-level (PPP-AR) | cm-level |
-| **Reference frame** | ITRF2020 (IGS20) | ITRF2014 (IGS14) |
-| **ANTEX file** | `igs20.atx` | `igs14.atx` |
+| **Reference frame** | ITRF2020 (IGS20) | ITRF2020 (IGb20) |
+| **ANTEX file** | `igs20.atx` | `igs14_L5copy.atx` (igs20-based) |
 | **Grid files needed** | No | Yes (Japan grid) |
 | **ISB table needed** | No | Yes |
 

@@ -35,12 +35,44 @@ and navigation data. All files below are **bundled** with MRTKLIB.
 
 All bundled files are located in `tests/data/claslib/`.
 
-!!! warning "ANTEX File: Use IGS14, Not IGS20"
-    CLAS corrections are based on the **ITRF2014** reference frame. You must
-    use an IGS14-based ANTEX file (e.g., `igs14.atx` or `igs14_L5copy.atx`).
+!!! note "`igs14_L5copy.atx` is an igs20 file"
+    CLAS is defined in ITRF2020 (IGb20) as of IS-QZSS-L6-008 (2026-03-18). Despite
+    its name, the CLASLIB ANTEX file has been built from IGS `igs20.atx` since
+    CLASLIB 0.7.4, with the L2 values of some ground antennas copied to L5. A
+    stock `igs20.atx` has no L5 values for those antennas, so L5 gets no antenna
+    correction on them. The file must also contain the antenna and radome of your
+    receiver.
 
-    The latest IGS20-based ANTEX (`igs20.atx`) uses ITRF2020, which introduces
-    millimeter-to-centimeter frame differences that degrade positioning accuracy.
+### Refreshing the ANTEX and ERP files
+
+Two scripts regenerate these files from IGS products. They need only Python.
+Keep the output outside the repository.
+
+**ANTEX.** Pass the GPS week of an `igs20` file in the IGS archive, or `latest`:
+
+```bash
+python scripts/tools/make_clas_atx.py --week 2437 -o igs14_L5copy.atx
+```
+
+Each listed ground antenna gets a GPS L5 block with the values of its L2 block.
+The script differs from CLASLIB in one way: it does not copy L2 to L5 on the
+satellite antenna `BLOCK IIA` G01.
+
+**ERP.** Extend an existing `igu00p01.erp` with the IGS ultra-rapid files
+published since it was last updated:
+
+```bash
+python scripts/tools/update_igu_erp.py -i igu00p01.erp -o igu00p01_new.erp \
+  --cache-dir ~/.cache/igu
+```
+
+Run it once a week or so; rerunning only fetches what is new. Add `--full` to
+re-apply every issue since 2023, which also overwrites five rows in the CLASLIB
+0.9.1 file that do not follow the update rule. Point `files.receiver_atx` and
+`files.eop` at the new files to use them.
+
+How these files are built, and the record of those five rows, are in
+[CLAS support files](../design/clas-support-files.md).
 
 ---
 
@@ -263,7 +295,7 @@ Controls how far from the rover position to search for CLAS grid points.
 ### Fix Rate Lower Than Expected
 
 1. **nf=3 instead of nf=2** — Most common cause. See [Frequency](#frequency-must-be-l1-2) above.
-2. **Wrong ANTEX** — Using `igs20.atx` instead of `igs14.atx` introduces frame errors.
+2. **Wrong ANTEX** — The antenna or radome is missing from the file, or a stock `igs20.atx` is used, which has no L5 values for some antennas.
 3. **Receiver type mismatch** — Check `[positioning.clas].receiver_type` matches `isb.tbl`.
 
 ### `clas grid file error`

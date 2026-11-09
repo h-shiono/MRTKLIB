@@ -115,6 +115,7 @@ nav:
     - Reference Papers: reference/papers/index.md
   - Design:
     - Positioning Configuration Model: design/configuration.md
+    - CLAS Support Files: design/clas-support-files.md
   - Releases:
     - Changelog: releases/changelog.md
     - v0.7.17: releases/release-notes-v0.7.17.md
