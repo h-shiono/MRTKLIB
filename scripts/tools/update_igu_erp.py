@@ -140,13 +140,14 @@ def merge(rows, fetched, last_issue):
 
     A +0.5 d row always wins: it can only come from one issue. A +1.5 d prediction
     is applied only when the issue one day later, which would replace it, was not
-    fetched and is newer than the input, so a replay never puts a prediction back
-    over a value the input already has from a newer issue.
+    fetched, and either is newer than the input or left no row in it. A replay
+    never puts a prediction back over a value the input has from a newer issue,
+    and still fills a hole.
     """
     last = mjd_of(last_issue)
     for m0, issue in fetched.items():
         for m, line in issue.items():
-            if m - m0 > 1.0 and (m - 0.5 in fetched or m - 0.5 <= last):
+            if m - m0 > 1.0 and (m - 0.5 in fetched or (m - 0.5 <= last and m in rows)):
                 continue
             rows[m] = line
 
