@@ -149,3 +149,28 @@ remain unoverwritten. A normal `update_igu_erp.py` run therefore goes back over
 the last 14 days as well as fetching new issues. A missing issue that lies
 before the newest applied one is reported as a warning. `--full` re-applies
 every issue since 2023-02-16 (about 5,400 small files).
+
+A replay never puts a +1.5 d prediction back over a value the input already has
+from a newer issue. That holds even when the newer issue is now missing from the
+mirrors, or lies after `--until`.
+
+Issues are fetched from BKG over HTTPS by default. `--allow-http` adds SOPAC as a
+fallback. SOPAC serves only plain HTTP, so files from it are not protected in
+transit.
+
+BKG does not hold every issue. On 2026-11-12, 49 of the 5,368 issues from
+2023-02-16 to 2026-10-19 were missing there, and all 49 were on SOPAC:
+
+| Period | Missing issues |
+|:--|--:|
+| 2023-06-29 | 2 |
+| 2026-08-12 to 2026-08-18 | 25 |
+| 2026-10-06 to 2026-10-13 | 22 |
+
+So:
+
+- Extending the CLASLIB file over HTTPS keeps the CLASLIB rows wherever BKG has
+  a gap.
+- Rebuilding from the frozen file over HTTPS alone leaves 38 epochs without a
+  row. Use `--allow-http` for a complete rebuild.
+- The tool reports each missing issue and their total.

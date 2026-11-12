@@ -118,6 +118,8 @@ def build(base):
                     print(f"G02->G05: {key[0]} {key[1]} {key[2]}".rstrip())
                 out.extend(antenna)
                 antenna = None
+    if antenna is not None:
+        sys.exit("error: base file ends inside an antenna block")
     if remaining:
         sys.exit(f"error: antennas not found in the base file: {sorted(remaining)}")
     return ("\r\n".join(out) + "\r\n").encode("latin-1")

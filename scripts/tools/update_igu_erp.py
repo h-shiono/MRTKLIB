@@ -15,6 +15,12 @@ CLASLIB 0.9.1 is that file extended by hand from the 6-hourly ultra-rapid issues
 The newest applied issue is derived from the input (last MJD - 1.5 d). A run goes
 back over the last 14 days as well, so an issue that reached the mirrors late still
 overwrites its row, and ``--full`` re-applies every issue since the frozen file ended.
+A replay never replaces a row the input already has from a newer issue.
+
+Issues are fetched from BKG over HTTPS. ``--allow-http`` adds SOPAC as a fallback;
+it has no HTTPS, so its files are not protected in transit. BKG lacks some issues
+(49 of 2023-02-16 .. 2026-10-19, all on SOPAC), so rebuilding from the frozen file
+needs ``--allow-http``; extending the CLASLIB file keeps its rows where BKG has a gap.
 
 CLASLIB 0.9.1 has five rows (MJD 60013.50, 61256.25-61257.00) that differ from what
 this rule gives with today's mirrors; ``--full`` overwrites them. Background and the
@@ -33,13 +39,13 @@ import gzip
 import os
 import re
 import sys
+import time
 import urllib.error
 import urllib.request
 
-SOURCES = (
-    "https://igs.bkg.bund.de/root_ftp/IGS/products/{week}/{name}",
-    "http://garner.ucsd.edu/pub/products/{week}/{name}",
-)
+SOURCES = ("https://igs.bkg.bund.de/root_ftp/IGS/products/{week}/{name}",)
+# SOPAC has no HTTPS: used only with --allow-http.
+HTTP_SOURCES = ("http://garner.ucsd.edu/pub/products/{week}/{name}",)
 MJD_EPOCH = dt.datetime(1858, 11, 17)
 GPS_EPOCH = dt.datetime(1980, 1, 6)
 STEP = dt.timedelta(hours=6)
@@ -47,6 +53,8 @@ STEP = dt.timedelta(hours=6)
 FIRST_ISSUE = dt.datetime(2023, 2, 16)
 # Mirrors have taken over a day to publish an issue.
 LOOKBACK = dt.timedelta(days=14)
+# Mirrors reset connections under load; retry a transient error a few times.
+RETRIES = 4
 ROW = re.compile(r"^\d{5}\.\d{2}(\s+-?\d+){15}\s*$")
 
 
@@ -77,7 +85,7 @@ def issue_name(t):
     return f"IGS0OPSULT_{t:%Y%j%H%M}_02D_01D_ERP.ERP.gz"
 
 
-def download(t, cache_dir):
+def download(t, cache_dir, sources):
     """Return the compressed ERP file issued at t, or None if no mirror has it."""
     name = issue_name(t)
     cached = os.path.join(cache_dir, name) if cache_dir else None
@@ -86,17 +94,22 @@ def download(t, cache_dir):
             return f.read()
     week = (t - GPS_EPOCH).days // 7
     error = None
-    for source in SOURCES:
+    for source in sources:
         url = source.format(week=week, name=name)
-        try:
-            with urllib.request.urlopen(url, timeout=60) as resp:
-                data = resp.read()
-        except urllib.error.HTTPError as e:
-            if e.code != 404:
+        data = None
+        for attempt in range(RETRIES):
+            try:
+                with urllib.request.urlopen(url, timeout=60) as resp:
+                    data = resp.read()
+                break
+            except urllib.error.HTTPError as e:
+                if e.code == 404:
+                    break
                 error = e
-            continue
-        except OSError as e:
-            error = e
+            except OSError as e:
+                error = e
+            time.sleep(2**attempt)
+        if data is None:
             continue
         if cached:
             tmp = f"{cached}.tmp{os.getpid()}"
@@ -122,6 +135,22 @@ def issue_rows(t, data):
     return rows
 
 
+def merge(rows, fetched, last_issue):
+    """Apply the fetched issues {issue mjd: rows} to rows, newest value per MJD.
+
+    A +0.5 d row always wins: it can only come from one issue. A +1.5 d prediction
+    is applied only when the issue one day later, which would replace it, was not
+    fetched and is newer than the input, so a replay never puts a prediction back
+    over a value the input already has from a newer issue.
+    """
+    last = mjd_of(last_issue)
+    for m0, issue in fetched.items():
+        for m, line in issue.items():
+            if m - m0 > 1.0 and (m - 0.5 in fetched or m - 0.5 <= last):
+                continue
+            rows[m] = line
+
+
 def main():
     """Parse the command line and write the extended cumulative ERP."""
     parser = argparse.ArgumentParser(
@@ -131,17 +160,18 @@ def main():
     parser.add_argument("-o", "--output", required=True, help="output cumulative ERP file")
     parser.add_argument("--until", help="newest issue to apply, UTC (ISO format, default: now)")
     parser.add_argument("--full", action="store_true", help="re-apply every issue since 2023-02-16")
+    parser.add_argument(
+        "--allow-http", action="store_true", help="also try SOPAC, which has no HTTPS"
+    )
     parser.add_argument("--cache-dir", help="keep the downloaded issues in this directory")
     parser.add_argument("--jobs", type=int, default=4, help="parallel downloads (default: 4)")
     args = parser.parse_args()
 
     header, rows = read_cumulative(args.input)
     last_issue = MJD_EPOCH + dt.timedelta(days=max(rows) - 1.5)
-    until = (
-        dt.datetime.fromisoformat(args.until)
-        if args.until
-        else dt.datetime.now(dt.UTC).replace(tzinfo=None)
-    )
+    until = dt.datetime.fromisoformat(args.until) if args.until else dt.datetime.now(dt.UTC)
+    if until.tzinfo is not None:
+        until = until.astimezone(dt.UTC).replace(tzinfo=None)
 
     issues = []
     t = FIRST_ISSUE if args.full else max(FIRST_ISSUE, last_issue - LOOKBACK + STEP)
@@ -155,20 +185,23 @@ def main():
         os.makedirs(args.cache_dir, exist_ok=True)
 
     with concurrent.futures.ThreadPoolExecutor(args.jobs) as pool:
-        files = list(pool.map(lambda t: download(t, args.cache_dir), issues))
+        sources = SOURCES + (HTTP_SOURCES if args.allow_http else ())
+        files = list(pool.map(lambda t: download(t, args.cache_dir, sources), issues))
 
     applied = [t for t, data in zip(issues, files) if data is not None]
     if not applied:
         print(f"no issue on the mirrors in {issue_name(issues[0])} .. {issue_name(issues[-1])}")
         return
-    for t, data in zip(issues, files):
-        if data is not None:
-            rows.update(issue_rows(t, data))
+    fetched = {mjd_of(t): issue_rows(t, data) for t, data in zip(issues, files) if data}
+    merge(rows, fetched, last_issue)
     # The newest issues are not always on the mirrors yet: only a hole before the
     # last applied issue is a real gap.
     missing = [t for t, data in zip(issues, files) if data is None and t < applied[-1]]
     for t in missing:
         print(f"warning: missing issue {issue_name(t)}")
+    if missing:
+        hint = "" if args.allow_http else "; --allow-http also tries SOPAC"
+        print(f"warning: {len(missing)} issues missing from the mirrors{hint}")
 
     mjds = sorted(rows)
     tmp = f"{args.output}.tmp"

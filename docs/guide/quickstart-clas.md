@@ -66,7 +66,9 @@ python scripts/tools/update_igu_erp.py -i igu00p01.erp -o igu00p01_new.erp \
   --cache-dir ~/.cache/igu
 ```
 
-Run it once a week or so; rerunning only fetches what is new. Add `--full` to
+Run it once a week or so; rerunning only fetches what is new. Files come from
+the BKG mirror over HTTPS. When the tool reports missing issues, `--allow-http`
+also tries SOPAC, which serves only plain HTTP. Add `--full` to
 re-apply every issue since 2023, which also overwrites five rows in the CLASLIB
 0.9.1 file that do not follow the update rule. Point `files.receiver_atx` and
 `files.eop` at the new files to use them.
