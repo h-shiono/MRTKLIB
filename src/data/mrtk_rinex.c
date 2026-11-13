@@ -1610,7 +1610,7 @@ static int decode_eph(int ver, int sat, gtime_t toc, const double* data, eph_t* 
     return 1;
 }
 /* decode GLONASS ephemeris --------------------------------------------------*/
-static int decode_geph(int ver, int sat, gtime_t toc, double* data, geph_t* geph) {
+static int decode_geph(int ver, int sat, gtime_t toc, const double* data, int n, geph_t* geph) {
     geph_t geph0 = {0};
     gtime_t tof;
     double tow, tod;
@@ -1659,7 +1659,7 @@ static int decode_geph(int ver, int sat, gtime_t toc, double* data, geph_t* geph
     geph->frq = (int)data[10];
     geph->age = (int)data[14];
 
-    if (ver >= 305) {                      /* RINEX 3.05 */
+    if (n >= 19) {                         /* RINEX 3.05 BROADCAST ORBIT-4 */
         geph->flags = (int)data[15];       /* status flags */
         /*geph->dtaun=data[16];*/          /* delta_TAU_n (s) (L1/L2 GD difference) */
         geph->sva = (int)data[17];         /* F_T (user range accuracy index) */
@@ -1711,6 +1711,22 @@ static int decode_seph(int ver, int sat, gtime_t toc, double* data, seph_t* seph
     seph->sva = uraindex(data[10]);
 
     return 1;
+}
+/* test whether a GLONASS BROADCAST ORBIT-4 line follows ----------------------
+ * RINEX 3.05 / 4.xx make the 4th orbit line mandatory, but files labelled 3.05
+ * with the 3.04 3-line layout exist (IGS BRDC 2022-060, #482). A continuation
+ * line starts with a blank; a new record starts with a satellite ID (or '>' in
+ * RINEX 4). Peeks one character, which ungetc() always permits, so it also
+ * works on stdin.
+ *----------------------------------------------------------------------------*/
+static int glo_orbit4_follows(FILE* fp) {
+    int c = getc(fp);
+
+    if (c == EOF) {
+        return 0;
+    }
+    ungetc(c, fp);
+    return c == ' ';
 }
 /* read RINEX navigation data body -------------------------------------------*/
 static int readrnxnavb(FILE* fp, const char* opt, int ver, int sys, int* type, eph_t* eph, geph_t* geph, seph_t* seph,
@@ -1989,12 +2005,12 @@ static int readrnxnavb(FILE* fp, const char* opt, int ver, int sys, int* type, e
                 data[i++] = str2num(p, 0, 19);
             }
             /* decode ephemeris */
-            if (sys == SYS_GLO && i >= ((ver >= 305) ? 19 : 15)) {
+            if (sys == SYS_GLO && i >= 15 && (i >= 19 || ver < 305 || !glo_orbit4_follows(fp))) {
                 if (!(mask & sys)) {
                     return 0;
                 }
                 *type = 1;
-                return decode_geph(ver, sat, toc, data, geph);
+                return decode_geph(ver, sat, toc, data, i, geph);
             } else if (sys == SYS_SBS && i >= 15) {
                 if (!(mask & sys)) {
                     return 0;
