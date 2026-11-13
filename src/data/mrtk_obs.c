@@ -125,15 +125,18 @@ static int cmpobs(const void* p1, const void* p2) {
  * args   : int    base      I   rover or base-station (0:rover,1:base station)
  *          int    idx       I   frequency index (0:L1,1:L2,2:L3,...)
  *          double el        I   elevation angle (rad)
- *          double snr       I   C/N0 (dBHz)
+ *          double snr       I   C/N0 (dBHz, 0:unknown)
  *          snrmask_t *mask  I   SNR mask
  * return : status (1:masked,0:unmasked)
+ * notes  : an unknown C/N0 is not masked (#477)
  *-----------------------------------------------------------------------------*/
 extern int testsnr(int base, int idx, double el, double snr, const snrmask_t* mask) {
     double minsnr, a;
     int i;
 
-    if (!mask->ena[base] || idx < 0 || idx >= NFREQ) {
+    /* SNR=0 means no C/N0 in the input (e.g. RINEX without S, RTCM MSM1-3),
+       not 0 dBHz: masking it would reject every satellite */
+    if (!mask->ena[base] || idx < 0 || idx >= NFREQ || snr <= 0.0) {
         return 0;
     }
 

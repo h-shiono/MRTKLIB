@@ -307,7 +307,7 @@ set(_UTEST_DIR ${CMAKE_SOURCE_DIR}/tests/utest)
 set(_UTEST_SOURCES
     t_atmos t_clas_route t_coord t_freqidx t_geoid t_gloeph t_ionex
     t_lambda t_matrix t_misc t_obsdef t_ppp t_preceph
-    t_rinex t_rinex2_qzs t_rinex4 t_rinex_glo305 t_sigcfg_decode t_time t_toml
+    t_rinex t_rinex2_qzs t_rinex4 t_rinex_glo305 t_sigcfg_decode t_snrmask t_time t_toml
     # t_tle excluded: tle_pos() implementation not yet in library
 )
 foreach(test IN LISTS _UTEST_SOURCES)
@@ -317,6 +317,17 @@ foreach(test IN LISTS _UTEST_SOURCES)
              WORKING_DIRECTORY ${_UTEST_DIR})
     set_tests_properties(utest_${test} PROPERTIES LABELS "utest")
 endforeach()
+
+# postpos() with the SNR mask on and RINEX without C/N0 (#477): solutions
+# kept, warning once per call and per receiver. Writes .pos/.err files, so it
+# runs in its own directory under the build tree.
+add_executable(t_snrmask_post ${_UTEST_DIR}/t_snrmask_post.c)
+target_link_libraries(t_snrmask_post PRIVATE mrtklib)
+file(MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/utest_snrmask_post)
+add_test(NAME utest_t_snrmask_post
+         COMMAND t_snrmask_post ${CMAKE_SOURCE_DIR}/tests/data/rtklib/rinex
+         WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/utest_snrmask_post)
+set_tests_properties(utest_t_snrmask_post PROPERTIES LABELS "utest")
 
 # Galileo HAS RS(255,32,224) erasure decoder test. The source is named
 # utest_has_rs.c (not t_*.c) and the test name must be utest_has_rs, so it is

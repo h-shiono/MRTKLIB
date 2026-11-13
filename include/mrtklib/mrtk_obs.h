@@ -155,7 +155,7 @@ int screent(gtime_t time, gtime_t ts, gtime_t te, double tint);
  * @param[in] base  Rover or base-station (0:rover, 1:base station)
  * @param[in] idx   Frequency index (0:L1, 1:L2, 2:L3,...)
  * @param[in] el    Elevation angle (rad)
- * @param[in] snr   C/N0 (dBHz)
+ * @param[in] snr   C/N0 (dBHz); 0 or less means unknown and is never masked
  * @param[in] mask  SNR mask
  * @return Status (1:masked, 0:unmasked)
  */
