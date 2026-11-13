@@ -318,6 +318,17 @@ foreach(test IN LISTS _UTEST_SOURCES)
     set_tests_properties(utest_${test} PROPERTIES LABELS "utest")
 endforeach()
 
+# postpos() with the SNR mask on and RINEX without C/N0 (#477): solutions
+# kept, warning once per call and per receiver. Writes .pos/.err files, so it
+# runs in its own directory under the build tree.
+add_executable(t_snrmask_post ${_UTEST_DIR}/t_snrmask_post.c)
+target_link_libraries(t_snrmask_post PRIVATE mrtklib)
+file(MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/utest_snrmask_post)
+add_test(NAME utest_t_snrmask_post
+         COMMAND t_snrmask_post ${CMAKE_SOURCE_DIR}/tests/data/rtklib/rinex
+         WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/utest_snrmask_post)
+set_tests_properties(utest_t_snrmask_post PROPERTIES LABELS "utest")
+
 # Galileo HAS RS(255,32,224) erasure decoder test. The source is named
 # utest_has_rs.c (not t_*.c) and the test name must be utest_has_rs, so it is
 # registered explicitly rather than via the t_* loop above (which prepends
