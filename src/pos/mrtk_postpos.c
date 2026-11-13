@@ -95,6 +95,7 @@ static double* rbf;                            /* forward base positions */
 static double* rbb;                            /* backward base positions */
 static int isolf = 0;                          /* current forward solutions index */
 static int isolb = 0;                          /* current backward solutions index */
+static int snrwarned[2] = {0};                 /* SNR mask without C/N0 warned {rover,base} */
 static char proc_rov[64] = "";                 /* rover for current processing */
 static char proc_base[64] = "";                /* base station for current processing */
 static char rtcm_file[1024] = "";              /* rtcm data file */
@@ -1319,6 +1320,35 @@ static void freepreceph(nav_t* nav, sbs_t* sbs) {
         clas_ctx = NULL;
     }
 }
+/* warn when the SNR mask is on but a receiver's obs carry no C/N0 -----------
+ * testsnr() leaves unknown C/N0 unmasked, so the mask silently does nothing
+ * for such input (#477); once per postpos() call, not per session */
+static void warn_snrmask_no_cn0(const obs_t* obs, const prcopt_t* prcopt) {
+    static const char* name[2] = {"rover", "base"};
+    int has_obs[2] = {0}, has_snr[2] = {0}, i, j, r;
+
+    for (i = 0; i < obs->n; i++) {
+        r = obs->data[i].rcv - 1;
+        if (r < 0 || r > 1) {
+            continue;
+        }
+        has_obs[r] = 1;
+        for (j = 0; j < NFREQ + NEXOBS && !has_snr[r]; j++) {
+            if (obs->data[i].SNR[j] > 0) {
+                has_snr[r] = 1;
+            }
+        }
+    }
+    for (r = 0; r < 2; r++) {
+        if (prcopt->snrmask.ena[r] && has_obs[r] && !has_snr[r] && !snrwarned[r]) {
+            snrwarned[r] = 1;
+            fprintf(stderr,
+                    "warning : SNR mask is enabled for the %s but its observations have no C/N0 (S), "
+                    "so the mask is not applied\n",
+                    name[r]);
+        }
+    }
+}
 /* read obs and nav data -----------------------------------------------------*/
 static int readobsnav(gtime_t ts, gtime_t te, double ti, char** infile, const int* index, int n, const prcopt_t* prcopt,
                       obs_t* obs, nav_t* nav, sta_t* sta) {
@@ -1384,6 +1414,8 @@ static int readobsnav(gtime_t ts, gtime_t te, double ti, char** infile, const in
     }
     /* sort observation data */
     nepoch = sortobs(obs);
+
+    warn_snrmask_no_cn0(obs, prcopt);
 
     /* delete duplicated ephemeris */
     uniqnav(nav);
@@ -2066,6 +2098,8 @@ extern int postpos(mrtk_ctx_t* ctx, gtime_t ts, gtime_t te, double ti, double tu
     /* BeiDou generation of PRN 1-18 and BDS-3 IGSO (#401): set before reading
        files, since RINEX reading already depends on the generation */
     set_bdsopt(popt, 1);
+
+    snrwarned[0] = snrwarned[1] = 0;
 
     /* open processing session */
     if (!openses(ctx, popt, sopt, fopt, &navs, &pcvss, &pcvsr)) {
