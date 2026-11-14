@@ -1399,9 +1399,10 @@ int clas_osr_zdres(const obsd_t* obs, int n, const double* rs, const double* dts
             if (lam[f] == 0.0 || obs_copy[i].L[f] == 0.0 || obs_copy[i].P[f] == 0.0) {
                 continue;
             }
-            if (obs_copy[i].SNR[f] > 0.0 && testsnr(0, f, azel[i * 2 + 1], obs_copy[i].SNR[f] * 0.25, &opt->snrmask)) {
+            /* SNR is in SNR_UNIT (0.001 dBHz), not claslib's 0.25 dBHz (#479) */
+            if (testsnr(0, f, azel[i * 2 + 1], obs_copy[i].SNR[f] * SNR_UNIT, &opt->snrmask)) {
                 trace(NULL, 2, "snr error: sat=%2d f=%d el=%.2f SNR=%.2f\n", sat, f, azel[i * 2 + 1] * R2D,
-                      obs_copy[i].SNR[f] * 0.25);
+                      obs_copy[i].SNR[f] * SNR_UNIT);
                 meas[f] = meas[f + nf] = 0.0;
                 continue;
             }
