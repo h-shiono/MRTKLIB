@@ -78,7 +78,8 @@ void utest1(void) {
     stat = readrnx(file6, 2, "", &obs, &nav, &sta);
     assert(stat == 1);
     n = sortobs(&obs);
-    assert(n == 171);
+    /* the two receivers' epochs merge within DTTOL (0.025 s) into 120 */
+    assert(n == 120);
     uniqnav(&nav);
     assert(nav.n == 167);
     dumpobs(&obs);
