@@ -1644,6 +1644,50 @@ set_tests_properties(claslib_ppp_rtk_2ch_merge_diff_check PROPERTIES
 # ── rnx2rtkp CLAS VRS-RTK regression ──────────────────────────────────────────
 # Data: 2019/08/27 16:00-17:00, 0627239Q.obs + sept_2019239.nav + vrs2019239Q.obs
 # Reference: ref_VRS.nmea (upstream claslib output)
+# SNR mask is applied on the CLAS PPP-RTK and VRS paths (#479): a 45 dBHz
+# mask must remove satellites from the 2019/239 solutions. Before the fix the
+# C/N0 was scaled by claslib's 0.25 dBHz unit and the mask never rejected
+# there. PPP-RTK also loses satellites through the SPP seed mask (correct
+# unit), so its threshold sits between the two: mean nsat drop 3.11 before
+# the fix, 5.35 after; VRS 0.00 before, 3.12 after.
+foreach(_snrcase IN ITEMS ppp_rtk vrs_rtk)
+    if(_snrcase STREQUAL "ppp_rtk")
+        set(_snrconf rnx2rtkp.toml)
+        set(_snrcorr ${_CLSDATA}/2019239Q.l6)
+        set(_snrdrop 4.0)
+    else()
+        set(_snrconf rnx2rtkp_vrs.toml)
+        set(_snrcorr ${_CLSDATA}/vrs2019239Q.obs)
+        set(_snrdrop 2.0)
+    endif()
+    add_test(NAME claslib_${_snrcase}_snrmask
+        COMMAND $<TARGET_FILE:mrtk> post
+            -k ${CMAKE_SOURCE_DIR}/conf/claslib/${_snrconf}
+            -k ${_CLSDATA}/snrmask_45.toml
+            -ts 2019/08/27 16:00:00 -te 2019/08/27 16:09:59 -ti 1
+            -o ${CMAKE_BINARY_DIR}/out_claslib_${_snrcase}_snrmask.nmea
+            ${_CLSDATA}/0627239Q.obs
+            ${_CLSDATA}/sept_2019239.nav
+            ${_snrcorr}
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    )
+    set_tests_properties(claslib_${_snrcase}_snrmask PROPERTIES
+        FIXTURES_REQUIRED claslib_data
+        TIMEOUT           300
+        LABELS            "regression;claslib"
+    )
+    add_test(NAME claslib_${_snrcase}_snrmask_check
+        COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/scripts/tests/check_snrmask_nsat.py
+            ${CMAKE_BINARY_DIR}/out_claslib_${_snrcase}_snrmask.nmea
+            ${CMAKE_BINARY_DIR}/out_claslib_${_snrcase}.nmea
+            --min-drop ${_snrdrop}
+    )
+    set_tests_properties(claslib_${_snrcase}_snrmask_check PROPERTIES
+        DEPENDS "claslib_${_snrcase}_snrmask;claslib_${_snrcase}"
+        LABELS  "regression;claslib"
+    )
+endforeach()
+
 add_test(NAME claslib_vrs_rtk
     COMMAND $<TARGET_FILE:mrtk> post
         -k ${CMAKE_SOURCE_DIR}/conf/claslib/rnx2rtkp_vrs.toml

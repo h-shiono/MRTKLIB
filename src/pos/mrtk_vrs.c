@@ -875,8 +875,8 @@ static void zdres_sat(int base, double r, const obsd_t* obs, const nav_t* nav, c
             continue;
         }
 
-        /* check snr mask */
-        if (testsnr(base, i, azel[1], obs->SNR[i] * 0.25, &opt->snrmask)) {
+        /* check snr mask (SNR in SNR_UNIT, not claslib's 0.25 dBHz, #479) */
+        if (testsnr(base, i, azel[1], obs->SNR[i] * SNR_UNIT, &opt->snrmask)) {
             continue;
         }
         if (i > 0 && !(i & qj)) {
