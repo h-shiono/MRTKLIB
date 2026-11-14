@@ -222,11 +222,8 @@ static int svid2sat(int svid) {
     if (svid <= 180) {
         return satno(SYS_CMP, svid - 140);
     }
-    if (svid <= 187) {
-        return satno(SYS_QZS, svid - 180 + 192);
-    }
     if (svid <= 190) {
-        return 0;
+        return satno(SYS_QZS, svid - 180 + 192);
     }
     if (svid <= 197) {
         return satno(SYS_IRN, svid - 190);
@@ -239,6 +236,9 @@ static int svid2sat(int svid) {
     }
     if (svid <= 245) {
         return satno(SYS_CMP, svid - 182);
+    }
+    if (svid == 250 || svid == 251) {
+        return 0; /* GPS G38-G39 (SVID - 212): above MAXPRNGPS, ignored */
     }
     return 0; /* error */
 }

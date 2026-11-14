@@ -508,6 +508,17 @@ target_link_libraries(utest_ntrip_server_response PRIVATE mrtklib)
 add_test(NAME utest_ntrip_server_response COMMAND utest_ntrip_server_response)
 set_tests_properties(utest_ntrip_server_response PROPERTIES LABELS "utest")
 
+# SBF QZSS SVID 181-190 -> J01-J10 (#471) in MeasEpoch, QZSRawL1CA and QZSNav.
+# Fixtures tests/utest/sbfqzs_*: real SBF blocks
+# (scripts/tests/make_sbf_qzss_svid_fixtures.py).
+add_executable(utest_sbf_qzss_svid ${_UTEST_DIR}/utest_sbf_qzss_svid.c)
+# Override global -ansi (=C90): this test uses C11 (P-01).
+target_compile_options(utest_sbf_qzss_svid PRIVATE -std=c11)
+target_link_libraries(utest_sbf_qzss_svid PRIVATE mrtklib)
+add_test(NAME utest_sbf_qzss_svid COMMAND utest_sbf_qzss_svid
+         WORKING_DIRECTORY ${_UTEST_DIR})
+set_tests_properties(utest_sbf_qzss_svid PROPERTIES LABELS "utest")
+
 # ── RINEX 4 test data fixture (decompress BRD400 NAV) ────────────────────────
 set(_RINEX4_DIR ${CMAKE_SOURCE_DIR}/tests/data/rinex4)
 set(_BRD400_GZ  ${_RINEX4_DIR}/BRD400DLR_S_20260680000_01D_MN.rnx.gz)
