@@ -2264,6 +2264,10 @@ set_tests_properties(igs_cleanup PROPERTIES
     FIXTURES_CLEANUP igs_data
     LABELS           "regression;igs;ppp"
 )
+# utest_t_preceph reads the satellite antenna offsets from igs20_trim.atx.
+set_tests_properties(utest_t_preceph PROPERTIES
+    FIXTURES_REQUIRED igs_data
+)
 
 # ── rnx2rtkp conventional IGS float PPP ──────────────────────────────────────
 add_test(NAME igs_ppp
