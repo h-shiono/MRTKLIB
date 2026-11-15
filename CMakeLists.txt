@@ -313,6 +313,9 @@ set(_UTEST_SOURCES
 foreach(test IN LISTS _UTEST_SOURCES)
     add_executable(${test} ${_UTEST_DIR}/${test}.c)
     target_link_libraries(${test} PRIVATE mrtklib)
+    # These tests check with assert(): keep it active in builds that define
+    # NDEBUG (RelWithDebInfo, Release); -U comes after -D on the command line.
+    target_compile_options(${test} PRIVATE -UNDEBUG)
     add_test(NAME utest_${test} COMMAND ${test}
              WORKING_DIRECTORY ${_UTEST_DIR})
     set_tests_properties(utest_${test} PROPERTIES LABELS "utest")
@@ -2263,6 +2266,10 @@ add_test(NAME igs_cleanup
 set_tests_properties(igs_cleanup PROPERTIES
     FIXTURES_CLEANUP igs_data
     LABELS           "regression;igs;ppp"
+)
+# utest_t_preceph reads the satellite antenna offsets from igs20_trim.atx.
+set_tests_properties(utest_t_preceph PROPERTIES
+    FIXTURES_REQUIRED igs_data
 )
 
 # ── rnx2rtkp conventional IGS float PPP ──────────────────────────────────────

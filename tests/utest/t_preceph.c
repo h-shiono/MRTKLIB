@@ -56,8 +56,8 @@ void utest1(void) {
 void utest2(void) {
     double ep1[] = {2008, 3, 1, 0, 0, 0};
     double ep2[] = {2006, 11, 4, 23, 59, 59};
-    char* file1 = "../data/rtklib/sp3/igs06.atx";
-    char* file2 = "../../data/igs05.atx";
+    char* file1 = "";
+    char* file2 = "../data/igs/igs20_trim.atx";
     pcvs_t pcvs = {0};
     pcv_t* pcv;
     gtime_t time;
@@ -66,6 +66,7 @@ void utest2(void) {
     printf("file=%s\n", file1);
     stat = readpcv(file1, &pcvs);
     assert(!stat);
+    printf("file=%s\n", file2);
     stat = readpcv(file2, &pcvs);
     assert(stat);
 
@@ -154,7 +155,7 @@ void utest5(void) {
     FILE* fp;
     char* file1 = "../data/rtklib/sp3/igs1590*.sp3"; /* 2010/7/1 */
     char* file2 = "../data/rtklib/sp3/igs1590*.clk"; /* 2010/7/1 */
-    char* file3 = "../../data/igs05.atx";
+    char* file3 = "../data/igs/igs20_trim.atx";
     char* file4 = "../data/rtklib/rinex/brdc*.10n";
     pcvs_t pcvs = {0};
     pcv_t* pcv;
@@ -191,7 +192,7 @@ void utest5(void) {
                 rs1[2], dts1[0] * 1E9, rs2[0], rs2[1], rs2[2], dts2[0] * 1E9);
     }
     fclose(fp);
-    printf("%s utest4 : OK\n", __FILE__);
+    printf("%s utest5 : OK\n", __FILE__);
 }
 int main(int argc, char** argv) {
     utest1();

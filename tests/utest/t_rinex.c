@@ -61,34 +61,36 @@ void utest1(void) {
     char file5[] = "../data/rtklib/rinex/30400920.05o";
     char file6[] = "../data/rtklib/rinex/30400920.05n";
     obs_t obs = {0};
-    nav_t nav = {0};
+    nav_t* nav = (nav_t*)calloc(1, sizeof(nav_t)); /* large: heap only */
     sta_t sta = {""};
     int n, stat;
 
-    stat = readrnx(file1, 1, "", &obs, &nav, &sta);
-    assert(stat == 0 && obs.n == 0 && nav.n == 0 && nav.ng == 0 && nav.ns == 0);
-    stat = readrnx(file2, 1, "", &obs, &nav, &sta);
-    assert(stat == 0 && obs.n == 0 && nav.n == 0 && nav.ng == 0 && nav.ns == 0);
-    stat = readrnx(file3, 1, "", &obs, &nav, &sta);
+    stat = readrnx(file1, 1, "", &obs, nav, &sta);
+    assert(stat == 0 && obs.n == 0 && nav->n == 0 && nav->ng == 0 && nav->ns == 0);
+    stat = readrnx(file2, 1, "", &obs, nav, &sta);
+    assert(stat == 0 && obs.n == 0 && nav->n == 0 && nav->ng == 0 && nav->ns == 0);
+    stat = readrnx(file3, 1, "", &obs, nav, &sta);
     assert(stat == 1);
-    stat = readrnx(file4, 1, "", &obs, &nav, &sta);
+    stat = readrnx(file4, 1, "", &obs, nav, &sta);
     assert(stat == 1);
-    stat = readrnx(file5, 2, "", &obs, &nav, &sta);
+    stat = readrnx(file5, 2, "", &obs, nav, &sta);
     assert(stat == 1);
-    stat = readrnx(file6, 2, "", &obs, &nav, &sta);
+    stat = readrnx(file6, 2, "", &obs, nav, &sta);
     assert(stat == 1);
     n = sortobs(&obs);
-    assert(n == 171);
-    uniqnav(&nav);
-    assert(nav.n == 167);
+    /* the two receivers' epochs merge within DTTOL (0.025 s) into 120 */
+    assert(n == 120);
+    uniqnav(nav);
+    assert(nav->n == 167);
     dumpobs(&obs);
-    dumpnav(&nav);
+    dumpnav(nav);
     dumpsta(&sta);
-    assert(obs.data && obs.n > 0 && nav.eph && nav.n > 0);
+    assert(obs.data && obs.n > 0 && nav->eph && nav->n > 0);
     free(obs.data);
-    free(nav.eph);
-    free(nav.geph);
-    free(nav.seph);
+    free(nav->eph);
+    free(nav->geph);
+    free(nav->seph);
+    free(nav);
 
     printf("%s utest1 : OK\n", __FILE__);
 }
@@ -100,22 +102,23 @@ void utest2(void) {
     char file2[] = "../data/rtklib/rinex/07590920.05n";
     int n;
     obs_t obs = {0};
-    nav_t nav = {0};
+    nav_t* nav = (nav_t*)calloc(1, sizeof(nav_t));
     sta_t sta = {""};
 
     ts = epoch2time(ep1);
     te = epoch2time(ep2);
-    n = readrnxt(file1, 1, ts, te, 0.0, "", &obs, &nav, &sta);
+    n = readrnxt(file1, 1, ts, te, 0.0, "", &obs, nav, &sta);
     printf("\n\nn=%d\n", n);
-    n = readrnxt(file2, 1, ts, te, 0.0, "", &obs, &nav, &sta);
+    n = readrnxt(file2, 1, ts, te, 0.0, "", &obs, nav, &sta);
     dumpobs(&obs);
     free(obs.data);
     obs.data = NULL;
     obs.n = obs.nmax = 0;
-    n = readrnxt(file1, 1, t0, t0, 240.0, "", &obs, &nav, &sta);
+    n = readrnxt(file1, 1, t0, t0, 240.0, "", &obs, nav, &sta);
     printf("\n\nn=%d\n", n);
     dumpobs(&obs);
     free(obs.data);
+    free(nav);
 
     printf("%s utset2 : OK\n", __FILE__);
 }
@@ -149,11 +152,12 @@ static rnxopt_t opt2 = {
 };
 /* outrneobsh() */
 void utest3(void) {
-    nav_t nav = {0};
+    nav_t* nav = (nav_t*)calloc(1, sizeof(nav_t));
 
-    outrnxobsh(stdout, &opt1, &nav);
-    outrnxobsh(stdout, &opt2, &nav);
+    outrnxobsh(stdout, &opt1, nav);
+    outrnxobsh(stdout, &opt2, nav);
 
+    free(nav);
     printf("%s utest3 : OK\n", __FILE__);
 }
 /* outrneobsb() */
@@ -177,26 +181,28 @@ void utest5(void) {
     char file1[] = "../data/rtklib/rinex/07590920.05n";
     double ion[] = {1E9, 2E-4, 3E8, 4E3, -4E-3, -5E99, -6E-33, -9E-123};
     double utc[] = {1E9, 2E4, 3E2, -9999};
-    nav_t nav = {0};
+    nav_t* nav = (nav_t*)calloc(1, sizeof(nav_t));
     int i;
-    for (i = 0; i < 8; i++) nav.ion_gps[i] = ion[i];
-    for (i = 0; i < 4; i++) nav.utc_gps[i] = utc[i];
-    readrnx(file1, 1, "", NULL, &nav, NULL);
+    for (i = 0; i < 8; i++) nav->ion_gps[i] = ion[i];
+    for (i = 0; i < 4; i++) nav->utc_gps[i] = utc[i];
+    readrnx(file1, 1, "", NULL, nav, NULL);
 
-    outrnxnavh(stdout, &opt1, &nav);
-    outrnxnavh(stdout, &opt2, &nav);
+    outrnxnavh(stdout, &opt1, nav);
+    outrnxnavh(stdout, &opt2, nav);
 
+    free(nav);
     printf("%s utest5 : OK\n", __FILE__);
 }
 /* outrnxnavb() */
 void utest6(void) {
     char file[] = "../data/rtklib/rinex/07590920.05n";
-    nav_t nav = {0};
+    nav_t* nav = (nav_t*)calloc(1, sizeof(nav_t));
     int i;
-    readrnx(file, 1, "", NULL, &nav, NULL);
-    for (i = 0; i < nav.n; i++) {
-        outrnxnavb(stdout, &opt2, nav.eph + i);
+    readrnx(file, 1, "", NULL, nav, NULL);
+    for (i = 0; i < nav->n; i++) {
+        outrnxnavb(stdout, &opt2, nav->eph + i);
     }
+    free(nav);
     printf("%s utest6 : OK\n", __FILE__);
 }
 int main(int argc, char** argv) {
