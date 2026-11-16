@@ -1,0 +1,5 @@
+# Ionosphere time-variation compensation from the SSR STEC rate, for the
+# claslib_ppp_rtk_l1cl5_iono_ssr test (#345): the 2025/022 L6 carries QZS
+# L1C/A + L1C, the dual-L1 case that compensatedisp() must skip
+[positioning.corrections]
+iono_compensation = "ssr"
