@@ -1860,7 +1860,9 @@ set_tests_properties(claslib_ppp_rtk_l1cl5_abs_check PROPERTIES
 # SSR ionosphere compensation with QZS L1C/A + L1C in the CSSR mask (#345):
 # compensatedisp() must skip the L1-L1 pair (1 - fi^2 = 0). Before the fix the
 # 0/0 coefficient made the compensation NaN and J03 dropped out: mean nsat over
-# 16:00-16:10 was 1.00 below the "meas" run, 0.00 after.
+# 16:00-16:10 was 1.00 below the "meas" run, 0.00 after. Both runs solve all
+# 600 epochs of the window; --min-epochs 590 keeps a run that loses solutions
+# from passing on the epochs that remain.
 add_test(NAME claslib_ppp_rtk_l1cl5_iono_ssr
     COMMAND $<TARGET_FILE:mrtk> post
         -k ${CMAKE_SOURCE_DIR}/conf/claslib/rnx2rtkp_L1CL5.toml
@@ -1880,7 +1882,7 @@ add_test(NAME claslib_ppp_rtk_l1cl5_iono_ssr_check
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/scripts/tests/check_iono_comp_nsat.py
         ${CMAKE_BINARY_DIR}/out_claslib_ppp_rtk_l1cl5_iono_ssr.nmea
         ${CMAKE_BINARY_DIR}/out_claslib_ppp_rtk_l1cl5.nmea
-        --max-drop 0.5
+        --max-drop 0.5 --min-epochs 590
 )
 set_tests_properties(claslib_ppp_rtk_l1cl5_iono_ssr_check PROPERTIES
     DEPENDS "claslib_ppp_rtk_l1cl5_iono_ssr;claslib_ppp_rtk_l1cl5"
