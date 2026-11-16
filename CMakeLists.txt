@@ -406,6 +406,16 @@ add_test(NAME utest_clas_l6 COMMAND utest_clas_l6
          WORKING_DIRECTORY ${_UTEST_DIR})
 set_tests_properties(utest_clas_l6 PROPERTIES LABELS "utest")
 
+# CLAS CSSR ST1 mask bounds: masks with >64 satellites, unnumbered satellites
+# or a repeated GNSS ID are dropped (#276).
+add_executable(utest_clas_mask ${_UTEST_DIR}/utest_clas_mask.c)
+# Override global -ansi (=C90): this test uses C11 (P-01).
+target_compile_options(utest_clas_mask PRIVATE -std=c11)
+target_link_libraries(utest_clas_mask PRIVATE mrtklib)
+add_test(NAME utest_clas_mask COMMAND utest_clas_mask
+         WORKING_DIRECTORY ${_UTEST_DIR})
+set_tests_properties(utest_clas_mask PROPERTIES LABELS "utest")
+
 # NavIC L5-only SPP group delay with the nominal S/L5 ratio (#384). Includes
 # mrtk_spp.c to reach the private prange().
 add_executable(utest_navic_l5_tgd ${_UTEST_DIR}/utest_navic_l5_tgd.c)
