@@ -738,6 +738,7 @@ static int svmask2sat(uint64_t* svmask, int* sat) {
         sys = gnss2sys(id, &prn_min);
         for (j = 0; j < CSSR_MAX_SV_GNSS; j++) {
             if ((svmask[id] >> (CSSR_MAX_SV_GNSS - 1 - j)) & 1) {
+                if (nsat >= CSSR_MAX_SV) return nsat; /* MRTKLIB (#276) */
                 if (sat) sat[nsat] = satno(sys, prn_min + j);
                 nsat++;
             }
@@ -875,10 +876,19 @@ static void output_cssr_mask(rtcm_t* rtcm, cssr_t* cssr, int ngnss, int* id_, FI
     }
 }
 
+/* MRTKLIB (#276): a masked satellite without a satellite number (PRN outside
+ * the constellation) has sat 0, and upstream wrote nav.ssr[-1]. Its fields go
+ * to a scratch record, so the bit cursor and the dump stay as upstream. */
+static ssr_t* ssr_of(rtcm_t* rtcm, int sat) {
+    static ssr_t scratch;
+    return sat > 0 ? &rtcm->nav.ssr[sat - 1] : &scratch;
+}
+
 /* decode mask message */
 static int decode_cssr_mask(rtcm_t* rtcm, cssr_t* cssr, int i0, int header, FILE* fp) {
     int i, j, k, l, sync, tow, ngnss, iod, nsat_g = 0, id, nsig, ncell = 0, prn, sat[CSSR_MAX_SV];
     int id_[CSSR_MAX_GNSS];
+    unsigned int seen = 0;
     double udint;
 
     i = decode_cssr_head(rtcm, cssr, &sync, &tow, &iod, NULL, &udint, &ngnss, i0, header, fp);
@@ -910,6 +920,24 @@ static int decode_cssr_mask(rtcm_t* rtcm, cssr_t* cssr, int i0, int header, FILE
 
         nsig = sigmask2nsig(cssr->sigmask[id]);
         nsat_g = svmask2nsatlist(cssr->svmask[id], id, sat);
+
+        /* MRTKLIB (#276): more than CSSR_MAX_SV satellites overrun cellmask[]
+         * and sat[CSSR_MAX_SV]; a GNSS ID given twice misaligns cellmask[]
+         * with the satellites. Drop the mask (upstream wrote past the arrays). */
+        if ((seen >> id) & 1 || ncell + nsat_g > CSSR_MAX_SV) {
+            trace(1, "decode_cssr_mask: invalid mask dropped: gnss=%d nsat=%d total=%d\n", id, nsat_g, ncell + nsat_g);
+            for (j = 0; j < CSSR_MAX_GNSS; j++) {
+                cssr->cmi[j] = 0;
+                cssr->svmask[j] = 0;
+                cssr->sigmask[j] = 0;
+            }
+            for (j = 0; j < CSSR_MAX_SV; j++) {
+                cssr->cellmask[j] = 0;
+            }
+            output_cssr_mask(rtcm, cssr, 0, id_, fp);
+            return -1;
+        }
+        seen |= 1u << id;
 
         if (cssr->cmi[id]) { /* cell-mask is included */
             for (j = 0; j < nsat_g; j++) {
@@ -972,7 +1000,7 @@ static void output_cssr_oc(rtcm_t* rtcm, cssr_t* cssr, FILE* fp) {
     if (fp == NULL) return;
     nsat = svmask2sat(cssr->svmask, sat);
     for (j = 0; j < nsat; j++) {
-        ssr = &rtcm->nav.ssr[sat[j] - 1];
+        ssr = ssr_of(rtcm, sat[j]);
         gnss = sys2gnss(satsys(sat[j], &prn), NULL);
         iode = ssr->iode;
         if (j != 0) {
@@ -1039,7 +1067,7 @@ static int decode_cssr_oc(rtcm_t* rtcm, cssr_t* cssr, int i0, int header, FILE* 
     }
 
     for (j = 0; j < nsat; j++) {
-        ssr = &rtcm->nav.ssr[sat[j] - 1];
+        ssr = ssr_of(rtcm, sat[j]);
         sys = satsys(sat[j], NULL);
 
         if (sys == SYS_GAL) {
@@ -1110,7 +1138,7 @@ static void output_cssr_cc(rtcm_t* rtcm, cssr_t* cssr, FILE* fp) {
     nsat = svmask2sat(cssr->svmask, sat);
 
     for (j = 0; j < nsat; j++) {
-        ssr = &rtcm->nav.ssr[sat[j] - 1];
+        ssr = ssr_of(rtcm, sat[j]);
         gnss = sys2gnss(satsys(sat[j], &prn), NULL);
         if (j != 0) {
             fprintf(fp, ",,,,,, %d, %d, ", gnss, prn);
@@ -1164,7 +1192,7 @@ static int decode_cssr_cc(rtcm_t* rtcm, cssr_t* cssr, int i0, int header, FILE* 
     }
 
     for (j = 0; j < nsat; j++) {
-        ssr = &rtcm->nav.ssr[sat[j] - 1];
+        ssr = ssr_of(rtcm, sat[j]);
         ssr->t0[1] = rtcm->time;
         ssr->udi[1] = udint;
         ssr->iod[1] = cssr->iod;
@@ -1292,7 +1320,7 @@ static void output_cssr_cb(rtcm_t* rtcm, cssr_t* cssr, FILE* fp) {
     sigmask2sig(nsat, sat, cssr->sigmask, cssr->cellmask, nsig, sig);
 
     for (k = lcnt = 0; k < nsat; k++) {
-        ssr = &rtcm->nav.ssr[sat[k] - 1];
+        ssr = ssr_of(rtcm, sat[k]);
         for (j = 0; j < nsig[k]; j++) {
             gnss = sys2gnss(satsys(sat[k], &prn), NULL);
             if (first == FALSE) {
@@ -1362,7 +1390,7 @@ static int decode_cssr_cb(rtcm_t* rtcm, cssr_t* cssr, int i0, int header, FILE* 
     }
 
     for (k = lcnt = 0; k < nsat; k++) {
-        ssr = &rtcm->nav.ssr[sat[k] - 1];
+        ssr = ssr_of(rtcm, sat[k]);
         ssr->t0[4] = rtcm->time;
         ssr->udi[4] = udint;
         ssr->iod[4] = cssr->iod;
@@ -1405,7 +1433,7 @@ static void output_cssr_pb(rtcm_t* rtcm, cssr_t* cssr, FILE* fp) {
     sigmask2sig(nsat, sat, cssr->sigmask, cssr->cellmask, nsig, sig);
 
     for (k = lcnt = 0; k < nsat; k++) {
-        ssr = &rtcm->nav.ssr[sat[k] - 1];
+        ssr = ssr_of(rtcm, sat[k]);
         gnss = sys2gnss(satsys(sat[k], &prn), NULL);
 
         for (j = 0; j < nsig[k]; j++) {
@@ -1477,7 +1505,7 @@ static int decode_cssr_pb(rtcm_t* rtcm, cssr_t* cssr, int i0, int header, FILE* 
     }
 
     for (k = lcnt = 0; k < nsat; k++) {
-        ssr = &rtcm->nav.ssr[sat[k] - 1];
+        ssr = ssr_of(rtcm, sat[k]);
         ssr->t0[5] = rtcm->time;
         ssr->udi[5] = udint;
         ssr->iod[5] = cssr->iod;
@@ -1558,7 +1586,7 @@ static void output_cssr_bias(rtcm_t* rtcm, cssr_t* cssr, int cbflag, int pbflag,
     }
 
     for (k = lcnt = 0; k < nsat; k++) {
-        ssr = &rtcm->nav.ssr[sat[k] - 1];
+        ssr = ssr_of(rtcm, sat[k]);
         if (!((netmask >> (nsat - 1 - k)) & 1)) {
             continue;
         }
@@ -1682,7 +1710,7 @@ static int decode_cssr_bias(rtcm_t* rtcm, cssr_t* cssr, int i0, int header, FILE
         if (netflag && !((netmask >> (nsat - 1 - k)) & 1)) {
             continue;
         }
-        ssr = &rtcm->nav.ssr[sat[k] - 1];
+        ssr = ssr_of(rtcm, sat[k]);
 
         if (rtcm->subtype == CSSR_TYPE_BIAS && cbflag == 1) {
             ssr->t0[4] = rtcm->time;
@@ -1784,7 +1812,7 @@ static void output_cssr_ura(rtcm_t* rtcm, cssr_t* cssr, FILE* fp) {
     if (fp == NULL) return;
     nsat = svmask2sat(cssr->svmask, sat);
     for (j = 0; j < nsat; j++) {
-        ssr = &rtcm->nav.ssr[sat[j] - 1];
+        ssr = ssr_of(rtcm, sat[j]);
         gnss = sys2gnss(satsys(sat[j], &prn), NULL);
         if (j != 0) {
             fprintf(fp, ",,,,,, %d, %d, 0x%02x\n", gnss, prn, ssr->ura);
@@ -1820,7 +1848,7 @@ static int decode_cssr_ura(rtcm_t* rtcm, cssr_t* cssr, int i0, int header, FILE*
     }
 
     for (j = 0; j < nsat; j++) {
-        ssr = &rtcm->nav.ssr[sat[j] - 1];
+        ssr = ssr_of(rtcm, sat[j]);
         ssr->t0[3] = rtcm->time;
         ssr->udi[3] = udint;
         ssr->iod[3] = iod;
@@ -2258,7 +2286,7 @@ static void output_cssr_combo(rtcm_t* rtcm, cssr_t* cssr, int flg_orbit, int flg
 
     for (j = s = 0; j < nsat; ++j) {
         if ((net_svmask >> (nsat - 1 - j)) & 1) {
-            ssr = &rtcm->nav.ssr[sat[j] - 1];
+            ssr = ssr_of(rtcm, sat[j]);
             gnss = sys2gnss(satsys(sat[j], &prn), NULL);
             if (s != 0) {
                 fprintf(fp, ",,,,,,,,,,, %d, %d", gnss, prn);
@@ -2367,7 +2395,7 @@ static int decode_cssr_combo(rtcm_t* rtcm, cssr_t* cssr, int i0, int header, FIL
         if (flg_net && !((net_svmask >> (nsat - 1 - j)) & 1)) {
             continue;
         }
-        ssr = &rtcm->nav.ssr[sat[j] - 1];
+        ssr = ssr_of(rtcm, sat[j]);
 
         if (flg_orbit == 1) {
             if (satsys(sat[j], NULL) == SYS_GAL) {
@@ -3157,6 +3185,12 @@ static int decode_qzs_msg(rtcm_t* rtcm, int head, uint8_t* frame, FILE** ofp) {
     switch (rtcm->subtype) {
         case CSSR_TYPE_MASK:
             ret = decode_cssr_mask(rtcm, cssr, i, head, ofp[0]);
+            if (ret == -1) {
+                rtcm->nbit = -1;
+                cssr->iod = -1;
+                *frame = 0;
+                return 0;
+            }
             if (startdecode[chidx] == FALSE) {
                 trace(1, "start CSSR decoding: week=%d, tow=%.1f\n", week, tow);
                 startdecode[chidx] = TRUE;
