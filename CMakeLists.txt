@@ -1141,6 +1141,9 @@ endforeach()
 #                           PPP-RTK with l6_merge but only one L6 file (2025/157)
 #   claslib_ppp_rtk_st12    PPP-RTK with SubType 12 (BINEX obs, 2019/349)
 #   claslib_ppp_rtk_l1cl5   PPP-RTK with L1C+L5 frequency (2025/022)
+#   claslib_ppp_rtk_l1cl5_iono_ssr
+#                           Same data with SSR iono compensation: the dual-L1
+#                           QZS satellite must stay in the solution (#345)
 #   claslib_vrs_rtk         VRS-RTK (2019/239)
 #   claslib_vrs_rtk_st12    VRS-RTK with SubType 12 (2019/349)
 #   claslib_vrs_rtk_2ch     VRS-RTK with 2-channel (2025/157)
@@ -1852,6 +1855,36 @@ set_tests_properties(claslib_ppp_rtk_l1cl5_abs_check PROPERTIES
     DEPENDS           claslib_ppp_rtk_l1cl5
     FIXTURES_REQUIRED claslib_data
     LABELS            "absolute;claslib;ppp-rtk"
+)
+
+# SSR ionosphere compensation with QZS L1C/A + L1C in the CSSR mask (#345):
+# compensatedisp() must skip the L1-L1 pair (1 - fi^2 = 0). Before the fix the
+# 0/0 coefficient made the compensation NaN and J03 dropped out: mean nsat over
+# 16:00-16:10 was 1.00 below the "meas" run, 0.00 after.
+add_test(NAME claslib_ppp_rtk_l1cl5_iono_ssr
+    COMMAND $<TARGET_FILE:mrtk> post
+        -k ${CMAKE_SOURCE_DIR}/conf/claslib/rnx2rtkp_L1CL5.toml
+        -k ${_CLSDATA}/iono_comp_ssr.toml
+        -ts 2025/01/22 16:00:00 -te 2025/01/22 16:09:59 -ti 1
+        -o ${CMAKE_BINARY_DIR}/out_claslib_ppp_rtk_l1cl5_iono_ssr.nmea
+        ${_CLSDATA}/0627022Q.bnx
+        ${_CLSDATA}/2025022Q.l6
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+set_tests_properties(claslib_ppp_rtk_l1cl5_iono_ssr PROPERTIES
+    FIXTURES_REQUIRED claslib_data
+    TIMEOUT           300
+    LABELS            "regression;claslib;ppp-rtk"
+)
+add_test(NAME claslib_ppp_rtk_l1cl5_iono_ssr_check
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/scripts/tests/check_iono_comp_nsat.py
+        ${CMAKE_BINARY_DIR}/out_claslib_ppp_rtk_l1cl5_iono_ssr.nmea
+        ${CMAKE_BINARY_DIR}/out_claslib_ppp_rtk_l1cl5.nmea
+        --max-drop 0.5
+)
+set_tests_properties(claslib_ppp_rtk_l1cl5_iono_ssr_check PROPERTIES
+    DEPENDS "claslib_ppp_rtk_l1cl5_iono_ssr;claslib_ppp_rtk_l1cl5"
+    LABELS  "regression;claslib;ppp-rtk"
 )
 
 # ── rnx2rtkp CLAS VRS-RTK regression (SubType 12 BINEX) ─────────────────────

@@ -514,7 +514,9 @@ void clas_osr_compensatedisp(clas_corr_t* corr, const int* index, const obsd_t* 
             qj = i;
             fqi = obsfreqs[corr->smode[isat][qi]] - 1;
             fqj = obsfreqs[corr->smode[isat][qj]] - 1;
-            if (fqi < 0 || fqj < 0) {
+            /* a second L1-band signal (e.g. QZS L1C/A + L1C) gives fi = 1 and
+             * 1 - fi^2 = 0 below; claslib 0.9.0 skips it the same way (#345) */
+            if (fqi < 0 || fqj < 0 || fqj == 0) {
                 continue;
             }
             fi = (lam[fqi] > 0.0 && lam[fqj] > 0.0) ? lam[fqj] / lam[fqi] : 0.0;
