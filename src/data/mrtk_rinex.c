@@ -1004,7 +1004,15 @@ static int decode_obsdata(FILE* fp, char* buff, int ver, int mask, sigind_t* ind
     }
     /* save observation data */
     for (i = 0; i < ind->n; i++) {
-        if (p[i] < 0 || val[i] == 0.0) {
+        if (p[i] < 0) {
+            continue;
+        }
+        if (val[i] == 0.0) {
+            /* a blank phase may still carry the slip (#504): keep LLI_SLIP so
+             * the callers' slip cache moves it to the next valid phase */
+            if (ind->type[i] == 1) {
+                obs->LLI[p[i]] |= lli[i] & LLI_SLIP;
+            }
             continue;
         }
         switch (ind->type[i]) {
@@ -1040,6 +1048,10 @@ static void saveslips(uint8_t slips[][NFREQ + NEXOBS], obsd_t* data) {
 static void restslips(uint8_t slips[][NFREQ + NEXOBS], obsd_t* data) {
     int i;
     for (i = 0; i < NFREQ + NEXOBS; i++) {
+        if (data->L[i] == 0.0) { /* slip stays pending until a valid phase */
+            data->LLI[i] = 0;
+            continue;
+        }
         if (slips[data->sat - 1][i] & 1) {
             data->LLI[i] |= LLI_SLIP;
         }
