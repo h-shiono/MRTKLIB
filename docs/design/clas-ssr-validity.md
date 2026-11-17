@@ -36,14 +36,23 @@ orbit epoch anchors the whole set:
 | Troposphere / STEC | within ±30 s of the orbit epoch |
 | Phase bias / code bias | phase bias at or before the orbit epoch; code bias per #406 |
 
-- A clock is therefore always used with the orbit of its own 30 s set. ST3 carries
-  no IODE (only ST2 and ST11 do), and its C0 refers to the broadcast ephemeris that
-  the ST2 of that set names. The pairing keeps a clock from being combined with an
-  orbit of a different IODE.
+- The pairing rule is one-sided. `get_close_clock()` rejects a clock that is 30 s
+  or more newer than the orbit, but it sets no lower bound. A clock newer than its
+  orbit set is therefore never used. If the ST3s that follow a decoded ST2 are lost,
+  however, a clock of the previous set, older than the orbit, can be selected.
+- ST3 carries no IODE (only ST2 and ST11 do). Its C0 refers to the broadcast
+  ephemeris that the ST2 of its own set names. The rule thus prevents a newer clock
+  being combined with an older orbit. It does not prevent the reverse, which is
+  inconsistent if the IODE changed between the two sets.
+- In the data measured for this page (§4), a clock older than its orbit was never
+  selected: 0 of about 89 000 bank lookups (claslib and handover post-processing,
+  `rtkrcv_clas_l6gap_*`, `rtkrcv_handover_*`, the two live hours), and no
+  satellite-epoch with a clock age above the orbit age. This is an observation on that data, not a property of the
+  code.
 - When the bank lookup fails, BackupCSSR keeps the previous snapshot, for up to
   180 s, and refreshes its clock under the same 30 s rule.
-- Because of the pairing, the clock age at use never exceeds the orbit age, so in
-  practice the 60 s orbit limit bounds both.
+- The orbit age limit does not bound the clock age, so the separate 60 s clock
+  limit in `satpos_ssr()` is not redundant.
 
 ### When one ST2 is lost
 
@@ -97,7 +106,9 @@ Findings:
 - **Clock: 60 s.** The clock age limit is not the IS value. For CLAS, MRTKLIB cuts
   off at a stale-clock error of about **5 cm RMS** (4.7–5.7 cm at 60 s in the table
   above). That is about half of the upstream 120 s and about twice the IS 10 s.
-- **Pairing: unchanged.** Each clock is used with the orbit of its own 30 s set.
+- **Pairing: unchanged.** A clock is never used with an orbit older than its own
+  30 s set. A clock older than the orbit remains possible (§2), and the 60 s clock
+  limit bounds its age.
 
 ### Alternatives not taken
 
