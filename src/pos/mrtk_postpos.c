@@ -125,6 +125,8 @@ static clas_ctx_t* clas_ctx = NULL;            /* CLAS decoder context */
 static FILE* fp_clas[CLAS_CH_NUM];             /* CLAS L6 file pointers */
 static char clas_file[CLAS_CH_NUM][1024];      /* CLAS L6 data file */
 static char clas_path[CLAS_CH_NUM][1024];      /* CLAS L6 data path */
+static clas_l6seq_t clas_seq[CLAS_CH_NUM];     /* CLAS channels assembled from L6 files (#373) */
+static int clas_seq_on = 0;                    /* CLAS channels read from clas_seq[] */
 
 /* show message and check break ----------------------------------------------*/
 static int checkbrk(const char* format, ...) {
@@ -601,20 +603,22 @@ static void update_clas(gtime_t time) {
         }
 
         /* open or swap CLAS L6 file */
-        reppath(clas_file[ch], path, time, "", "");
+        if (!clas_seq_on) {
+            reppath(clas_file[ch], path, time, "", "");
 
-        if (strcmp(path, clas_path[ch])) {
-            strcpy(clas_path[ch], path);
-            if (fp_clas[ch]) {
-                fclose(fp_clas[ch]);
+            if (strcmp(path, clas_path[ch])) {
+                strcpy(clas_path[ch], path);
+                if (fp_clas[ch]) {
+                    fclose(fp_clas[ch]);
+                }
+                fp_clas[ch] = fopen(path, "rb");
+                if (fp_clas[ch]) {
+                    trace(NULL, 2, "clas l6 file open: %s\n", path);
+                }
             }
-            fp_clas[ch] = fopen(path, "rb");
-            if (fp_clas[ch]) {
-                trace(NULL, 2, "clas l6 file open: %s\n", path);
+            if (!fp_clas[ch]) {
+                continue;
             }
-        }
-        if (!fp_clas[ch]) {
-            continue;
         }
 
         /* Read CSSR through the correction set whose mask time is at the
@@ -624,7 +628,8 @@ static void update_clas(gtime_t time) {
                 clas_has_orbit_bank(clas_ctx, ch)) {
                 break;
             }
-            ret = clas_input_cssrf(clas_ctx, fp_clas[ch], ch);
+            ret = clas_seq_on ? clas_l6seq_input(clas_ctx, clas_seq + ch, ch)
+                              : clas_input_cssrf(clas_ctx, fp_clas[ch], ch);
             if (ret < -1) {
                 break; /* EOF */
             }
@@ -1028,6 +1033,63 @@ static void combres(FILE* fp, const prcopt_t* popt, const solopt_t* sopt) {
         outsol(fp, &sol, rb, sopt);
     }
 }
+/* assign CLAS L6 files to channels ------------------------------------------
+ * Legacy: file i -> channel i, as given. Several L6 files per channel (#373),
+ * e.g. the per-PRN files of mrtk l6extract across a QZSS handover, need the
+ * channels built from the file contents: more files than channels, two files
+ * of one transmit pattern, or l6_merge off with two or more files (channel 1
+ * is not used then). Keyword paths (%Y ...) stay on the legacy path. */
+static void set_clas_files(const char** in, int n, int l6mrg) {
+    clas_l6file_t* f;
+    int chof[CLAS_L6SEQ_MAXFILE], i, j, ch, group = 0, tmpl = 0;
+
+    for (i = 0; i < n; i++) {
+        tmpl |= strchr(in[i], '%') != NULL;
+    }
+    if (n > 1 && !tmpl && (f = (clas_l6file_t*)calloc(n, sizeof(clas_l6file_t)))) {
+        for (i = 0; i < n; i++) {
+            clas_l6_scan_file(in[i], f + i);
+        }
+        group = n > CLAS_CH_NUM || !l6mrg;
+        for (i = 0; i < n && !group; i++) {
+            for (j = i + 1; j < n; j++) {
+                if (f[i].ptn >= 0 && f[i].ptn == f[j].ptn) {
+                    group = 1;
+                }
+            }
+        }
+        if (group) {
+            clas_seq_on = 1;
+            clas_l6seq_build(f, n, l6mrg, clas_seq, chof);
+            for (i = 0; i < n; i++) {
+                if ((ch = chof[i]) < 0) {
+                    showmsg("warning: CLAS L6 file not used (%s): %s",
+                            f[i].ptn < 0     ? "no CLAS frame"
+                            : f[i].nblk == 0 ? "no ST1 mask"
+                                             : "third pattern",
+                            in[i]);
+                } else if (!*clas_file[ch]) {
+                    strcpy(clas_file[ch], in[i]);
+                }
+            }
+        }
+        for (i = 0; i < n; i++) {
+            clas_l6_free_file(f + i);
+        }
+        free(f);
+    }
+    if (group) {
+        return;
+    }
+    for (i = 0; i < n; i++) {
+        if (i < CLAS_CH_NUM) {
+            strcpy(clas_file[i], in[i]);
+        } else {
+            showmsg("warning: CLAS L6 file not used (more than %d keyword paths): %s", CLAS_CH_NUM, in[i]);
+            trace(NULL, 2, "CLAS L6 file not used: %s\n", in[i]);
+        }
+    }
+}
 /* read prec ephemeris, sbas data, tec grid and open rtcm --------------------*/
 static void readpreceph(char** infile, int n, const prcopt_t* prcopt, nav_t* nav, sbs_t* sbs, gtime_t ts) {
     seph_t seph0 = {0};
@@ -1164,6 +1226,7 @@ static void readpreceph(char** infile, int n, const prcopt_t* prcopt, nav_t* nav
      * .l6e: MADOCA-PPP L6E; in CLAS mode reserved for CLAS CMA (not yet used). */
     {
         int nf_l6d = 0, nf_clas = 0;
+        const char* clas_in[CLAS_L6SEQ_MAXFILE];
         int clas_mode = (prcopt->mode == PMODE_PPP_RTK) ||
                         (prcopt->mode >= PMODE_SSR2OSR && prcopt->mode <= PMODE_SSR2OSR_FIXED) ||
                         strstr(prcopt->pppopt, "-clas") != NULL;
@@ -1194,8 +1257,8 @@ static void readpreceph(char** infile, int n, const prcopt_t* prcopt, nav_t* nav
                 showmsg("warning: CLAS CMA input not supported yet, ignored: %s", infile[i]);
                 trace(NULL, 2, "L6E file ignored in CLAS mode (CMA not supported): %s\n", infile[i]);
             } else if (clas_mode && !is_l6e) { /* CLAS L6D */
-                if (nf_clas < CLAS_CH_NUM) {
-                    strcpy(clas_file[nf_clas++], infile[i]);
+                if (nf_clas < CLAS_L6SEQ_MAXFILE) {
+                    clas_in[nf_clas++] = infile[i];
                 }
             } else if (is_l6d) {
                 showmsg("warning: L6D file ignored outside CLAS mode: %s", infile[i]);
@@ -1226,6 +1289,8 @@ static void readpreceph(char** infile, int n, const prcopt_t* prcopt, nav_t* nav
         if (nf_l6d > 0 && !nav->pppiono) {
             nav->pppiono = (pppiono_t*)calloc(1, sizeof(pppiono_t));
         }
+
+        set_clas_files(clas_in, nf_clas, prcopt->l6mrg);
 
         /* initialize CLAS context if files found */
         if (nf_clas > 0 && !clas_ctx) {
@@ -1308,6 +1373,10 @@ static void freepreceph(nav_t* nav, sbs_t* sbs) {
     bds_b2b_file[0] = bds_b2b_path[0] = '\0';
 
     /* free CLAS context */
+    for (i = 0; i < CLAS_CH_NUM; i++) {
+        clas_l6seq_free(clas_seq + i);
+    }
+    clas_seq_on = 0;
     if (clas_ctx) {
         for (i = 0; i < CLAS_CH_NUM; i++) {
             if (fp_clas[i]) {
