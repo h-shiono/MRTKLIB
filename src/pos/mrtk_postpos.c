@@ -1688,6 +1688,33 @@ static int openses(mrtk_ctx_t* ctx, const prcopt_t* popt, const solopt_t* sopt, 
     }
     return 1;
 }
+/* set bias-sinex and fcb file paths -------------------------------------------
+ * a .bia/.fcb input file takes precedence over the file options. the paths are
+ * kept unexpanded: udbiass() expands their keywords at each epoch. this must
+ * run for every ts/te combination; upstream set them only when both ts and te
+ * were given (#475) */
+static void setbiapath(char** infile, int n, const filopt_t* fopt, nav_t* nav) {
+    char* ext;
+    int i;
+
+    nav->biapath[0] = nav->fcbpath[0] = '\0';
+    for (i = 0; i < n; i++) {
+        if (!(ext = strrchr(infile[i], '.'))) {
+            continue;
+        }
+        if (!strcmp(ext, ".bia") || !strcmp(ext, ".BIA")) {
+            strcpy(nav->biapath, infile[i]);
+        } else if (!strcmp(ext, ".fcb") || !strcmp(ext, ".FCB")) {
+            strcpy(nav->fcbpath, infile[i]);
+        }
+    }
+    if (!*nav->biapath && *fopt->bia) {
+        strcpy(nav->biapath, fopt->bia);
+    }
+    if (!*nav->fcbpath && *fopt->fcb) {
+        strcpy(nav->fcbpath, fopt->fcb);
+    }
+}
 /* close procssing session ---------------------------------------------------*/
 static void closeses(mrtk_ctx_t* ctx, nav_t* nav, pcvs_t* pcvs, pcvs_t* pcvr) {
     trace(ctx, 3, "closeses:\n");
@@ -2177,6 +2204,7 @@ extern int postpos(mrtk_ctx_t* ctx, gtime_t ts, gtime_t te, double ti, double tu
     if (!openses(ctx, popt, sopt, fopt, &navs, &pcvss, &pcvsr)) {
         return -1;
     }
+    setbiapath(infile, n, fopt, &navs);
 
     if (ts.time != 0 && te.time != 0 && tu >= 0.0) {
         if (timediff(te, ts) < 0.0) {
@@ -2235,12 +2263,6 @@ extern int postpos(mrtk_ctx_t* ctx, gtime_t ts, gtime_t te, double ti, double tu
                     }
                     nf += reppaths(infile[j], ifile + nf, MAXINFILE - nf, tts, ttte, "", "");
                 }
-                if (ext && (!strcmp(ext, ".bia") || !strcmp(ext, ".BIA"))) {
-                    strcpy(navs.biapath, infile[j]);
-                }
-                if (ext && (!strcmp(ext, ".fcb") || !strcmp(ext, ".FCB"))) {
-                    strcpy(navs.fcbpath, infile[j]);
-                }
                 while (k < nf) {
                     index[k++] = j;
                 }
@@ -2254,12 +2276,6 @@ extern int postpos(mrtk_ctx_t* ctx, gtime_t ts, gtime_t te, double ti, double tu
                 flag = 0;
             }
 
-            if (strlen(navs.biapath) == 0 && strlen(fopt->bia) > 0) {
-                strcpy(navs.biapath, fopt->bia);
-            }
-            if (strlen(navs.fcbpath) == 0 && strlen(fopt->fcb) > 0) {
-                strcpy(navs.fcbpath, fopt->fcb);
-            }
             /* execute processing session */
             stat = execses_b(ctx, tts, tte, ti, popt, sopt, fopt, flag, ifile, index, nf, ofile, rov, base);
 

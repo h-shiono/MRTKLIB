@@ -2469,6 +2469,41 @@ set_tests_properties(igs_pppar_ge_check PROPERTIES
     LABELS            "absolute;igs;ppp;pppar"
 )
 
+# Same case with -ts only (#475): the Bias-SINEX of [files] bias_sinex was
+# loaded only when both -ts and -te were given, so this run never fixed (Q=1 0%).
+add_test(NAME igs_pppar_ge_tsonly
+    COMMAND $<TARGET_FILE:mrtk> post
+        -k ${CMAKE_SOURCE_DIR}/conf/igs/rnx2rtkp_igspppar.toml
+        -ts 2026/01/21 0:00:00
+        -o ${CMAKE_BINARY_DIR}/out_igs_pppar_ge_tsonly.pos
+        ${_IGSDATA}/30340210.26o
+        ${_IGSDATA}/BRDC00IGS_2026021_GE.rnx
+        ${_IGSDATA}/COD0MGXFIN_2026021_05M_ORB.SP3
+        ${_IGSDATA}/COD0MGXFIN_2026021_30S_CLK.CLK
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+set_tests_properties(igs_pppar_ge_tsonly PROPERTIES
+    FIXTURES_REQUIRED igs_data
+    TIMEOUT           180
+    LABELS            "regression;igs;ppp;pppar"
+)
+
+add_test(NAME igs_pppar_ge_tsonly_check
+    COMMAND ${Python3_EXECUTABLE} ${_COMPARE_POS_ABS}
+        --f5 ${_IGSDATA}/93034.26.pos
+        --date 2026/01/21
+        --tolerance 0.15
+        --skip-epochs 30
+        --min-fix-rate 10
+        ${CMAKE_BINARY_DIR}/out_igs_pppar_ge_tsonly.pos
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+set_tests_properties(igs_pppar_ge_tsonly_check PROPERTIES
+    DEPENDS           igs_pppar_ge_tsonly
+    FIXTURES_REQUIRED igs_data
+    LABELS            "absolute;igs;ppp;pppar"
+)
+
 # ── receiver code bias coverage (#263) ───────────────────────────────────────
 # The COD MGEX bias-sinex product used above has no station-level (receiver)
 # OSB records, so nav->osb.rsatcb/rsyscb are never populated by the tests
