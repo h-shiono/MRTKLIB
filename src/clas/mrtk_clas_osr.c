@@ -1042,6 +1042,53 @@ static void clas_osr_adjust_r_dts(double* retr, double* retdts, gtime_t teph, in
     trace(NULL, 2, "adjust_r_dts: tow=%.1f sat=%d r=%.8f dts=%.8f\n", time2gpst(teph, NULL), sat, *retr, *retdts);
 }
 
+/**
+ * @brief Satellite / signal health gate of claslib satsigexclude() (#285).
+ *
+ * Covers the health half only: the caller rejects svh == -1 itself and skips
+ * this gate for a force-included satellite (excluded_sats "+PRN", exsats 2,
+ * as upstream); excluded_sats / navsys exclusion is applied before the
+ * PPP-RTK engine runs (#258).
+ * A non-QZS satellite with svh != 0 is excluded. For QZS the LNAV 6-bit
+ * health is per signal (IS-QZSS-PNT-006 Table 4.1.2-5): bit 5 L1C/A or L1C/B,
+ * bit 3 L2C, bit 2 L5 (mask 0x2C, as upstream); bits 4/1/0 (L1C/A, L1C, L1C/B)
+ * are not checked, so live 0x01 (QZS-2/3/4) / 0x10 (QZS-1R/6) pass. The
+ * unhealthy signal's L and P are zeroed.
+ *
+ * Upstream zeroes slots 0/1/2, which are L1/L2/L5 in claslib's slot order.
+ * MRTKLIB orders QZS L1/L5/L2, so the band is taken from the obs code.
+ *
+ * @param[in,out] obs     Observation of one satellite (L/P of unhealthy signals zeroed)
+ * @param[in]     svh     Satellite health flag (>= 0)
+ * @param[out]    masked  Bit j set when slot j was zeroed
+ * @return 1: exclude the satellite, 0: keep it
+ */
+static int clas_osr_healthexclude(obsd_t* obs, int svh, uint32_t* masked) {
+    int j, band;
+
+    *masked = 0;
+    if (!svh) {
+        return 0;
+    }
+    if (satsys(obs->sat, NULL) != SYS_QZS) {
+        trace(NULL, 3, "unhealthy satellite: sat=%3d svh=%02X\n", obs->sat, svh);
+        return 1;
+    }
+    if (!(svh & 0x2C)) {
+        return 0;
+    }
+    for (j = 0; j < NFREQ + NEXOBS; j++) {
+        band = obs->code[j] ? code2freq_num(obs->code[j]) : 0;
+        if ((band == 1 && (svh & 0x20)) || (band == 2 && (svh & 0x08)) || (band == 5 && (svh & 0x04))) {
+            trace(NULL, 3, "unhealthy signal: sat=%3d svh=%02X code=%s\n", obs->sat, svh, code2obs(obs->code[j]));
+            obs->L[j] = 0.0;
+            obs->P[j] = 0.0;
+            *masked |= 1u << j;
+        }
+    }
+    return 0;
+}
+
 /*============================================================================
  * clas_osr_zdres -- Zero-Differenced Phase/Code Residuals
  *===========================================================================*/
@@ -1065,7 +1112,9 @@ static void clas_osr_adjust_r_dts(double* retr, double* retdts, gtime_t teph, in
  * @param[in]     rs       Satellite positions+velocities (6*n)
  * @param[in]     dts      Satellite clock corrections (2*n)
  * @param[in]     vare     Satellite position variances (n)
- * @param[in]     svh      Satellite health flags (n)
+ * @param[in]     svh      Satellite health flags (n): -1 no ephemeris; non-QZS
+ *                         != 0 excludes the satellite; QZS bits 0x2C zero the
+ *                         unhealthy signal (see clas_osr_healthexclude())
  * @param[in,out] nav      Navigation data
  * @param[in,out] x        State vector (position extracted from [0:2])
  * @param[out]    y        Residuals (n*nf*2), can be NULL
@@ -1090,6 +1139,7 @@ int clas_osr_zdres(const obsd_t* obs, int n, const double* rs, const double* dts
     double r, rr[3], disp[3], pos[3], meas[NFREQ * 2], zwd, ztd;
     double lam[NFREQ + NEXOBS], fi;
     int i, j, f, qj, sat, sys, brk, nf = opt->nf, nftmp;
+    uint32_t hmask;
     int tbrk = 0;
     double modl[NFREQ * 2];
     obsd_t* obs_copy = NULL; /* local mutable copy of obs */
@@ -1237,8 +1287,9 @@ int clas_osr_zdres(const obsd_t* obs, int n, const double* rs, const double* dts
             continue;
         }
 
-        /* excluded satellite check (basic health check) */
-        if (svh[i] == -1) {
+        /* ephemeris unavailable, unhealthy satellite or QZS signal */
+        hmask = 0;
+        if (svh[i] < 0 || (opt->exsats[sat - 1] != 2 && clas_osr_healthexclude(obs_copy + i, svh[i], &hmask))) {
             continue;
         }
 
@@ -1327,6 +1378,11 @@ int clas_osr_zdres(const obsd_t* obs, int n, const double* rs, const double* dts
 
             osr[i].p[j] = modl[nftmp + j];
             osr[i].c[j] = modl[j];
+            /* VRS / ssr2obs emit osr p/c, which do not depend on obs L/P: an
+             * unhealthy QZS signal must not be emitted (upstream does) */
+            if (hmask & (1u << j)) {
+                osr[i].p[j] = osr[i].c[j] = 0.0;
+            }
 
             /* repair cycle slip of pbias */
             tow = time2gpst(obs_copy[i].time, NULL);
@@ -1399,6 +1455,10 @@ int clas_osr_zdres(const obsd_t* obs, int n, const double* rs, const double* dts
         /* measurement phase and code (ENA_PPP_RTK path) */
         for (f = 0; f < nf; f++) {
             if (lam[f] == 0.0 || obs_copy[i].L[f] == 0.0 || obs_copy[i].P[f] == 0.0) {
+                /* the ISB / L2C phase-shift terms above made meas[] nonzero;
+                 * left there, the residual loop takes meas - modl (a full
+                 * range) as a residual. Upstream has the same gap. */
+                meas[f] = meas[f + nf] = 0.0;
                 continue;
             }
             /* SNR is in SNR_UNIT (0.001 dBHz), not claslib's 0.25 dBHz (#479) */
