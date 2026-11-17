@@ -162,9 +162,31 @@ static void test_readrnx(void) {
     freeobs(&obs);
 }
 
+/* LLI characters of J02 L6L in the written file, one per epoch: the reader
+ * now repairs a missing slip itself, so readback alone cannot prove that
+ * convrnx wrote it. Returns the number of epochs found. */
+static int written_l6l_lli(const char* file, char* lli, int nmax) {
+    char buff[1024], *q;
+    int k = -1, n = 0, i;
+    FILE* fp = fopen(file, "r");
+
+    if (!fp) return 0;
+    while (fgets(buff, sizeof(buff), fp)) {
+        if (strstr(buff, "SYS / # / OBS TYPES") && buff[0] == 'J') {
+            for (i = 0, q = buff + 7; i < 13; i++, q += 4) {
+                if (!strncmp(q, "L6L", 3)) k = i;
+            }
+        }
+        if (strncmp(buff, "J02", 3) || k < 0 || n >= nmax) continue;
+        lli[n++] = (int)strlen(buff) > 3 + 16 * k + 14 ? buff[3 + 16 * k + 14] : ' ';
+    }
+    fclose(fp);
+    return n;
+}
+
 static void test_convrnx(void) {
     rnxopt_t* opt = (rnxopt_t*)calloc(1, sizeof(rnxopt_t));
-    char ofile_[9][1024] = {{0}}, *ofile[9];
+    char ofile_[9][1024] = {{0}}, *ofile[9], lli[8] = {0};
     obs_t obs = {0};
     int i, j;
 
@@ -184,6 +206,14 @@ static void test_convrnx(void) {
 
     CHECK(convrnx(STRFMT_RINEX, opt, FILE_IN, ofile) == 1, "convrnx: conversion ok");
     free(opt);
+
+    /* written J02 L6L LLI: blank+1 kept, blank, carried 1, none */
+    CHECK(written_l6l_lli(FILE_OUT, lli, 8) == 4, "convrnx: 4 J02 records written");
+    printf("convrnx written J02 L6L LLI: '%c' '%c' '%c' '%c'\n", lli[0], lli[1], lli[2], lli[3]);
+    CHECK(lli[0] == '1', "convrnx: LLI 1 kept on the blank L6L field");
+    CHECK(lli[1] == ' ', "convrnx: no LLI on the blank L6L without one");
+    CHECK(lli[2] == '1', "convrnx: LLI 1 written on the first valid L6L");
+    CHECK(lli[3] == ' ', "convrnx: no LLI on the second valid L6L");
 
     readrnx(FILE_OUT, 1, "-JL6L", &obs, NULL, NULL);
     CHECK(obs.n == 8, "convrnx: 8 observation records in the output");
