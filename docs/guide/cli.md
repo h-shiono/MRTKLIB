@@ -48,6 +48,31 @@ They are recognised by extension:
 The extensions are case-insensitive (`.L6`, `.L6D`, `.L6E`). L6 files are never
 read as RINEX.
 
+**CLAS channels.** One or two CLAS files are read one per channel, in
+command-line order (channel 1 only with `l6_merge = 1`). Several files per
+channel, such as the per-PRN files of `mrtk l6extract` across a QZSS
+satellite handover, are combined by `mrtk post` itself whenever there are more
+than two CLAS files, two files of the same transmit pattern, or two or more
+files with `l6_merge = 0`:
+
+- With `l6_merge = 1`, each transmit pattern takes one channel, in order of
+  first appearance (as in `mrtk run`); with `l6_merge = 0`, all files go to
+  channel 0.
+- Within a channel the files are read in time order, taken from the CSSR ST1
+  mask epochs (one block per 30 s CSSR cycle), so the file order on the
+  command line does not matter. Where files overlap in time, the current file
+  is kept and another one is taken only where the current one has a gap, so
+  the decoder never steps back in time. Without overlap the result is the
+  same as concatenating the files. ST1 carries the time of week only: the
+  files of one run must span less than 3.5 days.
+- A file without CLAS frames or without an ST1 mask, or of a third transmit
+  pattern, is not used (with a warning).
+
+When two patterns start in the same 30 s cycle, the pattern of the file given
+first takes channel 0. Keyword paths (`%Y`, ...) are always read one file per
+channel.
+Design notes: [CLAS L6 channels from several files](../design/clas-l6-multi-file.md).
+
 **Examples:**
 
 ```bash
@@ -66,6 +91,10 @@ mrtk post --config conf/claslib/rnx2rtkp.toml obs.obs nav.nav \
 
 # CLAS PPP-RTK with claslib-style .l6d input
 mrtk post --config conf/claslib/rnx2rtkp.toml obs.bnx 2023044J.l6d
+
+# CLAS PPP-RTK from the per-PRN files of mrtk l6extract (handover across files)
+mrtk l6extract -o l6 rover.ubx
+mrtk post --config conf/claslib/rnx2rtkp.toml obs.obs nav.nav l6.19*.l6d
 ```
 
 ---
@@ -336,7 +365,9 @@ example, a QZS-3 capture gives `l6.199.l6d` (CLAS) and `l6.209.l6e`
 (MADOCA-PPP and QZNMA). Both are `mrtk post` inputs: a `.l6d` file is routed
 by its content (CLAS, or MADOCA iono for PRN 200/201), and a `.l6e` file is
 MADOCA-PPP input (in CLAS mode it is reserved for CLAS CMA and ignored with a
-warning).
+warning). A receiver channel that hands over from one QZS to another ends up
+in two files; `mrtk post` takes all of them and rebuilds the channels (see
+[CLAS channels](#mrtk-post)).
 
 !!! note "Changed in v0.7.12"
     Earlier versions wrote `{prefix}_J{PRN}_{l6d|l6e}.l6`, named by the

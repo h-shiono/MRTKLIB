@@ -115,6 +115,7 @@ add_library(mrtklib STATIC
     src/clas/mrtk_clas_grid.c
     src/clas/mrtk_clas_osr.c
     src/clas/mrtk_clas_isb.c
+    src/clas/mrtk_clas_l6seq.c
 
     # ── pos/ (測位アルゴリズム・オプション) ────────────────────────────────────
     src/pos/mrtk_spp.c
@@ -415,6 +416,16 @@ target_link_libraries(utest_clas_mask PRIVATE mrtklib)
 add_test(NAME utest_clas_mask COMMAND utest_clas_mask
          WORKING_DIRECTORY ${_UTEST_DIR})
 set_tests_properties(utest_clas_mask PROPERTIES LABELS "utest")
+
+# CLAS channels from several L6 files (#373): pattern grouping and block-wise
+# time order on synthetic files; mrtk post equivalence in post_handover_*_prn.
+add_executable(utest_clas_l6seq ${_UTEST_DIR}/utest_clas_l6seq.c)
+# Override global -ansi (=C90): this test uses C11 (P-01).
+target_compile_options(utest_clas_l6seq PRIVATE -std=c11)
+target_link_libraries(utest_clas_l6seq PRIVATE mrtklib)
+add_test(NAME utest_clas_l6seq COMMAND utest_clas_l6seq
+         WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
+set_tests_properties(utest_clas_l6seq PROPERTIES LABELS "utest")
 
 # CLAS OSR satellite / QZS signal health gate (#285). Includes
 # mrtk_clas_osr.c to reach the private clas_osr_healthexclude().
@@ -3223,7 +3234,8 @@ set_tests_properties(handover_checker_selftest PROPERTIES LABELS "utest;handover
 # ── Post-processing through the handover (mrtk post) ──────────────────────────
 # scripts/tests/run_handover_post.py: mrtk convert (obs/nav) + mrtk l6extract
 # (per-PRN .l6d, #362) + per-channel concatenation in the time order of
-# handover_manifest.json + mrtk post. D9C: two channels, l6_merge = 1;
+# handover_manifest.json + mrtk post (the reference of the per-PRN runs
+# below). D9C: two channels, l6_merge = 1;
 # mosaic-CLAS: one channel, l6_merge = 0. Post-processing is deterministic
 # per build; the gates are the same behavioural ones as the RT replays.
 set(_HO_POST_TEMPLATE ${CMAKE_SOURCE_DIR}/tests/data/handover/rnx2rtkp_handover.toml.in)
@@ -3262,6 +3274,24 @@ _handover_post(d9c_s  1 "--recover 30 --max-nonfix 10 --min-nsat 13")
 _handover_post(mcla_a 0 "--recover 165 --max-nonfix 20 --min-nsat 12")
 _handover_post(mcla_e 0 "--recover 30 --max-nonfix 10 --min-nsat 11")
 _handover_post(mcla_o 0 "--recover 30 --max-nonfix 10 --min-nsat 10")
+
+# mrtk post on the per-PRN files of l6extract (#373): the channels are built
+# from the file contents (transmit pattern, ST1 time order; each channel's
+# PRNs are given in reverse time order) and the output must be byte-identical
+# to the concatenated-channel run above.
+foreach(_case d9c_m d9c_s mcla_a mcla_e mcla_o)
+    add_test(NAME post_handover_${_case}_prn
+        COMMAND ${Python3_EXECUTABLE} ${_RUN_HO_POST} $<TARGET_FILE:mrtk> ${_HODATA} ${_case}
+            ${CMAKE_BINARY_DIR}/handover/rnx2rtkp_handover_${_case}.toml
+            ${CMAKE_BINARY_DIR}/handover/post_${_case}_prn ${CMAKE_BINARY_DIR}/out_post_handover_${_case}_prn.nmea
+            --per-prn ${CMAKE_BINARY_DIR}/out_post_handover_${_case}.nmea
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+    set_tests_properties(post_handover_${_case}_prn PROPERTIES
+        DEPENDS           post_handover_${_case}
+        FIXTURES_REQUIRED "handover_data;claslib_data"
+        TIMEOUT           300
+        LABELS            "regression;handover;claslib;ppp-rtk")
+endforeach()
 
 # Absolute accuracy of the post-processed windows vs the CR-G5 antenna
 # reference point (tests/data/handover/README.md: 24 h static PPP-AR with CODE
