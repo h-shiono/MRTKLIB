@@ -1259,6 +1259,9 @@ static void readpreceph(char** infile, int n, const prcopt_t* prcopt, nav_t* nav
             } else if (clas_mode && !is_l6e) { /* CLAS L6D */
                 if (nf_clas < CLAS_L6SEQ_MAXFILE) {
                     clas_in[nf_clas++] = infile[i];
+                } else {
+                    showmsg("warning: CLAS L6 file not used (more than %d files): %s", CLAS_L6SEQ_MAXFILE, infile[i]);
+                    trace(NULL, 2, "CLAS L6 file not used (more than %d files): %s\n", CLAS_L6SEQ_MAXFILE, infile[i]);
                 }
             } else if (is_l6d) {
                 showmsg("warning: L6D file ignored outside CLAS mode: %s", infile[i]);

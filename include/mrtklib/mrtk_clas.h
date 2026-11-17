@@ -790,6 +790,8 @@ typedef struct {
     int prn;           /**< L6 PRN of the first CLAS frame (-1: no CLAS frame) */
     int ptn;           /**< transmit pattern ID of the first CLAS frame (-1: no CLAS frame) */
     long size;         /**< file size (bytes) */
+    long st1off;       /**< byte offset of the first ST1 frame (blk[0].off is 0) */
+    int nlead;         /**< frames before the first ST1 frame */
     int nblk, nmax;    /**< number of blocks / allocated */
     clas_l6blk_t* blk; /**< blocks in file order, ST1 epoch strictly increasing */
 } clas_l6file_t;
@@ -847,7 +849,9 @@ void clas_l6_free_file(clas_l6file_t* f);
  * staying on the current file. Blocks of other files that start before the
  * end of the last block read (its ST1 epoch plus its frames, 1 s each, so a
  * block that runs on over a lost ST1 counts in full) are skipped: the decoder
- * never goes back in time on a switch. A channel of one file reads the whole
+ * never goes back in time on a switch. On a switch to a file's first block,
+ * its frames before the first ST1 (dated back from that ST1, 1 s each) are
+ * dropped if they start before that end. A channel of one file reads the whole
  * file. ST1 carries the TOW only: the epochs of different files are aligned
  * to the first usable file within half a week, so the files of one call must
  * span less than 3.5 days.

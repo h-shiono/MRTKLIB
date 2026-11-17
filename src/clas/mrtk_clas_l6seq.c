@@ -87,6 +87,8 @@ extern int clas_l6_scan_file(const char* path, clas_l6file_t* f) {
         nb = 0;
         if (f->nblk > 0) {
             f->blk[f->nblk - 1].nfrm++;
+        } else {
+            f->nlead++;
         }
 
         l6_parse_header(fr, &hdr);
@@ -113,6 +115,9 @@ extern int clas_l6_scan_file(const char* path, clas_l6file_t* f) {
         }
         if (f->nblk > 0) {
             f->blk[f->nblk - 1].nfrm--; /* the ST1 frame, counted above, starts the new block */
+        } else {
+            f->nlead--;
+            f->st1off = fstart;
         }
         if (!add_block(f, f->nblk == 0 ? 0 : fstart, t)) {
             trace(NULL, 1, "clas_l6_scan_file: memory allocation error, %s scanned up to byte %ld\n", path, pos);
@@ -202,11 +207,18 @@ static void build_channel(const clas_l6file_t* files, const double* shift, const
         }
         {
             const clas_l6file_t* f = files + grp[best];
+            long start;
             j = idx[best];
             if (best != cur) {
                 trace(NULL, 2, "clas l6 channel: %s from block %.0f\n", f->path, f->blk[j].t + shift[grp[best]]);
             }
-            if (!add_segment(seq, best, f->blk[j].off, j + 1 < f->nblk ? f->blk[j + 1].off : f->size)) {
+            start = f->blk[j].off;
+            if (j == 0 && started && f->blk[0].t + shift[grp[best]] - f->nlead < cov - 0.5) {
+                /* frames before the first ST1 overlap what was read: drop them */
+                trace(NULL, 2, "clas l6 channel: %s, %d leading frames dropped\n", f->path, f->nlead);
+                start = f->st1off;
+            }
+            if (!add_segment(seq, best, start, j + 1 < f->nblk ? f->blk[j + 1].off : f->size)) {
                 trace(NULL, 1, "clas l6 channel: memory allocation error, channel truncated\n");
                 return;
             }

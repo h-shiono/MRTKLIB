@@ -104,10 +104,17 @@ files). Decoder state is not touched.
   count (one frame per second). Blocks of other files that start before it are
   skipped.
 - A real gap still gets filled, because a block that lost frames is short.
-- Unit test case (11) covers both: a lost ST1 (60 frames in the block) and a
-  2-frame shortfall.
-- This was added after the algorithm-safety review. L6 frame losses are common
-  on live data (#363 / #406).
+- The same check covers the frames before a file's first ST1. They are dated
+  back from that ST1, one second per frame. On a switch to the file they are
+  dropped if they start before the end of the last block read, and kept
+  otherwise. Keeping them where they do not overlap is what makes the
+  non-overlapping case equal to concatenation.
+- Unit test case (11) covers a lost ST1 (60 frames in the block) and a 2-frame
+  shortfall. Case (12) covers leading frames that overlap and leading frames
+  that do not.
+- The lost-ST1 rule was added after the algorithm-safety review, and the
+  leading-frame rule after the Greptile review of PR #514. L6 frame losses are
+  common on live data (#363 / #406).
 
 ### 3.5 When the new path is used
 
@@ -160,7 +167,8 @@ files). Decoder state is not touched.
   - week rollover;
   - a one-file channel;
   - the order of the decoder input;
-  - lost ST1.
+  - lost ST1;
+  - leading frames on a switch.
 - **`post_handover_{d9c_m,d9c_s,mcla_a,mcla_e,mcla_o}_prn`.** The per-PRN files
   of handover-v1 are given with each channel's PRNs in reverse time order. The
   output must be byte-identical to `post_handover_<case>`, the concatenated
@@ -182,10 +190,6 @@ files). Decoder state is not touched.
 - **A file whose pattern changes part-way** (a concatenated single-channel
   capture) is classified by its first frame. This is harmless with
   `l6_merge = 0`. With `l6_merge = 1`, give per-PRN files instead.
-- **Frames before a file's first ST1** are read with its first block. After a
-  switch to that file they may repeat a partial cycle that has already been
-  read, without an ST1. They are kept because concatenation keeps them, which
-  makes the byte identity possible.
 - **Input count.** `mrtk post` takes at most 16 input files in total, and
   extra arguments are dropped by the CLI (`MAXFILE`). The CLAS assembly also
-  caps at 16 (`CLAS_L6SEQ_MAXFILE`).
+  caps at 16 (`CLAS_L6SEQ_MAXFILE`) and warns about any further file.

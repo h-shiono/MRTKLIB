@@ -22,6 +22,8 @@
  *  (11) lost ST1 in the current file (its block runs on over the next 30 s):
  *       the other file's block inside that span is skipped, no step back
  *       in time; a real gap (fewer frames) is still filled
+ *  (12) frames before a file's first ST1 are dropped on a switch when they
+ *       overlap what was read, kept when they do not
  *----------------------------------------------------------------------------*/
 #include <stdio.h>
 #include <stdlib.h>
@@ -309,6 +311,26 @@ int main(void) {
         write_file_n("l6seq_a.l6d", 199, 0, 0, tc, 3, nc);
         build(in, 2, 0, seq, chof);
         CHECK(same_segs(seq, e2, 2), "(11) a 2-frame shortfall does not hide B's block 60");
+        free_seq(seq);
+    }
+    /* (12) A: 0, 30 (60 frames, end 60); B: lead frames, first ST1 at 60 / 70 */
+    {
+        static const int ta[] = {0, 30}, na[] = {30, 30}, tb[] = {60, 90}, tb2[] = {70, 100}, nb[] = {30, 30};
+        const char* in[] = {"l6seq_a.l6d", "l6seq_b.l6d"};
+        const seg_t e[] = {{"l6seq_a.l6d", 0, 60 * FRM}, {"l6seq_b.l6d", 15 * FRM, 75 * FRM}};
+        const seg_t e2[] = {{"l6seq_a.l6d", 0, 60 * FRM}, {"l6seq_b.l6d", 0, 65 * FRM}};
+        write_file_n("l6seq_a.l6d", 199, 0, 0, ta, 2, na);
+        write_file_n("l6seq_b.l6d", 195, 0, 15, tb, 2, nb); /* lead dated 45..59 */
+        clas_l6_scan_file("l6seq_b.l6d", &f);
+        CHECK(f.nlead == 15 && f.st1off == 15 * FRM && f.blk[0].off == 0 && f.blk[0].nfrm == 30,
+              "(12) leading frames and first ST1 offset");
+        clas_l6_free_file(&f);
+        build(in, 2, 0, seq, chof);
+        CHECK(same_segs(seq, e, 2), "(12) overlapping leading frames dropped");
+        free_seq(seq);
+        write_file_n("l6seq_b.l6d", 195, 0, 5, tb2, 2, nb); /* lead dated 65..69 */
+        build(in, 2, 0, seq, chof);
+        CHECK(same_segs(seq, e2, 2), "(12) leading frames after the end kept");
         free_seq(seq);
     }
     remove("l6seq_scan.l6d");
