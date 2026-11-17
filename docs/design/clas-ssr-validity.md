@@ -144,9 +144,11 @@ multi-day replay.
 - Two clean hours and about three lossy hours were analysed. No multi-day replay
   was available at the time.
 - The RT replay tests that read BINEX and L6 from separate files
-  (`rtkrcv_rt_clas*`) replay the L6 stream 18–20 s late (#515). Their clock ages are
-  not representative and were excluded from the conclusions above. Single-stream SBF
-  replays and live data are not affected.
+  (`rtkrcv_rt_clas*`) replayed the L6 stream 18–20 s late when this was measured
+  (#515), so their clock ages were excluded from the conclusions above. With the tags
+  rebuilt from the L6 content, the clock age at use in those replays is 0–4 s (median
+  2 s, the same as post-processing). It was 22 s median on 2019/239 and 11 s on
+  2025/157 before. Single-stream SBF replays and live data were not affected.
 
 ## 6. Out of scope
 
@@ -161,5 +163,4 @@ multi-day replay.
 
 - The accuracy of stale-clock epochs (§5) shows a degradation, or a lower misfix
   rate with a tighter limit.
-- #515 is fixed and the RT replays show a different clock age distribution.
 - IS-QZSS-L6 changes the CLAS transmission intervals or the validity periods.

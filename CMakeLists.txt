@@ -1175,8 +1175,10 @@ endforeach()
 #   claslib_vrs_rtk         VRS-RTK (2019/239)
 #   claslib_vrs_rtk_st12    VRS-RTK with SubType 12 (2019/349)
 #   claslib_vrs_rtk_2ch     VRS-RTK with 2-channel (2025/157)
+#   rtkrcv_rt_clas_tag_sync_check
+#                           Replay tags release L6 in step with the BINEX obs (#515)
 #   rtkrcv_rt_clas          Real-time CLAS PPP-RTK (BINEX+L6, rtkrcv file replay)
-#   rtkrcv_rt_clas_2ch      Real-time CLAS PPP-RTK dual-channel L6, single-channel
+#   rtkrcv_rt_clas_2chReal-time CLAS PPP-RTK dual-channel L6, single-channel
 #                           engine (l6_merge pinned to 0; rtkrcv file replay)
 #   rtkrcv_rt_clas_2ch_merge
 #                           Same replay with the shipped l6_merge = 1 default (#309)
@@ -1195,12 +1197,19 @@ set(_COMPARE_NMEA ${CMAKE_SOURCE_DIR}/scripts/tests/compare_nmea.py)
 set(_F5_0627_2019 ${_CLSDATA}/960627.19.pos)
 
 # ── Fixture: extract / clean claslib test data archive ────────────────────────
+# The L6 replay tags in the archive time the frames from the file name and
+# lag the BINEX observations by 18-20 s (#515); they are rebuilt here from the
+# ST1 epochs in the L6 content, on the BINEX tag's timeline.
+set(_GEN_L6_TAG "\"${Python3_EXECUTABLE}\" \"${CMAKE_SOURCE_DIR}/scripts/tools/gen_l6_tag.py\"")
 add_test(NAME claslib_setup
     COMMAND bash -c "tar xzf \"${_CLSDATA}/claslib_testdata.tar.gz\" \
         --exclude=ref_L6_2CH_RT.nmea --exclude=rtkrcv_clas_ref.nmea -C \"${_CLSDATA}\" && \
         mkdir -p \"${_CLSRTREFDATA}\" && \
         tar xzf \"${_CLSDATA}/claslib_testdata.tar.gz\" -C \"${_CLSRTREFDATA}\" \
-        ref_L6_2CH_RT.nmea rtkrcv_clas_ref.nmea"
+        ref_L6_2CH_RT.nmea rtkrcv_clas_ref.nmea && \
+        ${_GEN_L6_TAG} \"${_CLSDATA}/2019239Q.l6\" --sync-tag \"${_CLSDATA}/0627239Q.bnx.tag\" && \
+        ${_GEN_L6_TAG} \"${_CLSDATA}/2025157U_ch1.l6\" --sync-tag \"${_CLSDATA}/0627157U.bnx.tag\" && \
+        ${_GEN_L6_TAG} \"${_CLSDATA}/2025157U_ch2.l6\" --sync-tag \"${_CLSDATA}/0627157U.bnx.tag\""
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
 )
 set_tests_properties(claslib_setup PROPERTIES
@@ -2128,6 +2137,24 @@ set_tests_properties(claslib_ssr2osr_check PROPERTIES
     LABELS            "regression;claslib"
 )
 
+# ── rtkrcv RT CLAS replay tag sync (#515) ─────────────────────────────────────
+# Offline strsync() over the replay tags: each L6 frame must be released while
+# the newest complete BINEX epoch is within -1..+2 s of the frame's ST1-derived
+# epoch (-1 only at a BINEX epoch gap).  The archive's original tags fail with
+# +18..+20 s (2019/239) and +17 s drifting to -1 s (2025/157).
+add_test(NAME rtkrcv_rt_clas_tag_sync_check
+    COMMAND bash -c "\
+        \"${Python3_EXECUTABLE}\" \"${CMAKE_SOURCE_DIR}/scripts/tests/check_l6_tag_sync.py\" \
+            --bnx \"${_CLSDATA}/0627239Q.bnx\" \"${_CLSDATA}/2019239Q.l6\" && \
+        \"${Python3_EXECUTABLE}\" \"${CMAKE_SOURCE_DIR}/scripts/tests/check_l6_tag_sync.py\" \
+            --bnx \"${_CLSDATA}/0627157U.bnx\" \"${_CLSDATA}/2025157U_ch1.l6\" \"${_CLSDATA}/2025157U_ch2.l6\""
+)
+set_tests_properties(rtkrcv_rt_clas_tag_sync_check PROPERTIES
+    FIXTURES_REQUIRED claslib_data
+    TIMEOUT           120
+    LABELS            "regression;claslib"
+)
+
 # ── rtkrcv RT CLAS PPP-RTK regression ─────────────────────────────────────────
 # Replays BINEX obs + CLAS L6 via rtkrcv at x10 speed.
 # Uses line-count threshold (≥90% of reference) for pass/fail.
@@ -2235,6 +2262,9 @@ set_tests_properties(rtkrcv_rt_clas_2ch_merge_nsat_check PROPERTIES
 # Same replay as rtkrcv_rt_clas from 16:40 GPST, with subframe 1 (mask, orbit,
 # clock, global code bias) of every 300 s frame zero-filled in the L6 file. The
 # check gates Single after each loss and requires Fix again by T+70 s.
+# With the L6 tags in step with the observations (#515) a loss costs 0 s of
+# Single, and 16 s without the #406 fix (36 s, no re-Fix, under the old tags
+# that lagged 20 s); --max-single 8 sits between the two.
 set(_SF1GAP_DIR ${CMAKE_BINARY_DIR}/tests/data/clas_sf1gap)
 add_test(NAME rtkrcv_rt_clas_sf1gap_setup
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/scripts/tests/make_clas_sf1_gap.py
@@ -2268,7 +2298,7 @@ set_tests_properties(rtkrcv_rt_clas_sf1gap PROPERTIES
 add_test(NAME rtkrcv_rt_clas_sf1gap_check
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/scripts/tests/check_clas_sf1_gap.py
         ${CMAKE_BINARY_DIR}/out_rtkrcv_rt_clas_sf1gap.nmea
-        --period 300 --max-single 25 --min-events 2
+        --period 300 --max-single 8 --min-events 2
 )
 set_tests_properties(rtkrcv_rt_clas_sf1gap_check PROPERTIES
     DEPENDS           rtkrcv_rt_clas_sf1gap
