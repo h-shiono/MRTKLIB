@@ -71,6 +71,7 @@ files with `l6_merge = 0`:
 When two patterns start in the same 30 s cycle, the pattern of the file given
 first takes channel 0. Keyword paths (`%Y`, ...) are always read one file per
 channel.
+Design notes: [CLAS L6 channels from several files](../design/clas-l6-multi-file.md).
 
 **Examples:**
 

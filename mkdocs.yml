@@ -116,6 +116,7 @@ nav:
   - Design:
     - Positioning Configuration Model: design/configuration.md
     - CLAS Support Files: design/clas-support-files.md
+    - CLAS L6 Channels from Several Files: design/clas-l6-multi-file.md
   - Releases:
     - Changelog: releases/changelog.md
     - v0.7.17: releases/release-notes-v0.7.17.md
