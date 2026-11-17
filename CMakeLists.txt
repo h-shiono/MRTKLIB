@@ -416,6 +416,15 @@ add_test(NAME utest_clas_mask COMMAND utest_clas_mask
          WORKING_DIRECTORY ${_UTEST_DIR})
 set_tests_properties(utest_clas_mask PROPERTIES LABELS "utest")
 
+# CLAS OSR satellite / QZS signal health gate (#285). Includes
+# mrtk_clas_osr.c to reach the private clas_osr_healthexclude().
+add_executable(utest_clas_health ${_UTEST_DIR}/utest_clas_health.c)
+# Override global -ansi (=C90): this test uses C11 (P-01).
+target_compile_options(utest_clas_health PRIVATE -std=c11)
+target_link_libraries(utest_clas_health PRIVATE mrtklib)
+add_test(NAME utest_clas_health COMMAND utest_clas_health)
+set_tests_properties(utest_clas_health PROPERTIES LABELS "utest")
+
 # NavIC L5-only SPP group delay with the nominal S/L5 ratio (#384). Includes
 # mrtk_spp.c to reach the private prange().
 add_executable(utest_navic_l5_tgd ${_UTEST_DIR}/utest_navic_l5_tgd.c)
@@ -1887,6 +1896,29 @@ add_test(NAME claslib_ppp_rtk_l1cl5_iono_ssr_check
 set_tests_properties(claslib_ppp_rtk_l1cl5_iono_ssr_check PROPERTIES
     DEPENDS "claslib_ppp_rtk_l1cl5_iono_ssr;claslib_ppp_rtk_l1cl5"
     LABELS  "regression;claslib;ppp-rtk"
+)
+
+# Satellite / QZS signal health gate of clas_osr_zdres() (#285). The bundled
+# data has no unhealthy satellite, so the script injects SV health into a
+# copy of sept_2019239.nav (16:00-16:10): a GPS satellite with svh 0x01 must
+# leave the solution (and come back when force-included with "+Gnn"), a QZS
+# satellite with 0x08 must lose L2 only, and the live QZS values must not
+# drop QZS: 0x01 byte-identical, 0x10 all QZS signals kept (the SPP seed
+# still drops QZS on 0x10, so not byte-identical).
+add_test(NAME claslib_ppp_rtk_health_gate
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/scripts/tests/check_clas_health_gate.py
+        $<TARGET_FILE:mrtk>
+        ${CMAKE_SOURCE_DIR}/conf/claslib/rnx2rtkp.toml
+        ${_CLSDATA}/0627239Q.obs
+        ${_CLSDATA}/sept_2019239.nav
+        ${_CLSDATA}/2019239Q.l6
+        ${CMAKE_BINARY_DIR}/claslib_health_gate
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+set_tests_properties(claslib_ppp_rtk_health_gate PROPERTIES
+    FIXTURES_REQUIRED claslib_data
+    TIMEOUT           300
+    LABELS            "regression;claslib;ppp-rtk"
 )
 
 # ── rnx2rtkp CLAS VRS-RTK regression (SubType 12 BINEX) ─────────────────────
