@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **QZS-1R / QZS-6 no longer excluded as unhealthy**
+  ([#512](https://github.com/h-shiono/MRTKLIB/issues/512),
+  [#485](https://github.com/h-shiono/MRTKLIB/issues/485)). `satexclude()`
+  ignored only QZS LNAV health bit 0, which it called LEX health. In
+  IS-QZSS-PNT-006 bit 0 is L1C/B health and bit 4 is L1C/A health. The two
+  signals are broadcast exclusively, and the bit of the one not broadcast is 1,
+  so QZS-1R/6 (L1C/B) send 0x10 and were dropped from SPP, RTK, PPP and VRS.
+  As in MALIB v1.3.0, the bit is now ignored when exactly one of 0x01 / 0x10
+  is set. 0x11 and every other bit still exclude the satellite. Live
+  mosaic-G5 2026-07-05 (J04/J08 at 0x10), 1 h at 1 Hz: SPP GPS+QZS +2.0
+  satellites, 2D rms 1.19 → 1.07 m, U rms 1.36 → 1.12 m. QZS-only SPP 0 → 100 %
+  of epochs. MADOCA-PPP kinematic +1.0 satellite, converged accuracy unchanged.
+  Of the bundled regressions, only the `clas_l6gap` RT replays see a QZS at
+  0x10 (through the CLAS SPP seed), and their GGA output is identical. The
+  PPC data carries no 0x10. `claslib_ppp_rtk_health_gate` now requires an
+  injected 0x10 to leave the solution byte-identical. New `utest_qzs_health`.
+
 ## [v0.7.17] - 2026-11-07
 
 **SouthPAN PVS.** `correction = "southpan-pvs"` runs float PPP with the PPP
