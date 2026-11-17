@@ -2680,6 +2680,42 @@ set_tests_properties(igs_iflc_ppp_check PROPERTIES
     LABELS            "absolute;igs;ppp;iflc"
 )
 
+# Galileo-only on the same data (#476): the PPP clock state was initialized from
+# the SPP GPS clock term, which is ~0 when SPP uses no GPS satellite. ECJ02 has
+# a ~43 ms receiver clock bias, so every Galileo measurement was rejected and no
+# epoch was output (the 3034 data of igs_pppar_* has ~8 ns and cannot catch it).
+# Measured: 3D 1σ 8.1 cm / 95% 15.0 cm; tolerance 0.25 m (95% + ~10 cm).
+add_test(NAME igs_iflc_ppp_gal
+    COMMAND $<TARGET_FILE:mrtk> post
+        -k ${CMAKE_SOURCE_DIR}/conf/igs/rnx2rtkp_iflc_fallback.toml
+        -k ${CMAKE_SOURCE_DIR}/conf/igs/rnx2rtkp_iflc_galileo.toml
+        -ts 2026/05/01 0:00:00 -te 2026/05/01 1:00:00
+        -o ${CMAKE_BINARY_DIR}/out_igs_iflc_ppp_gal.pos
+        ${_IGSDATA}/ECJ02_26050100_01H.obs
+        ${_IGSDATA}/BRDM00DLR_S_20261210000_01D_MN.rnx
+        ${_IGSDATA}/COD0MGXFIN_20261210000_01D_05M_ORB.SP3
+        ${_IGSDATA}/COD0MGXFIN_20261210000_01D_30S_CLK.CLK
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+set_tests_properties(igs_iflc_ppp_gal PROPERTIES
+    FIXTURES_REQUIRED igs_iflc_data
+    TIMEOUT           180
+    LABELS            "regression;igs;ppp;iflc"
+)
+
+add_test(NAME igs_iflc_ppp_gal_check
+    COMMAND ${Python3_EXECUTABLE} ${_COMPARE_POS_ABS}
+        --llh 35.666334193,139.792201653,59.8539
+        --tolerance 0.25
+        ${CMAKE_BINARY_DIR}/out_igs_iflc_ppp_gal.pos
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+set_tests_properties(igs_iflc_ppp_gal_check PROPERTIES
+    DEPENDS           igs_iflc_ppp_gal
+    FIXTURES_REQUIRED igs_iflc_data
+    LABELS            "absolute;igs;ppp;iflc"
+)
+
 # -----------------------------------------------------------------------------
 # IGS-RTS float-PPP regression (#138): correction = "igs-rts"
 # Source: AIRA00JPN (Aira, Japan, IGS) GPS+GAL, captured live 2026-05-22 from
