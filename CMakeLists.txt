@@ -1902,13 +1902,15 @@ set_tests_properties(claslib_ppp_rtk_l1cl5_iono_ssr_check PROPERTIES
 # data has no unhealthy satellite, so the script injects SV health into a
 # copy of sept_2019239.nav (16:00-16:10): a GPS satellite with svh 0x01 must
 # leave the solution (and come back when force-included with "+Gnn"), a QZS
-# satellite with 0x08 must lose L2 only, and the live QZS values must not
+# satellite with 0x08 must lose L2 only (PPP-RTK residuals and the ssr2obs
+# VRS observations), and the live QZS values must not
 # drop QZS: 0x01 byte-identical, 0x10 all QZS signals kept (the SPP seed
 # still drops QZS on 0x10, so not byte-identical).
 add_test(NAME claslib_ppp_rtk_health_gate
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/scripts/tests/check_clas_health_gate.py
         $<TARGET_FILE:mrtk>
         ${CMAKE_SOURCE_DIR}/conf/claslib/rnx2rtkp.toml
+        ${CMAKE_SOURCE_DIR}/conf/claslib/ssr2obs.toml
         ${_CLSDATA}/0627239Q.obs
         ${_CLSDATA}/sept_2019239.nav
         ${_CLSDATA}/2019239Q.l6

@@ -37,13 +37,19 @@ static obsd_t qzs_obs(void) {
     return obs;
 }
 
+/* Slots reported zeroed by the last gate() call. */
+static uint32_t masked;
+
+static int gate(obsd_t* obs, int svh) { return clas_osr_healthexclude(obs, svh, &masked); }
+
 /* Returns 1 when slot j still has its original L and P. */
 static int kept(const obsd_t* obs, int j) { return obs->L[j] == 1.0e8 + j && obs->P[j] == 2.0e7 + j; }
 
 /* Checks that exactly the slots of the given band mask (bit j = slot j) were
- * zeroed, and that D / SNR were never touched. */
+ * zeroed and reported, and that D / SNR were never touched. */
 static void check_slots(const obsd_t* obs, unsigned zeroed) {
     int j;
+    CHECK(masked == zeroed);
     for (j = 0; j < NSLOT; j++) {
         if (zeroed & (1u << j)) {
             CHECK(obs->L[j] == 0.0 && obs->P[j] == 0.0);
@@ -69,30 +75,30 @@ int main(void) {
     /* non-QZS: any non-zero health excludes the satellite */
     obs = qzs_obs();
     obs.sat = satno(SYS_GPS, 5);
-    CHECK(clas_osr_healthexclude(&obs, 0) == 0);
+    CHECK(gate(&obs, 0) == 0);
     check_slots(&obs, 0);
-    CHECK(clas_osr_healthexclude(&obs, 0x01) == 1);
+    CHECK(gate(&obs, 0x01) == 1);
     obs.sat = satno(SYS_GAL, 11);
-    CHECK(clas_osr_healthexclude(&obs, 0x01) == 1);
-    CHECK(clas_osr_healthexclude(&obs, 0x100) == 1);
+    CHECK(gate(&obs, 0x01) == 1);
+    CHECK(gate(&obs, 0x100) == 1);
 
     /* QZS: never excluded as a whole */
     for (i = 0; i < (int)(sizeof(noop) / sizeof(noop[0])); i++) {
         obs = qzs_obs();
-        CHECK(clas_osr_healthexclude(&obs, noop[i]) == 0);
+        CHECK(gate(&obs, noop[i]) == 0);
         check_slots(&obs, 0);
     }
     obs = qzs_obs();
-    CHECK(clas_osr_healthexclude(&obs, 0x04) == 0); /* L5 -> slot 1 */
+    CHECK(gate(&obs, 0x04) == 0); /* L5 -> slot 1 */
     check_slots(&obs, 0x2u);
     obs = qzs_obs();
-    CHECK(clas_osr_healthexclude(&obs, 0x08) == 0); /* L2C -> slot 2 */
+    CHECK(gate(&obs, 0x08) == 0); /* L2C -> slot 2 */
     check_slots(&obs, 0x4u);
     obs = qzs_obs();
-    CHECK(clas_osr_healthexclude(&obs, 0x20) == 0); /* L1 -> every L1-band slot */
+    CHECK(gate(&obs, 0x20) == 0); /* L1 -> every L1-band slot */
     check_slots(&obs, l1);
     obs = qzs_obs();
-    CHECK(clas_osr_healthexclude(&obs, 0x3F) == 0);
+    CHECK(gate(&obs, 0x3F) == 0);
     check_slots(&obs, l1 | 0x2u | 0x4u);
 
     printf("CLAS health gate failures: %d\n", failed);

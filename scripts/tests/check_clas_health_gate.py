@@ -23,8 +23,12 @@ same window six times:
 
 The satellite usage comes from the solution status ($SAT, -y 2).
 
+VRS path: ``mrtk ssr2obs`` with that QZS satellite at svh = 0x08 must emit
+no L2 code / phase for it and keep L1 (the VRS observations are built from
+the corrections, not from the receiver measurements the gate clears).
+
 Usage:
-    check_clas_health_gate.py MRTK CONF OBS NAV L6 WORK_DIR
+    check_clas_health_gate.py MRTK CONF SSR2OBS_CONF OBS NAV L6 WORK_DIR
 """
 
 import shutil
@@ -76,6 +80,32 @@ def run_post(mrtk, conf, obs, nav, l6, out: Path, overlay: Path = None) -> None:
         raise SystemExit(f"failed ({res.returncode}): {' '.join(cmd)}\n{res.stdout}{res.stderr}")
 
 
+def run_ssr2obs(mrtk, conf, nav, l6, out: Path) -> None:
+    """Run mrtk ssr2obs (VRS observations from the CLAS corrections)."""
+    cmd = [mrtk, "ssr2obs", "-k", conf, *TS, "-r", "-o", str(out), str(nav), l6]
+    res = subprocess.run(cmd, capture_output=True, text=True)
+    if res.returncode != 0:
+        raise SystemExit(f"failed ({res.returncode}): {' '.join(cmd)}\n{res.stdout}{res.stderr}")
+
+
+def rinex_signals(path: Path, sat: str) -> Counter:
+    """Count the RINEX 3 epochs with a non-blank value per obs type for one satellite."""
+    types = {}
+    count = Counter()
+    lines = path.read_text(encoding="ascii", errors="replace").splitlines()
+    body = next(i for i, ln in enumerate(lines) if "END OF HEADER" in ln) + 1
+    for ln in lines[:body]:
+        if ln[60:].startswith("SYS / # / OBS TYPES") and ln[0] != " ":
+            types[ln[0]] = ln[7:58].split()
+    for ln in lines[body:]:
+        if ln[:3] != sat:
+            continue
+        for k, t in enumerate(types.get(sat[0], [])):
+            if ln[3 + 16 * k : 3 + 16 * k + 14].strip():
+                count[t] += 1
+    return count
+
+
 def sat_usage(stat: Path) -> Counter:
     """Count epochs with vsat = 1 per (satellite id, frequency slot) in a .stat file."""
     use = Counter()
@@ -96,10 +126,10 @@ def most_used(use: Counter, sysid: str) -> str:
 
 def main() -> int:
     """Run the four cases and report the result."""
-    if len(sys.argv) != 7:
+    if len(sys.argv) != 8:
         print(__doc__, file=sys.stderr)
         return 2
-    mrtk, conf, obs, nav, l6, work = sys.argv[1:]
+    mrtk, conf, vconf, obs, nav, l6, work = sys.argv[1:]
     work = Path(work)
     shutil.rmtree(work, ignore_errors=True)
     work.mkdir(parents=True)
@@ -168,6 +198,19 @@ def main() -> int:
     print(
         f"{'PASS' if good else 'FAIL'}: {jsat} svh 0x08 ({n} ephemerides) -> L1/L2 used "
         f"{base[(jsat, 1)]}/{base[(jsat, 2)]} epochs in base, {use[(jsat, 1)]}/{use[(jsat, 2)]} after"
+    )
+
+    for name, vnav in (("vrs_base", Path(nav)), ("vrs_qzs_l2", nav_qzs)):
+        run_ssr2obs(mrtk, vconf, vnav, l6, work / f"{name}.obs")
+    vb = rinex_signals(work / "vrs_base.obs", jsat)
+    vm = rinex_signals(work / "vrs_qzs_l2.obs", jsat)
+    l2 = [t for t in vb if t[1] == "2"]
+    good = bool(l2) and all(vb[t] > 0 for t in l2) and all(vm.get(t, 0) == 0 for t in l2)
+    good &= all(vm.get(t, 0) == vb[t] for t in vb if t[1] == "1")
+    ok &= good
+    print(
+        f"{'PASS' if good else 'FAIL'}: VRS {jsat} svh 0x08 -> epochs per signal "
+        + ", ".join(f"{t} {vb[t]}/{vm.get(t, 0)}" for t in sorted(vb))
     )
 
     return 0 if ok else 1
