@@ -751,6 +751,11 @@ struct prcopt_t;
 
 /**
  * @brief Test excluded satellite.
+ *
+ * For QZS the LNAV health bit of the L1 signal that is not broadcast
+ * (0x10 L1C/A or 0x01 L1C/B) is ignored when exactly one of the two is set;
+ * any other set bit excludes the satellite.
+ *
  * @param[in] sat  Satellite number
  * @param[in] var  Variance of ephemeris (m^2)
  * @param[in] svh  SV health flag (-1: correction not available)

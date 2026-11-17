@@ -436,6 +436,14 @@ target_link_libraries(utest_clas_health PRIVATE mrtklib)
 add_test(NAME utest_clas_health COMMAND utest_clas_health)
 set_tests_properties(utest_clas_health PROPERTIES LABELS "utest")
 
+# satexclude() QZS LNAV health: non-broadcast L1C/A or L1C/B bit (#512).
+add_executable(utest_qzs_health ${_UTEST_DIR}/utest_qzs_health.c)
+# Override global -ansi (=C90): this test uses C11 (P-01).
+target_compile_options(utest_qzs_health PRIVATE -std=c11)
+target_link_libraries(utest_qzs_health PRIVATE mrtklib)
+add_test(NAME utest_qzs_health COMMAND utest_qzs_health)
+set_tests_properties(utest_qzs_health PROPERTIES LABELS "utest")
+
 # NavIC L5-only SPP group delay with the nominal S/L5 ratio (#384). Includes
 # mrtk_spp.c to reach the private prange().
 add_executable(utest_navic_l5_tgd ${_UTEST_DIR}/utest_navic_l5_tgd.c)

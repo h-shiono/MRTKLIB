@@ -9,10 +9,10 @@ same window six times:
 2. QZS 0x01 on every QZS ephemeris (L1C/B unhealthy, as QZS-2/3/4 broadcast):
    outside the 0x2C signal mask and cleared by the SPP satexclude(), so the
    solution must be byte-identical to the base run;
-3. QZS 0x10 (L1C/A unhealthy, as QZS-1R/6 broadcast): also outside the mask,
-   so every QZS satellite and signal must stay in the CLAS solution. Not
-   byte-identical: the SPP seed (satexclude() masks only bit 0) drops QZS,
-   which moves the PPP-RTK result by about an epoch of usage;
+3. QZS 0x10 (L1C/A unhealthy, as QZS-1R/6 broadcast): also outside the mask
+   and, since #512, cleared by the SPP satexclude() as well, so the solution
+   must be byte-identical to the base run (before #512 the SPP seed dropped
+   QZS and moved the PPP-RTK result);
 4. GPS unhealthy: the GPS satellite used in the most base epochs gets
    svh = 1 and must never be used (before #285 it stayed in the solution);
 5. the same unhealthy GPS satellite force-included with excluded_sats
@@ -152,18 +152,11 @@ def main() -> int:
     nav_10 = work / "qzs_10.nav"
     n = patch_nav(Path(nav), nav_10, {"J": [0x10]})
     run_post(mrtk, conf, obs, nav_10, l6, work / "qzs_10.nmea")
-    use = sat_usage(work / "qzs_10.nmea.stat")
-    jkeys = sorted(k for k in base if k[0].startswith("J"))
-    low = [
-        f"{s}/{f} {use[(s, f)]}<{base[(s, f)]}"
-        for s, f in jkeys
-        if use[(s, f)] < 0.98 * base[(s, f)]
-    ]
-    good = n > 0 and bool(jkeys) and not low
-    ok &= good
+    same = (work / "qzs_10.nmea").read_bytes() == (work / "base.nmea").read_bytes()
+    ok &= same and n > 0
     print(
-        f"{'PASS' if good else 'FAIL'}: QZS svh 0x10 on {n} ephemerides -> {len(jkeys)} QZS "
-        f"satellite/slots kept (>= 98 % of base epochs){': ' + ', '.join(low) if low else ''}"
+        f"{'PASS' if same and n else 'FAIL'}: QZS svh 0x10 on {n} ephemerides -> solution "
+        f"{'byte-identical' if same else 'CHANGED'}"
     )
 
     nav_gps = work / "gps_unhealthy.nav"
