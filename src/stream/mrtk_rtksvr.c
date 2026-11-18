@@ -930,6 +930,13 @@ static void* rtksvrthread(void* arg) {
             }
         }
         for (i = 0; i < fobs[0]; i++) { /* for each rover observation data */
+            /* An empty rover epoch (e.g. SBF MeasEpoch with no satellites during
+             * a signal blockage) has nothing to position: rtkpos() would read
+             * obs[0] beyond the epoch and the solution would be written again
+             * under the previous epoch's time (#382). postpos skips n == 0 too. */
+            if (svr->obs[0][i].n <= 0) {
+                continue;
+            }
             obs.n = 0;
             for (j = 0; j < svr->obs[0][i].n && obs.n < MAXOBS * 2; j++) {
                 obs.data[obs.n++] = svr->obs[0][i].data[j];
