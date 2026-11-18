@@ -1187,6 +1187,8 @@ endforeach()
 #                           satellites per fixed epoch than the single-channel run
 #   rtkrcv_rt_clas_sf1gap   Real-time CLAS PPP-RTK with subframe 1 of every 300 s
 #                           frame removed: recovery after the loss (#406)
+#   rtkrcv_rt_clas_rtcm3    rtkrcv_rt_clas with the rover converted to RTCM3:
+#                           CLAS paths on the RTCM3 rover clock (#365)
 #   rtkrcv_rt_empty_epoch   Rover epochs with no observations are not positioned
 #                           or written under a stale time (#382)
 set(_CLSDATA  ${CMAKE_SOURCE_DIR}/tests/data/claslib)
@@ -2306,6 +2308,59 @@ set_tests_properties(rtkrcv_rt_clas_sf1gap_check PROPERTIES
     DEPENDS           rtkrcv_rt_clas_sf1gap
     FIXTURES_REQUIRED claslib_data
     LABELS            "regression;claslib;realtime"
+)
+
+# ── rtkrcv RT CLAS with an RTCM3 rover (#365) ─────────────────────────────────
+# Same replay as rtkrcv_rt_clas with the BINEX rover converted to RTCM3 MSM7 by
+# `mrtk relay` at setup. An RTCM3 rover's time advances in rtcm[0]; raw[0]
+# stays at the start time. The CLAS L6 rate limit read raw[0], so it held L6
+# once L6 ran 60 s ahead of the start and the corrections aged out: Fix 55 (all
+# in the first 100 s) / Single 3539 of 3599, 2D 95% 122 cm. With the fix: Fix
+# 3553 / Single 41, the same as the BINEX rover, 2D 95% 4.56 cm (BINEX
+# 4.55 cm). Gate = the claslib_ppp_rtk_abs_check tolerance.
+set(_CLSRTCM3_DIR ${CMAKE_BINARY_DIR}/tests/data/clas_rtcm3)
+add_test(NAME rtkrcv_rt_clas_rtcm3_setup
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/scripts/tests/make_clas_rtcm3_rover.py
+        --mrtk $<TARGET_FILE:mrtk>
+        --bnx ${_CLSDATA}/0627239Q.bnx
+        --conf ${CMAKE_SOURCE_DIR}/conf/claslib/rtkrcv.toml
+        --out-dir ${_CLSRTCM3_DIR}
+)
+set_tests_properties(rtkrcv_rt_clas_rtcm3_setup PROPERTIES
+    FIXTURES_REQUIRED claslib_data
+    FIXTURES_SETUP    clas_rtcm3
+    TIMEOUT           180
+    LABELS            "regression;claslib;realtime"
+)
+add_test(NAME rtkrcv_rt_clas_rtcm3
+    COMMAND bash ${_TESTCMAKE}/run_rtkrcv_test.sh
+        $<TARGET_FILE:mrtk> run
+        ${CMAKE_SOURCE_DIR}
+        ${_CLSRTREFDATA}/rtkrcv_clas_ref.nmea
+        10
+        ${_CLSRTCM3_DIR}/rtkrcv_clas_rtcm3.toml
+        52023
+        500
+        ${CMAKE_BINARY_DIR}/out_rtkrcv_rt_clas_rtcm3.nmea
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+set_tests_properties(rtkrcv_rt_clas_rtcm3 PROPERTIES
+    FIXTURES_REQUIRED "claslib_data;clas_rtcm3"
+    TIMEOUT           600
+    LABELS            "regression;claslib;realtime"
+)
+add_test(NAME rtkrcv_rt_clas_rtcm3_abs_check
+    COMMAND ${Python3_EXECUTABLE} ${_COMPARE_NMEA_ABS}
+        --f5 ${_F5_0627_2019}
+        --date 2019/08/27
+        --tolerance 0.090
+        ${CMAKE_BINARY_DIR}/out_rtkrcv_rt_clas_rtcm3.nmea
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+set_tests_properties(rtkrcv_rt_clas_rtcm3_abs_check PROPERTIES
+    DEPENDS           rtkrcv_rt_clas_rtcm3
+    FIXTURES_REQUIRED claslib_data
+    LABELS            "absolute;claslib;realtime"
 )
 
 # ── rtkrcv rover epochs with no observations (#382) ───────────────────────────
