@@ -79,45 +79,30 @@ def l6_frame_times(data: bytes, ref_gpst: float) -> list:
     if not anchors:
         raise ValueError("no CSSR ST1 frame found: cannot time the L6 file")
 
-    # A subframe-indicator frame whose data part happens to start with the
-    # ST1 bit pattern would be a false anchor: keep an anchor only when its
-    # epoch - index agrees with a neighbour.
-    keys = [tow - i for i, tow in anchors]
-    if len(anchors) < 2:
-        good = anchors
-    else:
-        good = [
-            a
-            for k, a in enumerate(anchors)
-            if (k > 0 and keys[k] == keys[k - 1]) or (k + 1 < len(keys) and keys[k] == keys[k + 1])
-        ]
-    if not good:
-        raise ValueError("no two ST1 frames agree on the frame timing")
-    if len(good) != len(anchors):
-        print(
-            f"Warning: ignored {len(anchors) - len(good)} inconsistent ST1 frame(s)",
-            file=sys.stderr,
-        )
-    anchors = good
-
-    gps_ref = ref_gpst - GPS_EPOCH_UNIX
-    week = round((gps_ref - anchors[0][1]) / WEEK_SEC)
-
-    def to_gpst(i_anchor, tow, i):
-        return GPS_EPOCH_UNIX + week * WEEK_SEC + tow + (i - i_anchor)
+    # Full GPST of each anchor, unwrapping the 20-bit TOW across week rollovers.
+    # Frames can be missing from the file (more seconds than frames between two
+    # anchors), but never fewer seconds than frames: such an anchor is not a
+    # real ST1 and is skipped.
+    week = round((ref_gpst - GPS_EPOCH_UNIX - anchors[0][1]) / WEEK_SEC)
+    timed = [(anchors[0][0], GPS_EPOCH_UNIX + week * WEEK_SEC + anchors[0][1])]
+    prev_tow = anchors[0][1]
+    for i, tow in anchors[1:]:
+        t = timed[-1][1] + (tow - prev_tow) % WEEK_SEC
+        if t - timed[-1][1] < i - timed[-1][0]:
+            print(
+                f"Warning: ignored ST1 frame {i} (epoch {tow}): inconsistent timing",
+                file=sys.stderr,
+            )
+            continue
+        timed.append((i, t))
+        prev_tow = tow
 
     times = []
     a = 0
-    prev = None
     for i in range(len(data) // L6_FRAME_SIZE):
-        while a + 1 < len(anchors) and anchors[a + 1][0] <= i:
+        while a + 1 < len(timed) and timed[a + 1][0] <= i:
             a += 1
-        t = to_gpst(anchors[a][0], anchors[a][1], i)
-        if prev is not None and t - prev < -WEEK_SEC / 2:  # TOW rolled over the week
-            week += 1
-            t += WEEK_SEC
-        times.append(t)
-        prev = t
+        times.append(timed[a][1] + (i - timed[a][0]))
     return times
 
 
@@ -160,11 +145,12 @@ def gen_tag(l6_path: str, sync_tag: str) -> str:
         f.write(hdr)
         f.write(struct.pack("<I", time_time))
         f.write(struct.pack("<d", time_sec))
-        # A record (tick_n, fpos) releases the file up to fpos at tick_n.
+        # readfile() makes the file readable up to the fpos of the first record
+        # whose tick is still ahead, so record (r_i, start of frame i) releases
+        # frame i at r_i; the last record releases the final frame.
         for i, tick in enumerate(ticks):
-            f.write(struct.pack("<II", tick, (i + 1) * L6_FRAME_SIZE))
-        if remainder:
-            f.write(struct.pack("<II", ticks[-1] if ticks else 0, len(data)))
+            f.write(struct.pack("<II", tick, i * L6_FRAME_SIZE))
+        f.write(struct.pack("<II", (ticks[-1] if ticks else 0) + 1000, len(data)))
 
     def fmt(t):
         gps = t - GPS_EPOCH_UNIX
@@ -174,7 +160,7 @@ def gen_tag(l6_path: str, sync_tag: str) -> str:
     print(f"  first frame epoch: {fmt(times[0])}, last: {fmt(times[-1])}")
     print(f"  master start: {fmt(master_start)} (tick_f {tick_f})")
     print(f"  frames released at replay start: {n_early}")
-    print(f"  tag file: {tag_path} ({len(ticks) + (1 if remainder else 0)} records)")
+    print(f"  tag file: {tag_path} ({len(ticks) + 1} records)")
     return tag_path
 
 

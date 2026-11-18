@@ -8,9 +8,12 @@ in the master file at that tick.  The lag
 
     newest complete obs epoch - GNSS epoch of the L6 frame
 
-is about 1 s on a live receiver (the frame is output one second after its
-epoch).  Frames released before the first observation epoch is complete are
-not checked: a receiver that was already running would hold them too.
+is +1 s on a live receiver: the frame is output one second after its epoch,
+an observation epoch at that epoch.  Frames output before the first
+observation epoch are not checked: they are delivered together at replay
+start, as a receiver that was already running would hold them.  Frames past
+the last tag record are checked at tag EOF, where ``readfile()`` releases the
+rest of the file.
 
 Frame epochs come from the L6 content (CSSR ST1), observation epochs from the
 BINEX file, so the check does not rely on either tag's header time.
@@ -43,31 +46,54 @@ def read_records(tag_path):
     return [struct.unpack_from("<II", b, TAG_HEADER_LEN + 8 * k) for k in range(n)]
 
 
+class Replay:
+    """File stream release timing of one tagged file, as readfile() does it.
+
+    At tick t the file is readable up to the fpos of the first record whose
+    tick is greater than t; once every record is passed (tag EOF), up to the
+    end of the file.
+    """
+
+    def __init__(self, records, file_size):
+        """Index ``records`` [(tick_n, fpos)] of a file of ``file_size`` bytes."""
+        self.fpos = [p for _, p in records]
+        self.file_size = file_size
+        self.ticks_max = []  # running maximum: the first record with tick > t
+        m = 0
+        for t, _ in records:
+            m = max(m, t)
+            self.ticks_max.append(m)
+
+    def released(self, tick):
+        """Bytes readable at ``tick``."""
+        k = bisect.bisect_right(self.ticks_max, tick)
+        return self.fpos[k] if k < len(self.fpos) else self.file_size
+
+    def release_tick(self, end):
+        """First tick at which the file is readable up to ``end`` (None: at start)."""
+        k = bisect.bisect_left(self.fpos, end)  # first record covering end
+        return self.ticks_max[k - 1] if k > 0 else None
+
+
 def main():
     """Command-line entry point."""
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--bnx", required=True, help="master BINEX observation file (tag = <file>.tag)")
     ap.add_argument("l6", nargs="+", help="L6 frame files (tag = <file>.tag)")
-    ap.add_argument("--min-lag", type=float, default=-1.0)
+    ap.add_argument("--min-lag", type=float, default=0.0)
     ap.add_argument("--max-lag", type=float, default=2.0)
     args = ap.parse_args()
 
     epochs = scan_bnx_epochs(args.bnx)  # (record start fpos, GPS seconds)
-    starts = [p for p, _ in epochs]
     file_size = os.path.getsize(args.bnx)
-    # epoch k is complete once the file is released up to the start of k+1
-    ends = starts[1:] + [file_size]
+    # epoch k is complete once the file is readable up to the start of k+1
+    ends = [p for p, _ in epochs[1:]] + [file_size]
     m_tick_f, m_tt, m_ts = read_tag_header(args.bnx + ".tag")
-    m_rec = read_records(args.bnx + ".tag")
-    m_ticks = [t for t, _ in m_rec]
+    master = Replay(read_records(args.bnx + ".tag"), file_size)
 
     def newest_obs(tick):
         """GPS seconds of the newest complete epoch at master tick, or None."""
-        k = bisect.bisect_right(m_ticks, tick) - 1
-        if k < 0:
-            return None
-        released = m_rec[k][1]
-        j = bisect.bisect_right(ends, released) - 1
+        j = bisect.bisect_right(ends, master.released(tick)) - 1
         return epochs[j][1] if j >= 0 else None
 
     ok = True
@@ -75,19 +101,15 @@ def main():
         with open(path, "rb") as f:
             data = f.read()
         s_tick_f, _, _ = read_tag_header(path + ".tag")
-        s_rec = read_records(path + ".tag")
+        slave = Replay(read_records(path + ".tag"), len(data))
         offset = (m_tick_f - s_tick_f + 2**31) % 2**32 - 2**31  # as strsync's (int) cast
         times = l6_frame_times(data, m_tt + m_ts)
-        # first record releasing each frame
         lags = []
-        k = 0
         for i, t in enumerate(times):
-            end = (i + 1) * L6_FRAME_SIZE
-            while k < len(s_rec) and s_rec[k][1] < end:
-                k += 1
-            if k == len(s_rec):
-                break
-            obs = newest_obs(s_rec[k][0] - offset)
+            if t - GPS_EPOCH_UNIX + 1 <= epochs[0][1]:
+                continue  # output before the first observation: held at replay start
+            tick = slave.release_tick((i + 1) * L6_FRAME_SIZE)
+            obs = newest_obs(tick - offset) if tick is not None else None
             if obs is not None:
                 lags.append(obs - (t - GPS_EPOCH_UNIX))
         if not lags:

@@ -2138,10 +2138,10 @@ set_tests_properties(claslib_ssr2osr_check PROPERTIES
 )
 
 # ── rtkrcv RT CLAS replay tag sync (#515) ─────────────────────────────────────
-# Offline strsync() over the replay tags: each L6 frame must be released while
-# the newest complete BINEX epoch is within -1..+2 s of the frame's ST1-derived
-# epoch (-1 only at a BINEX epoch gap).  The archive's original tags fail with
-# +18..+20 s (2019/239) and +17 s drifting to -1 s (2025/157).
+# Offline strsync() / readfile() over the replay tags: when each L6 frame is
+# released, the newest complete BINEX epoch must be 0..+2 s after the frame's
+# ST1-derived epoch (+1 s on a live receiver).  The archive's original tags
+# fail with +18..+19 s (2019/239) and +17 s drifting to -1 s (2025/157).
 add_test(NAME rtkrcv_rt_clas_tag_sync_check
     COMMAND bash -c "\
         \"${Python3_EXECUTABLE}\" \"${CMAKE_SOURCE_DIR}/scripts/tests/check_l6_tag_sync.py\" \
@@ -2263,7 +2263,7 @@ set_tests_properties(rtkrcv_rt_clas_2ch_merge_nsat_check PROPERTIES
 # clock, global code bias) of every 300 s frame zero-filled in the L6 file. The
 # check gates Single after each loss and requires Fix again by T+70 s.
 # With the L6 tags in step with the observations (#515) a loss costs 0 s of
-# Single, and 16 s without the #406 fix (36 s, no re-Fix, under the old tags
+# Single, and 17 s without the #406 fix (36 s, no re-Fix, under the old tags
 # that lagged 20 s); --max-single 8 sits between the two.
 set(_SF1GAP_DIR ${CMAKE_BINARY_DIR}/tests/data/clas_sf1gap)
 add_test(NAME rtkrcv_rt_clas_sf1gap_setup

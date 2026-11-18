@@ -140,11 +140,11 @@ same CLAS correction decoder.
 | Metric | Post-Processing (`mrtk post`) | Real-Time (`mrtk run`) |
 |--------|:---:|:---:|
 | Total epochs | 3,580 | 3,599 |
-| Fix (Q=4) | 3,575 (99.86%) | 3,554 (98.75%) |
+| Fix (Q=4) | 3,575 (99.86%) | 3,553 (98.72%) |
 | Float (Q=5) | 5 (0.14%) | 5 (0.14%) |
-| SPP (Q=1) | 0 (0.00%) | 40 (1.11%) |
+| SPP (Q=1) | 0 (0.00%) | 41 (1.14%) |
 
-The 40 Q=1 epochs correspond to the initial convergence period (~40 seconds).
+The 41 Q=1 epochs correspond to the initial convergence period (~41 seconds).
 After convergence, the steady-state fix rate is identical: ~99.86%.
 
 ### Dual-channel (2025/157 dataset)
@@ -153,9 +153,9 @@ After convergence, the steady-state fix rate is identical: ~99.86%.
 
 | Metric | Post-Processing (`mrtk post`) | Real-Time, ch0 only | Real-Time, `l6_merge = 1` |
 |--------|:---:|:---:|:---:|
-| Fix (Q=4) | 3,579 (99.4%) | 3,575 (99.3%) | 3,575 (99.3%) |
-| Float (Q=5) | ~21 (0.6%) | 8 (0.2%) | 8 (0.2%) |
-| SPP (Q=1) | 0 (0.0%) | 17 (0.5%) | 17 (0.5%) |
+| Fix (Q=4) | 3,579 (99.4%) | 3,577 (99.4%) | 3,577 (99.4%) |
+| Float (Q=5) | ~21 (0.6%) | 5 (0.1%) | 5 (0.1%) |
+| SPP (Q=1) | 0 (0.0%) | 18 (0.5%) | 18 (0.5%) |
 | Mean satellites per fixed epoch | 15.6 | 14.6 | 15.5 |
 
 Merging the two transmit patterns buys about one extra usable satellite per
@@ -250,14 +250,14 @@ generator writes one entry per frame.  `--sync-tag <master.tag>` is required.
 `scripts/tests/check_l6_tag_sync.py --bnx <file.bnx> <file.l6> …` replays the
 `strsync()` timing offline and prints, for every frame, the lag between the
 newest complete observation epoch and the frame's epoch. The CTest
-`rtkrcv_rt_clas_tag_sync_check` requires it to stay within −1 to +2 s.
+`rtkrcv_rt_clas_tag_sync_check` requires 0 to +2 s; a live receiver gives +1 s.
 
-!!! note "Replays are slightly fresher than live"
-    `gen_bnx_tag.py` releases a BINEX epoch when the next epoch's record starts,
-    one second after the epoch, so relative to the observations the newest L6
-    frame is one second fresher than on a receiver. In these replays the clock
-    age at use is 0–4 s (median 2 s, as in post-processing). Single-SBF replays
-    of live captures measured a median of about 4 s (#416).
+A tag record `(tick_n, fpos)` does not release the file up to `fpos` at
+`tick_n`: `readfile()` makes the file readable up to the `fpos` of the first
+record whose tick is still ahead. The L6 tag therefore writes each frame's
+release tick with the start offset of that frame. In these replays the clock
+age at use is 1–5 s (median 3 s). Single-SBF replays of live captures measured
+a median of about 4 s (#416), post-processing 2 s.
 
 Before #515 the generator took the start time from the file name as a UTC hour,
 which made the L6 stream lag the observations by 20 s (2019/239) or by 18 s

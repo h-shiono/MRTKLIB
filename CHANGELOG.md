@@ -35,17 +35,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the GPST hour. The L6 stream therefore lagged the BINEX observations by 20 s
   (2019/239), or by 18 s falling to 1 s over the hour (2025/157, from a
   0.5 % tick scale), and the engine used clocks 22 s (2019) / 11 s (2025) old at
-  the median instead of 2 s. `gen_l6_tag.py` now takes each frame's time from
+  the median instead of 3 s. `gen_l6_tag.py` now takes each frame's time from
   the CSSR ST1 epoch in the file, releases it at epoch + 1 s (as a receiver
   does), and writes the tag on the master tag's timeline. `--sync-tag` is now
   required. The `claslib_setup` fixture rebuilds the three tags of
   `claslib_testdata.tar.gz`. New `rtkrcv_rt_clas_tag_sync_check` replays the
-  `strsync()` timing offline (`scripts/tests/check_l6_tag_sync.py`). Fix rate,
-  identical over 3 repeats: `rt_clas` 98.19 → 98.75 %, `rt_clas_2ch` and
-  `_2ch_merge` 98.89 → 99.31 %, epoch counts unchanged. With the tags in step,
-  a lost subframe 1 costs no Single in `rtkrcv_rt_clas_sf1gap` (19 s before), and
-  16 s without the #406 fix, which the old 25 s gate let pass. `--max-single` is
-  now 8 s.
+  `strsync()` / `readfile()` timing offline
+  (`scripts/tests/check_l6_tag_sync.py`). Fix rate (the replays repeat
+  identically): `rt_clas` 98.19 → 98.72 %, `rt_clas_2ch` and `_2ch_merge`
+  98.89 → 99.36 %, epoch counts unchanged. With the tags in step, a lost
+  subframe 1 costs no Single in `rtkrcv_rt_clas_sf1gap` (19 s before), and 17 s
+  without the #406 fix, which the old 25 s gate let pass. `--max-single` is now
+  8 s.
 
 ## [v0.7.17] - 2026-11-07
 
