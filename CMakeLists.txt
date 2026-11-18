@@ -3413,7 +3413,7 @@ endfunction()
 #   case          non-fix  recovery  nsat(median)   gate: recover / max-nonfix / min-nsat
 #   d9c_m            33     37.5 s      15                 60 s / 50 / 12
 #   d9c_s             8     39.5 s      16                 60 s / 20 / 13
-#   mcla_a           83    110.0 s      15                165 s / 125 / 12
+#   mcla_a           83    110.0 s      15                165 s /  30 / 12
 #   mcla_e            0      0          14                 30 s / 10 / 11
 #   mcla_o            0      0          13                 30 s / 10 / 10
 #   mcla_e_merge     32     65.0 s      14                100 s / 50 / 11
@@ -3422,12 +3422,18 @@ endfunction()
 # before the handover. The RT fix losses that post-processing does not show
 # (d9c_m, d9c_s, mcla_a; #389) and mcla_e being worse with l6_merge = 1
 # (#390) are tracked separately; tighten these gates when they are fixed.
+# mcla_a (#389, 2026-11-18): the 3 frames lost at the switch take the TOW
+# 176070 orbit, so for 2 epochs no satellite has an orbit within MAXAGESSR. The
+# failed epochs reset every state (as upstream) and the outage count then
+# dropped every ambiguity: 82 non-fix. With the filter carried across a short
+# correction gap: 14 (2 Single + 11 s Float at +110 s, a satellite entering
+# AR with its first CLAS corrections); recovery stays at that 122 s.
 _handover_rt(d9c_m        d9c_m  52011 G5P3286m_15m.sbf D9C1286m_15m.ubx ""
     "--recover 60 --max-nonfix 50 --min-nsat 12")
 _handover_rt(d9c_s        d9c_s  52012 G5P3286s_15m.sbf D9C1286s_15m.ubx ""
     "--recover 60 --max-nonfix 20 --min-nsat 13")
 _handover_rt(mcla_a       mcla_a 52013 MCLA286a_15m.sbf "" "l6_merge=0"
-    "--recover 165 --max-nonfix 125 --min-nsat 12")
+    "--recover 165 --max-nonfix 30 --min-nsat 12")
 _handover_rt(mcla_e       mcla_e 52014 MCLA286e_15m.sbf "" "l6_merge=0"
     "--recover 30 --max-nonfix 10 --min-nsat 11")
 _handover_rt(mcla_o       mcla_o 52015 MCLA286o_15m.sbf "" "l6_merge=0"
