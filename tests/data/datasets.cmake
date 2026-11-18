@@ -34,3 +34,8 @@ mrtk_dataset(g5p3_296u-v1 SHA256 923b2fe8e276664b8ad809947eaca2afc5577a9eca39cb7
 # ALIC 2025-110 f (DAS log) from cssrlib-data, with cut DLR broadcast
 # navigation; see tests/data/southpan/README.md (#418).
 mrtk_dataset(southpan-v1 SHA256 cf55f6ce2ffb900606078cd2366d0ccf4a843fb7707c8709314befb3e73ddefe)
+
+# Empty rover epochs: FUET284f_200s.sbf (simpleRTK4 Pro / mosaic-G5 P3,
+# 2026-10-11, 200 s around a ~50 s signal blockage); see
+# tests/data/rtksvr_empty/README.md (#382).
+mrtk_dataset(rtksvr_empty-v1 SHA256 3ccc8f3ca8b4711356f41ce9ba6ba43ea5823fbb022452480e88b8b49ce01f0a)

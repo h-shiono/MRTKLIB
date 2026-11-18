@@ -1187,6 +1187,8 @@ endforeach()
 #                           satellites per fixed epoch than the single-channel run
 #   rtkrcv_rt_clas_sf1gap   Real-time CLAS PPP-RTK with subframe 1 of every 300 s
 #                           frame removed: recovery after the loss (#406)
+#   rtkrcv_rt_empty_epoch   Rover epochs with no observations are not positioned
+#                           or written under a stale time (#382)
 set(_CLSDATA  ${CMAKE_SOURCE_DIR}/tests/data/claslib)
 set(_CLSRTREFDATA ${CMAKE_BINARY_DIR}/tests/data/claslib)
 set(_COMPARE_NMEA ${CMAKE_SOURCE_DIR}/scripts/tests/compare_nmea.py)
@@ -2304,6 +2306,49 @@ set_tests_properties(rtkrcv_rt_clas_sf1gap_check PROPERTIES
     DEPENDS           rtkrcv_rt_clas_sf1gap
     FIXTURES_REQUIRED claslib_data
     LABELS            "regression;claslib;realtime"
+)
+
+# ── rtkrcv rover epochs with no observations (#382) ───────────────────────────
+# Dataset rtksvr_empty-v1 (release asset of h-shiono/mrtklib-data, #386):
+# FUET284f_200s.sbf, whose rover epochs at TOW 21399-21448 decode with no
+# observations; provenance in tests/data/rtksvr_empty/README.md. PPP-RTK
+# settings without corrections (Single). Before the fix each empty epoch
+# reached rtkpos() and was written again under the time of TOW 21398
+# (05:56:20 UTC, 51 GGA). The gap is 05:56:21-05:57:10 UTC.
+set(_EMPTYDATA ${CMAKE_BINARY_DIR}/tests/data/rtksvr_empty)
+mrtk_dataset_setup_test(rtksvr_empty_setup rtksvr_empty-v1 ${_EMPTYDATA})
+set_tests_properties(rtksvr_empty_setup PROPERTIES
+    FIXTURES_SETUP rtksvr_empty_data
+    LABELS         "regression;realtime"
+)
+set(EMPTY_ROVER ${_EMPTYDATA}/FUET284f_200s.sbf)
+configure_file(${CMAKE_SOURCE_DIR}/tests/data/rtksvr_empty/rtkrcv_empty_epoch.toml.in
+    ${CMAKE_BINARY_DIR}/rtksvr_empty/rtkrcv_empty_epoch.toml @ONLY)
+add_test(NAME rtkrcv_rt_empty_epoch
+    COMMAND bash ${_TESTCMAKE}/run_rtkrcv_test.sh
+        $<TARGET_FILE:mrtk> run
+        ${CMAKE_SOURCE_DIR}
+        100
+        10
+        ${CMAKE_BINARY_DIR}/rtksvr_empty/rtkrcv_empty_epoch.toml
+        52022
+        120
+        ${CMAKE_BINARY_DIR}/out_rtkrcv_rt_empty_epoch.nmea
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+set_tests_properties(rtkrcv_rt_empty_epoch PROPERTIES
+    FIXTURES_REQUIRED rtksvr_empty_data
+    TIMEOUT           200
+    LABELS            "regression;realtime"
+)
+add_test(NAME rtkrcv_rt_empty_epoch_check
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/scripts/tests/check_rtksvr_empty_epoch.py
+        ${CMAKE_BINARY_DIR}/out_rtkrcv_rt_empty_epoch.nmea
+        --gap-start 21381 --gap-end 21430
+)
+set_tests_properties(rtkrcv_rt_empty_epoch_check PROPERTIES
+    DEPENDS           rtkrcv_rt_empty_epoch
+    LABELS            "regression;realtime"
 )
 
 # ═══════════════════════════════════════════════════════════════════════════════
