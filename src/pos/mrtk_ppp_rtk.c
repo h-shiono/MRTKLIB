@@ -2610,8 +2610,11 @@ static void check_clas_facility(nav_t* nav, const clas_ctx_t* clas, const clas_g
  * failed epoch and then maxout = 1 dropped every ambiguity, and float_count
  * reset the filter: ~80 s of Float in RT where post-processing, which reads
  * the next subframe ahead, kept Fix (#389). The bridge needs a measurement
- * update within one CLAS subframe (5 s); at start-up, before the first update,
- * a failed epoch resets as upstream does (keeping those states misfixed). */
+ * update within one CLAS subframe (5 s) of the current filter: every reset
+ * clears tupd, and a zero position state (rtkinit() between the forward and
+ * backward passes, which keeps prtk_ctx) disables it. The time is absolute
+ * for the backward pass. At start-up, before the first update, a failed epoch
+ * resets as upstream does (keeping those states misfixed). */
 #define CLAS_GAP_BRIDGE 5.0 /* max time since the last measurement update (s) */
 
 /* Undo this epoch's outage count for the observed carriers. */
@@ -2698,6 +2701,7 @@ extern void ppp_rtk_pos(rtk_t* rtk, const obsd_t* obs, int n, nav_t* nav) {
         for (i = 0; i < rtk->nx; i++) {
             rtk->x[i] = 0.0;
         }
+        prtk_ctx.tupd.time = 0;
     }
 
     /* periodic filter reset: force a full state reset every opt->regularly
@@ -2715,6 +2719,7 @@ extern void ppp_rtk_pos(rtk_t* rtk, const obsd_t* obs, int n, nav_t* nav) {
         regularly = obs[0].time;
         nav->filreset = 0;
         prtk_ctx.float_count = 0;
+        prtk_ctx.tupd.time = 0;
         free(azel);
         free(e);
         for (ch = 0; ch < nch; ch++) {
@@ -2742,6 +2747,7 @@ extern void ppp_rtk_pos(rtk_t* rtk, const obsd_t* obs, int n, nav_t* nav) {
         }
         prtk_ctx.float_count = 0;
         prtk_ctx.floatcnt_reset = 1;
+        prtk_ctx.tupd.time = 0;
     }
 
     if (nav->filreset) {
@@ -2758,10 +2764,12 @@ extern void ppp_rtk_pos(rtk_t* rtk, const obsd_t* obs, int n, nav_t* nav) {
         rtk->sol.stat = SOLQ_FLOAT;
         nav->filreset = 0;
         stat = SOLQ_FLOAT;
+        prtk_ctx.tupd.time = 0;
     }
 
     /* temporal update of states */
-    bridge = prtk_ctx.tupd.time != 0 && timediff(obs[0].time, prtk_ctx.tupd) <= CLAS_GAP_BRIDGE + DTTOL;
+    bridge = prtk_ctx.tupd.time != 0 && rtk->x[0] != 0.0 &&
+             fabs(timediff(obs[0].time, prtk_ctx.tupd)) <= CLAS_GAP_BRIDGE + DTTOL;
     for (i = 0; i < MAXSAT; i++) {
         for (f = 0; f < NFREQ; f++) {
             outc0[i][f] = rtk->ssat[i].outc[f];
@@ -3302,6 +3310,7 @@ extern void ppp_rtk_pos(rtk_t* rtk, const obsd_t* obs, int n, nav_t* nav) {
                 rtk->x[i] = 0.0;
             }
         }
+        prtk_ctx.tupd.time = 0;
     }
 
     /* save persistent zdres state */
