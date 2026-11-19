@@ -46,6 +46,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   satellite count of every epoch are identical, and positions differ by at
   most 1 mm (last printed digit), as two runs of the same binary do. New
   `utest_rtk_lli`.
+- **RTCM3 MSM: half-cycle ambiguity indicator decoded as `LLI_HALFC`**
+  ([#531](https://github.com/h-shiono/MRTKLIB/issues/531)). For an MSM cell
+  with the indicator set, `save_msm_obs()` added 3 to the loss-of-lock flag.
+  The indicator alone gave LLI 3, a slip on every epoch while it stayed set.
+  With a loss of lock on the same epoch it gave LLI 4, which carries neither
+  flag, so the slip was left to the other detectors and RTK took the half
+  cycle as resolved. The LLI is now `LLI_SLIP` for a loss of lock ORed with `LLI_HALFC`
+  for the indicator, as in demo5 since 2019 (RTKLIB 2.4.3, MALIB, MADOCALIB
+  and claslib add 3). With MSM4 to MSM7 input:
+  - RTK no longer resets the ambiguity on every epoch of a signal with the
+    indicator set. It flags a slip when the indicator changes, in either
+    direction, and keeps the signal out of ambiguity resolution in between.
+  - PPP, PPP-RTK and VRS-RTK treat `LLI_HALFC` as a slip, as before, and now
+    also on the epoch where a loss of lock came with the indicator.
+  - SPP TDCP (opt-in, also the CLAS SPP seed) takes its slip mask from
+    `LLI_SLIP` alone. It no longer drops an L1 phase for the indicator alone
+    (the phase-rate check against Doppler still applies), and it now drops the
+    epoch where a loss of lock came with the indicator.
+  - `mrtk relay` re-encoding RTCM3 to RTCM3 no longer restarts the MSM lock
+    time on every epoch with the indicator set, and no longer drops both the
+    lock-time restart and the indicator when they coincide.
+  - `mrtk convert` writes RINEX LLI 2 / 3 where it wrote 3 / 4.
+
+  No RTCM3 file of the regression tests has the indicator set (466,900 MSM
+  cells), so their results do not change, and the effect on a receiver's own
+  MSM output is not measured. One hour of mosaic-G5 SBF had the half-cycle flag
+  alone on 19 of 723,416 phase observations and together with a slip on 4. New
+  `utest_msm_half_lli` (MSM4 to MSM7 encode / decode round trip).
 
 ### Tests
 
