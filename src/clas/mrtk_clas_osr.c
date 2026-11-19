@@ -354,16 +354,16 @@ double clas_osr_prectrop(gtime_t time, const double* pos, const double* azel, do
  *
  * Returns a bitmask indicating which secondary frequencies to use alongside L1.
  * The selection depends on the satellite system and the processing options
- * posopt[10] (GPS) and posopt[12] (QZS).
+ * posopt[10] (GPS) and posopt[12] (QZS). Shared by the PPP-RTK and VRS-RTK
+ * engines (claslib cssr2osr.c and, since 0.9.0, rtkvrs.c).
  *
- * Note: MRTKLIB's prcopt_t.posopt[] is 6 elements (indices 0-5) while upstream
- * claslib uses indices up to 12.  For forward compatibility the indices 10/12
- * are checked against the array size; if out of range, default to L1+L2.
+ * The bits are observation slots, not bands: they mean L2 and L5 only in the
+ * claslib slot layout (GPS/QZS L1/L2/L5, Galileo E1/-/E5a).
  *
  * @param[in] sat  Satellite number
  * @param[in] opt  Processing options
  * @param[in] obs  Observation data for this satellite
- * @return Frequency pair bitmask (0=L1 only, 1=L2, 2=L5, 3=L2+L5)
+ * @return Frequency pair bitmask (0=slot 0 only, 1=slot 1, 2=slot 2, 3=slots 1+2)
  */
 int clas_osr_selfreqpair(int sat, const prcopt_t* opt, const obsd_t* obs) {
     int optf, sys;

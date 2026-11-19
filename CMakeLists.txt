@@ -1190,6 +1190,8 @@ endforeach()
 #                           Same data with SSR iono compensation: the dual-L1
 #                           QZS satellite must stay in the solution (#345)
 #   claslib_vrs_rtk         VRS-RTK (2019/239)
+#   claslib_vrs_rtk_qzs_l1l5
+#                           VRS-RTK with qzs_frequency = "l1+l5" (2019/239, #346)
 #   claslib_vrs_rtk_st12    VRS-RTK with SubType 12 (2019/349)
 #   claslib_vrs_rtk_2ch     VRS-RTK with 2-channel (2025/157)
 #   rtkrcv_rt_clas_tag_sync_check
@@ -1816,6 +1818,48 @@ set_tests_properties(claslib_vrs_rtk_abs_check PROPERTIES
     DEPENDS           claslib_vrs_rtk
     FIXTURES_REQUIRED claslib_data
     LABELS            "absolute;claslib;vrs"
+)
+
+# QZS frequency pair in VRS-RTK (#346, claslib 0.9.0 selfreqpair). The VRS
+# engine read gps_frequency for every system, so qzs_frequency = "l1+l5" was
+# ignored: 1349 valid QZS records on frequency 2 and none on 3 in this window
+# before the fix, 1343 on frequency 3 and none on 2 after (check_vrs_qzs_freq.py
+# on the solution status file).
+add_test(NAME claslib_vrs_rtk_qzs_l1l5
+    COMMAND $<TARGET_FILE:mrtk> post
+        -k ${CMAKE_SOURCE_DIR}/conf/claslib/rnx2rtkp_vrs.toml
+        -k ${_CLSDATA}/qzs_l1l5.toml
+        -ts 2019/08/27 16:00:00 -te 2019/08/27 16:09:59 -ti 1
+        -o ${CMAKE_BINARY_DIR}/out_claslib_vrs_rtk_qzs_l1l5.nmea
+        ${_CLSDATA}/0627239Q.obs
+        ${_CLSDATA}/sept_2019239.nav
+        ${_CLSDATA}/vrs2019239Q.obs
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+set_tests_properties(claslib_vrs_rtk_qzs_l1l5 PROPERTIES
+    FIXTURES_REQUIRED claslib_data
+    TIMEOUT           300
+    LABELS            "regression;claslib;vrs"
+)
+add_test(NAME claslib_vrs_rtk_qzs_l1l5_check
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/scripts/tests/check_vrs_qzs_freq.py
+        ${CMAKE_BINARY_DIR}/out_claslib_vrs_rtk_qzs_l1l5.nmea.stat
+        --system J --second 3 --min-records 1000 --min-ratio 0.95
+)
+set_tests_properties(claslib_vrs_rtk_qzs_l1l5_check PROPERTIES
+    DEPENDS claslib_vrs_rtk_qzs_l1l5
+    LABELS  "regression;claslib;vrs"
+)
+# The QZS option must not move GPS: 3368 valid GPS records on frequencies 1
+# and 2 each, none on 3.
+add_test(NAME claslib_vrs_rtk_qzs_l1l5_gps_check
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/scripts/tests/check_vrs_qzs_freq.py
+        ${CMAKE_BINARY_DIR}/out_claslib_vrs_rtk_qzs_l1l5.nmea.stat
+        --system G --second 2 --min-records 3000 --min-ratio 0.95
+)
+set_tests_properties(claslib_vrs_rtk_qzs_l1l5_gps_check PROPERTIES
+    DEPENDS claslib_vrs_rtk_qzs_l1l5
+    LABELS  "regression;claslib;vrs"
 )
 
 # ── rnx2rtkp CLAS PPP-RTK regression (SubType 12 BINEX) ─────────────────────

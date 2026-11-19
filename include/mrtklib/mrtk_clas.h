@@ -1199,11 +1199,12 @@ typedef struct {
 double clas_osr_prectrop(gtime_t time, const double* pos, const double* azel, double zwd, double ztd);
 
 /**
- * @brief Select frequency pair for multi-frequency processing.
+ * @brief Select frequency pair for multi-frequency processing (PPP-RTK, VRS-RTK).
  * @param[in] sat  Satellite number
- * @param[in] opt  Processing options
- * @param[in] obs  Observation data
- * @return Frequency pair bitmask (0=L1 only, 1=L2, 2=L5, 3=L2+L5)
+ * @param[in] opt  Processing options (posopt[10] GPS, posopt[12] QZS)
+ * @param[in] obs  Observation data of this satellite
+ * @return Bitmask of observation slots used with slot 0 (0=none, 1=slot 1,
+ *         2=slot 2, 3=both); L2 and L5 in the claslib slot layout
  */
 int clas_osr_selfreqpair(int sat, const prcopt_t* opt, const obsd_t* obs);
 
