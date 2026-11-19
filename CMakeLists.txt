@@ -3416,7 +3416,7 @@ endfunction()
 #   mcla_a           83    110.0 s      15                165 s /  30 / 12
 #   mcla_e            0      0          14                 30 s / 10 / 11
 #   mcla_o            0      0          13                 30 s / 10 / 10
-#   mcla_e_merge     32     65.0 s      14                100 s / 50 / 11
+#   mcla_e_merge     32     65.0 s      14                 30 s / 10 / 11
 # Fix loss is typically delayed ~30 s (the old satellite's corrections age
 # out). All cases: no gap > 5 s (freeze), fix rate >= 0.9 over the 120 s
 # before the handover. The RT fix losses that post-processing does not show
@@ -3428,6 +3428,11 @@ endfunction()
 # dropped every ambiguity: 82 non-fix. With the filter carried across a short
 # correction gap: 14 (2 Single + 11 s Float at +110 s, a satellite entering
 # AR with its first CLAS corrections); recovery stays at that 122 s.
+# mcla_e_merge (#390, 2026-11-19): when the new pattern's channel first had
+# corrections, the silent old channel's cleared snapshot read as a facility
+# change and every satellite moving channel had its phase bias re-initialized
+# (5 Float epochs on develop, 32 at the issue). With the last known facility:
+# 0, as mcla_e; gate as mcla_e.
 _handover_rt(d9c_m        d9c_m  52011 G5P3286m_15m.sbf D9C1286m_15m.ubx ""
     "--recover 60 --max-nonfix 50 --min-nsat 12")
 _handover_rt(d9c_s        d9c_s  52012 G5P3286s_15m.sbf D9C1286s_15m.ubx ""
@@ -3439,7 +3444,7 @@ _handover_rt(mcla_e       mcla_e 52014 MCLA286e_15m.sbf "" "l6_merge=0"
 _handover_rt(mcla_o       mcla_o 52015 MCLA286o_15m.sbf "" "l6_merge=0"
     "--recover 30 --max-nonfix 10 --min-nsat 10")
 _handover_rt(mcla_e_merge mcla_e 52016 MCLA286e_15m.sbf "" "l6_merge=1"
-    "--recover 100 --max-nonfix 50 --min-nsat 11")
+    "--recover 30 --max-nonfix 10 --min-nsat 11")
 
 # The checker itself: synthetic solutions with a 60 s gap, a long outage and
 # too few satellites must fail; a clean one must pass.

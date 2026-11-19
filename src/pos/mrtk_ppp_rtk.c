@@ -1455,12 +1455,26 @@ enum ddres_order { FST = 1, SND, TRD };
  * channel unless a common reference satellite exists.
  *
  * Mirrors upstream check_same_fac(), which compares the facility id of the two
- * CurrentCSSR entries directly.
+ * CurrentCSSR entries. Upstream leaves the entry of a channel that failed this
+ * epoch stale, facility included; here the snapshot of such a channel is
+ * cleared (OR-semantics fetch), so it takes its last known facility instead.
+ * The zeroed facility read as a facility change, e.g. once the old pattern of
+ * a handover went silent, and re-initialized the phase bias of every satellite
+ * moving to the other channel (#390).
  *
  * @param[in] clas CLAS context
  * @return 1 if both channels report the same facility, 0 otherwise
  */
-static int check_same_fac(const clas_ctx_t* clas) { return clas->current[0].facility == clas->current[1].facility; }
+static int clas_lastfac[SSR_CH_NUM] = {-1, -1}; /* last known facility per channel */
+
+static int check_same_fac(const clas_ctx_t* clas) {
+    int ch, fac[2];
+
+    for (ch = 0; ch < 2; ch++) {
+        fac[ch] = clas->current[ch].use || clas_lastfac[ch] < 0 ? clas->current[ch].facility : clas_lastfac[ch];
+    }
+    return fac[0] == fac[1];
+}
 
 /**
  * @brief Check that a satellite yields a usable zero-difference signal.
@@ -2576,7 +2590,6 @@ extern int ppp_rtk_nx(const prcopt_t* opt) { return NX_RTK(opt); }
 extern int ppp_rtk_na(const prcopt_t* opt) { return NR_RTK(opt); }
 
 static void check_clas_facility(nav_t* nav, const clas_ctx_t* clas, const clas_grid_t* grid, const prcopt_t* opt) {
-    static int savefacility[SSR_CH_NUM] = {-1, -1};
     int ch, nch = opt->l6mrg ? SSR_CH_NUM : 1;
 
     (void)grid;
@@ -2588,11 +2601,11 @@ static void check_clas_facility(nav_t* nav, const clas_ctx_t* clas, const clas_g
         if (!clas->current[ch].use) {
             continue;
         }
-        if (savefacility[ch] != facility) {
-            if (savefacility[ch] != -1) {
+        if (clas_lastfac[ch] != facility) {
+            if (clas_lastfac[ch] != -1) {
                 nav->filreset = 1;
             }
-            savefacility[ch] = facility;
+            clas_lastfac[ch] = facility;
         }
     }
 }
