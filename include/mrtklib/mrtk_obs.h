@@ -243,6 +243,13 @@ const uint8_t* mrtk_get_signal_priority(int sys, mrtk_band_t band);
 void mrtk_use_claslib_qzs_l1_priority(int on);
 
 /**
+ * @brief claslib QZSS L1 code order (C > S > L > X > Z).
+ * @return Code list in priority order, 0-terminated or MRTK_MAX_SIG_PRIORITY
+ *         long. Independent of mrtk_use_claslib_qzs_l1_priority().
+ */
+const uint8_t* mrtk_claslib_qzs_l1_priority(void);
+
+/**
  * @brief Convert physical band to base carrier frequency (Hz).
  * @param[in] band  Physical frequency band
  * @return Base carrier frequency (Hz), 0.0 on error.
