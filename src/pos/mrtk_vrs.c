@@ -845,10 +845,6 @@ static void zdres_sat(int base, double r, const obsd_t* obs, const nav_t* nav, c
     if (qj == 0 && satsys(obs->sat, NULL) == SYS_GAL && (obs->L[1] != 0.0 || obs->P[1] != 0.0)) {
         qj = 1;
     }
-    /* fallback: if preferred secondary freq has no data, try index 1 */
-    if (qj > 1 && obs->L[qj] == 0.0 && obs->P[qj] == 0.0 && (obs->L[1] != 0.0 || obs->P[1] != 0.0)) {
-        qj = 1;
-    }
 
     for (i = 0; i < nf; i++) {
         if (lam_arr[i] == 0.0) {
@@ -1654,7 +1650,7 @@ static int resamb_LAMBDA(rtk_t* rtk, double* bias, double* xa) {
     int i, j, ny, nb, info, nx = rtk->nx, na = rtk->na;
     double *D, *DP, *y, *Qy, *b, *db, *Qb, *Qab, *QQ, s[2];
     double *Ds, *Pac, *Pcc, *D_P;
-    int nc;
+    int nc, nq;
 
     trace(NULL, 3, "resamb_LAMBDA : nx=%d\n", nx);
 
@@ -1724,8 +1720,11 @@ static int resamb_LAMBDA(rtk_t* rtk, double* bias, double* xa) {
             rtk->sol.ratio = 999.9f;
         }
 
-        /* validation by popular ratio-test */
-        if (s[0] <= 0.0 || s[1] / s[0] >= qfrtk[opt->alphaar][nb - 1]) {
+        /* validation by popular ratio-test. The table ends at 60 ambiguities
+         * and the threshold falls with their number: beyond it the last
+         * entry is on the strict side */
+        nq = (int)(sizeof(qfrtk[0]) / sizeof(qfrtk[0][0]));
+        if (s[0] <= 0.0 || s[1] / s[0] >= qfrtk[opt->alphaar][(nb < nq ? nb : nq) - 1]) {
             /* transform float to fixed solution (xa=xa-Qab*Qb\(b0-b)) */
             for (i = 0; i < na; i++) {
                 rtk->xa[i] = rtk->x[i];

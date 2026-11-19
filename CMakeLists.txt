@@ -1192,6 +1192,9 @@ endforeach()
 #   claslib_vrs_rtk         VRS-RTK (2019/239)
 #   claslib_vrs_rtk_qzs_l1l5
 #                           VRS-RTK with qzs_frequency = "l1+l5" (2019/239, #346)
+#   claslib_vrs_rtk_l1l2l5  VRS-RTK with gps/qzs_frequency = "l1+l2+l5" (#534)
+#   claslib_vrs_rtk_gps_l1l5
+#                           VRS-RTK with gps_frequency = "l1+l5" (#534)
 #   claslib_vrs_rtk_st12    VRS-RTK with SubType 12 (2019/349)
 #   claslib_vrs_rtk_2ch     VRS-RTK with 2-channel (2025/157)
 #   rtkrcv_rt_clas_tag_sync_check
@@ -1844,7 +1847,7 @@ set_tests_properties(claslib_vrs_rtk_qzs_l1l5 PROPERTIES
 add_test(NAME claslib_vrs_rtk_qzs_l1l5_check
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/scripts/tests/check_vrs_qzs_freq.py
         ${CMAKE_BINARY_DIR}/out_claslib_vrs_rtk_qzs_l1l5.nmea.stat
-        --system J --second 3 --min-records 1000 --min-ratio 0.95
+        --system J --freqs 1,3 --min-records 1000 --min-ratio 0.95
 )
 set_tests_properties(claslib_vrs_rtk_qzs_l1l5_check PROPERTIES
     DEPENDS claslib_vrs_rtk_qzs_l1l5
@@ -1855,12 +1858,53 @@ set_tests_properties(claslib_vrs_rtk_qzs_l1l5_check PROPERTIES
 add_test(NAME claslib_vrs_rtk_qzs_l1l5_gps_check
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/scripts/tests/check_vrs_qzs_freq.py
         ${CMAKE_BINARY_DIR}/out_claslib_vrs_rtk_qzs_l1l5.nmea.stat
-        --system G --second 2 --min-records 3000 --min-ratio 0.95
+        --system G --freqs 1,2 --min-records 3000 --min-ratio 0.95
 )
 set_tests_properties(claslib_vrs_rtk_qzs_l1l5_gps_check PROPERTIES
     DEPENDS claslib_vrs_rtk_qzs_l1l5
     LABELS  "regression;claslib;vrs"
 )
+
+# Frequency options that select slot 2 in VRS-RTK (#534). zdres_sat() had a
+# fallback that used the slot bitmask as an index: "l1+l2+l5" (mask 3) always
+# fell back to L1+L2, and "l1+l5" moved a satellite without L5 to L2, which
+# upstream claslib does not do ("l1+l5(l2)" is the option for that).
+#   l1l2l5  : QZS valid records on frequency 3: none before, 1340 after
+#   gps_l1l5: GPS valid records on frequency 2: 1712 before, none after
+#             (about half of the GPS satellites carry L5: ratio 0.49)
+foreach(_frqcase IN ITEMS l1l2l5:J:1,2,3:1000:0.95 gps_l1l5:G:1,3:3000:0.30)
+    string(REPLACE ":" ";" _frqcase ${_frqcase})
+    list(GET _frqcase 0 _frqname)
+    list(GET _frqcase 1 _frqsys)
+    list(GET _frqcase 2 _frqset)
+    list(GET _frqcase 3 _frqrec)
+    list(GET _frqcase 4 _frqratio)
+    add_test(NAME claslib_vrs_rtk_${_frqname}
+        COMMAND $<TARGET_FILE:mrtk> post
+            -k ${CMAKE_SOURCE_DIR}/conf/claslib/rnx2rtkp_vrs.toml
+            -k ${_CLSDATA}/${_frqname}.toml
+            -ts 2019/08/27 16:00:00 -te 2019/08/27 16:09:59 -ti 1
+            -o ${CMAKE_BINARY_DIR}/out_claslib_vrs_rtk_${_frqname}.nmea
+            ${_CLSDATA}/0627239Q.obs
+            ${_CLSDATA}/sept_2019239.nav
+            ${_CLSDATA}/vrs2019239Q.obs
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    )
+    set_tests_properties(claslib_vrs_rtk_${_frqname} PROPERTIES
+        FIXTURES_REQUIRED claslib_data
+        TIMEOUT           300
+        LABELS            "regression;claslib;vrs"
+    )
+    add_test(NAME claslib_vrs_rtk_${_frqname}_check
+        COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/scripts/tests/check_vrs_qzs_freq.py
+            ${CMAKE_BINARY_DIR}/out_claslib_vrs_rtk_${_frqname}.nmea.stat
+            --system ${_frqsys} --freqs ${_frqset} --min-records ${_frqrec} --min-ratio ${_frqratio}
+    )
+    set_tests_properties(claslib_vrs_rtk_${_frqname}_check PROPERTIES
+        DEPENDS claslib_vrs_rtk_${_frqname}
+        LABELS  "regression;claslib;vrs"
+    )
+endforeach()
 
 # ── rnx2rtkp CLAS PPP-RTK regression (SubType 12 BINEX) ─────────────────────
 # Data: 2019/12/15 01:00-02:00, 0627349AB.bnx + sept_2019349.nav + 2019349B.l6
