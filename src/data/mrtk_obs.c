@@ -908,6 +908,12 @@ static int qzs_l1_claslib = 0;
  *----------------------------------------------------------------------------*/
 extern void mrtk_use_claslib_qzs_l1_priority(int on) { qzs_l1_claslib = on; }
 
+/* mrtk_claslib_qzs_l1_priority: claslib QZSS L1 code order --------------------
+ * return : code list in priority order (C>S>L>X>Z), 0-terminated or
+ *          MRTK_MAX_SIG_PRIORITY long; independent of the toggle above
+ *----------------------------------------------------------------------------*/
+extern const uint8_t* mrtk_claslib_qzs_l1_priority(void) { return QZS_L1_PRIORITY_CLASLIB; }
+
 /* mrtk_get_signal_priority: get priority-ordered code list -------------------
  * look up the priority-ordered observation code list for a (system, band) pair
  * args   : int         sys   I  satellite system (SYS_???)

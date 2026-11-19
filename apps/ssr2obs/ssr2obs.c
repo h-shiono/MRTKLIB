@@ -114,6 +114,7 @@ static const char* usage[] = {
     "CPC0,CPC1,CPC2,PRC0,PRC1,PRC2,sis\n"
 
 static rnxopt_t rnx_opt = {0};
+static int rnx_hdr = 0; /* RINEX header written */
 
 /* find and open L6 file from input list -------------------------------------*/
 static FILE* open_L6(char** infile, int n) {
@@ -142,10 +143,8 @@ static FILE* open_L6(char** infile, int n) {
 
 /* set RINEX output options --------------------------------------------------*/
 static void set_rnxopt(rnxopt_t* opt, char** infile, int n, const prcopt_t* prcopt) {
-    static const int sys[] = {SYS_GPS, SYS_GLO, SYS_GAL, SYS_QZS};
-    static const char* tobs[][OSR_NFREQ] = {{"1C", "2W", "2X", "5X"}, {"1C", "2P"}, {"1X", "5X"}, {"1C", "2X", "5X"}};
     gtime_t time = {0};
-    int i, j, nobs;
+    int i;
 
     opt->rnxver = OSR_RNXVER;
     opt->navsys = prcopt->navsys;
@@ -156,24 +155,52 @@ static void set_rnxopt(rnxopt_t* opt, char** infile, int n, const prcopt_t* prco
         sprintf(opt->comment[i], "infile: %-55.55s", infile[i]);
     }
     opt->tstart = opt->tend = time;
+}
+
+/* set RINEX observation types -------------------------------------------------
+ * the codes of every satellite in the CSSR corrections, as clas_ssr2osr()
+ * outputs them: only signals that are output, so a reader never picks an
+ * empty column over the L1 signal in use. Taken from the corrections, not
+ * from the first epoch (claslib 0.9.0 generate_tobs()): a system with no
+ * satellite in view at the start would otherwise never be written.
+ *----------------------------------------------------------------------------*/
+static void set_rnxtobs(rnxopt_t* opt, const clas_corr_t* corr, const prcopt_t* prcopt) {
+    static const int sys[] = {SYS_GPS, SYS_GLO, SYS_GAL, SYS_QZS};
+    uint8_t codes[NFREQ + NEXOBS];
+    char type[4];
+    const char* id;
+    int i, j, m, s, sat, ns;
 
     for (i = 0; i < 4; i++) {
-        if (!(sys[i] & opt->navsys)) {
+        opt->nobs[i] = 0;
+    }
+    for (sat = 1; sat <= MAXSAT; sat++) {
+        s = satsys(sat, NULL);
+        for (i = 0; i < 4 && sys[i] != s; i++) {
+        }
+        if (i >= 4 || !(s & opt->navsys)) {
             continue;
         }
-        for (j = nobs = 0; j < OSR_NFREQ; j++) {
-            if (tobs[i][j] == NULL) {
+        ns = clas_osr_vrs_codes(corr, prcopt, sat, codes);
+        for (j = 0; j < ns; j++) {
+            id = code2obs(codes[j]);
+            if (!*id) {
                 continue;
             }
-            sprintf(opt->tobs[i][nobs++], "C%s", tobs[i][j]);
-            sprintf(opt->tobs[i][nobs++], "L%s", tobs[i][j]);
+            sprintf(type, "C%s", id);
+            for (m = 0; m < opt->nobs[i] && strcmp(opt->tobs[i][m], type); m += 2) {
+            }
+            if (m < opt->nobs[i] || opt->nobs[i] + 2 > MAXOBSTYPE) {
+                continue;
+            }
+            sprintf(opt->tobs[i][opt->nobs[i]++], "C%s", id);
+            sprintf(opt->tobs[i][opt->nobs[i]++], "L%s", id);
         }
-        opt->nobs[i] = nobs;
     }
 }
 
 /* open output file ----------------------------------------------------------*/
-static FILE* open_osr(const char* file, nav_t* nav, int mode, char** infile, int n, const prcopt_t* prcopt) {
+static FILE* open_osr(const char* file, int mode, char** infile, int n, const prcopt_t* prcopt) {
     FILE* fp = NULL;
 
     if (!(fp = fopen(file, mode == OSR_RTCM3 ? "wb" : "w"))) {
@@ -182,7 +209,7 @@ static FILE* open_osr(const char* file, nav_t* nav, int mode, char** infile, int
     }
     if (mode == OSR_RINEX) {
         set_rnxopt(&rnx_opt, infile, n, prcopt);
-        outrnxobsh(fp, &rnx_opt, nav);
+        rnx_hdr = 0;
     }
     return fp;
 }
@@ -190,6 +217,8 @@ static FILE* open_osr(const char* file, nav_t* nav, int mode, char** infile, int
 /* close output file ---------------------------------------------------------*/
 static void close_osr(FILE* fp, nav_t* nav, int mode) {
     if (mode == OSR_RINEX) {
+        /* rewrite the header with the time of the last observation; with no
+         * epoch output it is written here for the first time */
         rewind(fp);
         outrnxobsh(fp, &rnx_opt, nav);
     }
@@ -197,9 +226,15 @@ static void close_osr(FILE* fp, nav_t* nav, int mode) {
 }
 
 /* write RINEX observation body ----------------------------------------------*/
-static void write_osr(FILE* fp, int mode, const obs_t* obs, nav_t* nav) {
+static void write_osr(FILE* fp, int mode, const obs_t* obs, nav_t* nav, const clas_corr_t* corr,
+                      const prcopt_t* prcopt) {
     if (mode == OSR_RINEX) {
         if (obs->n > 0) {
+            if (!rnx_hdr) {
+                set_rnxtobs(&rnx_opt, corr, prcopt);
+                outrnxobsh(fp, &rnx_opt, nav);
+                rnx_hdr = 1;
+            }
             outrnxobsb(fp, &rnx_opt, obs->data, obs->n, 0);
             if (!rnx_opt.tstart.time) {
                 rnx_opt.tstart = obs->data[0].time;
@@ -437,7 +472,7 @@ static int gen_osr(gtime_t ts, gtime_t te, double ti, int mode, prcopt_t* prcopt
 
     /* open output file */
     reppath(outfile, path, ts, "", "");
-    if (!(fp_out = open_osr(path, nav, mode, infile, n, prcopt))) {
+    if (!(fp_out = open_osr(path, mode, infile, n, prcopt))) {
         fclose(fp_in);
         freenav(nav, 0xFF);
         clas_ctx_free(clas);
@@ -506,7 +541,7 @@ static int gen_osr(gtime_t ts, gtime_t te, double ti, int mode, prcopt_t* prcopt
             if (mode == OSR_RTCM3) {
                 write_rtcm3(fp_out, &obs, nav, prcopt);
             } else {
-                write_osr(fp_out, mode, &obs, nav);
+                write_osr(fp_out, mode, &obs, nav, &clas->current[0], prcopt);
             }
             if (fp_csv) {
                 for (j = 0; j < obs.n; j++) {

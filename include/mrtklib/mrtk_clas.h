@@ -1209,6 +1209,19 @@ double clas_osr_prectrop(gtime_t time, const double* pos, const double* azel, do
 int clas_osr_selfreqpair(int sat, const prcopt_t* opt, const obsd_t* obs);
 
 /**
+ * @brief Signal codes the SSR2OSR modes (ssr2obs, cssr2rtcm3) output for a
+ *        satellite: its CSSR signals, with one L1 signal only when the SSR
+ *        ionosphere compensation is on.
+ * @param[in]  corr   Merged correction snapshot
+ * @param[in]  opt    Processing options
+ * @param[in]  sat    Satellite number
+ * @param[out] codes  Code per signal index [NFREQ + NEXOBS]; CODE_NONE for a
+ *                    signal that is not output
+ * @return Number of signal indices in use (0: no correction for the satellite)
+ */
+int clas_osr_vrs_codes(const clas_corr_t* corr, const prcopt_t* opt, int sat, uint8_t* codes);
+
+/**
  * @brief Compute zero-differenced phase/code residuals with CLAS corrections.
  * @param[in]     obs    Observation data for epoch
  * @param[in]     n      Number of observations

@@ -1,0 +1,34 @@
+# MRTKLIB Configuration (TOML v1.0.0)
+# Converted from: sample_L1CL5.conf (claslib 0.9.0)
+#
+# VRS observations with QZS L1C in place of L1 C/A (-JL1X), for
+# conf/claslib/rnx2rtkp_L1CL5_vrs.toml.
+
+[positioning]
+mode = "ssr2osr"                                                          # (10:ssr2osr)
+signals = ["G1C", "G2W", "G5X", "E1C", "E5Q", "E7Q", "J1C", "J5Q", "J2X"]
+excluded_sats = []                                                        # (prn ...)
+systems = ["GPS", "Galileo", "QZSS"]
+
+[positioning.corrections]
+receiver_antenna = false                     # receiver antenna model(0:off,1:on)
+phase_windup = "on"                          # phase windup correction(0:off,1:on)
+iono_compensation = "ssr"                    # compensate time variation of ionosphere delay(0:off,1:ssr)
+shapiro_delay = true                         # shapiro time delay correction (0:off,1:on)
+no_phase_bias_adj = false                    # don't adjust phase bias (0:off,1:on)
+tidal_correction = "solid+otl-clasgrid+pole" # (0:off,3:solid+otl-clasgrid+pole)
+
+[antenna.rover]
+position_type = "llh"          # (0:llh,1:xyz)
+position_1 = 36.10363328214897
+position_2 = 140.0863194896172
+position_3 = 69.8166515333578
+
+[files]
+cssr_grid = "./tests/data/claslib/clas_grid.def"
+ocean_loading = "./tests/data/claslib/clas_grid.blq" # for static or moving rovers
+eop = "./tests/data/claslib/igu00p01.erp"
+
+[input.rinex]
+# signal priority (Default:L2P(GPS) L1C/A(QZS),-GL2X:L2C(GPS),-JL1X:L1C(QZS))
+option_1 = "-JL1X"

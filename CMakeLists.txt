@@ -1195,6 +1195,9 @@ endforeach()
 #   claslib_vrs_rtk_l1l2l5  VRS-RTK with gps/qzs_frequency = "l1+l2+l5" (#534)
 #   claslib_vrs_rtk_gps_l1l5
 #                           VRS-RTK with gps_frequency = "l1+l5" (#534)
+#   claslib_ssr2obs_l1cl5 / _l1ca
+#                           ssr2obs on 2025/022: one QZS L1 signal, all signals (#349)
+#   claslib_vrs_rtk_l1cl5   VRS-RTK with QZS L1C + L5 on ssr2obs output (#349)
 #   claslib_vrs_rtk_st12    VRS-RTK with SubType 12 (2019/349)
 #   claslib_vrs_rtk_2ch     VRS-RTK with 2-channel (2025/157)
 #   rtkrcv_rt_clas_tag_sync_check
@@ -2206,6 +2209,133 @@ set_tests_properties(claslib_ssr2obs_vrs_rtk_check PROPERTIES
     DEPENDS           claslib_ssr2obs_vrs_rtk
     FIXTURES_REQUIRED claslib_data
     LABELS            "regression;claslib;vrs"
+)
+
+# ── QZS L1C + L5 VRS (#349, claslib 0.9.0) ──────────────────────────────────
+# Data: 2025/01/22 16:00-17:00, 0627022Q.bnx + 2025022Q.l6; QZS sends L1C/A,
+# L1C, L2C and L5 here. brdc_0627022Q.nav is upstream's data/0627022Q.nav
+# (ssr2obs reads RINEX NAV only).
+# Step 1: VRS observations. ssr2obs took the first three CSSR signals of a
+# satellite and kept both L1 signals: QZS came out as L1C/A + L2C without L5,
+# with NaN carrier phases in ~400 epochs per satellite. It now outputs every
+# signal and one L1: L1C with -JL1X (ssr2obs_L1CL5.toml), L1C/A without
+# (ssr2obs.toml; the MRTK default QZS L1 order would pick L1C). The RINEX
+# header lists the codes that are output, for every satellite in the
+# corrections.
+foreach(_l1case IN ITEMS l1cl5:ssr2obs_L1CL5.toml:L1X:L1C l1ca:ssr2obs.toml:L1C:L1X)
+    string(REPLACE ":" ";" _l1case ${_l1case})
+    list(GET _l1case 0 _l1name)
+    list(GET _l1case 1 _l1conf)
+    list(GET _l1case 2 _l1used)
+    list(GET _l1case 3 _l1unused)
+    add_test(NAME claslib_ssr2obs_${_l1name}
+        COMMAND $<TARGET_FILE:mrtk> ssr2obs
+            -k ${CMAKE_SOURCE_DIR}/conf/claslib/${_l1conf}
+            -ts 2025/01/22 16:00:00 -te 2025/01/22 16:59:59 -ti 1
+            -r -o ${CMAKE_BINARY_DIR}/out_ssr2obs_2025022Q_${_l1name}.obs
+            ${_CLSDATA}/brdc_0627022Q.nav ${_CLSDATA}/2025022Q.l6
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    )
+    set_tests_properties(claslib_ssr2obs_${_l1name} PROPERTIES
+        FIXTURES_REQUIRED claslib_data
+        TIMEOUT           120
+        LABELS            "regression;claslib;vrs"
+    )
+    add_test(NAME claslib_ssr2obs_${_l1name}_check
+        COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/scripts/tests/check_rinex_obs_codes.py
+            ${CMAKE_BINARY_DIR}/out_ssr2obs_2025022Q_${_l1name}.obs
+            --present J:${_l1used},L2X,L5X --present G:L5X --absent J:${_l1unused}
+            --min-records 5000
+    )
+    set_tests_properties(claslib_ssr2obs_${_l1name}_check PROPERTIES
+        DEPENDS claslib_ssr2obs_${_l1name}
+        LABELS  "regression;claslib;vrs"
+    )
+endforeach()
+
+# Both QZS satellites are missing from the output for 16:32:45-16:36:14 (in
+# upstream's as well). A run that starts inside that window must still write
+# QZS once it is back: with the header taken from the first epoch (upstream
+# generate_tobs()) there was no QZS line in the whole file.
+add_test(NAME claslib_ssr2obs_l1cl5_latesat
+    COMMAND $<TARGET_FILE:mrtk> ssr2obs
+        -k ${CMAKE_SOURCE_DIR}/conf/claslib/ssr2obs_L1CL5.toml
+        -ts 2025/01/22 16:33:30 -te 2025/01/22 16:45:00 -ti 1
+        -r -o ${CMAKE_BINARY_DIR}/out_ssr2obs_2025022Q_l1cl5_latesat.obs
+        ${_CLSDATA}/brdc_0627022Q.nav ${_CLSDATA}/2025022Q.l6
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+set_tests_properties(claslib_ssr2obs_l1cl5_latesat PROPERTIES
+    FIXTURES_REQUIRED claslib_data
+    TIMEOUT           120
+    LABELS            "regression;claslib;vrs"
+)
+add_test(NAME claslib_ssr2obs_l1cl5_latesat_check
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/scripts/tests/check_rinex_obs_codes.py
+        ${CMAKE_BINARY_DIR}/out_ssr2obs_2025022Q_l1cl5_latesat.obs
+        --present J:L1X,L2X,L5X --absent J:L1C --min-records 500
+)
+set_tests_properties(claslib_ssr2obs_l1cl5_latesat_check PROPERTIES
+    DEPENDS claslib_ssr2obs_l1cl5_latesat
+    LABELS  "regression;claslib;vrs"
+)
+
+# Step 2: VRS-RTK on the L1C observations, QZS on L1C + L5
+# (rnx2rtkp_L1CL5_vrs.toml). Reference: ref_L6_L1CL5_VRS.nmea, claslib 0.9.1
+# rnx2rtkp on claslib 0.9.1 ssr2obs output (generate_reference_l1cl5_vrs.sh).
+add_test(NAME claslib_vrs_rtk_l1cl5
+    COMMAND $<TARGET_FILE:mrtk> post
+        -k ${CMAKE_SOURCE_DIR}/conf/claslib/rnx2rtkp_L1CL5_vrs.toml
+        -ts 2025/01/22 16:00:00 -te 2025/01/22 16:59:59 -ti 1
+        -o ${CMAKE_BINARY_DIR}/out_claslib_vrs_rtk_l1cl5.nmea
+        ${_CLSDATA}/0627022Q.bnx
+        ${CMAKE_BINARY_DIR}/out_ssr2obs_2025022Q_l1cl5.obs
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+set_tests_properties(claslib_vrs_rtk_l1cl5 PROPERTIES
+    DEPENDS           claslib_ssr2obs_l1cl5
+    FIXTURES_REQUIRED claslib_data
+    TIMEOUT           300
+    LABELS            "regression;claslib;vrs"
+)
+# Measured 3D RMS against the upstream solution: 4.67 cm (the standard VRS
+# cases are at 2.3-3.2 cm; the difference is not specific to L1C + L5, see #349).
+add_test(NAME claslib_vrs_rtk_l1cl5_check
+    COMMAND ${Python3_EXECUTABLE} ${_COMPARE_NMEA}
+        ${_CLSDATA}/ref_L6_L1CL5_VRS.nmea
+        ${CMAKE_BINARY_DIR}/out_claslib_vrs_rtk_l1cl5.nmea
+        --tolerance 0.10
+)
+set_tests_properties(claslib_vrs_rtk_l1cl5_check PROPERTIES
+    DEPENDS claslib_vrs_rtk_l1cl5
+    LABELS  "regression;claslib;vrs"
+)
+# Absolute accuracy vs GSI F5 (TSUKUBA3, 2025/01/22). Measured 2D 95% =
+# 4.52 cm (upstream 4.97 cm); tolerance = measured + ~4 cm headroom.
+add_test(NAME claslib_vrs_rtk_l1cl5_abs_check
+    COMMAND ${Python3_EXECUTABLE} ${_COMPARE_NMEA_ABS}
+        --f5 ${_F5_0627}
+        --date 2025/01/22
+        --tolerance 0.085
+        ${CMAKE_BINARY_DIR}/out_claslib_vrs_rtk_l1cl5.nmea
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+set_tests_properties(claslib_vrs_rtk_l1cl5_abs_check PROPERTIES
+    DEPENDS claslib_vrs_rtk_l1cl5
+    LABELS  "absolute;claslib;vrs"
+)
+# QZS valid on frequencies 1 and 3, none on 2. The ssr2obs header lists only
+# the codes that are output, so the base needs no RINEX option to find L1C.
+# (The frequency numbers do not tell L1C from L1C/A: the VRS side is checked
+# by claslib_ssr2obs_l1cl5_check, the rover side by -JL1X in the conf.)
+add_test(NAME claslib_vrs_rtk_l1cl5_freq_check
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/scripts/tests/check_vrs_qzs_freq.py
+        ${CMAKE_BINARY_DIR}/out_claslib_vrs_rtk_l1cl5.nmea.stat
+        --system J --freqs 1,3 --min-records 5000 --min-ratio 0.95
+)
+set_tests_properties(claslib_vrs_rtk_l1cl5_freq_check PROPERTIES
+    DEPENDS claslib_vrs_rtk_l1cl5
+    LABELS  "regression;claslib;vrs"
 )
 
 # ── ssr2osr regression: apply SSR corrections to real obs and verify output ──

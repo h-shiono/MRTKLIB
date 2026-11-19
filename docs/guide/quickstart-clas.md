@@ -278,6 +278,7 @@ Controls how far from the rover position to search for CLAS grid points.
 |:-----|:------------|
 | `conf/claslib/rnx2rtkp.toml` | Post-processing, single-channel L6 |
 | `conf/claslib/rnx2rtkp_vrs.toml` | Post-processing, VRS-RTK mode |
+| `conf/claslib/rnx2rtkp_L1CL5_vrs.toml` | Post-processing, VRS-RTK with QZS L1C + L5 (VRS observations from `mrtk ssr2obs -k conf/claslib/ssr2obs_L1CL5.toml`) |
 | `conf/claslib/rtkrcv.toml` | Real-time, single-channel L6 (file replay) |
 | `conf/claslib/rtkrcv_2ch.toml` | Real-time, dual-channel L6 (file replay) |
 | `conf/claslib/rtkrcv_ubx_clas.toml` | Real-time, u-blox F9P + D9C (live) |
