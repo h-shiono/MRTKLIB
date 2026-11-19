@@ -28,6 +28,10 @@ MRTKLIB_ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
 CLASLIB_GIT="$MRTKLIB_ROOT/upstream/claslib"
 OUTDIR="$MRTKLIB_ROOT/tests/data/claslib"
 OBS_OUT="${1:-}"
+# the steps below change directory: keep a relative OBS_OUT at the caller's
+if [ -n "$OBS_OUT" ] && [ "${OBS_OUT#/}" = "$OBS_OUT" ]; then
+    OBS_OUT="$PWD/$OBS_OUT"
+fi
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 LOGDIR="$WORK/logs"
@@ -83,7 +87,8 @@ for f in "$DATADIR/2025022Q_L1CL5.obs" l1cl5_vrs.nmea; do
     fi
 done
 
-cp l1cl5_vrs.nmea "$OUTDIR/ref_L6_L1CL5_VRS.nmea"
+# upstream writes CRLF; the repository keeps the references with LF
+tr -d '\r' < l1cl5_vrs.nmea > "$OUTDIR/ref_L6_L1CL5_VRS.nmea"
 cp "$DATADIR/0627022Q.nav" "$OUTDIR/brdc_0627022Q.nav"
 if [ -n "$OBS_OUT" ]; then
     cp "$DATADIR/2025022Q_L1CL5.obs" "$OBS_OUT"
