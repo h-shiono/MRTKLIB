@@ -444,6 +444,15 @@ target_link_libraries(utest_qzs_health PRIVATE mrtklib)
 add_test(NAME utest_qzs_health COMMAND utest_qzs_health)
 set_tests_properties(utest_qzs_health PROPERTIES LABELS "utest")
 
+# RTK cycle-slip state under LLI bits above LLI_HALFC (#160). Includes
+# mrtk_rtkpos.c to reach the private detslp_ll().
+add_executable(utest_rtk_lli ${_UTEST_DIR}/utest_rtk_lli.c)
+# Override global -ansi (=C90): this test uses C11 (P-01).
+target_compile_options(utest_rtk_lli PRIVATE -std=c11)
+target_link_libraries(utest_rtk_lli PRIVATE mrtklib)
+add_test(NAME utest_rtk_lli COMMAND utest_rtk_lli)
+set_tests_properties(utest_rtk_lli PROPERTIES LABELS "utest")
+
 # NavIC L5-only SPP group delay with the nominal S/L5 ratio (#384). Includes
 # mrtk_spp.c to reach the private prange().
 add_executable(utest_navic_l5_tgd ${_UTEST_DIR}/utest_navic_l5_tgd.c)

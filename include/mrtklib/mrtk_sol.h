@@ -105,7 +105,8 @@ typedef struct {                /* satellite status type */
     uint8_t vsat[NFREQ];        /* valid satellite flag */
     uint16_t snr[NFREQ];        /* signal strength (*SNR_UNIT dBHz) */
     uint8_t fix[NFREQ];         /* ambiguity fix flag (1:fix,2:float,3:hold) */
-    uint8_t slip[NFREQ];        /* cycle-slip flag */
+    uint8_t slip[NFREQ];        /* cycle-slip flag (0x01:slip,0x02:half-cycle; RTK also keeps the
+                                   previous LLI in 0xC0:rover,0x30:base) */
     uint8_t half[NFREQ];        /* half-cycle valid flag */
     int lock[NFREQ];            /* lock counter of phase */
     uint32_t outc[NFREQ];       /* obs outage counter of phase */

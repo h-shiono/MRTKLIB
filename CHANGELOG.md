@@ -25,6 +25,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   0x10 (through the CLAS SPP seed), and their GGA output is identical. The
   PPC data carries no 0x10. `claslib_ppp_rtk_health_gate` now requires an
   injected 0x10 to leave the solution byte-identical. New `utest_qzs_health`.
+- **RTK: no more half-cycle slip on every epoch with raw u-blox observations**
+  ([#160](https://github.com/h-shiono/MRTKLIB/issues/160), upstream
+  [RTKLIB #673](https://github.com/tomojitakasu/RTKLIB/issues/673), reproduced
+  on F9P / F10N captures by @dj1711572002). `ssat[].slip[]` holds the slip and
+  half-cycle flags of the epoch in bits 0x03 and the previous LLI of the rover
+  and of the base in 0xC0 / 0x30. `detslp_ll()` ORed the whole observation LLI
+  into that byte. The u-blox RXM-RAWX decoder sets `LLI_HALFS` (0x80) on every
+  epoch while the receiver reports a half cycle subtracted from the phase. At
+  the rover or at the base, it was read back as a previous LLI of 2, so a
+  half-cycle slip was flagged and the ambiguity of that signal reset on every
+  epoch. For the same reason a change to `LLI_HALFC` under 0x80 flagged no
+  slip. Only `LLI_SLIP | LLI_HALFC` now reach the byte. This affects relative
+  positioning in `mrtk run` with raw u-blox input. The reporter's F10N capture
+  went from 0 to 1,326 fixed epochs of 1,800 (their measurement, the capture
+  is not in the repository). NovAtel `LLI_HALFA` (0x40) and the
+  RT17 encrypted-code bit (0x04) are kept out as well. They caused no slip in
+  forward processing. RINEX and BINEX input carry none of these bits, so
+  `mrtk post` is unchanged: on the six PPC RTK runs the fix status and
+  satellite count of every epoch are identical, and positions differ by at
+  most 1 mm (last printed digit), as two runs of the same binary do. New
+  `utest_rtk_lli`.
 
 ### Tests
 
