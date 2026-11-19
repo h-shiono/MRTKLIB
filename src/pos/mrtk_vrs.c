@@ -845,10 +845,6 @@ static void zdres_sat(int base, double r, const obsd_t* obs, const nav_t* nav, c
     if (qj == 0 && satsys(obs->sat, NULL) == SYS_GAL && (obs->L[1] != 0.0 || obs->P[1] != 0.0)) {
         qj = 1;
     }
-    /* fallback: if preferred secondary freq has no data, try index 1 */
-    if (qj > 1 && obs->L[qj] == 0.0 && obs->P[qj] == 0.0 && (obs->L[1] != 0.0 || obs->P[1] != 0.0)) {
-        qj = 1;
-    }
 
     for (i = 0; i < nf; i++) {
         if (lam_arr[i] == 0.0) {
