@@ -78,7 +78,7 @@ parity with the upstream CLASLIB / MADOCALIB outputs. See the
 
 | Service | Post-processing | Real-time (replay) |
 |---------|-----------------|--------------------|
-| **QZSS CLAS** | `claslib_ppp_rtk*` (1ch, 2ch, merge, ST12, L1C/L5, single-frequency, F9P, BINEX), `claslib_vrs_rtk*`, `claslib_ssr2obs*`, `claslib_ssr2osr*`, `post_handover_*` | `rtkrcv_rt_clas`, `rtkrcv_rt_clas_2ch`, `rtkrcv_rt_clas_2ch_merge`, `rtkrcv_rt_clas_sf1gap`, `rtkrcv_handover_*`, `rtkrcv_clas_l6gap_*`, `cssr2rtcm3_clas_l6gap*` |
+| **QZSS CLAS** | `claslib_ppp_rtk*` (1ch, 2ch, merge, ST12, L1C/L5, single-frequency, F9P, BINEX), `claslib_vrs_rtk*`, `claslib_ssr2obs*`, `claslib_ssr2osr*`, `post_handover_*` | `rtkrcv_rt_clas`, `rtkrcv_rt_clas_2ch`, `rtkrcv_rt_clas_2ch_merge`, `rtkrcv_rt_clas_sf1gap`, `rtkrcv_rt_clas_rtcm3`, `rtkrcv_handover_*`, `rtkrcv_clas_l6gap_*`, `cssr2rtcm3_clas_l6gap*` |
 | **QZSS MADOCA-PPP** | `madocalib_ppp`, `madocalib_pppar`, `madocalib_pppar_003`, `madocalib_pppar_ion`, `madocalib_mdc005_*` | `rtkrcv_rt` (PPP-AR) |
 | **Galileo HAS** | `has_ppp` | — |
 | **BeiDou PPP-B2b** | `b2b_ppp` | `rtkrcv_b2b` |

@@ -120,6 +120,7 @@ nav:
     - CLAS SSR Orbit / Clock Validity: design/clas-ssr-validity.md
   - Releases:
     - Changelog: releases/changelog.md
+    - v0.7.18: releases/release-notes-v0.7.18.md
     - v0.7.17: releases/release-notes-v0.7.17.md
     - v0.7.16: releases/release-notes-v0.7.16.md
     - v0.7.15: releases/release-notes-v0.7.15.md
