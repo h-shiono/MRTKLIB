@@ -471,6 +471,14 @@ add_test(NAME utest_msm_bds_b2b COMMAND utest_msm_bds_b2b
          WORKING_DIRECTORY ${_UTEST_DIR})
 set_tests_properties(utest_msm_bds_b2b PROPERTIES LABELS "utest")
 
+# RTCM3 MSM half-cycle ambiguity indicator to LLI, MSM4 to MSM7 round trip (#531).
+add_executable(utest_msm_half_lli ${_UTEST_DIR}/utest_msm_half_lli.c)
+# Override global -ansi (=C90): this test uses C11 (P-01).
+target_compile_options(utest_msm_half_lli PRIVATE -std=c11)
+target_link_libraries(utest_msm_half_lli PRIVATE mrtklib)
+add_test(NAME utest_msm_half_lli COMMAND utest_msm_half_lli)
+set_tests_properties(utest_msm_half_lli PROPERTIES LABELS "utest")
+
 # MADOCA-PPP L6E CSSR BeiDou GNSS ID 3 signal decode (issue #401, MDC-005).
 add_executable(utest_mcssr_bd3 ${_UTEST_DIR}/utest_mcssr_bd3.c)
 # Override global -ansi (=C90): this test uses C11 (P-01).
