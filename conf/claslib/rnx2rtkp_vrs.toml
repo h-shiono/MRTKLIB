@@ -28,7 +28,8 @@ exclude_eclipse = true    # exclude measurements of eclipsing satellite(0:off,1:
 raim_fde = true           # raim fde(0:off,1:on)
 partial_ar = true         # partial ambiguity resolution(0:off,1:on)
 exclude_qzs_ref = true    # exclude QZS as a reference satellite (0:off,1:on)
-# gps_frequency     = "l1+l2"  # gps/qzs freq (2:l1+l2,3:l1+l5)
+# gps_frequency     = "l1+l2"  # gps freq (2:l1+l2,3:l1+l5)
+# qzs_frequency     = "l1+l2"  # qzs freq (2:l1+l2,3:l1+l5)
 tidal_correction = "off" # (0:off,1:on)
 
 [positioning.atmosphere]
