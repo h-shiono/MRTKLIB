@@ -365,7 +365,9 @@ read with `-ts` alone, and Galileo-only runs start. The unit tests run with
   98.89 → 99.36 %, epoch counts unchanged. With the tags in step, a lost
   subframe 1 costs no Single in `rtkrcv_rt_clas_sf1gap` (19 s before), and 17 s
   without the #406 fix, which the old 25 s gate let pass. `--max-single` is now
-  8 s.
+  8 s. `gen_l6_tag.py` skips an ST1 whose TOW jumps back (or more than
+  a day ahead of its frames) instead of taking it as a week rollover, which
+  would delay every later frame by a week; the bundled tags are unchanged.
 - **`assert()`-based unit tests run with their asserts**
   ([#277](https://github.com/h-shiono/MRTKLIB/issues/277),
   [#509](https://github.com/h-shiono/MRTKLIB/pull/509) contributed by
