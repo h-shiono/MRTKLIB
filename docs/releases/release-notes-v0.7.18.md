@@ -245,6 +245,12 @@ isolation. The RT console ports are now 52003–52023.
   ([#358](https://github.com/h-shiono/MRTKLIB/issues/358)).
 - The MADOCA part of the stream-clock fix
   ([#359](https://github.com/h-shiono/MRTKLIB/issues/359)).
+- `mrtk ssr2obs` takes the RINEX header types from the corrections at the
+  first output epoch; a code added to the CSSR mask later in the run is not
+  written ([#541](https://github.com/h-shiono/MRTKLIB/issues/541)).
+- Several L6D files per channel: with same-pattern files overlapping in time,
+  a lost ST1 together with a long frame gap can make the reader step back in
+  time ([#542](https://github.com/h-shiono/MRTKLIB/issues/542)).
 
 ### Next
 
