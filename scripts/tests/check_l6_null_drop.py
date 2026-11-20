@@ -9,14 +9,18 @@ the file they land at every position inside the 5-frame subframes -- and
 requires ``mrtk dump`` (CSSR decoded through clas_input_cssrf()) to produce
 byte-identical output for the clean and the injected file.
 
+WORK_DIR is removed and recreated on every run, so it must belong to this test
+alone. It holds the injected L6 file and the two dumps, and is left in place
+for inspection.
+
 Usage:
     check_l6_null_drop.py MRTK L6FILE NAVFILE WORK_DIR
 """
 
 import os
+import shutil
 import subprocess
 import sys
-import tempfile
 
 RAW_LEN = 250  # L6 frame incl. Reed-Solomon parity, as stored in .l6 files
 FRAME_LEN = 218  # preamble .. data
@@ -59,28 +63,28 @@ def main():
     if len(sys.argv) != 5:
         print(__doc__, file=sys.stderr)
         return 2
-    mrtk, l6, nav, workdir = sys.argv[1:]
-    os.makedirs(workdir, exist_ok=True)
-    tmp = tempfile.mkdtemp(prefix="l6null_", dir=workdir)
+    mrtk, l6, nav, work = sys.argv[1:]
+    shutil.rmtree(work, ignore_errors=True)
+    os.makedirs(work)
 
     with open(l6, "rb") as fp:
         injected, nframe, nnull = inject(fp.read())
-    l6_null = os.path.join(tmp, "null.l6")
+    l6_null = os.path.join(work, "null.l6")
     with open(l6_null, "wb") as fp:
         fp.write(injected)
 
-    clean = dump(mrtk, l6, nav, os.path.join(tmp, "clean.csv"))
-    dirty = dump(mrtk, l6_null, nav, os.path.join(tmp, "null.csv"))
+    clean = dump(mrtk, l6, nav, os.path.join(work, "clean.csv"))
+    dirty = dump(mrtk, l6_null, nav, os.path.join(work, "null.csv"))
     nrec = clean.count(b"\n") - 1
     print(f"{os.path.basename(l6)}: {nframe} frames + {nnull} null frames, {nrec} records")
     if nrec <= 0:
-        print("FAIL: clean dump is empty", file=sys.stderr)
+        print(f"FAIL: clean dump is empty, see {work}", file=sys.stderr)
         return 1
     if clean != dirty:
         a, b = clean.splitlines(), dirty.splitlines()
         k = next((i for i, (x, y) in enumerate(zip(a, b)) if x != y), min(len(a), len(b)))
         print(
-            f"FAIL: dump differs ({len(a)} vs {len(b)} lines), first at line {k + 1}",
+            f"FAIL: dump differs ({len(a)} vs {len(b)} lines), first at line {k + 1}, see {work}",
             file=sys.stderr,
         )
         return 1
