@@ -41,6 +41,7 @@ L6_PREAMBLE = b"\x1a\xcf\xfc\x1d"
 L6_RELEASE_DELAY = 1.0  # s from the frame's GNSS epoch to its output
 GPS_EPOCH_UNIX = 315964800  # tag header times are GPST seconds on the Unix scale
 WEEK_SEC = 604800
+MAX_GAP_SEC = 86400  # longest run of missing frames accepted between two ST1
 TAG_HEADER_LEN = 64 + 4 + 8  # TIMETAGH + time_time + time_sec
 
 
@@ -82,13 +83,17 @@ def l6_frame_times(data: bytes, ref_gpst: float) -> list:
     # Full GPST of each anchor, unwrapping the 20-bit TOW across week rollovers.
     # Frames can be missing from the file (more seconds than frames between two
     # anchors), but never fewer seconds than frames: such an anchor is not a
-    # real ST1 and is skipped.
+    # real ST1 and is skipped. The modulo also turns a backward TOW into a jump
+    # of almost a week, so more than MAX_GAP_SEC of missing frames is skipped
+    # too: a stale or damaged ST1 must not delay every later frame by a week.
     week = round((ref_gpst - GPS_EPOCH_UNIX - anchors[0][1]) / WEEK_SEC)
     timed = [(anchors[0][0], GPS_EPOCH_UNIX + week * WEEK_SEC + anchors[0][1])]
     prev_tow = anchors[0][1]
     for i, tow in anchors[1:]:
-        t = timed[-1][1] + (tow - prev_tow) % WEEK_SEC
-        if t - timed[-1][1] < i - timed[-1][0]:
+        elapsed = (tow - prev_tow) % WEEK_SEC
+        frames = i - timed[-1][0]
+        t = timed[-1][1] + elapsed
+        if elapsed < frames or elapsed > frames + MAX_GAP_SEC:
             print(
                 f"Warning: ignored ST1 frame {i} (epoch {tow}): inconsistent timing",
                 file=sys.stderr,
