@@ -1,0 +1,254 @@
+# MRTKLIB Configuration (TOML v1.0.0)
+#
+# rtkrcv_rt_empty_epoch (#382), configured by CMake (rover path = the
+# FUET284f_200s.sbf of dataset rtksvr_empty-v1, see README.md). CLAS PPP-RTK
+# settings, no corrections or auxiliary files: the engine stays Single, which is
+# enough. The rover epochs at TOW 21399-21448 decode with no observations; before
+# the fix each one was passed to rtkpos() and written again under the time of
+# TOW 21398. Replayed without time tags (the test needs epoch order, not pacing).
+
+[positioning]
+mode = "ppp-rtk"
+correction = "qzs-clas"
+signals = ["G1C", "G2W", "E1C", "E5Q", "E7Q", "J1C", "J5Q", "J2X"]
+solution_type = "forward"
+elevation_mask = 15.0
+dynamics = true
+satellite_ephemeris = "brdc+ssrapc"
+excluded_sats = []
+systems = ["GPS", "Galileo", "QZSS"]
+
+[positioning.snr_mask]
+rover_enabled = true
+base_enabled = false
+L1 = [10, 10, 10, 10, 30, 30, 30, 30, 30]
+L2 = [10, 10, 10, 10, 30, 30, 30, 30, 30]
+L5 = [10, 10, 10, 10, 30, 30, 30, 30, 30]
+
+[positioning.corrections]
+satellite_antenna = false
+receiver_antenna = true
+phase_windup = "on"
+exclude_eclipse = true
+raim_fde = true
+iono_compensation = "meas"
+partial_ar = true
+shapiro_delay = true
+exclude_qzs_ref = true
+no_phase_bias_adj = false
+gps_frequency = "l1+l2"
+qzs_frequency = "l1+l2"
+tidal_correction = "solid+otl-clasgrid+pole"
+
+[positioning.atmosphere]
+ionosphere = "est-adaptive"
+troposphere = "off"
+
+[positioning.spp]
+ignore_chi_error = false
+
+[positioning.relative]
+max_age = 30.0
+time_interpolation = true
+
+[positioning.madoca]
+iono_correction = true
+
+[positioning.clas]
+grid_selection_radius = 1000.0
+receiver_type = "TRIMBLE NETR9"
+enhanced_spp_seed = "cn0+tdcp"
+
+[positioning.clas.ambiguities]
+phase_shift = "table"
+isb = true
+reference_type = "CLAS"
+
+[positioning.clas.resilience]
+max_obs_loss = 90.0
+float_count = 15
+
+[positioning.clas.adaptive_filter]
+enabled = false
+iono_forgetting = 0.3
+iono_gain = 3.0
+pva_forgetting = 0.3
+pva_gain = 1.0
+
+[ambiguity_resolution]
+mode = "fix-and-hold"
+gps_ar = true
+glonass_ar = true
+bds_ar = true
+qzs_ar = true
+
+[ambiguity_resolution.thresholds]
+ratio = 3.0
+ratio1 = 0.9999
+alpha = "10%"
+elevation_mask = 20.0
+hold_elevation = 30.0
+
+[ambiguity_resolution.counters]
+lock_count = 5
+min_fix = 0
+max_iterations = 1
+out_count = 1
+
+[ambiguity_resolution.partial_ar]
+min_ambiguities = 6
+max_excluded_sats = 4
+min_fix_sats = 4
+ar_filter = false
+
+[ambiguity_resolution.hold]
+variance = 0.001
+
+[rejection]
+innovation = 30.0
+gdop = 30.0
+l1_l2_residual = 2.0
+dispersive = 3.0
+non_dispersive = 3.0
+hold_chi_square = 0.5
+fix_chi_square = 5.0
+pseudorange_diff = 10.0
+position_error_count = 5
+
+[slip_detection]
+threshold = 0.05
+
+[kalman_filter]
+iterations = 1
+
+[kalman_filter.measurement_error]
+code_phase_ratio_L1 = 50.0
+code_phase_ratio_L2 = 100.0
+code_phase_ratio_L5 = 100.0
+phase = 0.01
+phase_elevation = 0.005
+phase_baseline = 0.0
+doppler = 10.0
+
+[kalman_filter.initial_std]
+bias = 100.0
+ionosphere = 0.01
+troposphere = 0.005
+
+[kalman_filter.process_noise]
+accel_h = 0.2
+accel_v = 0.1
+position_h = 0.0
+position_v = 0.0
+position = 0.0
+bias = 0.001
+ionosphere = 0.001
+iono_max = 0.05
+troposphere = 0.001
+iono_time_const = 10.0
+clock_stability = 5.00e-12
+
+[antenna.rover]
+position_type = "single"
+position_1 = 0.0
+position_2 = 0.0
+position_3 = 0.0
+type = "*"
+delta_e = 0.0
+delta_n = 0.0
+delta_u = 0.0
+
+[antenna.base]
+position_type = "llh"
+position_1 = 0.0
+position_2 = 0.0
+position_3 = 0.0
+type = ""
+delta_e = 0.0
+delta_n = 0.0
+delta_u = 0.0
+max_average_epochs = 0
+init_reset = false
+
+[output]
+format = "nmea"
+header = true
+options = true
+velocity = false
+time_system = "gpst"
+time_format = "tow"
+time_decimals = 3
+coordinate_format = "deg"
+field_separator = ""
+single_output = false
+max_solution_std = 0.0
+height_type = "ellipsoidal"
+geoid_model = "internal"
+static_solution = "all"
+nmea_interval_1 = 0.0
+nmea_interval_2 = 0.0
+solution_status = "off"
+
+[files]
+satellite_atx = ""
+receiver_atx = ""
+station_pos = ""
+geoid = ""
+ionosphere = ""
+dcb = ""
+eop = ""
+ocean_loading = ""
+cssr_grid = ""
+isb_table = ""
+phase_cycle = ""
+
+[server]
+cycle_ms = 10
+timeout_ms = 10000
+reconnect_ms = 10000
+nmea_cycle_ms = 5000
+buffer_size = 32768
+nav_msg_select = "all"
+proxy = ""
+swap_margin = 30
+
+
+[streams.input.rover]
+type = "file"
+path = "@EMPTY_ROVER@"
+format = "sbf"
+
+[streams.input.base]
+type = "off"
+path = ""
+format = ""
+nmeareq = false
+nmealat = 0.0
+nmealon = 0.0
+
+[streams.input.correction]
+type = "off"
+path = ""
+format = ""
+
+[streams.output.stream1]
+type = "file"
+path = "./out.nmea"
+format = "nmea"
+
+[streams.output.stream2]
+type = "off"
+path = ""
+format = ""
+
+[streams.log.stream1]
+type = "off"
+path = ""
+
+[streams.log.stream2]
+type = "off"
+path = ""
+
+[streams.log.stream3]
+type = "off"
+path = ""

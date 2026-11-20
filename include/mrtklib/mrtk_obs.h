@@ -155,7 +155,7 @@ int screent(gtime_t time, gtime_t ts, gtime_t te, double tint);
  * @param[in] base  Rover or base-station (0:rover, 1:base station)
  * @param[in] idx   Frequency index (0:L1, 1:L2, 2:L3,...)
  * @param[in] el    Elevation angle (rad)
- * @param[in] snr   C/N0 (dBHz)
+ * @param[in] snr   C/N0 (dBHz); 0 or less means unknown and is never masked
  * @param[in] mask  SNR mask
  * @return Status (1:masked, 0:unmasked)
  */
@@ -241,6 +241,13 @@ const uint8_t* mrtk_get_signal_priority(int sys, mrtk_band_t band);
  * @param[in] on  1: claslib order, 0: MRTK default order
  */
 void mrtk_use_claslib_qzs_l1_priority(int on);
+
+/**
+ * @brief claslib QZSS L1 code order (C > S > L > X > Z).
+ * @return Code list in priority order, 0-terminated or MRTK_MAX_SIG_PRIORITY
+ *         long. Independent of mrtk_use_claslib_qzs_l1_priority().
+ */
+const uint8_t* mrtk_claslib_qzs_l1_priority(void);
 
 /**
  * @brief Convert physical band to base carrier frequency (Hz).

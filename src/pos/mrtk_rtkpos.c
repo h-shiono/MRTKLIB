@@ -774,8 +774,10 @@ static void detslp_ll(rtk_t* rtk, const obsd_t* obs, int i, int rcv) {
             setbitu(&rtk->ssat[sat - 1].slip[f], 2, 2, obs[i].LLI[f]);
         }
 
-        /* save slip and half-cycle valid flag */
-        rtk->ssat[sat - 1].slip[f] |= (uint8_t)slip;
+        /* save slip and half-cycle valid flag: the bits above them in slip[]
+           hold the previous LLI saved above, so LLI_HALFA / LLI_HALFS /
+           LLI_BOCTRK of a raw observation must not reach it (#160) */
+        rtk->ssat[sat - 1].slip[f] |= (uint8_t)(slip & (LLI_SLIP | LLI_HALFC));
         rtk->ssat[sat - 1].half[f] = (obs[i].LLI[f] & 2) ? 0 : 1;
     }
 }

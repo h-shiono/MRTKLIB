@@ -240,12 +240,17 @@ static int svmask2nsatlist(uint64_t svmask, int id, int* sat) {
     return nsat;
 }
 
+/* sat[] holds CSSR_MAX_SV entries: decode_cssr_mask() rejects a mask with more
+ * satellites, so the cap only stops a mask set by any other path (#276) */
 static int svmask2sat(uint64_t* svmask, int* sat) {
     int j, id, nsat = 0, sys, prn_min;
     for (id = 0; id < CSSR_MAX_GNSS; id++) {
         sys = cssr_gnss2sys(id, &prn_min);
         for (j = 0; j < CSSR_MAX_SV_GNSS; j++) {
             if ((svmask[id] >> (CSSR_MAX_SV_GNSS - 1 - j)) & 1) {
+                if (nsat >= CSSR_MAX_SV) {
+                    return nsat;
+                }
                 if (sat) {
                     sat[nsat] = satno(sys, prn_min + j);
                 }
@@ -1934,10 +1939,33 @@ static int check_bit_width_si(clas_l6buf_t* l6, cssr_t* cssr, int i0) {
  * ST1: Mask Message Decoder
  *===========================================================================*/
 
+static void clear_cssr_mask(cssr_t* cssr) {
+    int j;
+    for (j = 0; j < CSSR_MAX_GNSS; j++) {
+        cssr->cmi[j] = 0;
+        cssr->svmask[j] = 0;
+        cssr->sigmask[j] = 0;
+    }
+    for (j = 0; j < CSSR_MAX_SV; j++) {
+        cssr->cellmask[j] = 0;
+    }
+}
+
+static int has_unknown_sat(const int* sat, int nsat) {
+    int j;
+    for (j = 0; j < nsat; j++) {
+        if (sat[j] <= 0) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
 static int decode_cssr_mask(clas_ctx_t* ctx, int ch, clas_l6buf_t* l6, int i0) {
     cssr_t* cssr = &ctx->cssr[ch];
     int i, j, k, l, sync, tow, ngnss, iod, nsat_g, id, nsig, ncell = 0;
-    int sat[CSSR_MAX_SV];
+    int sat[CSSR_MAX_SV_GNSS];
+    unsigned int seen = 0;
     double udint;
 
     i = decode_cssr_head(ctx, l6, cssr, &sync, &tow, &iod, &udint, &ngnss, i0);
@@ -1948,14 +1976,7 @@ static int decode_cssr_mask(clas_ctx_t* ctx, int ch, clas_l6buf_t* l6, int i0) {
     check_week_ref(l6, tow, CSSR_REF_MASK);
     l6->time = gpst2time(l6->week_ref[CSSR_REF_MASK], tow);
 
-    for (j = 0; j < CSSR_MAX_GNSS; j++) {
-        cssr->cmi[j] = 0;
-        cssr->svmask[j] = 0;
-        cssr->sigmask[j] = 0;
-    }
-    for (j = 0; j < CSSR_MAX_SV; j++) {
-        cssr->cellmask[j] = 0;
-    }
+    clear_cssr_mask(cssr);
 
     trace(NULL, 2, "decode_cssr_mask: facility=%d tow=%d iod=%d\n", ctx->l6facility[ch] + 1, tow, cssr->iod);
 
@@ -1973,6 +1994,21 @@ static int decode_cssr_mask(clas_ctx_t* ctx, int ch, clas_l6buf_t* l6, int i0) {
 
         nsig = sigmask2nsig(cssr->sigmask[id]);
         nsat_g = svmask2nsatlist(cssr->svmask[id], id, sat);
+
+        /* The mask is the only source of the satellite lists of ST2-ST12, so
+         * it is checked here once (#276): more than CSSR_MAX_SV satellites
+         * overrun cellmask[] and every sat[CSSR_MAX_SV]; a GNSS ID given twice
+         * misaligns cellmask[] with the satellite order; a satellite without a
+         * number (PRN outside the constellation, unknown GNSS ID) would index
+         * dec_ssr[-1], and cannot be skipped later because its correction
+         * width depends on the system. The whole mask is dropped. */
+        if ((seen >> id) & 1 || ncell + nsat_g > CSSR_MAX_SV || has_unknown_sat(sat, nsat_g)) {
+            trace(NULL, 1, "decode_cssr_mask: invalid mask dropped: gnss=%d nsat=%d total=%d\n", id, nsat_g,
+                  ncell + nsat_g);
+            clear_cssr_mask(cssr);
+            return -1;
+        }
+        seen |= 1u << id;
 
         if (cssr->cmi[id]) {
             for (j = 0; j < nsat_g; j++) {

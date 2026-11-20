@@ -1,0 +1,4 @@
+# GPS L1+L5 override for the claslib_vrs_rtk_gps_l1l5 test (#534): a GPS
+# satellite without L5 must run L1-only, not fall back to L2
+[positioning.corrections]
+gps_frequency = "l1+l5"

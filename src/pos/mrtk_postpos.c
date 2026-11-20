@@ -95,6 +95,7 @@ static double* rbf;                            /* forward base positions */
 static double* rbb;                            /* backward base positions */
 static int isolf = 0;                          /* current forward solutions index */
 static int isolb = 0;                          /* current backward solutions index */
+static int snrwarned[2] = {0};                 /* SNR mask without C/N0 warned {rover,base} */
 static char proc_rov[64] = "";                 /* rover for current processing */
 static char proc_base[64] = "";                /* base station for current processing */
 static char rtcm_file[1024] = "";              /* rtcm data file */
@@ -124,6 +125,8 @@ static clas_ctx_t* clas_ctx = NULL;            /* CLAS decoder context */
 static FILE* fp_clas[CLAS_CH_NUM];             /* CLAS L6 file pointers */
 static char clas_file[CLAS_CH_NUM][1024];      /* CLAS L6 data file */
 static char clas_path[CLAS_CH_NUM][1024];      /* CLAS L6 data path */
+static clas_l6seq_t clas_seq[CLAS_CH_NUM];     /* CLAS channels assembled from L6 files (#373) */
+static int clas_seq_on = 0;                    /* CLAS channels read from clas_seq[] */
 
 /* show message and check break ----------------------------------------------*/
 static int checkbrk(const char* format, ...) {
@@ -600,20 +603,22 @@ static void update_clas(gtime_t time) {
         }
 
         /* open or swap CLAS L6 file */
-        reppath(clas_file[ch], path, time, "", "");
+        if (!clas_seq_on) {
+            reppath(clas_file[ch], path, time, "", "");
 
-        if (strcmp(path, clas_path[ch])) {
-            strcpy(clas_path[ch], path);
-            if (fp_clas[ch]) {
-                fclose(fp_clas[ch]);
+            if (strcmp(path, clas_path[ch])) {
+                strcpy(clas_path[ch], path);
+                if (fp_clas[ch]) {
+                    fclose(fp_clas[ch]);
+                }
+                fp_clas[ch] = fopen(path, "rb");
+                if (fp_clas[ch]) {
+                    trace(NULL, 2, "clas l6 file open: %s\n", path);
+                }
             }
-            fp_clas[ch] = fopen(path, "rb");
-            if (fp_clas[ch]) {
-                trace(NULL, 2, "clas l6 file open: %s\n", path);
+            if (!fp_clas[ch]) {
+                continue;
             }
-        }
-        if (!fp_clas[ch]) {
-            continue;
         }
 
         /* Read CSSR through the correction set whose mask time is at the
@@ -623,7 +628,8 @@ static void update_clas(gtime_t time) {
                 clas_has_orbit_bank(clas_ctx, ch)) {
                 break;
             }
-            ret = clas_input_cssrf(clas_ctx, fp_clas[ch], ch);
+            ret = clas_seq_on ? clas_l6seq_input(clas_ctx, clas_seq + ch, ch)
+                              : clas_input_cssrf(clas_ctx, fp_clas[ch], ch);
             if (ret < -1) {
                 break; /* EOF */
             }
@@ -1027,6 +1033,63 @@ static void combres(FILE* fp, const prcopt_t* popt, const solopt_t* sopt) {
         outsol(fp, &sol, rb, sopt);
     }
 }
+/* assign CLAS L6 files to channels ------------------------------------------
+ * Legacy: file i -> channel i, as given. Several L6 files per channel (#373),
+ * e.g. the per-PRN files of mrtk l6extract across a QZSS handover, need the
+ * channels built from the file contents: more files than channels, two files
+ * of one transmit pattern, or l6_merge off with two or more files (channel 1
+ * is not used then). Keyword paths (%Y ...) stay on the legacy path. */
+static void set_clas_files(const char** in, int n, int l6mrg) {
+    clas_l6file_t* f;
+    int chof[CLAS_L6SEQ_MAXFILE], i, j, ch, group = 0, tmpl = 0;
+
+    for (i = 0; i < n; i++) {
+        tmpl |= strchr(in[i], '%') != NULL;
+    }
+    if (n > 1 && !tmpl && (f = (clas_l6file_t*)calloc(n, sizeof(clas_l6file_t)))) {
+        for (i = 0; i < n; i++) {
+            clas_l6_scan_file(in[i], f + i);
+        }
+        group = n > CLAS_CH_NUM || !l6mrg;
+        for (i = 0; i < n && !group; i++) {
+            for (j = i + 1; j < n; j++) {
+                if (f[i].ptn >= 0 && f[i].ptn == f[j].ptn) {
+                    group = 1;
+                }
+            }
+        }
+        if (group) {
+            clas_seq_on = 1;
+            clas_l6seq_build(f, n, l6mrg, clas_seq, chof);
+            for (i = 0; i < n; i++) {
+                if ((ch = chof[i]) < 0) {
+                    showmsg("warning: CLAS L6 file not used (%s): %s",
+                            f[i].ptn < 0     ? "no CLAS frame"
+                            : f[i].nblk == 0 ? "no ST1 mask"
+                                             : "third pattern",
+                            in[i]);
+                } else if (!*clas_file[ch]) {
+                    strcpy(clas_file[ch], in[i]);
+                }
+            }
+        }
+        for (i = 0; i < n; i++) {
+            clas_l6_free_file(f + i);
+        }
+        free(f);
+    }
+    if (group) {
+        return;
+    }
+    for (i = 0; i < n; i++) {
+        if (i < CLAS_CH_NUM) {
+            strcpy(clas_file[i], in[i]);
+        } else {
+            showmsg("warning: CLAS L6 file not used (more than %d keyword paths): %s", CLAS_CH_NUM, in[i]);
+            trace(NULL, 2, "CLAS L6 file not used: %s\n", in[i]);
+        }
+    }
+}
 /* read prec ephemeris, sbas data, tec grid and open rtcm --------------------*/
 static void readpreceph(char** infile, int n, const prcopt_t* prcopt, nav_t* nav, sbs_t* sbs, gtime_t ts) {
     seph_t seph0 = {0};
@@ -1163,6 +1226,7 @@ static void readpreceph(char** infile, int n, const prcopt_t* prcopt, nav_t* nav
      * .l6e: MADOCA-PPP L6E; in CLAS mode reserved for CLAS CMA (not yet used). */
     {
         int nf_l6d = 0, nf_clas = 0;
+        const char* clas_in[CLAS_L6SEQ_MAXFILE];
         int clas_mode = (prcopt->mode == PMODE_PPP_RTK) ||
                         (prcopt->mode >= PMODE_SSR2OSR && prcopt->mode <= PMODE_SSR2OSR_FIXED) ||
                         strstr(prcopt->pppopt, "-clas") != NULL;
@@ -1193,8 +1257,11 @@ static void readpreceph(char** infile, int n, const prcopt_t* prcopt, nav_t* nav
                 showmsg("warning: CLAS CMA input not supported yet, ignored: %s", infile[i]);
                 trace(NULL, 2, "L6E file ignored in CLAS mode (CMA not supported): %s\n", infile[i]);
             } else if (clas_mode && !is_l6e) { /* CLAS L6D */
-                if (nf_clas < CLAS_CH_NUM) {
-                    strcpy(clas_file[nf_clas++], infile[i]);
+                if (nf_clas < CLAS_L6SEQ_MAXFILE) {
+                    clas_in[nf_clas++] = infile[i];
+                } else {
+                    showmsg("warning: CLAS L6 file not used (more than %d files): %s", CLAS_L6SEQ_MAXFILE, infile[i]);
+                    trace(NULL, 2, "CLAS L6 file not used (more than %d files): %s\n", CLAS_L6SEQ_MAXFILE, infile[i]);
                 }
             } else if (is_l6d) {
                 showmsg("warning: L6D file ignored outside CLAS mode: %s", infile[i]);
@@ -1225,6 +1292,8 @@ static void readpreceph(char** infile, int n, const prcopt_t* prcopt, nav_t* nav
         if (nf_l6d > 0 && !nav->pppiono) {
             nav->pppiono = (pppiono_t*)calloc(1, sizeof(pppiono_t));
         }
+
+        set_clas_files(clas_in, nf_clas, prcopt->l6mrg);
 
         /* initialize CLAS context if files found */
         if (nf_clas > 0 && !clas_ctx) {
@@ -1307,6 +1376,10 @@ static void freepreceph(nav_t* nav, sbs_t* sbs) {
     bds_b2b_file[0] = bds_b2b_path[0] = '\0';
 
     /* free CLAS context */
+    for (i = 0; i < CLAS_CH_NUM; i++) {
+        clas_l6seq_free(clas_seq + i);
+    }
+    clas_seq_on = 0;
     if (clas_ctx) {
         for (i = 0; i < CLAS_CH_NUM; i++) {
             if (fp_clas[i]) {
@@ -1317,6 +1390,35 @@ static void freepreceph(nav_t* nav, sbs_t* sbs) {
         clas_ctx_free(clas_ctx);
         free(clas_ctx);
         clas_ctx = NULL;
+    }
+}
+/* warn when the SNR mask is on but a receiver's obs carry no C/N0 -----------
+ * testsnr() leaves unknown C/N0 unmasked, so the mask silently does nothing
+ * for such input (#477); once per postpos() call, not per session */
+static void warn_snrmask_no_cn0(const obs_t* obs, const prcopt_t* prcopt) {
+    static const char* name[2] = {"rover", "base"};
+    int has_obs[2] = {0}, has_snr[2] = {0}, i, j, r;
+
+    for (i = 0; i < obs->n; i++) {
+        r = obs->data[i].rcv - 1;
+        if (r < 0 || r > 1) {
+            continue;
+        }
+        has_obs[r] = 1;
+        for (j = 0; j < NFREQ + NEXOBS && !has_snr[r]; j++) {
+            if (obs->data[i].SNR[j] > 0) {
+                has_snr[r] = 1;
+            }
+        }
+    }
+    for (r = 0; r < 2; r++) {
+        if (prcopt->snrmask.ena[r] && has_obs[r] && !has_snr[r] && !snrwarned[r]) {
+            snrwarned[r] = 1;
+            fprintf(stderr,
+                    "warning : SNR mask is enabled for the %s but its observations have no C/N0 (S), "
+                    "so the mask is not applied\n",
+                    name[r]);
+        }
     }
 }
 /* read obs and nav data -----------------------------------------------------*/
@@ -1384,6 +1486,8 @@ static int readobsnav(gtime_t ts, gtime_t te, double ti, char** infile, const in
     }
     /* sort observation data */
     nepoch = sortobs(obs);
+
+    warn_snrmask_no_cn0(obs, prcopt);
 
     /* delete duplicated ephemeris */
     uniqnav(nav);
@@ -1583,6 +1687,33 @@ static int openses(mrtk_ctx_t* ctx, const prcopt_t* popt, const solopt_t* sopt, 
         }
     }
     return 1;
+}
+/* set bias-sinex and fcb file paths -------------------------------------------
+ * a .bia/.fcb input file takes precedence over the file options. the paths are
+ * kept unexpanded: udbiass() expands their keywords at each epoch. this must
+ * run for every ts/te combination; upstream set them only when both ts and te
+ * were given (#475) */
+static void setbiapath(char** infile, int n, const filopt_t* fopt, nav_t* nav) {
+    char* ext;
+    int i;
+
+    nav->biapath[0] = nav->fcbpath[0] = '\0';
+    for (i = 0; i < n; i++) {
+        if (!(ext = strrchr(infile[i], '.'))) {
+            continue;
+        }
+        if (!strcmp(ext, ".bia") || !strcmp(ext, ".BIA")) {
+            strcpy(nav->biapath, infile[i]);
+        } else if (!strcmp(ext, ".fcb") || !strcmp(ext, ".FCB")) {
+            strcpy(nav->fcbpath, infile[i]);
+        }
+    }
+    if (!*nav->biapath && *fopt->bia) {
+        strcpy(nav->biapath, fopt->bia);
+    }
+    if (!*nav->fcbpath && *fopt->fcb) {
+        strcpy(nav->fcbpath, fopt->fcb);
+    }
 }
 /* close procssing session ---------------------------------------------------*/
 static void closeses(mrtk_ctx_t* ctx, nav_t* nav, pcvs_t* pcvs, pcvs_t* pcvr) {
@@ -2067,10 +2198,13 @@ extern int postpos(mrtk_ctx_t* ctx, gtime_t ts, gtime_t te, double ti, double tu
        files, since RINEX reading already depends on the generation */
     set_bdsopt(popt, 1);
 
+    snrwarned[0] = snrwarned[1] = 0;
+
     /* open processing session */
     if (!openses(ctx, popt, sopt, fopt, &navs, &pcvss, &pcvsr)) {
         return -1;
     }
+    setbiapath(infile, n, fopt, &navs);
 
     if (ts.time != 0 && te.time != 0 && tu >= 0.0) {
         if (timediff(te, ts) < 0.0) {
@@ -2129,12 +2263,6 @@ extern int postpos(mrtk_ctx_t* ctx, gtime_t ts, gtime_t te, double ti, double tu
                     }
                     nf += reppaths(infile[j], ifile + nf, MAXINFILE - nf, tts, ttte, "", "");
                 }
-                if (ext && (!strcmp(ext, ".bia") || !strcmp(ext, ".BIA"))) {
-                    strcpy(navs.biapath, infile[j]);
-                }
-                if (ext && (!strcmp(ext, ".fcb") || !strcmp(ext, ".FCB"))) {
-                    strcpy(navs.fcbpath, infile[j]);
-                }
                 while (k < nf) {
                     index[k++] = j;
                 }
@@ -2148,12 +2276,6 @@ extern int postpos(mrtk_ctx_t* ctx, gtime_t ts, gtime_t te, double ti, double tu
                 flag = 0;
             }
 
-            if (strlen(navs.biapath) == 0 && strlen(fopt->bia) > 0) {
-                strcpy(navs.biapath, fopt->bia);
-            }
-            if (strlen(navs.fcbpath) == 0 && strlen(fopt->fcb) > 0) {
-                strcpy(navs.fcbpath, fopt->fcb);
-            }
             /* execute processing session */
             stat = execses_b(ctx, tts, tte, ti, popt, sopt, fopt, flag, ifile, index, nf, ofile, rov, base);
 

@@ -387,6 +387,21 @@ static void update_svr(rtksvr_t* svr, int ret, obs_t* obs, nav_t* nav, int ephsa
         svr->nmsg[index][9]++;
     }
 }
+/* current rover observation time ----------------------------------------------
+ * The rover decodes into rtcm[0] (RTCM2/3) or raw[0] (receiver-raw formats).
+ * rtksvrstart() sets both to the start time (file tag time, else wall clock)
+ * and only the decoding one advances. With raw[0] read for an RTCM3 rover, the
+ * CLAS L6 rate limit held L6 against the start time once it ran 60 s ahead
+ * (#365); the demux re-lock timeout never fired (#205). The clock is chosen by
+ * format, not as the fresher one: a raw rover replaying older data over TCP has
+ * a wall-clock rtcm[0] ahead of its data, which the fresher-of rule would keep
+ * picking (week anchored from the wall clock, demux clock frozen). */
+static gtime_t rover_time(const rtksvr_t* svr) {
+    if (svr->format[0] == STRFMT_RTCM2 || svr->format[0] == STRFMT_RTCM3) {
+        return svr->rtcm[0].time;
+    }
+    return svr->raw[0].time;
+}
 /* decode receiver raw/rtcm data ---------------------------------------------*/
 static int decoderaw(rtksvr_t* svr, int index) {
     obs_t* obs = {0};
@@ -435,7 +450,7 @@ static int decoderaw(rtksvr_t* svr, int index) {
                  * the trop age limit (120 s). */
                 {
                     gtime_t l6t = svr->clas->l6buf[ch].time;
-                    gtime_t obst = svr->raw[0].time;
+                    gtime_t obst = rover_time(svr);
                     if (l6t.time > 0 && obst.time > 0 && timediff(l6t, obst) > 60.0) {
                         /* shift unconsumed bytes to start of buffer */
                         int remain = svr->nb[index] - i;
@@ -449,7 +464,7 @@ static int decoderaw(rtksvr_t* svr, int index) {
 
                 /* initialize GPS week reference from obs time (once) */
                 if (!clas_week_ref_isset(svr->clas)) {
-                    gtime_t t = svr->raw[0].time;
+                    gtime_t t = rover_time(svr);
                     if (t.time > 0) {
                         int week;
                         time2gpst(t, &week);
@@ -523,16 +538,10 @@ static int decoderaw(rtksvr_t* svr, int index) {
              * locked channel's subframe stream is not corrupted by mixing. */
             l6_header_t hdr;
             l6_parse_header(svr->rtcm[index].buff, &hdr);
-            /* current rover observation time drives the demux re-lock
-             * timeout. The rover decodes into raw[0] (receiver-raw formats)
-             * or rtcm[0] (RTCM2/3); pick whichever is fresher so the clock
-             * advances for RTCM3 rovers too — otherwise the timeout never
-             * fires and a set satellite's stale lock is never released (#205). */
-            gtime_t now = svr->raw[0].time;
-            if (!now.time || (svr->rtcm[0].time.time && timediff(svr->rtcm[0].time, now) > 0)) {
-                now = svr->rtcm[0].time;
-            }
-            ch = clas_route_l6frame(svr->clas, &hdr, svr->raw[index].l6tag, svr->rtk.opt.l6mrg, now);
+            /* rover time drives the demux re-lock timeout: with a clock that
+             * does not advance, a set satellite's stale lock is never
+             * released (#205) */
+            ch = clas_route_l6frame(svr->clas, &hdr, svr->raw[index].l6tag, svr->rtk.opt.l6mrg, rover_time(svr));
             if (ch < 0) {
                 continue;
             }
@@ -541,7 +550,7 @@ static int decoderaw(rtksvr_t* svr, int index) {
                   svr->rtcm[index].buff[4], index);
             /* initialize week_ref from obs time (once) */
             if (!clas_week_ref_isset(svr->clas)) {
-                gtime_t t = svr->raw[0].time;
+                gtime_t t = rover_time(svr);
                 if (t.time > 0) {
                     int week;
                     time2gpst(t, &week);
@@ -930,6 +939,13 @@ static void* rtksvrthread(void* arg) {
             }
         }
         for (i = 0; i < fobs[0]; i++) { /* for each rover observation data */
+            /* An empty rover epoch (e.g. SBF MeasEpoch with no satellites during
+             * a signal blockage) has nothing to position: rtkpos() would read
+             * obs[0] beyond the epoch and the solution would be written again
+             * under the previous epoch's time (#382). postpos skips n == 0 too. */
+            if (svr->obs[0][i].n <= 0) {
+                continue;
+            }
             obs.n = 0;
             for (j = 0; j < svr->obs[0][i].n && obs.n < MAXOBS * 2; j++) {
                 obs.data[obs.n++] = svr->obs[0][i].data[j];

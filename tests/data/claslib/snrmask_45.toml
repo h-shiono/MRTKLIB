@@ -1,0 +1,7 @@
+# SNR mask override for the claslib_*_snrmask tests (#479): 45 dBHz at every
+# elevation, high enough that the bundled 2019/239 data loses satellites
+[positioning.snr_mask]
+rover_enabled = true
+L1 = [45, 45, 45, 45, 45, 45, 45, 45, 45]
+L2 = [45, 45, 45, 45, 45, 45, 45, 45, 45]
+L5 = [45, 45, 45, 45, 45, 45, 45, 45, 45]

@@ -1,0 +1,4 @@
+# Triple-frequency override for the claslib_vrs_rtk_l1l2l5 test (#534)
+[positioning.corrections]
+gps_frequency = "l1+l2+l5"
+qzs_frequency = "l1+l2+l5"

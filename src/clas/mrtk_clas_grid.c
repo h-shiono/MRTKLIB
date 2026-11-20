@@ -414,17 +414,17 @@ static void output_selected_grid(const double* pos, int n, grid_info** gridindex
     static int savenetwork[4];
     static int saveindex[4];
     static int savenum = -1;
-    int flag = 0;
     int i;
 
-    for (i = 0; i < savenum; ++i) {
-        if (savenetwork[i] != gridindex[i]->network || saveindex[i] != gridindex[i]->index) {
-            flag = 1;
-            break;
+    if (savenum == n) {
+        for (i = 0; i < n; ++i) {
+            if (savenetwork[i] != gridindex[i]->network || saveindex[i] != gridindex[i]->index) {
+                break;
+            }
         }
-    }
-    if (savenum == n && !flag) {
-        return;
+        if (i == n) {
+            return;
+        }
     }
 
     trace(NULL, 1, "pos est: pos=%6.3f %6.3f\n", pos[0] / D2R, pos[1] / D2R);

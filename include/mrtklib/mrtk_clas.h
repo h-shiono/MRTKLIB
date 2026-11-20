@@ -763,6 +763,128 @@ int clas_decode_msg(clas_ctx_t* ctx, int ch);
 int clas_input_cssrf(clas_ctx_t* ctx, FILE* fp, int ch);
 
 /*============================================================================
+ * L6 File Channel Assembly (post-processing, #373)
+ *
+ * mrtk l6extract writes one file per L6 PRN, so a receiver channel that hands
+ * over from one QZS to another ends up in several files. These functions build
+ * the CLAS channels from such files: one channel per transmit pattern (or a
+ * single channel with l6_merge off), and within a channel the files are read
+ * block by block in time order. A block runs from a subframe that starts with
+ * an ST1 mask (one 30 s CSSR cycle) up to the next one, so the decoder never
+ * sees a switch inside a subframe. Files that do not overlap in time are read
+ * back to back, byte for byte as their concatenation.
+ *===========================================================================*/
+
+#define CLAS_L6SEQ_MAXFILE 16 /* max L6 files per assembly */
+
+/** @brief One block of an L6 file: from an ST1 subframe start to the next one. */
+typedef struct {
+    long off; /**< byte offset of the block start (0 for the first block: leading frames belong to it) */
+    double t; /**< ST1 epoch: GPS TOW plus whole weeks counted from the file's first ST1 (s) */
+    int nfrm; /**< frames from the ST1 frame to the end of the block (1 s each) */
+} clas_l6blk_t;
+
+/** @brief Scan result of one L6 frame file (clas_l6_scan_file()). */
+typedef struct {
+    char path[1024];   /**< file path */
+    int prn;           /**< L6 PRN of the first CLAS frame (-1: no CLAS frame) */
+    int ptn;           /**< transmit pattern ID of the first CLAS frame (-1: no CLAS frame) */
+    long size;         /**< file size (bytes) */
+    long st1off;       /**< byte offset of the first ST1 frame (blk[0].off is 0) */
+    int nlead;         /**< frames before the first ST1 frame */
+    int nblk, nmax;    /**< number of blocks / allocated */
+    clas_l6blk_t* blk; /**< blocks in file order, ST1 epoch strictly increasing */
+} clas_l6file_t;
+
+/** @brief Byte range [start, end) of one input file in an assembled channel. */
+typedef struct {
+    int file;   /**< index into clas_l6seq_t.path */
+    long start; /**< first byte */
+    long end;   /**< one past the last byte */
+} clas_l6seg_t;
+
+/** @brief Assembled CLAS channel: segments of the input files, read in order. */
+typedef struct {
+    int npath;                           /**< number of files in path[] */
+    char path[CLAS_L6SEQ_MAXFILE][1024]; /**< files used by the channel */
+    int nseg, nmax;                      /**< number of segments / allocated */
+    clas_l6seg_t* seg;                   /**< segments in read order */
+    int iseg;                            /**< current segment */
+    int inseg;                           /**< 1 once the current segment has been entered */
+    long pos;                            /**< byte position in the open file */
+    int fpfile;                          /**< path[] index of the open file (-1: none) */
+    FILE* fp;                            /**< open file */
+} clas_l6seq_t;
+
+/**
+ * @brief Scan an L6 frame file for its transmit pattern and ST1 blocks.
+ *
+ * Frames are synchronized as clas_input_cssr() does (preamble search,
+ * L6_FRAME_LEN bytes per frame, so 218- and 250-byte frame files both work).
+ * A block starts at a CLAS frame with the subframe indicator set whose first
+ * message is an ST1 mask; an ST1 epoch that does not advance on the previous
+ * block of the file starts no block (its frames stay in the previous one).
+ *
+ * @param[in]  path  File path (no keyword expansion).
+ * @param[out] f     Scan result; release with clas_l6_free_file().
+ * @return 1 if the file was read, 0 if it cannot be opened.
+ */
+int clas_l6_scan_file(const char* path, clas_l6file_t* f);
+
+/**
+ * @brief Release the block list of a scanned L6 file.
+ * @param[in,out] f  Scan result.
+ */
+void clas_l6_free_file(clas_l6file_t* f);
+
+/**
+ * @brief Build the CLAS channels from scanned L6 files.
+ *
+ * Channels: with l6mrg on, one per transmit pattern in order of first
+ * appearance (earliest first ST1 epoch, ties to the earlier file), as the
+ * real-time demux assigns them (clas_route_l6frame()); patterns beyond
+ * CLAS_CH_NUM are not used. With l6mrg off, every file goes to channel 0.
+ *
+ * Within a channel, block by block: the next block is the earliest one, ties
+ * staying on the current file. Blocks of other files that start before the
+ * end of the last block read (its ST1 epoch plus its frames, 1 s each, so a
+ * block that runs on over a lost ST1 counts in full) are skipped: the decoder
+ * never goes back in time on a switch. On a switch to a file's first block,
+ * its frames before the first ST1 (dated back from that ST1, 1 s each) are
+ * dropped if they start before that end. A channel of one file reads the whole
+ * file. ST1 carries the TOW only: the epochs of different files are aligned
+ * to the first usable file within half a week, so the files of one call must
+ * span less than 3.5 days.
+ *
+ * seq must be zeroed or released with clas_l6seq_free() before the call.
+ *
+ * Files without a CLAS frame or without an ST1 block are not used.
+ *
+ * @param[in]  files  Scanned files.
+ * @param[in]  n      Number of files (<= CLAS_L6SEQ_MAXFILE).
+ * @param[in]  l6mrg  Two-channel merge (prcopt_t.l6mrg).
+ * @param[out] seq    Channels [CLAS_CH_NUM]; release with clas_l6seq_free().
+ * @param[out] chof   Channel of each file [n], -1 if the file is not used (may be NULL).
+ * @return Number of channels built (0..CLAS_CH_NUM).
+ */
+int clas_l6seq_build(const clas_l6file_t* files, int n, int l6mrg, clas_l6seq_t* seq, int* chof);
+
+/**
+ * @brief Input CSSR from an assembled channel (as clas_input_cssrf()).
+ * @param[in,out] ctx  CLAS context
+ * @param[in,out] seq  Assembled channel
+ * @param[in]     ch   Channel index
+ * @return Status (-2:end of channel, -1:error, 0:no message, 10:SSR message decoded)
+ */
+int clas_l6seq_input(clas_ctx_t* ctx, clas_l6seq_t* seq, int ch);
+
+/**
+ * @brief Close the open file and release the segments of an assembled channel.
+ * @param[in,out] seq  Assembled channel
+ */
+void clas_l6seq_free(clas_l6seq_t* seq);
+
+/*============================================================================
  * Bank Management Functions
  *===========================================================================*/
 
@@ -1077,13 +1199,27 @@ typedef struct {
 double clas_osr_prectrop(gtime_t time, const double* pos, const double* azel, double zwd, double ztd);
 
 /**
- * @brief Select frequency pair for multi-frequency processing.
+ * @brief Select frequency pair for multi-frequency processing (PPP-RTK, VRS-RTK).
  * @param[in] sat  Satellite number
- * @param[in] opt  Processing options
- * @param[in] obs  Observation data
- * @return Frequency pair bitmask (0=L1 only, 1=L2, 2=L5, 3=L2+L5)
+ * @param[in] opt  Processing options (posopt[10] GPS, posopt[12] QZS)
+ * @param[in] obs  Observation data of this satellite
+ * @return Bitmask of observation slots used with slot 0 (0=none, 1=slot 1,
+ *         2=slot 2, 3=both); L2 and L5 in the claslib slot layout
  */
 int clas_osr_selfreqpair(int sat, const prcopt_t* opt, const obsd_t* obs);
+
+/**
+ * @brief Signal codes the SSR2OSR modes (ssr2obs, cssr2rtcm3) output for a
+ *        satellite: its CSSR signals, with one L1 signal only when the SSR
+ *        ionosphere compensation is on.
+ * @param[in]  corr   Merged correction snapshot
+ * @param[in]  opt    Processing options
+ * @param[in]  sat    Satellite number
+ * @param[out] codes  Code per signal index [NFREQ + NEXOBS]; CODE_NONE for a
+ *                    signal that is not output
+ * @return Number of signal indices in use (0: no correction for the satellite)
+ */
+int clas_osr_vrs_codes(const clas_corr_t* corr, const prcopt_t* opt, int sat, uint8_t* codes);
 
 /**
  * @brief Compute zero-differenced phase/code residuals with CLAS corrections.

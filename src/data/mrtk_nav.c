@@ -1223,7 +1223,15 @@ int satexclude(int sat, double var, int svh, const struct prcopt_t* opt) {
         }
     }
     if (sys == SYS_QZS) {
-        svh &= 0xFE; /* mask QZSS LEX health */
+        /* LNAV health bit 4 = L1C/A, bit 0 = L1C/B (IS-QZSS-PNT-006 Table
+         * 4.1.2-5). The two are broadcast exclusively and the bit of the one not
+         * broadcast is 1: QZS-2/3/4 send 0x01, QZS-1R/6 0x10. Clear that bit
+         * only when exactly one of the two is set, as MALIB v1.3.0 (#512) */
+        if ((svh & 0x11) == 0x01) {
+            svh &= ~0x01;
+        } else if ((svh & 0x11) == 0x10) {
+            svh &= ~0x10;
+        }
     }
     if (sys == SYS_CMP) {
         svh &= ~0x1D; /* mask BeiDou health by reserved bit */

@@ -1,0 +1,4 @@
+# QZS frequency pair override for the claslib_vrs_rtk_qzs_l1l5 test (#346):
+# GPS stays on L1+L2 while QZS runs L1+L5 (upstream kinematic_L1CL5_vrs.conf)
+[positioning.corrections]
+qzs_frequency = "l1+l5"

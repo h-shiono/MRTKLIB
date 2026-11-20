@@ -9,12 +9,16 @@ Pipeline per case of the handover dataset:
 3. rebuild each receiver channel by concatenating its PRN files in time
    order, as recorded in ``handover_manifest.json`` (``l6_channels``): a
    channel tracks one PRN at a time, so "all of the old PRN, then all of the
-   new one" is that channel's frame sequence (``mrtk post`` takes one file per
-   CLAS channel; reading several PRN files per channel natively is #373);
+   new one" is that channel's frame sequence;
 4. ``mrtk post`` with the case's config, channel files in channel order.
 
+With ``--per-prn REF``, step 3 is left to ``mrtk post`` (#373): it gets the
+per-PRN files themselves, each channel's PRNs in reverse time order (so the
+time order has to come from the file contents), and its output must be
+byte-identical to REF, the output of the concatenated channels.
+
 Usage:
-    run_handover_post.py MRTK DATASET_DIR CASE CONF WORK_DIR OUT_NMEA
+    run_handover_post.py MRTK DATASET_DIR CASE CONF WORK_DIR OUT_NMEA [--per-prn REF_NMEA]
 """
 
 import json
@@ -32,10 +36,15 @@ def run(cmd, cwd=None):
 
 
 def main():
-    if len(sys.argv) != 7:
+    args = sys.argv[1:]
+    ref = None
+    if len(args) == 8 and args[6] == "--per-prn":
+        ref = args.pop()
+        args.pop()
+    if len(args) != 6:
         print(__doc__, file=sys.stderr)
         return 2
-    mrtk, dset, case_name, conf, work, out = sys.argv[1:]
+    mrtk, dset, case_name, conf, work, out = args
     with open(os.path.join(dset, "handover_manifest.json")) as fp:
         case = next(c for c in json.load(fp)["cases"] if c["case"] == case_name)
 
@@ -49,6 +58,26 @@ def main():
     run([mrtk, "convert", "-r", "sbf", "-o", obs, "-n", nav, os.path.join(dset, obs_src)])
     prefix = os.path.join(work, "l6")
     run([mrtk, "l6extract", "-no-has", "-o", prefix, os.path.join(dset, l6_src)])
+
+    if ref is not None:
+        inputs = []
+        for ch, runs in sorted(case["l6_channels"].items(), key=lambda x: int(x[0])):
+            for r in reversed(runs):
+                inputs.append(f"{prefix}.{r['prn']}.l6d")
+        print("per-PRN input: " + " ".join(os.path.basename(p) for p in inputs))
+        run([mrtk, "post", "-k", conf, "-o", out, obs, nav, *inputs])
+        with open(out, "rb") as a, open(ref, "rb") as b:
+            got, exp = a.read(), b.read()
+        if got != exp:
+            n = next(
+                (i for i, (x, y) in enumerate(zip(got.splitlines(), exp.splitlines())) if x != y),
+                None,
+            )
+            raise SystemExit(
+                f"{case_name}: per-PRN output {out} differs from {ref} (first line {None if n is None else n + 1})"
+            )
+        print(f"{case_name}: {out} identical to {ref}")
+        return 0
 
     seen = set()
     channels = []

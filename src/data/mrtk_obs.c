@@ -125,15 +125,18 @@ static int cmpobs(const void* p1, const void* p2) {
  * args   : int    base      I   rover or base-station (0:rover,1:base station)
  *          int    idx       I   frequency index (0:L1,1:L2,2:L3,...)
  *          double el        I   elevation angle (rad)
- *          double snr       I   C/N0 (dBHz)
+ *          double snr       I   C/N0 (dBHz, 0:unknown)
  *          snrmask_t *mask  I   SNR mask
  * return : status (1:masked,0:unmasked)
+ * notes  : an unknown C/N0 is not masked (#477)
  *-----------------------------------------------------------------------------*/
 extern int testsnr(int base, int idx, double el, double snr, const snrmask_t* mask) {
     double minsnr, a;
     int i;
 
-    if (!mask->ena[base] || idx < 0 || idx >= NFREQ) {
+    /* SNR=0 means no C/N0 in the input (e.g. RINEX without S, RTCM MSM1-3),
+       not 0 dBHz: masking it would reject every satellite */
+    if (!mask->ena[base] || idx < 0 || idx >= NFREQ || snr <= 0.0) {
         return 0;
     }
 
@@ -904,6 +907,12 @@ static int qzs_l1_claslib = 0;
  * args   : int on  I  1: claslib order (C>S>L>X>Z), 0: MRTK default order
  *----------------------------------------------------------------------------*/
 extern void mrtk_use_claslib_qzs_l1_priority(int on) { qzs_l1_claslib = on; }
+
+/* mrtk_claslib_qzs_l1_priority: claslib QZSS L1 code order --------------------
+ * return : code list in priority order (C>S>L>X>Z), 0-terminated or
+ *          MRTK_MAX_SIG_PRIORITY long; independent of the toggle above
+ *----------------------------------------------------------------------------*/
+extern const uint8_t* mrtk_claslib_qzs_l1_priority(void) { return QZS_L1_PRIORITY_CLASLIB; }
 
 /* mrtk_get_signal_priority: get priority-ordered code list -------------------
  * look up the priority-ordered observation code list for a (system, band) pair

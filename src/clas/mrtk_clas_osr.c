@@ -286,6 +286,96 @@ static int count_nsig(const int smode[MAXCODE]) {
     return n;
 }
 
+/* The SSR2OSR modes (ssr2obs, cssr2rtcm3, mrtk ssr2osr) build observations
+ * from the satellite's CSSR signal list: index j is the j-th signal of
+ * corr->smode[], not a receiver frequency slot (upstream CSSR2OSR_VRS). */
+static int osr_siglist(const prcopt_t* opt) { return opt->mode == PMODE_SSR2OSR || opt->mode == PMODE_SSR2OSR_FIXED; }
+
+/* number of signals handled for a satellite: its CSSR signals in the
+ * SSR2OSR modes, opt->nf in the positioning engines. The per-satellite
+ * state arrays are NFREQ wide. */
+static int osr_nsig(const prcopt_t* opt, const clas_corr_t* corr, int sat) {
+    int n;
+
+    if (!osr_siglist(opt)) {
+        return opt->nf;
+    }
+    n = count_nsig(corr->smode[sat - 1]);
+    return n < NFREQ ? n : NFREQ;
+}
+
+/* priority of an L1 signal: claslib order for QZS (C > S > L > X > Z, the MRTK
+ * default order differs), "-JL1x" in the RINEX option first */
+static int osr_l1_pri(int sys, uint8_t code, const char* rnxopt) {
+    const uint8_t* list;
+    const char *p, *obs = code2obs(code);
+    int i;
+
+    if (sys != SYS_QZS) {
+        return getcodepri(sys, code, rnxopt);
+    }
+    if ((p = strstr(rnxopt, "-JL1"))) {
+        return obs[0] && p[4] == obs[1] ? 15 : 0;
+    }
+    list = mrtk_claslib_qzs_l1_priority();
+    for (i = 0; i < MRTK_MAX_SIG_PRIORITY && list[i]; i++) {
+        if (list[i] == code) {
+            return 14 - i;
+        }
+    }
+    return 0;
+}
+
+/* index of the L1 signal to use among a satellite's CSSR signals (-1: none).
+ * claslib 0.9.0 getL1idx(); upstream passes sat - 1 to satsys() there. */
+static int osr_l1idx(const int* smode, int nsig, const prcopt_t* opt, int sat) {
+    int i, qi = -1, pri = -1, p, sys = satsys(sat, NULL);
+
+    for (i = 0; i < nsig; i++) {
+        if (obsfreqs[smode[i]] != 1) {
+            continue;
+        }
+        p = osr_l1_pri(sys, (uint8_t)smode[i], opt->rnxopt[0]);
+        if (pri < p) {
+            pri = p;
+            qi = i;
+        }
+    }
+    return qi;
+}
+
+/**
+ * @brief Signal codes the SSR2OSR modes output for a satellite.
+ *
+ * The satellite's CSSR signals in order. With the SSR ionosphere compensation
+ * (posopt[5] == 1) only one L1 signal is output, the one the compensation
+ * refers to (claslib 0.9.0): QZS L1C/A or, with -JL1X, L1C.
+ *
+ * @param[in]  corr   Merged correction snapshot
+ * @param[in]  opt    Processing options
+ * @param[in]  sat    Satellite number
+ * @param[out] codes  Code per signal index [NFREQ + NEXOBS]; CODE_NONE for a
+ *                    signal that is not output
+ * @return Number of signal indices in use (0: no correction for the satellite)
+ */
+int clas_osr_vrs_codes(const clas_corr_t* corr, const prcopt_t* opt, int sat, uint8_t* codes) {
+    const int* smode = corr->smode[sat - 1];
+    int j, l1, ns = osr_nsig(opt, corr, sat);
+
+    l1 = (osr_siglist(opt) && opt->posopt[5] == 1) ? osr_l1idx(smode, ns, opt, sat) : -1;
+
+    for (j = 0; j < NFREQ + NEXOBS; j++) {
+        codes[j] = CODE_NONE;
+    }
+    for (j = 0; j < ns; j++) {
+        if (l1 >= 0 && j != l1 && obsfreqs[smode[j]] == 1) {
+            continue;
+        }
+        codes[j] = (uint8_t)smode[j];
+    }
+    return ns;
+}
+
 /*============================================================================
  * clas_osr_ctx_init
  *===========================================================================*/
@@ -354,16 +444,16 @@ double clas_osr_prectrop(gtime_t time, const double* pos, const double* azel, do
  *
  * Returns a bitmask indicating which secondary frequencies to use alongside L1.
  * The selection depends on the satellite system and the processing options
- * posopt[10] (GPS) and posopt[12] (QZS).
+ * posopt[10] (GPS) and posopt[12] (QZS). Shared by the PPP-RTK and VRS-RTK
+ * engines (claslib cssr2osr.c and, since 0.9.0, rtkvrs.c).
  *
- * Note: MRTKLIB's prcopt_t.posopt[] is 6 elements (indices 0-5) while upstream
- * claslib uses indices up to 12.  For forward compatibility the indices 10/12
- * are checked against the array size; if out of range, default to L1+L2.
+ * The bits are observation slots, not bands: they mean L2 and L5 only in the
+ * claslib slot layout (GPS/QZS L1/L2/L5, Galileo E1/-/E5a).
  *
  * @param[in] sat  Satellite number
  * @param[in] opt  Processing options
  * @param[in] obs  Observation data for this satellite
- * @return Frequency pair bitmask (0=L1 only, 1=L2, 2=L5, 3=L2+L5)
+ * @return Frequency pair bitmask (0=slot 0 only, 1=slot 1, 2=slot 2, 3=slots 1+2)
  */
 int clas_osr_selfreqpair(int sat, const prcopt_t* opt, const obsd_t* obs) {
     int optf, sys;
@@ -403,6 +493,18 @@ int clas_osr_selfreqpair(int sat, const prcopt_t* opt, const obsd_t* obs) {
     return 1;
 }
 
+/* wavelength ratio of two CSSR signals in clas_osr_compensatedisp(). lam[]
+ * is indexed like obs->code[]: by frequency slot in the positioning engines
+ * (fqi / fqj), by signal index in the SSR2OSR modes (qi / qj). Indexing a
+ * signal-ordered lam[] by frequency gave the wrong band (L1 for the L2 signal
+ * of a satellite with two L1 signals: 1 - fi^2 = 0 and NaN compensation; no
+ * wavelength at all for Galileo E5a). */
+static double comp_freq_ratio(const double* lam, int sig, int qi, int qj, int fqi, int fqj) {
+    int a = sig ? qi : fqi, b = sig ? qj : fqj;
+
+    return (lam[a] > 0.0 && lam[b] > 0.0) ? lam[b] / lam[a] : 0.0;
+}
+
 /*============================================================================
  * clas_osr_compensatedisp -- Compensate Time Variation of Signal Bias + Iono
  *===========================================================================*/
@@ -434,9 +536,11 @@ void clas_osr_compensatedisp(clas_corr_t* corr, const int* index, const obsd_t* 
     int i, k, qi, qj, isat = sat - 1, oft = isat * NFREQ, oft_b;
     double lam[NFREQ + NEXOBS];
     double disp0, dispm, dt, dgf, fi;
-    int nf = opt->nf, flag, fqi, fqj;
+    int nf = osr_nsig(opt, corr, sat), sig = osr_siglist(opt), flag, fqi, fqj;
 
-    /* compute wavelengths */
+    /* compute wavelengths: lam[] follows obs->code[], i.e. the frequency slot
+     * in the positioning engines and the CSSR signal index in the SSR2OSR
+     * modes */
     sat_wavelengths(sat, obs, nav, lam);
 
     /* non-VRS path: offset is isat*NFREQ */
@@ -476,8 +580,13 @@ void clas_osr_compensatedisp(clas_corr_t* corr, const int* index, const obsd_t* 
             osr_ctx->comp_ionom[ch][isat] = osr_ctx->comp_iono0[ch][isat];
             osr_ctx->comp_iono0[ch][isat] = iono;
 
+            /* SSR2OSR modes: the L1 signal that is output (claslib 0.9.0) */
+            qi = sig ? osr_l1idx(corr->smode[isat], nf, opt, sat) : 0;
+            if (qi < 0) {
+                osr_ctx->comp_coef[ch][isat] = 0.0;
+                return;
+            }
             for (i = 1; i < nf; i++) {
-                qi = 0;
                 qj = i;
                 /* map signal mode to frequency band index */
                 fqi = obsfreqs[corr->smode[isat][qi]] - 1;
@@ -485,7 +594,7 @@ void clas_osr_compensatedisp(clas_corr_t* corr, const int* index, const obsd_t* 
                 if (fqi < 0 || fqj < 0) {
                     continue;
                 }
-                fi = (lam[fqi] > 0.0 && lam[fqj] > 0.0) ? lam[fqj] / lam[fqi] : 0.0;
+                fi = comp_freq_ratio(lam, sig, qi, qj, fqi, fqj);
 
                 if (pb[qi] == CLAS_CSSRINVALID || pb[qj] == CLAS_CSSRINVALID || iono == 0.0) {
                     continue;
@@ -509,15 +618,21 @@ void clas_osr_compensatedisp(clas_corr_t* corr, const int* index, const obsd_t* 
     dt = timediff(time, osr_ctx->comp_t0[ch][isat]);
 
     if (opt->posopt[5] == 1) {
+        qi = sig ? osr_l1idx(corr->smode[isat], nf, opt, sat) : 0;
+        if (qi < 0) {
+            osr_ctx->comp_coef[ch][isat] = 0.0;
+            return;
+        }
         for (i = 1; i < nf; i++) {
-            qi = 0;
             qj = i;
             fqi = obsfreqs[corr->smode[isat][qi]] - 1;
             fqj = obsfreqs[corr->smode[isat][qj]] - 1;
-            if (fqi < 0 || fqj < 0) {
+            /* a second L1-band signal (e.g. QZS L1C/A + L1C) gives fi = 1 and
+             * 1 - fi^2 = 0 below; claslib 0.9.0 skips it the same way (#345) */
+            if (fqi < 0 || fqj < 0 || fqj == 0) {
                 continue;
             }
-            fi = (lam[fqi] > 0.0 && lam[fqj] > 0.0) ? lam[fqj] / lam[fqi] : 0.0;
+            fi = comp_freq_ratio(lam, sig, qi, qj, fqi, fqj);
 
             if (fabs(osr_ctx->comp_coef[ch][isat + (i - 1) * MAXSAT] / (FREQ2 / FREQ1 * (1.0 - fi * fi))) > 0.008) {
                 continue;
@@ -611,16 +726,20 @@ int clas_osr_corrmeas(const obsd_t* obs, nav_t* nav, const double* pos, const do
     double vari, dant[NFREQPCV] = {0}, compL[NFREQ + NEXOBS] = {0};
     double stec = 0.0, rate, t5, t6;
     double pbias[NFREQ + NEXOBS] = {0}, cbias[NFREQ + NEXOBS] = {0};
-    int i, sat, smode, nf = opt->nf;
+    int i, sat, smode, nf, nd;
     int flag;
     double dt;
 
     trace(NULL, 3, "clas_osr_corrmeas: time=%s, sat=%2d\n", time_str(obs->time, 0), obs->sat);
 
     sat = obs->sat;
+    nf = osr_nsig(opt, corr, sat);
+    /* the OSR trace and CSV print opt->nf columns: keep them defined for a
+     * satellite with fewer signals */
+    nd = nf > opt->nf ? nf : opt->nf;
     sat_wavelengths(sat, obs, nav, lam);
 
-    for (i = 0; i < nf; i++) {
+    for (i = 0; i < nd; i++) {
         pbias[i] = cbias[i] = CLAS_CSSRINVALID;
     }
 
@@ -700,7 +819,7 @@ int clas_osr_corrmeas(const obsd_t* obs, nav_t* nav, const double* pos, const do
     antmodel(&opt->pcvr[0], opt->antdel[0], azel, opt->posopt[1], dant);
 
     /* ionosphere and windup corrected phase and code */
-    for (i = 0; i < nf; i++) {
+    for (i = 0; i < nd; i++) {
         osr->cbias[i] = cbias[i];
         osr->pbias[i] = pbias[i];
         osr->compL[i] = compL[i];
@@ -1040,6 +1159,53 @@ static void clas_osr_adjust_r_dts(double* retr, double* retdts, gtime_t teph, in
     trace(NULL, 2, "adjust_r_dts: tow=%.1f sat=%d r=%.8f dts=%.8f\n", time2gpst(teph, NULL), sat, *retr, *retdts);
 }
 
+/**
+ * @brief Satellite / signal health gate of claslib satsigexclude() (#285).
+ *
+ * Covers the health half only: the caller rejects svh == -1 itself and skips
+ * this gate for a force-included satellite (excluded_sats "+PRN", exsats 2,
+ * as upstream); excluded_sats / navsys exclusion is applied before the
+ * PPP-RTK engine runs (#258).
+ * A non-QZS satellite with svh != 0 is excluded. For QZS the LNAV 6-bit
+ * health is per signal (IS-QZSS-PNT-006 Table 4.1.2-5): bit 5 L1C/A or L1C/B,
+ * bit 3 L2C, bit 2 L5 (mask 0x2C, as upstream); bits 4/1/0 (L1C/A, L1C, L1C/B)
+ * are not checked, so live 0x01 (QZS-2/3/4) / 0x10 (QZS-1R/6) pass. The
+ * unhealthy signal's L and P are zeroed.
+ *
+ * Upstream zeroes slots 0/1/2, which are L1/L2/L5 in claslib's slot order.
+ * MRTKLIB orders QZS L1/L5/L2, so the band is taken from the obs code.
+ *
+ * @param[in,out] obs     Observation of one satellite (L/P of unhealthy signals zeroed)
+ * @param[in]     svh     Satellite health flag (>= 0)
+ * @param[out]    masked  Bit j set when slot j was zeroed
+ * @return 1: exclude the satellite, 0: keep it
+ */
+static int clas_osr_healthexclude(obsd_t* obs, int svh, uint32_t* masked) {
+    int j, band;
+
+    *masked = 0;
+    if (!svh) {
+        return 0;
+    }
+    if (satsys(obs->sat, NULL) != SYS_QZS) {
+        trace(NULL, 3, "unhealthy satellite: sat=%3d svh=%02X\n", obs->sat, svh);
+        return 1;
+    }
+    if (!(svh & 0x2C)) {
+        return 0;
+    }
+    for (j = 0; j < NFREQ + NEXOBS; j++) {
+        band = obs->code[j] ? code2freq_num(obs->code[j]) : 0;
+        if ((band == 1 && (svh & 0x20)) || (band == 2 && (svh & 0x08)) || (band == 5 && (svh & 0x04))) {
+            trace(NULL, 3, "unhealthy signal: sat=%3d svh=%02X code=%s\n", obs->sat, svh, code2obs(obs->code[j]));
+            obs->L[j] = 0.0;
+            obs->P[j] = 0.0;
+            *masked |= 1u << j;
+        }
+    }
+    return 0;
+}
+
 /*============================================================================
  * clas_osr_zdres -- Zero-Differenced Phase/Code Residuals
  *===========================================================================*/
@@ -1063,7 +1229,9 @@ static void clas_osr_adjust_r_dts(double* retr, double* retdts, gtime_t teph, in
  * @param[in]     rs       Satellite positions+velocities (6*n)
  * @param[in]     dts      Satellite clock corrections (2*n)
  * @param[in]     vare     Satellite position variances (n)
- * @param[in]     svh      Satellite health flags (n)
+ * @param[in]     svh      Satellite health flags (n): -1 no ephemeris; non-QZS
+ *                         != 0 excludes the satellite; QZS bits 0x2C zero the
+ *                         unhealthy signal (see clas_osr_healthexclude())
  * @param[in,out] nav      Navigation data
  * @param[in,out] x        State vector (position extracted from [0:2])
  * @param[out]    y        Residuals (n*nf*2), can be NULL
@@ -1087,7 +1255,8 @@ int clas_osr_zdres(const obsd_t* obs, int n, const double* rs, const double* dts
                    sol_t* sol, clas_osrd_t* osr, int ch) {
     double r, rr[3], disp[3], pos[3], meas[NFREQ * 2], zwd, ztd;
     double lam[NFREQ + NEXOBS], fi;
-    int i, j, f, qj, sat, sys, brk, nf = opt->nf, nftmp;
+    int i, j, f, qj, sat, sys, brk, nf = opt->nf, nftmp, ns;
+    uint32_t hmask;
     int tbrk = 0;
     double modl[NFREQ * 2];
     obsd_t* obs_copy = NULL; /* local mutable copy of obs */
@@ -1206,15 +1375,19 @@ int clas_osr_zdres(const obsd_t* obs, int n, const double* rs, const double* dts
          * glitches on E33 when the receiver-tracked signal set differs from the
          * CLAS-corrected set). PPP-RTK mode (y!=NULL) skips this block entirely,
          * so real receiver codes are preserved there. */
+        ns = nf;
         if (y == NULL && sat > 0 && sat <= MAXSAT) {
-            for (j = 0; j < nf; j++) {
+            /* every CSSR signal of the satellite, not the first opt->nf: a
+             * fourth signal (GPS L5, QZS L5 behind L1C/A + L1C) was dropped */
+            ns = osr_nsig(opt, corr, sat);
+            for (j = 0; j < ns; j++) {
                 obs_copy[i].code[j] = corr->smode[sat - 1][j];
             }
-            /* Clear the unused (>= nf) code slots too: the reused input buffer
+            /* Clear the unused (>= ns) code slots too: the reused input buffer
              * can leave stale non-zero codes there, and downstream readers
              * (sat_wavelengths over all slots, the GAL L2-slot / L2C checks)
-             * would otherwise pick them up when nf < NFREQ. */
-            for (j = nf; j < NFREQ + NEXOBS; j++) {
+             * would otherwise pick them up when ns < NFREQ. */
+            for (j = ns; j < NFREQ + NEXOBS; j++) {
                 obs_copy[i].code[j] = 0;
             }
         }
@@ -1222,7 +1395,7 @@ int clas_osr_zdres(const obsd_t* obs, int n, const double* rs, const double* dts
         /* compute wavelengths for this satellite */
         sat_wavelengths(sat, obs_copy + i, nav, lam);
 
-        for (j = 0; j < nf * 2; j++) {
+        for (j = 0; j < NFREQ * 2; j++) {
             meas[j] = modl[j] = 0.0;
         }
 
@@ -1235,8 +1408,9 @@ int clas_osr_zdres(const obsd_t* obs, int n, const double* rs, const double* dts
             continue;
         }
 
-        /* excluded satellite check (basic health check) */
-        if (svh[i] == -1) {
+        /* ephemeris unavailable, unhealthy satellite or QZS signal */
+        hmask = 0;
+        if (svh[i] < 0 || (opt->exsats[sat - 1] != 2 && clas_osr_healthexclude(obs_copy + i, svh[i], &hmask))) {
             continue;
         }
 
@@ -1275,11 +1449,11 @@ int clas_osr_zdres(const obsd_t* obs, int n, const double* rs, const double* dts
                 }
             }
         }
-        nftmp = nf;
+        nftmp = ns;
         tmp_r = -1.0;
         tmp_dts = 0.0;
 
-        for (j = 0; j < nf; j++) {
+        for (j = 0; j < ns; j++) {
             f = j;
 
             fi = (lam[0] > 0.0) ? lam[f] / lam[0] : 0.0;
@@ -1325,6 +1499,11 @@ int clas_osr_zdres(const obsd_t* obs, int n, const double* rs, const double* dts
 
             osr[i].p[j] = modl[nftmp + j];
             osr[i].c[j] = modl[j];
+            /* VRS / ssr2obs emit osr p/c, which do not depend on obs L/P: an
+             * unhealthy QZS signal must not be emitted (upstream does) */
+            if (hmask & (1u << j)) {
+                osr[i].p[j] = osr[i].c[j] = 0.0;
+            }
 
             /* repair cycle slip of pbias */
             tow = time2gpst(obs_copy[i].time, NULL);
@@ -1397,11 +1576,16 @@ int clas_osr_zdres(const obsd_t* obs, int n, const double* rs, const double* dts
         /* measurement phase and code (ENA_PPP_RTK path) */
         for (f = 0; f < nf; f++) {
             if (lam[f] == 0.0 || obs_copy[i].L[f] == 0.0 || obs_copy[i].P[f] == 0.0) {
+                /* the ISB / L2C phase-shift terms above made meas[] nonzero;
+                 * left there, the residual loop takes meas - modl (a full
+                 * range) as a residual. Upstream has the same gap. */
+                meas[f] = meas[f + nf] = 0.0;
                 continue;
             }
-            if (obs_copy[i].SNR[f] > 0.0 && testsnr(0, f, azel[i * 2 + 1], obs_copy[i].SNR[f] * 0.25, &opt->snrmask)) {
+            /* SNR is in SNR_UNIT (0.001 dBHz), not claslib's 0.25 dBHz (#479) */
+            if (testsnr(0, f, azel[i * 2 + 1], obs_copy[i].SNR[f] * SNR_UNIT, &opt->snrmask)) {
                 trace(NULL, 2, "snr error: sat=%2d f=%d el=%.2f SNR=%.2f\n", sat, f, azel[i * 2 + 1] * R2D,
-                      obs_copy[i].SNR[f] * 0.25);
+                      obs_copy[i].SNR[f] * SNR_UNIT);
                 meas[f] = meas[f + nf] = 0.0;
                 continue;
             }
@@ -1496,7 +1680,7 @@ int clas_osr_zdres(const obsd_t* obs, int n, const double* rs, const double* dts
  */
 int clas_ssr2osr(rtk_t* rtk, obsd_t* obs, int n, nav_t* nav, clas_osrd_t* osr, int mode, clas_ctx_t* clas) {
     double *rs, *dts, *var, *e, *azel;
-    int i, j, k = 0, nf = rtk->opt.nf, sati;
+    int i, j, k = 0, ns, sati;
     prcopt_t* opt = &rtk->opt;
     int svh[MAXOBS];
     clas_grid_t* grid;
@@ -1640,6 +1824,7 @@ int clas_ssr2osr(rtk_t* rtk, obsd_t* obs, int n, nav_t* nav, clas_osrd_t* osr, i
         int ko = 0;
         for (i = 0; i < n && i < MAXOBS; i++) {
             double lam_v[NFREQ + NEXOBS];
+            uint8_t codes[NFREQ + NEXOBS];
             int sys_v, f;
             sati = obs[i].sat;
             if (sati <= 0) {
@@ -1656,9 +1841,13 @@ int clas_ssr2osr(rtk_t* rtk, obsd_t* obs, int n, nav_t* nav, clas_osrd_t* osr, i
              * entry that occupies the satellite mask but carries no usable
              * range or carrier. The rover cannot position with it and may let
              * it disturb satellite selection, so do not advertise it at all. */
+            ns = clas_osr_vrs_codes(corr, opt, sati, codes);
             {
                 int any_valid = 0;
-                for (j = 0; j < nf; j++) {
+                for (j = 0; j < ns; j++) {
+                    if (codes[j] == CODE_NONE) {
+                        continue;
+                    }
                     if (osr[i].p[j] != 0.0 || osr[i].c[j] != 0.0) {
                         any_valid = 1;
                         break;
@@ -1675,14 +1864,21 @@ int clas_ssr2osr(rtk_t* rtk, obsd_t* obs, int n, nav_t* nav, clas_osrd_t* osr, i
             obs[ko].rcv = 1;
 
             /* assign signal codes from corr's smode (CLAS decoder) */
-            for (j = 0; j < nf; j++) {
-                obs[ko].code[j] = corr->smode[sati - 1][j];
+            for (j = 0; j < ns; j++) {
+                obs[ko].code[j] = codes[j];
             }
             /* compute wavelengths from assigned codes */
             sat_wavelengths(sati, &obs[ko], nav, lam_v);
 
-            for (j = 0; j < nf; j++) {
+            for (j = 0; j < ns; j++) {
                 f = j;
+                if (codes[j] == CODE_NONE) {
+                    obs[ko].P[j] = 0.0;
+                    obs[ko].L[j] = 0.0;
+                    obs[ko].LLI[j] = 0;
+                    obs[ko].SNR[j] = 0;
+                    continue;
+                }
                 if (osr[i].p[j] == 0.0 && osr[i].c[j] == 0.0) {
                     obs[ko].P[j] = 0.0;
                     obs[ko].L[j] = 0.0;
@@ -1713,7 +1909,7 @@ int clas_ssr2osr(rtk_t* rtk, obsd_t* obs, int n, nav_t* nav, clas_osrd_t* osr, i
                 }
             }
             /* clear remaining freq slots */
-            for (j = nf; j < NFREQ + NEXOBS; j++) {
+            for (j = ns; j < NFREQ + NEXOBS; j++) {
                 obs[ko].P[j] = 0.0;
                 obs[ko].L[j] = 0.0;
                 obs[ko].LLI[j] = 0;
@@ -1727,7 +1923,7 @@ int clas_ssr2osr(rtk_t* rtk, obsd_t* obs, int n, nav_t* nav, clas_osrd_t* osr, i
 
     /* save observation state (upstream compat) */
     for (i = 0; i < k; i++) {
-        for (j = 0; j < nf; j++) {
+        for (j = 0; j < NFREQ; j++) {
             if (obs[i].L[j] == 0.0) {
                 continue;
             }
@@ -1736,12 +1932,12 @@ int clas_ssr2osr(rtk_t* rtk, obsd_t* obs, int n, nav_t* nav, clas_osrd_t* osr, i
         }
     }
     for (i = 0; i < k; i++) {
-        for (j = 0; j < nf; j++) {
+        for (j = 0; j < NFREQ; j++) {
             rtk->ssat[obs[i].sat - 1].snr[j] = obs[i].SNR[j];
         }
     }
     for (i = 0; i < MAXSAT; i++) {
-        for (j = 0; j < nf; j++) {
+        for (j = 0; j < NFREQ; j++) {
             if (rtk->ssat[i].fix[j] == 2) {
                 rtk->ssat[i].fix[j] = 1;
             }

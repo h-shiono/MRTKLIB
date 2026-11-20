@@ -1,0 +1,9 @@
+# Overlay for the IGS Galileo-only float PPP regression (#476).
+#
+# Layered after rnx2rtkp_iflc_fallback.toml. With no GPS satellite, SPP keeps
+# the receiver clock in its GAL-GPS term; the PPP clock state was initialized
+# from the GPS term only, so on a receiver with a large clock bias (ECJ02,
+# u-blox, ~43 ms) every Galileo measurement was rejected and no epoch was output.
+
+[positioning]
+systems = ["Galileo"]

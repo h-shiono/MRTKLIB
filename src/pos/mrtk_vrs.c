@@ -72,13 +72,6 @@
 #define TTOL_MOVEB (1.0 + 2 * DTTOL)
 /* time sync tolerance for moving-baseline (s) */
 
-/* frequency pair selection constants */
-#define POSL1 1      /* L1 single freq positioning */
-#define POSL1L2 2    /* L1+L2 dual freq positioning */
-#define POSL1L5 3    /* L1+L5 dual freq positioning */
-#define POSL1L2L5 4  /* L1+L2+L5 triple freq positioning */
-#define POSL1L5_L2 5 /* L1+L5(or L2) dual freq positioning */
-
 /* carrier wavelength constants */
 #define LAM_CARR_L1 (CLIGHT / FREQ1)
 #define LAM_CARR_L2 (CLIGHT / FREQ2)
@@ -287,27 +280,6 @@ static int selsat(const obsd_t* obs, double* azel, int nu, int* nr, const prcopt
         }
     }
     return k;
-}
-static int selfreqpair(const int sat, const prcopt_t* opt, const obsd_t* obs) {
-    int optf = opt->posopt[10];
-    if (NFREQ == 1 || optf == POSL1) {
-        return 0;
-    }
-    if (NFREQ >= 3) {
-        if ((satsys(sat, NULL)) & (SYS_GAL)) {
-            return 2; /* GAL */
-        }
-        if (optf == POSL1L2L5) {
-            return 1 + 2;
-        }
-        if (optf == POSL1L5) {
-            return 2;
-        }
-        if (optf == POSL1L5_L2 && obs->L[2] != 0.0 && obs->P[2] != 0.0) {
-            return 2;
-        }
-    }
-    return 1;
 }
 /* temporal update of position/velocity/acceleration -------------------------*/
 static void udpos(rtk_t* rtk, const obsd_t* obs, double tt) {
@@ -569,7 +541,10 @@ static void udion(rtk_t* rtk, double tt, double bl, const obsd_t* obs, int ns) {
                 break;
             }
         }
-        m = selfreqpair(i, &rtk->opt, obs + k);
+        if (ns == k) {
+            continue; /* not observed this epoch: obs + k is not this satellite */
+        }
+        m = clas_osr_selfreqpair(i, &rtk->opt, obs + k);
         for (f = 0; f < rtk->opt.nf; f++) {
             if (f > 0 && !(f & m)) {
                 continue;
@@ -862,11 +837,12 @@ static void zdres_sat(int base, double r, const obsd_t* obs, const nav_t* nav, c
         lam_arr[i] = sat_lambda(obs->sat, i, nav);
     }
 
-    qj = selfreqpair(obs->sat, opt, obs);
+    qj = clas_osr_selfreqpair(obs->sat, opt, obs);
 
-    /* fallback: if preferred secondary freq has no data, try index 1
-     * (e.g. Galileo E5b selected but only E5a available from cssr2rtcm3) */
-    if (qj > 1 && obs->L[qj] == 0.0 && obs->P[qj] == 0.0 && (obs->L[1] != 0.0 || obs->P[1] != 0.0)) {
+    /* Galileo: the selection above only looks at slot 2 (E5a in the claslib
+     * layout, which mrtk post applies). mrtk run keeps the layout of the
+     * signal list, with E5a in slot 1 */
+    if (qj == 0 && satsys(obs->sat, NULL) == SYS_GAL && (obs->L[1] != 0.0 || obs->P[1] != 0.0)) {
         qj = 1;
     }
 
@@ -875,8 +851,8 @@ static void zdres_sat(int base, double r, const obsd_t* obs, const nav_t* nav, c
             continue;
         }
 
-        /* check snr mask */
-        if (testsnr(base, i, azel[1], obs->SNR[i] * 0.25, &opt->snrmask)) {
+        /* check snr mask (SNR in SNR_UNIT, not claslib's 0.25 dBHz, #479) */
+        if (testsnr(base, i, azel[1], obs->SNR[i] * SNR_UNIT, &opt->snrmask)) {
             continue;
         }
         if (i > 0 && !(i & qj)) {
@@ -1674,7 +1650,7 @@ static int resamb_LAMBDA(rtk_t* rtk, double* bias, double* xa) {
     int i, j, ny, nb, info, nx = rtk->nx, na = rtk->na;
     double *D, *DP, *y, *Qy, *b, *db, *Qb, *Qab, *QQ, s[2];
     double *Ds, *Pac, *Pcc, *D_P;
-    int nc;
+    int nc, nq;
 
     trace(NULL, 3, "resamb_LAMBDA : nx=%d\n", nx);
 
@@ -1744,8 +1720,11 @@ static int resamb_LAMBDA(rtk_t* rtk, double* bias, double* xa) {
             rtk->sol.ratio = 999.9f;
         }
 
-        /* validation by popular ratio-test */
-        if (s[0] <= 0.0 || s[1] / s[0] >= qfrtk[opt->alphaar][nb - 1]) {
+        /* validation by popular ratio-test. The table ends at 60 ambiguities
+         * and the threshold falls with their number: beyond it the last
+         * entry is on the strict side */
+        nq = (int)(sizeof(qfrtk[0]) / sizeof(qfrtk[0][0]));
+        if (s[0] <= 0.0 || s[1] / s[0] >= qfrtk[opt->alphaar][(nb < nq ? nb : nq) - 1]) {
             /* transform float to fixed solution (xa=xa-Qab*Qb\(b0-b)) */
             for (i = 0; i < na; i++) {
                 rtk->xa[i] = rtk->x[i];

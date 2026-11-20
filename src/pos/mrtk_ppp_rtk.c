@@ -187,6 +187,9 @@ static struct {
     /* consecutive FLOAT epoch counter for filter reset (floatcnt mechanism) */
     int float_count;
 
+    /* time of the last epoch with a measurement update (0: none yet) */
+    gtime_t tupd;
+
     /* consecutive position error counter for maxdiffp reset */
     int cntdiffp;
 
@@ -1452,12 +1455,26 @@ enum ddres_order { FST = 1, SND, TRD };
  * channel unless a common reference satellite exists.
  *
  * Mirrors upstream check_same_fac(), which compares the facility id of the two
- * CurrentCSSR entries directly.
+ * CurrentCSSR entries. Upstream leaves the entry of a channel that failed this
+ * epoch stale, facility included; here the snapshot of such a channel is
+ * cleared (OR-semantics fetch), so it takes its last known facility instead.
+ * The zeroed facility read as a facility change, e.g. once the old pattern of
+ * a handover went silent, and re-initialized the phase bias of every satellite
+ * moving to the other channel (#390).
  *
  * @param[in] clas CLAS context
  * @return 1 if both channels report the same facility, 0 otherwise
  */
-static int check_same_fac(const clas_ctx_t* clas) { return clas->current[0].facility == clas->current[1].facility; }
+static int clas_lastfac[SSR_CH_NUM] = {-1, -1}; /* last known facility per channel */
+
+static int check_same_fac(const clas_ctx_t* clas) {
+    int ch, fac[2];
+
+    for (ch = 0; ch < 2; ch++) {
+        fac[ch] = clas->current[ch].use || clas_lastfac[ch] < 0 ? clas->current[ch].facility : clas_lastfac[ch];
+    }
+    return fac[0] == fac[1];
+}
 
 /**
  * @brief Check that a satellite yields a usable zero-difference signal.
@@ -2573,7 +2590,6 @@ extern int ppp_rtk_nx(const prcopt_t* opt) { return NX_RTK(opt); }
 extern int ppp_rtk_na(const prcopt_t* opt) { return NR_RTK(opt); }
 
 static void check_clas_facility(nav_t* nav, const clas_ctx_t* clas, const clas_grid_t* grid, const prcopt_t* opt) {
-    static int savefacility[SSR_CH_NUM] = {-1, -1};
     int ch, nch = opt->l6mrg ? SSR_CH_NUM : 1;
 
     (void)grid;
@@ -2585,11 +2601,11 @@ static void check_clas_facility(nav_t* nav, const clas_ctx_t* clas, const clas_g
         if (!clas->current[ch].use) {
             continue;
         }
-        if (savefacility[ch] != facility) {
-            if (savefacility[ch] != -1) {
+        if (clas_lastfac[ch] != facility) {
+            if (clas_lastfac[ch] != -1) {
                 nav->filreset = 1;
             }
-            savefacility[ch] = facility;
+            clas_lastfac[ch] = facility;
         }
     }
 }
@@ -2597,6 +2613,35 @@ static void check_clas_facility(nav_t* nav, const clas_ctx_t* clas, const clas_g
 /*============================================================================
  * Public API: PPP-RTK positioning for one epoch
  *===========================================================================*/
+
+/* A running filter is carried across a short correction gap: epochs that the
+ * corrections cannot serve (no grid, no correction set, or no satellite with
+ * usable corrections, e.g. the orbit over MAXAGESSR for 1-2 s after a subframe 1
+ * lost at an L6 handover) are not an observation outage, since the carrier is
+ * still tracked and slips are caught by LLI, the GF test and the CSSR
+ * discontinuity indicator. Without the bridge, the reset of all states on a
+ * failed epoch and then maxout = 1 dropped every ambiguity, and float_count
+ * reset the filter: ~80 s of Float in RT where post-processing, which reads
+ * the next subframe ahead, kept Fix (#389). The bridge needs a measurement
+ * update within one CLAS subframe (5 s) of the current filter: every reset
+ * clears tupd, and a zero position state (rtkinit() between the forward and
+ * backward passes, which keeps prtk_ctx) disables it. The time is absolute
+ * for the backward pass. At start-up, before the first update, a failed epoch
+ * resets as upstream does (keeping those states misfixed). */
+#define CLAS_GAP_BRIDGE 5.0 /* max time since the last measurement update (s) */
+
+/* Undo this epoch's outage count for the observed carriers. */
+static void restore_outc(rtk_t* rtk, const obsd_t* obs, int n, const uint32_t (*outc0)[NFREQ]) {
+    int i, f, nf = NF_RTK(&rtk->opt);
+
+    for (i = 0; i < n && i < MAXOBS; i++) {
+        for (f = 0; f < nf && f < NFREQ; f++) {
+            if (obs[i].L[f] != 0.0) {
+                rtk->ssat[obs[i].sat - 1].outc[f] = outc0[obs[i].sat - 1][f];
+            }
+        }
+    }
+}
 
 /**
  * @brief PPP-RTK positioning for one epoch (CLAS).
@@ -2625,7 +2670,8 @@ extern void ppp_rtk_pos(rtk_t* rtk, const obsd_t* obs, int n, nav_t* nav) {
     int ch, pch = 0, nch = opt->l6mrg ? SSR_CH_NUM : 1;
     int stat = (rtk->opt.mode <= PMODE_DGPS) ? SOLQ_DGPS : SOLQ_FLOAT;
     int vflg[MAXOBS * NFREQ * 4 + 1], nb, svh[SSR_CH_NUM][MAXOBS];
-    int nn, use_backup = 0, refid = 0;
+    int nn, use_backup = 0, refid = 0, corr_gap = 0, bridge;
+    uint32_t outc0[MAXSAT][NFREQ];
     double cpc_[SSR_CH_NUM][MAXSAT * NFREQ];
     gtime_t pt0_[SSR_CH_NUM][MAXSAT];
 
@@ -2668,6 +2714,7 @@ extern void ppp_rtk_pos(rtk_t* rtk, const obsd_t* obs, int n, nav_t* nav) {
         for (i = 0; i < rtk->nx; i++) {
             rtk->x[i] = 0.0;
         }
+        prtk_ctx.tupd.time = 0;
     }
 
     /* periodic filter reset: force a full state reset every opt->regularly
@@ -2685,6 +2732,7 @@ extern void ppp_rtk_pos(rtk_t* rtk, const obsd_t* obs, int n, nav_t* nav) {
         regularly = obs[0].time;
         nav->filreset = 0;
         prtk_ctx.float_count = 0;
+        prtk_ctx.tupd.time = 0;
         free(azel);
         free(e);
         for (ch = 0; ch < nch; ch++) {
@@ -2712,6 +2760,7 @@ extern void ppp_rtk_pos(rtk_t* rtk, const obsd_t* obs, int n, nav_t* nav) {
         }
         prtk_ctx.float_count = 0;
         prtk_ctx.floatcnt_reset = 1;
+        prtk_ctx.tupd.time = 0;
     }
 
     if (nav->filreset) {
@@ -2728,9 +2777,17 @@ extern void ppp_rtk_pos(rtk_t* rtk, const obsd_t* obs, int n, nav_t* nav) {
         rtk->sol.stat = SOLQ_FLOAT;
         nav->filreset = 0;
         stat = SOLQ_FLOAT;
+        prtk_ctx.tupd.time = 0;
     }
 
     /* temporal update of states */
+    bridge = prtk_ctx.tupd.time != 0 && rtk->x[0] != 0.0 &&
+             fabs(timediff(obs[0].time, prtk_ctx.tupd)) <= CLAS_GAP_BRIDGE + DTTOL;
+    for (i = 0; i < MAXSAT; i++) {
+        for (f = 0; f < NFREQ; f++) {
+            outc0[i][f] = rtk->ssat[i].outc[f];
+        }
+    }
     udstate_ppp(rtk, obs, n, nav);
 
     /* get grid index */
@@ -2739,6 +2796,9 @@ extern void ppp_rtk_pos(rtk_t* rtk, const obsd_t* obs, int n, nav_t* nav) {
     if ((nn = clas_get_grid_index(clas, pos, grid, opt->gridsel, obs[0].time)) <= 0) {
         if (!clas_backup_valid(clas, obs[0].time, opt->l6mrg)) {
             trace(NULL, 2, "ppp_rtk_pos: no valid grid\n");
+            if (bridge) {
+                restore_outc(rtk, obs, n, (const uint32_t (*)[NFREQ])outc0);
+            }
             free(azel);
             free(e);
             for (ch = 0; ch < nch; ch++) {
@@ -2799,6 +2859,9 @@ extern void ppp_rtk_pos(rtk_t* rtk, const obsd_t* obs, int n, nav_t* nav) {
         }
         if (!use_backup && nok == 0) {
             if (!clas_backup_valid(clas, obs[0].time, opt->l6mrg)) {
+                if (bridge) {
+                    restore_outc(rtk, obs, n, (const uint32_t (*)[NFREQ])outc0);
+                }
                 free(azel);
                 free(e);
                 for (ch = 0; ch < nch; ch++) {
@@ -2901,6 +2964,7 @@ extern void ppp_rtk_pos(rtk_t* rtk, const obsd_t* obs, int n, nav_t* nav) {
             if (!nvsum) {
                 trace(NULL, 2, "rover initial position error\n");
                 stat = SOLQ_NONE;
+                corr_gap = bridge;
                 break;
             }
             /* DD residuals and partial derivatives */
@@ -2988,6 +3052,9 @@ extern void ppp_rtk_pos(rtk_t* rtk, const obsd_t* obs, int n, nav_t* nav) {
         }
     }
 
+    if (corr_gap) {
+        restore_outc(rtk, obs, n, (const uint32_t (*)[NFREQ])outc0);
+    }
     if (stat != SOLQ_NONE) {
         /* update state and covariance matrix */
         matcpy(rtk->x, xp, rtk->nx, 1);
@@ -3235,6 +3302,9 @@ extern void ppp_rtk_pos(rtk_t* rtk, const obsd_t* obs, int n, nav_t* nav) {
         rtk->sol.stat = SOLQ_SINGLE;
     }
 
+    if (stat != SOLQ_NONE) {
+        prtk_ctx.tupd = obs[0].time;
+    }
     /* update consecutive FLOAT counter for filter reset */
     if (stat == SOLQ_FIX) {
         prtk_ctx.float_count = 0;
@@ -3243,7 +3313,7 @@ extern void ppp_rtk_pos(rtk_t* rtk, const obsd_t* obs, int n, nav_t* nav) {
     }
 
     /* reset states on failure */
-    if (stat == SOLQ_NONE) {
+    if (stat == SOLQ_NONE && !corr_gap) {
         if (rtk->opt.dynamics) {
             for (i = 0; i < rtk->nx; i++) {
                 rtk->x[i] = 0.0;
@@ -3253,6 +3323,7 @@ extern void ppp_rtk_pos(rtk_t* rtk, const obsd_t* obs, int n, nav_t* nav) {
                 rtk->x[i] = 0.0;
             }
         }
+        prtk_ctx.tupd.time = 0;
     }
 
     /* save persistent zdres state */

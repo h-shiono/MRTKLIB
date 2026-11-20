@@ -1076,16 +1076,29 @@ static void udpos_ppp(rtk_t* rtk) {
     free(x);
     free(xp);
 }
+/* SPP of this epoch used a satellite of its reference clock (GPS/SBAS)? -------
+ * otherwise the rank-deficiency constraint of rescode() pins sol.dtr[0] to ~0
+ * and the receiver clock sits in the inter-system terms sol.dtr[1..] (#476) */
+static int spp_refclk(const rtk_t* rtk) {
+    int i;
+
+    for (i = 0; i < MAXSAT; i++) {
+        if (rtk->ssat[i].vs && !(satsys(i + 1, NULL) & (SYS_GLO | SYS_GAL | SYS_CMP | SYS_IRN | SYS_QZS | SYS_BD2))) {
+            return 1;
+        }
+    }
+    return 0;
+}
 /* temporal update of clock --------------------------------------------------*/
 static void udclk_ppp(rtk_t* rtk) {
     double dtr;
-    int i;
+    int i, refclk = spp_refclk(rtk);
 
     trace(NULL, 3, "udclk_ppp:\n");
 
     /* initialize every epoch for clock (white noise) */
     for (i = 0; i < NC(rtk->opt); i++) {
-        if (rtk->opt.sateph == EPHOPT_PREC) {
+        if (rtk->opt.sateph == EPHOPT_PREC && refclk) {
             /* time of prec ephemeris is based gpst */
             /* negelect receiver inter-system bias  */
             dtr = rtk->sol.dtr[0];

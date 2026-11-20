@@ -118,7 +118,9 @@ static void test_bds_cnav_fields(void) {
             assert(e->week > 800); /* BDT week > 800 (2024+) */
             assert(e->toes >= 0.0 && e->toes < 604800.0);
             assert(e->A > 2.0e7);
-            assert(e->iodc > 0 || e->iode > 0); /* at least one should be set */
+            /* B1C ICD 7.4: IODE is 8 bits and IODC 10 bits, and 0 is a valid value */
+            assert(e->iode >= 0 && e->iode <= 255);
+            assert(e->iodc >= 0 && e->iodc <= 1023);
             cnv1_ok++;
         } else if (e->type == 3) { /* CNAV-2 */
             assert(e->week > 800);
