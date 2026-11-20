@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Tests
+
+- **Work directories of two ctests no longer accumulate**
+  ([#524](https://github.com/h-shiono/MRTKLIB/issues/524)).
+  `claslib_l6_null_drop_*` and `l6extract_names` created a new
+  `tempfile.mkdtemp()` directory under the build tree on every run and never
+  removed it (about 17 MB per case and 36 MB per `ctest` run for the former;
+  2 GB had accumulated and a full `ctest` aborted with `ENOSPC`). Each test now
+  uses a fixed directory that it clears at the start of the run:
+  `build/claslib_l6_null_drop/<L6 file name>/` (`2019239Q`, `2025157U_ch1`)
+  and `build/l6extract_names/`. The files of the last run stay there for
+  inspection. Directories left by earlier runs in an existing build tree are
+  not removed: `rm -rf build/claslib_l6_null_drop/l6null_*` once (those under
+  `build/l6extract_names/` go with the next run).
+
 ## [v0.7.18] - 2026-11-20
 
 **CLAS remnants and claslib 0.9.x alignment.** The VRS-RTK engine selects

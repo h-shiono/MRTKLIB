@@ -11,14 +11,17 @@ the receiver container:
     l6route_sbf_211.sbf   L6E PRN 211 (QZS7) is kept
     l6route_ubx_l6e.ubx   UBX L6E is named by the header PRN, not the svId
 
+WORK_DIR is removed and recreated on every run, so it must belong to this test
+alone. The extracted files are left there, one directory per fixture.
+
 Usage:
     check_l6extract.py MRTK FIXTURE_DIR WORK_DIR
 """
 
 import os
+import shutil
 import subprocess
 import sys
-import tempfile
 
 RAW_LEN = 250
 
@@ -38,7 +41,8 @@ EXPECTED = {
 
 def check(mrtk, fixture, expected, workdir):
     errors = []
-    outdir = tempfile.mkdtemp(prefix="l6extract_", dir=workdir)
+    outdir = os.path.join(workdir, os.path.basename(fixture))
+    os.makedirs(outdir)
     prefix = os.path.join(outdir, "x")
     res = subprocess.run(
         [mrtk, "l6extract", "-no-has", "-o", prefix, fixture],
@@ -51,7 +55,7 @@ def check(mrtk, fixture, expected, workdir):
     got = sorted(os.listdir(outdir))
     want = sorted(f"x.{s}" for s in expected)
     if got != want:
-        errors.append(f"{fixture}: files {got}, expected {want}")
+        errors.append(f"{fixture}: files {got} in {outdir}, expected {want}")
 
     for suffix, nframe in expected.items():
         path = f"{prefix}.{suffix}"
@@ -79,7 +83,8 @@ def main():
         print(__doc__, file=sys.stderr)
         return 2
     mrtk, fixdir, workdir = sys.argv[1:]
-    os.makedirs(workdir, exist_ok=True)
+    shutil.rmtree(workdir, ignore_errors=True)
+    os.makedirs(workdir)
 
     errors = []
     for name, expected in EXPECTED.items():

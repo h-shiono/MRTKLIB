@@ -1288,7 +1288,8 @@ set_tests_properties(claslib_cleanup PROPERTIES
 # ── CLAS L6 null messages are dropped (#344) ─────────────────────────────────
 # No capture contains a null message: synthetic null frames are inserted into
 # the real 2019 (1 ch) and 2025 (ch1) L6 files at every subframe position, and
-# mrtk dump must decode them byte-identically to the clean file.
+# mrtk dump must decode them byte-identically to the clean file. The script
+# clears its work directory on every run, so each case gets its own (#524).
 foreach(_l6 2019239Q:sept_2019239 2025157U_ch1:0627157U)
     string(REPLACE ":" ";" _l6 ${_l6})
     list(GET _l6 0 _l6file)
@@ -1296,7 +1297,7 @@ foreach(_l6 2019239Q:sept_2019239 2025157U_ch1:0627157U)
     add_test(NAME claslib_l6_null_drop_${_l6file}
         COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/scripts/tests/check_l6_null_drop.py
             $<TARGET_FILE:mrtk> ${_CLSDATA}/${_l6file}.l6 ${_CLSDATA}/${_l6nav}.nav
-            ${CMAKE_BINARY_DIR}/claslib_l6_null_drop
+            ${CMAKE_BINARY_DIR}/claslib_l6_null_drop/${_l6file}
     )
     set_tests_properties(claslib_l6_null_drop_${_l6file} PROPERTIES
         FIXTURES_REQUIRED claslib_data
