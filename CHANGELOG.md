@@ -7,7 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Galileo HAS: Galileo code biases are applied, so Galileo is used**
+  ([#473](https://github.com/h-shiono/MRTKLIB/issues/473)). The HAS decoder
+  stores each bias under the code of its mask signal (E1-C → `C1C`, E5a-Q →
+  `C5Q`), but `corr_meas()` looked it up under the combined code (`C1X`,
+  `C5X`), so every Galileo pseudorange was dropped and HAS float PPP ran on
+  GPS only, in `mrtk post` and `mrtk run`, since v0.7.0. The new
+  `has_sel_bias()` takes the observed code when HAS provides it, then another
+  code of the same signal (component ↔ combined); different signals of one
+  band (GPS L2 P / L2C, L1 C/A / L1C) are never mixed, and code and phase
+  biases are selected on their own valid flags. GPS receivers that track L2C
+  had the same miss. has-v1, last 5 min: Galileo 0 → 4.97 satellites per
+  epoch, horizontal mean offset 0.575 → 0.230 m, H95 0.610 → 0.270 m, V95
+  0.456 → 0.652 m (vertical investigation: #215). Other correction sources are
+  unchanged.
+
 ### Tests
+
+- **`has_ppp_check` gates the 95th percentile and the systems used**
+  ([#473](https://github.com/h-shiono/MRTKLIB/issues/473)). The mean-position
+  gates (1.0 m horizontal / 1.5 m 3D) are replaced by twice the HAS service
+  targets over the last 5 minutes: H95 ≤ 0.40 m, V95 ≤ 0.80 m (measured 0.270 /
+  0.652 m). `has_ppp` writes a solution status file (`-y 2`), and the check
+  requires a mean of ≥ 4 GPS and ≥ 3 Galileo satellites used per epoch
+  (measured 5.84 / 4.97), so a system that silently drops out fails. New
+  `utest_has_mt1` case H covers the bias signal selection.
 
 - **Work directories of two ctests no longer accumulate**
   ([#524](https://github.com/h-shiono/MRTKLIB/issues/524)).

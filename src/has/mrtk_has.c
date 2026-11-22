@@ -898,6 +898,35 @@ extern int has_input_file(has_t* has, FILE* fp, gtime_t tmax) {
     return completed;
 }
 
+/* select the HAS bias signal for an observation code -------------------------
+ * HAS stores each bias under the code of its mask signal (Table 20), e.g. E1-C
+ * -> C1C, while has_sel_biascode() maps every code of a signal to its combined
+ * code (C1X). Take the observed code when HAS provides it, then the other
+ * codes of the same signal (combined first). The combined and component biases
+ * are taken as equal here (#473); a receiver forms the combined signal with its
+ * own weighting of the components.
+ *-----------------------------------------------------------------------------*/
+extern int has_sel_bias(const ssr_t* ssr, int sys, uint8_t code, int phase) {
+    const int* valid = phase ? ssr->vpbias : ssr->vcbias;
+    int sig = has_sel_biascode(sys, code), c;
+
+    if (sig == CODE_NONE) {
+        return CODE_NONE;
+    }
+    if (valid[code - 1]) {
+        return code;
+    }
+    if (valid[sig - 1]) {
+        return sig;
+    }
+    for (c = 1; c <= MAXCODE; c++) {
+        if (valid[c - 1] && has_sel_biascode(sys, (uint8_t)c) == sig) {
+            return c;
+        }
+    }
+    return sig;
+}
+
 /* ---------------------------------------------------------------------------*/
 extern int has_sel_biascode(int sys, uint8_t code) {
     if (sys == SYS_GAL) {

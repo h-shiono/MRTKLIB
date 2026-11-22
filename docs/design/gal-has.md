@@ -197,10 +197,15 @@ add satantoff for HAS, matching the MADOCA convention — verify at integration)
 | 13  | E6-C     | L6C     | L5 I+Q     | L5X     |
 | 14  | E6-B+C   | L6X     | —          | —       |
 
-Biases are stored under these obs codes. `corr_meas()` needs a HAS-specific
-selector (`has_sel_biascode(sys, code)`) with same-frequency fallback
-(component ↔ combined, e.g. obs L5Q ↔ bias L5X), since the receiver-tracked
-attribute may differ from the broadcast bias signal.
+Biases are stored under these obs codes. `corr_meas()` selects them with
+`has_sel_bias(ssr, sys, code, phase)`: the observed code when HAS provides it,
+then another code of the same signal (component ↔ combined, e.g. obs L5Q ↔
+bias L5X; the groups of `has_sel_biascode(sys, code)`), since the
+receiver-tracked attribute may differ from the broadcast bias signal. Different
+signals of one band are never mixed (GPS L2 P vs L2C, L1 C/A vs L1C). Code and
+phase biases are selected on their own valid flags. The combined and component
+biases are taken as equal; a receiver forms the combined signal with its own
+weighting of the components, which is not corrected yet.
 
 ## 9. Public API (`include/mrtklib/mrtk_has.h`)
 
@@ -267,9 +272,10 @@ The ctest pipeline (`has_*` in `CMakeLists.txt`) is:
 has_setup    extract the tar.gz
 has_extract  mrtk l6extract  → G5P3162a_15m.has  (assert 4834 valid records)
 has_convert  mrtk convert    → RINEX obs/nav
-has_ppp      mrtk post -k conf/has/ppp_gal_has.toml → float PPP .pos
+has_ppp      mrtk post -k conf/has/ppp_gal_has.toml -y 2 → float PPP .pos + .stat
 has_ppp_check scripts/tests/check_has_ppp.py: epochs ≥ 95 % of 900, all Q=6,
-             last-5-min mean within 1.0 m horiz / 1.5 m 3D of the reference
+             last 5 min H95 ≤ 0.40 m / V95 ≤ 0.80 m of the reference,
+             mean satellites used per epoch GPS ≥ 4 / Galileo ≥ 3
 has_cleanup  remove extracted artefacts
 ```
 
@@ -296,16 +302,26 @@ the full hour, ITRF current epoch, ~1–2 cm. As a cross-check against the CLAS
 reference frame (F5.1), Ref2 − Ref1 = **+4.4 cm in East** — within the
 combined PPP-AR / frame-realisation uncertainty.
 
-**HAS absolute-accuracy status:** the HAS float solution sits **~0.56 m
-horizontal / ~0.69 m 3D** from this reference (full-hour: dE +0.390 dN +0.397
-dU −0.400 m, self-RMS E/N 0.075 / U 0.38 m; trimmed-window last-5-min mean:
-horiz 0.575 m / 3D 0.634 m, all Q=6). This ~0.5 m offset is larger than mature
-PPP would give and the **accuracy investigation is open** (candidate causes:
-code-bias sign/selection, orbit/clock reference-point handling, troposphere
-estimation over the short window). The `has_ppp_check` thresholds (1.0 m horiz /
-1.5 m 3D) are set with ~2× margin over the measured offsets and never tighter
-than the full-hour result (0.56 m horiz) + 0.3 m, so the gate guards against
-regression without prejudging the accuracy investigation.
+**HAS absolute-accuracy status:** up to v0.7.18 no Galileo satellite was used:
+`corr_meas()` looked the code bias up under the combined code (C1X / C5X)
+while the decoder stores it under the mask signal (C1C / C5Q), so every Galileo
+pseudorange was dropped (#473). The figures measured then are GPS only (4–6
+satellites): full hour dE +0.390 dN +0.397 dU −0.400 m; trimmed window,
+last-5-min mean horiz 0.575 m / 3D 0.634 m, H95 0.610 m / V95 0.456 m.
+
+With the bias lookup fixed (`has_sel_bias()`, §8), the trimmed window uses
+GPS 5.84 + Galileo 4.97 satellites per epoch: last-5-min mean dENU +0.203
++0.109 −0.389 m (horiz 0.230 m / 3D 0.452 m), H95 0.270 m / V95 0.652 m, all
+Q=6. The vertical is worse than with GPS alone; the **accuracy investigation
+stays open** (#215). The HAS code biases of both systems are close to the
+geometry-free form (E5a / E1 ≈ f1² / f5²), so they cancel in the iono-free
+combination and this data cannot check their sign.
+
+The `has_ppp_check` gates are twice the HAS service targets (95 %: 20 cm
+horizontal / 40 cm vertical), evaluated on the last 5 minutes of the 15-minute
+window: H95 ≤ 0.40 m, V95 ≤ 0.80 m. The per-system usage gate (GPS ≥ 4,
+Galileo ≥ 3 satellites per epoch, from the `-y 2` status file) fails when a
+system silently drops out, as Galileo did before #473.
 
 ### 11.3 l6extract L6E (mosaic-G5 block 4271)
 

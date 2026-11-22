@@ -22,6 +22,10 @@
  *       same IOD set then makes the gate pass.
  *   (D) a TOH >= 3600 and an implausible-latency header are both rejected
  *       (FINDING 1 plausibility gate).
+ *   (H) has_sel_bias() takes the observed code when HAS provides it, then
+ *       another code of the same signal (component <-> combined), never a
+ *       different signal of the same band (GPS L2 P vs L2C, L1 C/A vs L1C);
+ *       code and phase biases are selected on their own valid flags (#473).
  *
  * Explicit CHECK macro (not assert) so it is robust under -DNDEBUG.
  *-----------------------------------------------------------------------------*/
@@ -437,6 +441,41 @@ int main(void) {
         CHECK(ret == 10, "G: clean MS=2 message completes after restart");
         CHECK(has->ssr[gal1 - 1].t0[0].time != 0, "G: orbit state applied from clean set");
         has_free(has);
+    }
+
+    /* ---- (H) bias signal selection (#473) ---- */
+    {
+        static ssr_t ssr;
+
+        memset(&ssr, 0, sizeof(ssr));
+        ssr.vcbias[CODE_L1C - 1] = ssr.vcbias[CODE_L5Q - 1] = 1; /* HAS E1-C, E5a-Q */
+        CHECK(has_sel_bias(&ssr, SYS_GAL, CODE_L1C, 0) == CODE_L1C, "H: GAL obs C1C -> HAS C1C (exact)");
+        CHECK(has_sel_bias(&ssr, SYS_GAL, CODE_L5Q, 0) == CODE_L5Q, "H: GAL obs C5Q -> HAS C5Q (exact)");
+        CHECK(has_sel_bias(&ssr, SYS_GAL, CODE_L1X, 0) == CODE_L1C,
+              "H: GAL obs C1X -> HAS C1C (combined -> component)");
+        CHECK(has_sel_bias(&ssr, SYS_GAL, CODE_L5I, 0) == CODE_L5Q, "H: GAL obs C5I -> HAS C5Q (same signal)");
+        CHECK(has_sel_bias(&ssr, SYS_GAL, CODE_L7Q, 0) == CODE_L7X, "H: GAL obs C7Q, no E5b bias -> C7X (absent)");
+        CHECK(has_sel_bias(&ssr, SYS_GAL, CODE_L1C, 1) == CODE_L1X, "H: phase uses vpbias (none) -> C1X (absent)");
+
+        memset(&ssr, 0, sizeof(ssr));
+        ssr.vcbias[CODE_L1X - 1] = 1;
+        ssr.vpbias[CODE_L1C - 1] = 1;
+        CHECK(has_sel_bias(&ssr, SYS_GAL, CODE_L1C, 0) == CODE_L1X,
+              "H: GAL obs C1C -> HAS C1X (component -> combined)");
+        CHECK(has_sel_bias(&ssr, SYS_GAL, CODE_L1C, 1) == CODE_L1C, "H: GAL phase obs L1C -> HAS L1C (vpbias)");
+
+        memset(&ssr, 0, sizeof(ssr));
+        ssr.vcbias[CODE_L1C - 1] = ssr.vcbias[CODE_L2W - 1] = ssr.vcbias[CODE_L2L - 1] = 1;
+        CHECK(has_sel_bias(&ssr, SYS_GPS, CODE_L2L, 0) == CODE_L2L, "H: GPS obs C2L -> HAS C2L (exact)");
+        CHECK(has_sel_bias(&ssr, SYS_GPS, CODE_L2W, 0) == CODE_L2W, "H: GPS obs C2W -> HAS C2W (exact)");
+        CHECK(has_sel_bias(&ssr, SYS_GPS, CODE_L2S, 0) == CODE_L2L, "H: GPS obs C2S -> HAS C2L (same signal)");
+        CHECK(has_sel_bias(&ssr, SYS_GPS, CODE_L1L, 0) == CODE_L1X, "H: GPS obs L1C(P), only C/A bias -> C1X (absent)");
+
+        memset(&ssr, 0, sizeof(ssr));
+        ssr.vcbias[CODE_L2W - 1] = 1;
+        CHECK(has_sel_bias(&ssr, SYS_GPS, CODE_L2L, 0) == CODE_L2X, "H: GPS obs C2L, only L2 P bias -> C2X (absent)");
+        CHECK(has_sel_bias(&ssr, SYS_GAL, CODE_NONE, 0) == CODE_NONE, "H: CODE_NONE -> CODE_NONE");
+        CHECK(has_sel_bias(&ssr, SYS_GLO, CODE_L1C, 0) == CODE_NONE, "H: GLONASS -> CODE_NONE (no HAS signal)");
     }
 
     printf("\n%s: %d failure(s)\n", fails ? "FAILED" : "PASSED", fails);

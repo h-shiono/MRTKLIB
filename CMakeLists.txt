@@ -3175,8 +3175,8 @@ set_tests_properties(igsrts_ppp_check PROPERTIES
 # Reference: ITRF current-epoch receiver position from MADOCA-PPP (static +
 #            combined PPP-AR) over the full hour, 2026-06-12, ~1-2 cm.
 #              XYZ = -3961905.2046 3348992.8024 3698212.4790
-#            HAS float sits ~0.56 m horiz / 0.69 m 3D from this reference
-#            (HAS Initial Service absolute accuracy; investigation open).
+#            HAS float (GPS + Galileo) last 5 min: H95 0.27 m / V95 0.65 m
+#            (docs/design/gal-has.md §11.2; investigation open, #215).
 set(_HASDATA      ${CMAKE_SOURCE_DIR}/tests/data/has)
 set(_CHECK_HASPPP ${CMAKE_SOURCE_DIR}/scripts/tests/check_has_ppp.py)
 set(_HAS_REF_XYZ  -3961905.2046 3348992.8024 3698212.4790)
@@ -3238,6 +3238,7 @@ set_tests_properties(has_convert PROPERTIES
 add_test(NAME has_ppp
     COMMAND $<TARGET_FILE:mrtk> post
         -k ${CMAKE_SOURCE_DIR}/conf/has/ppp_gal_has.toml
+        -y 2
         -o ${CMAKE_BINARY_DIR}/out_has_ppp.pos
         ${_HASDATA}/has_obs.obs
         ${_HASDATA}/has_nav.nav
@@ -3252,10 +3253,11 @@ set_tests_properties(has_ppp PROPERTIES
 )
 
 # ── HAS float-PPP accuracy / quality gate ─────────────────────────────────────
-# Thresholds: measured trimmed-window offsets are horiz 0.575 m / 3D 0.634 m;
-# gates set to 1.0 m horiz (>= full-hour 0.56 m + 0.3 m floor) and 1.5 m 3D,
-# with ~2x margin over the measured offsets. All epochs must be Q=6 (float PPP)
-# and >= 95% of the 900 expected.
+# Thresholds: twice the HAS service targets (95 %: 20 cm horizontal / 40 cm
+# vertical) over the last 5 min: H95 <= 0.40 m, V95 <= 0.80 m (measured 0.270 /
+# 0.652 m). All epochs must be Q=6 (float PPP) and >= 95% of the 900 expected.
+# Satellites used per epoch, from the -y 2 status file: GPS >= 4, Galileo >= 3
+# (measured 5.84 / 4.97) -- Galileo was silently 0 before #473.
 add_test(NAME has_ppp_check
     COMMAND ${Python3_EXECUTABLE} ${_CHECK_HASPPP}
         ${CMAKE_BINARY_DIR}/out_has_ppp.pos
@@ -3264,8 +3266,10 @@ add_test(NAME has_ppp_check
         --min-ratio 0.95
         --interval 1
         --last-min 5
-        --max-horiz 1.0
-        --max-3d 1.5
+        --max-h95 0.40
+        --max-v95 0.80
+        --stat ${CMAKE_BINARY_DIR}/out_has_ppp.pos.stat
+        --min-sats G=4 E=3
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
 )
 set_tests_properties(has_ppp_check PROPERTIES
