@@ -479,6 +479,14 @@ target_link_libraries(utest_msm_half_lli PRIVATE mrtklib)
 add_test(NAME utest_msm_half_lli COMMAND utest_msm_half_lli)
 set_tests_properties(utest_msm_half_lli PROPERTIES LABELS "utest")
 
+# RTCM3 MSM decode of a signal whose band the signal selection removed from obsdef (#548).
+add_executable(utest_msm_unselected_band ${_UTEST_DIR}/utest_msm_unselected_band.c)
+# Override global -ansi (=C90): this test uses C11 (P-01).
+target_compile_options(utest_msm_unselected_band PRIVATE -std=c11)
+target_link_libraries(utest_msm_unselected_band PRIVATE mrtklib)
+add_test(NAME utest_msm_unselected_band COMMAND utest_msm_unselected_band)
+set_tests_properties(utest_msm_unselected_band PROPERTIES LABELS "utest")
+
 # MADOCA-PPP L6E CSSR BeiDou GNSS ID 3 signal decode (issue #401, MDC-005).
 add_executable(utest_mcssr_bd3 ${_UTEST_DIR}/utest_mcssr_bd3.c)
 # Override global -ansi (=C90): this test uses C11 (P-01).

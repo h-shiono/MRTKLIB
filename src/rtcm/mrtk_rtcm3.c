@@ -2594,6 +2594,9 @@ static void sigindex(int sys, const uint8_t* code, int n, const char* opt, int* 
             continue;
         }
 
+        if (idx[i] < 0) { /* band not in obsdef (not selected): keep idx = -1, not saved */
+            continue;
+        }
         if (idx[i] >= NFREQ) { /* save as extended signal if idx >= NFREQ */
             ex[i] = 1;
             continue;
