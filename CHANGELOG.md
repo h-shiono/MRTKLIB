@@ -26,6 +26,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   0.456 → 0.652 m (vertical investigation: #215). Other correction sources are
   unchanged.
 
+### Documentation
+
+- **Real-time Galileo HAS sample opens its file input**
+  ([#456](https://github.com/h-shiono/MRTKLIB/issues/456)).
+  `conf/has/run_gal_has.toml` gave the rover as `file:///path/to/rover.sbf`,
+  which `mrtk run` takes as a file name and cannot open; it is now a plain path,
+  with `::T::x10` and the `.tag` file for real-time replay noted. The usage
+  line says `mrtk run -o` (not `-k`), and the Galileo HAS quick start says what
+  to put in `[streams.input.rover] path`.
+
 ### Tests
 
 - **`has_ppp_check` gates the 95th percentile and the systems used**
