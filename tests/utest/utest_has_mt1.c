@@ -478,6 +478,53 @@ int main(void) {
         CHECK(has_sel_bias(&ssr, SYS_GLO, CODE_L1C, 0) == CODE_NONE, "H: GLONASS -> CODE_NONE (no HAS signal)");
     }
 
+    /* ---- (I) a signal that leaves the mask keeps no bias (#473 review): mask
+     *          E1-C, then E1-B+C; obs C1C must select the fresh C1X slot. ---- */
+    {
+        has_t* has = has_new();
+        int gal1 = satno(SYS_GAL, 1), sig, k;
+
+        for (k = 0; k < 2; k++) {
+            uint8_t m[2 * PAGE_OCT];
+            int bp = 32;
+            sig = k == 0 ? 1 : 2; /* Table 20: 1 = E1-C, 2 = E1-B+C */
+            memset(m, 0, sizeof(m));
+            put_mt1_header(m, 0, 0x23, 0, 5); /* mask + cbias + pbias */
+            setbitu(m, bp, 4, 1);             /* Nsys */
+            bp += 4;
+            setbitu(m, bp, 4, HAS_GNSS_GAL);
+            bp += 4;
+            setbitu(m, bp, 1, 1); /* SatM PRN1 */
+            bp += 40;
+            setbitu(m, bp + sig, 1, 1); /* SigM */
+            bp += 16;
+            setbitu(m, bp, 1, 0); /* CMAF = 0: all cells */
+            bp += 1;
+            setbitu(m, bp, 3, 0); /* NM */
+            bp += 3;
+            bp += 6;              /* mask Reserved */
+            setbitu(m, bp, 4, 0); /* cbias VI */
+            bp += 4;
+            setbitu(m, bp, 11, 40 + k); /* CB */
+            bp += 11;
+            setbitu(m, bp, 4, 0); /* pbias VI */
+            bp += 4;
+            setbitu(m, bp, 11, 30 + k); /* PB */
+            bp += 11;
+            setbitu(m, bp, 2, 1); /* PDI */
+            bp += 2;
+            CHECK(feed_message(has, m, 2, time) == 10, k == 0 ? "I: E1-C mask decoded" : "I: E1-B+C mask decoded");
+        }
+        const ssr_t* s = &has->ssr[gal1 - 1];
+        CHECK(s->vcbias[CODE_L1C - 1] == 0 && s->cbias[CODE_L1C - 1] == 0.0f, "I: C1C code bias cleared");
+        CHECK(s->vpbias[CODE_L1C - 1] == 0 && s->pbias[CODE_L1C - 1] == 0.0, "I: L1C phase bias cleared");
+        CHECK(s->vcbias[CODE_L1X - 1] == 1 && s->vpbias[CODE_L1X - 1] == 1, "I: C1X code / phase bias valid");
+        CHECK(has_sel_bias(s, SYS_GAL, CODE_L1C, 0) == CODE_L1X, "I: obs C1C -> fresh C1X code bias");
+        CHECK(has_sel_bias(s, SYS_GAL, CODE_L1C, 1) == CODE_L1X, "I: obs L1C -> fresh L1X phase bias");
+        CHECK(s->discnt[CODE_L1C - 1] == 1, "I: discnt of the removed signal kept");
+        has_free(has);
+    }
+
     printf("\n%s: %d failure(s)\n", fails ? "FAILED" : "PASSED", fails);
     return fails ? 1 : 0;
 }

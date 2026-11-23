@@ -527,6 +527,12 @@ static int decode_has_codebias(has_t* has, const uint8_t* msg, int i, int nbit, 
         if (sat) {
             has->ssr[sat - 1].t0[4] = t0;
             has->ssr[sat - 1].udi[4] = 0.0;
+            /* the block carries every code bias of the satellite under the current
+             * mask: a signal that left the mask keeps no bias, else has_sel_bias()
+             * would prefer its stale slot over the fresh one of the same signal */
+            memset(has->ssr[sat - 1].cbias, 0, sizeof(has->ssr[sat - 1].cbias));
+            memset(has->ssr[sat - 1].vcbias, 0, sizeof(has->ssr[sat - 1].vcbias));
+            has->ssr[sat - 1].update = 1;
         }
         for (c = 0; c < m->nsig[j]; c++) {
             if (!((m->cellmask[j] >> (m->nsig[j] - 1 - c)) & 0x1)) {
@@ -581,6 +587,10 @@ static int decode_has_phasebias(has_t* has, const uint8_t* msg, int i, int nbit,
         if (sat) {
             has->ssr[sat - 1].t0[5] = t0;
             has->ssr[sat - 1].udi[5] = 0.0;
+            /* as in decode_has_codebias(); discnt is kept */
+            memset(has->ssr[sat - 1].pbias, 0, sizeof(has->ssr[sat - 1].pbias));
+            memset(has->ssr[sat - 1].vpbias, 0, sizeof(has->ssr[sat - 1].vpbias));
+            has->ssr[sat - 1].update = 1;
         }
         for (c = 0; c < m->nsig[j]; c++) {
             if (!((m->cellmask[j] >> (m->nsig[j] - 1 - c)) & 0x1)) {

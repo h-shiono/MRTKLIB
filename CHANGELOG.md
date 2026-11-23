@@ -18,8 +18,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `has_sel_bias()` takes the observed code when HAS provides it, then another
   code of the same signal (component ↔ combined); different signals of one
   band (GPS L2 P / L2C, L1 C/A / L1C) are never mixed, and code and phase
-  biases are selected on their own valid flags. GPS receivers that track L2C
-  had the same miss. has-v1, last 5 min: Galileo 0 → 4.97 satellites per
+  biases are selected on their own valid flags. The decoder resets a
+  satellite's code and phase biases at each bias block, so a signal that
+  leaves the mask keeps no stale bias that the selection would prefer. GPS
+  receivers that track L2C had the same miss. has-v1, last 5 min: Galileo 0 → 4.97 satellites per
   epoch, horizontal mean offset 0.575 → 0.230 m, H95 0.610 → 0.270 m, V95
   0.456 → 0.652 m (vertical investigation: #215). Other correction sources are
   unchanged.
