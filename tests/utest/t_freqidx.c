@@ -18,6 +18,7 @@
  * Uses explicit checks (not assert) so it is robust under -DNDEBUG.
  *-----------------------------------------------------------------------------*/
 #include <stdio.h>
+#include <string.h>
 
 #include "mrtklib/rtklib.h"
 
@@ -48,6 +49,9 @@ int main(void) {
     CHECK(idx(SYS_GAL, "5Q") == 1, "GAL E5a -> 1 (was 2 under fixed band order)");
     CHECK(idx(SYS_GAL, "7Q") == 2, "GAL E5b -> 2 (was 1 under fixed band order)");
     CHECK(idx(SYS_GAL, "6C") == 3, "GAL E6 -> 3");
+    /* E5a+b I is "8I"; RTCM MSM signal ID 18 and RINEX C8I are looked up by this name */
+    CHECK(obs2code("8I") == CODE_L8I && !strcmp(code2obs(CODE_L8I), "8I"), "GAL E5a+b I: obs code 8I <-> CODE_L8I");
+    CHECK(idx(SYS_GAL, "8I") == 4, "GAL E5a+b -> 4");
 
     /* QZSS: L1=0, L5=1, L2=2, L6=3 — obsdef order, L5 BEFORE L2 */
     CHECK(idx(SYS_QZS, "1C") == 0, "QZS L1 -> 0");
