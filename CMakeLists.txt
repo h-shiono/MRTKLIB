@@ -3173,8 +3173,9 @@ set_tests_properties(igsrts_ppp_check PROPERTIES
 #         A strict before/after-trim equivalence proof (.has byte-identity,
 #         identical obs records, bit-identical PPP solutions over the common
 #         window) backs the trim -- see docs/design/gal-has.md §11.
-# Dataset: has-v1 (release asset of h-shiono/mrtklib-data, #386;
-#          G5P3162a_15m.sbf, ~2.2 MB gz)
+# Dataset: has-v2 (release asset of h-shiono/mrtklib-data, #386): the has-v1
+#          member G5P3162a_15m.sbf byte-identical, plus the 2026-10-23 hour
+#          G5P3296u_has.sbf + .tag of the tests below (tests/data/has/README.md).
 #
 # Pipeline: SBF --l6extract--> .has  (HAS pages)
 #           SBF --convert----> RINEX obs/nav
@@ -3183,14 +3184,14 @@ set_tests_properties(igsrts_ppp_check PROPERTIES
 # Reference: ITRF current-epoch receiver position from MADOCA-PPP (static +
 #            combined PPP-AR) over the full hour, 2026-06-12, ~1-2 cm.
 #              XYZ = -3961905.2046 3348992.8024 3698212.4790
-#            HAS float sits ~0.56 m horiz / 0.69 m 3D from this reference
-#            (HAS Initial Service absolute accuracy; investigation open).
+#            HAS float (GPS + Galileo) last 5 min: H95 0.27 m / V95 0.65 m
+#            (docs/design/gal-has.md §11.2; investigation open, #215).
 set(_HASDATA      ${CMAKE_SOURCE_DIR}/tests/data/has)
 set(_CHECK_HASPPP ${CMAKE_SOURCE_DIR}/scripts/tests/check_has_ppp.py)
 set(_HAS_REF_XYZ  -3961905.2046 3348992.8024 3698212.4790)
 
 # ── Fixture: fetch / extract / clean the HAS dataset ──────────────────────────
-mrtk_dataset_setup_test(has_setup has-v1 ${_HASDATA})
+mrtk_dataset_setup_test(has_setup has-v2 ${_HASDATA})
 set_tests_properties(has_setup PROPERTIES
     FIXTURES_SETUP  has_data
     LABELS          "regression;has"
@@ -3201,7 +3202,12 @@ add_test(NAME has_cleanup
         ${_HASDATA}/G5P3162a_15m.sbf \
         ${_HASDATA}/G5P3162a_15m.has \
         ${_HASDATA}/has_obs.obs \
-        ${_HASDATA}/has_nav.nav"
+        ${_HASDATA}/has_nav.nav \
+        ${_HASDATA}/G5P3296u_has.sbf \
+        ${_HASDATA}/G5P3296u_has.sbf.tag \
+        ${_HASDATA}/G5P3296u_has.has \
+        ${_HASDATA}/G5P3296u_has.obs \
+        ${_HASDATA}/G5P3296u_has.nav"
 )
 set_tests_properties(has_cleanup PROPERTIES
     FIXTURES_CLEANUP has_data
@@ -3246,6 +3252,7 @@ set_tests_properties(has_convert PROPERTIES
 add_test(NAME has_ppp
     COMMAND $<TARGET_FILE:mrtk> post
         -k ${CMAKE_SOURCE_DIR}/conf/has/ppp_gal_has.toml
+        -y 2
         -o ${CMAKE_BINARY_DIR}/out_has_ppp.pos
         ${_HASDATA}/has_obs.obs
         ${_HASDATA}/has_nav.nav
@@ -3260,10 +3267,11 @@ set_tests_properties(has_ppp PROPERTIES
 )
 
 # ── HAS float-PPP accuracy / quality gate ─────────────────────────────────────
-# Thresholds: measured trimmed-window offsets are horiz 0.575 m / 3D 0.634 m;
-# gates set to 1.0 m horiz (>= full-hour 0.56 m + 0.3 m floor) and 1.5 m 3D,
-# with ~2x margin over the measured offsets. All epochs must be Q=6 (float PPP)
-# and >= 95% of the 900 expected.
+# Thresholds: twice the HAS service targets (95 %: 20 cm horizontal / 40 cm
+# vertical) over the last 5 min: H95 <= 0.40 m, V95 <= 0.80 m (measured 0.270 /
+# 0.652 m). All epochs must be Q=6 (float PPP) and >= 95% of the 900 expected.
+# Satellites used per epoch, from the -y 2 status file: GPS >= 4, Galileo >= 3
+# (measured 5.84 / 4.97) -- Galileo was silently 0 before #473.
 add_test(NAME has_ppp_check
     COMMAND ${Python3_EXECUTABLE} ${_CHECK_HASPPP}
         ${CMAKE_BINARY_DIR}/out_has_ppp.pos
@@ -3272,14 +3280,136 @@ add_test(NAME has_ppp_check
         --min-ratio 0.95
         --interval 1
         --last-min 5
-        --max-horiz 1.0
-        --max-3d 1.5
+        --max-h95 0.40
+        --max-v95 0.80
+        --stat ${CMAKE_BINARY_DIR}/out_has_ppp.pos.stat
+        --min-sats G=4 E=3
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
 )
 set_tests_properties(has_ppp_check PROPERTIES
     DEPENDS           has_ppp
     FIXTURES_REQUIRED has_data
     LABELS            "regression;has;ppp"
+)
+
+# ── 2026-10-23 hour: post and real-time HAS (#473) ────────────────────────────
+# G5P3296u_has.sbf: one hour (19:59:30-21:00 GPST, week 2441) of the kubolab
+# mosaic-G5 capture rovr_296u.sbf, blocks 4027/4007/4017/5891/4002/4022/4023/
+# 4024 (scripts/tests/make_has_v2_fixture.py). Its .has is byte-identical to the
+# full capture's over the window and its PPP solution bit-identical over all
+# 3549 common epochs. Same CR-G5 antenna and reference as the handover and
+# g5p3_296u datasets: the ARP from a full-day static PPP-AR (CODE MGEX final,
+# 2026-10-13), LLH 35.666341805 139.792211221 59.7614. The conf applies the
+# TPSCR.G5 NONE model (igs14_L5copy.atx from the claslib fixture).
+#
+# Post:      SBF --l6extract--> .has; SBF --convert--> RINEX obs/nav;
+#            obs + nav + .has --post (correction = gal-has)--> float PPP
+# Real time: SBF replay x20 --mrtk run--> float PPP (rtkrcv_has)
+set(_HAS296_REF_XYZ -3961905.1685 3348992.7560 3698212.4291)
+set(HAS_ROVER ${_HASDATA}/G5P3296u_has.sbf)
+set(HAS_ATX ${CMAKE_SOURCE_DIR}/tests/data/claslib/igs14_L5copy.atx)
+set(_HAS296_CONF ${CMAKE_BINARY_DIR}/has/has_g5p3.toml)
+configure_file(${_HASDATA}/has_g5p3.toml.in ${_HAS296_CONF} @ONLY)
+
+# 13838 valid HAS records (26460 GALRawCNAV blocks, 0 CRC-failed, 12622 dummy
+# pages); a change signals a regression in the HAS page extractor.
+add_test(NAME has296_extract
+    COMMAND bash -c "\"$0\" l6extract -in \"$1\" -o \"$2\" 2>&1 | grep -q '13838 valid records'"
+        $<TARGET_FILE:mrtk>
+        ${HAS_ROVER}
+        ${CMAKE_BINARY_DIR}/has/l6
+    WORKING_DIRECTORY ${_HASDATA}
+)
+set_tests_properties(has296_extract PROPERTIES
+    FIXTURES_REQUIRED has_data
+    TIMEOUT           60
+    LABELS            "regression;has"
+)
+
+add_test(NAME has296_convert
+    COMMAND $<TARGET_FILE:mrtk> convert -r sbf
+        -o ${_HASDATA}/G5P3296u_has.obs -n ${_HASDATA}/G5P3296u_has.nav
+        ${HAS_ROVER}
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+set_tests_properties(has296_convert PROPERTIES
+    FIXTURES_REQUIRED has_data
+    TIMEOUT           120
+    LABELS            "regression;has"
+)
+
+add_test(NAME has296_ppp
+    COMMAND $<TARGET_FILE:mrtk> post -k ${_HAS296_CONF}
+        -y 2
+        -o ${CMAKE_BINARY_DIR}/out_has296_ppp.pos
+        ${_HASDATA}/G5P3296u_has.obs
+        ${_HASDATA}/G5P3296u_has.nav
+        ${_HASDATA}/G5P3296u_has.has
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+set_tests_properties(has296_ppp PROPERTIES
+    FIXTURES_REQUIRED "has_data;claslib_data"
+    DEPENDS           "has296_convert;has296_extract"
+    TIMEOUT           240
+    LABELS            "regression;has;ppp"
+)
+
+# Same gates as has_ppp_check (twice the HAS service targets over the last
+# 5 min). Measured 2026-11-23: 3549 of 3557 MeasEpochs, H95 0.154 m / V95
+# 0.273 m, GPS 6.21 / Galileo 5.65 satellites per epoch. Before #473: H95 0.244
+# / V95 0.535 m, Galileo 0.00 (fails the usage gate).
+add_test(NAME has296_ppp_check
+    COMMAND ${Python3_EXECUTABLE} ${_CHECK_HASPPP}
+        ${CMAKE_BINARY_DIR}/out_has296_ppp.pos
+        --ref-xyz ${_HAS296_REF_XYZ}
+        --expected-epochs 3557
+        --min-ratio 0.95
+        --interval 1
+        --last-min 5
+        --max-h95 0.40
+        --max-v95 0.80
+        --stat ${CMAKE_BINARY_DIR}/out_has296_ppp.pos.stat
+        --min-sats G=4 E=3
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+set_tests_properties(has296_ppp_check PROPERTIES
+    DEPENDS           has296_ppp
+    FIXTURES_REQUIRED has_data
+    LABELS            "regression;has;ppp"
+)
+
+# ── mrtk run: SBF replay at x20 ───────────────────────────────────────────────
+# mrtk run writes no status file, so the Galileo usage is gated by the mean
+# satellite count of the solution: measured 11.85 (3538 epochs, H95 0.153 m /
+# V95 0.273 m), 6.21 before #473 (GPS only). The replay is not bit-reproducible,
+# hence the 0.90 epoch ratio.
+add_test(NAME rtkrcv_has
+    COMMAND bash ${_TESTCMAKE}/run_rtkrcv_test.sh
+        $<TARGET_FILE:mrtk> run ${CMAKE_SOURCE_DIR} 3400 20 ${_HAS296_CONF} 52024 300
+        ${CMAKE_BINARY_DIR}/out_rtkrcv_has.pos
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+set_tests_properties(rtkrcv_has PROPERTIES
+    FIXTURES_REQUIRED "has_data;claslib_data"
+    TIMEOUT           420
+    LABELS            "regression;realtime;has"
+)
+add_test(NAME rtkrcv_has_check
+    COMMAND ${Python3_EXECUTABLE} ${_CHECK_HASPPP}
+        ${CMAKE_BINARY_DIR}/out_rtkrcv_has.pos
+        --ref-xyz ${_HAS296_REF_XYZ}
+        --expected-epochs 3557
+        --min-ratio 0.90
+        --interval 1
+        --last-min 5
+        --max-h95 0.40
+        --max-v95 0.80
+        --min-mean-ns 9
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+set_tests_properties(rtkrcv_has_check PROPERTIES
+    DEPENDS           rtkrcv_has
+    FIXTURES_REQUIRED has_data
+    LABELS            "regression;realtime;has"
 )
 
 # ═══════════════════════════════════════════════════════════════════════════════

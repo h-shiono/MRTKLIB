@@ -527,6 +527,12 @@ static int decode_has_codebias(has_t* has, const uint8_t* msg, int i, int nbit, 
         if (sat) {
             has->ssr[sat - 1].t0[4] = t0;
             has->ssr[sat - 1].udi[4] = 0.0;
+            /* the block carries every code bias of the satellite under the current
+             * mask: a signal that left the mask keeps no bias, else has_sel_bias()
+             * would prefer its stale slot over the fresh one of the same signal */
+            memset(has->ssr[sat - 1].cbias, 0, sizeof(has->ssr[sat - 1].cbias));
+            memset(has->ssr[sat - 1].vcbias, 0, sizeof(has->ssr[sat - 1].vcbias));
+            has->ssr[sat - 1].update = 1;
         }
         for (c = 0; c < m->nsig[j]; c++) {
             if (!((m->cellmask[j] >> (m->nsig[j] - 1 - c)) & 0x1)) {
@@ -581,6 +587,10 @@ static int decode_has_phasebias(has_t* has, const uint8_t* msg, int i, int nbit,
         if (sat) {
             has->ssr[sat - 1].t0[5] = t0;
             has->ssr[sat - 1].udi[5] = 0.0;
+            /* as in decode_has_codebias(); discnt is kept */
+            memset(has->ssr[sat - 1].pbias, 0, sizeof(has->ssr[sat - 1].pbias));
+            memset(has->ssr[sat - 1].vpbias, 0, sizeof(has->ssr[sat - 1].vpbias));
+            has->ssr[sat - 1].update = 1;
         }
         for (c = 0; c < m->nsig[j]; c++) {
             if (!((m->cellmask[j] >> (m->nsig[j] - 1 - c)) & 0x1)) {
@@ -896,6 +906,35 @@ extern int has_input_file(has_t* has, FILE* fp, gtime_t tmax) {
         }
     }
     return completed;
+}
+
+/* select the HAS bias signal for an observation code -------------------------
+ * HAS stores each bias under the code of its mask signal (Table 20), e.g. E1-C
+ * -> C1C, while has_sel_biascode() maps every code of a signal to its combined
+ * code (C1X). Take the observed code when HAS provides it, then the other
+ * codes of the same signal (combined first). The combined and component biases
+ * are taken as equal here (#473); a receiver forms the combined signal with its
+ * own weighting of the components.
+ *-----------------------------------------------------------------------------*/
+extern int has_sel_bias(const ssr_t* ssr, int sys, uint8_t code, int phase) {
+    const int* valid = phase ? ssr->vpbias : ssr->vcbias;
+    int sig = has_sel_biascode(sys, code), c;
+
+    if (sig == CODE_NONE) {
+        return CODE_NONE;
+    }
+    if (valid[code - 1]) {
+        return code;
+    }
+    if (valid[sig - 1]) {
+        return sig;
+    }
+    for (c = 1; c <= MAXCODE; c++) {
+        if (valid[c - 1] && has_sel_biascode(sys, (uint8_t)c) == sig) {
+            return c;
+        }
+    }
+    return sig;
 }
 
 /* ---------------------------------------------------------------------------*/

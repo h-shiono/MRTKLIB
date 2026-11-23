@@ -136,6 +136,22 @@ int has_input_file(has_t* has, FILE* fp, gtime_t tmax);
  */
 int has_sel_biascode(int sys, uint8_t code);
 
+/**
+ * @brief Select the obs code under which HAS provides the bias of an observation.
+ *
+ * The observed code first, then the other codes of the same signal
+ * (component <-> combined, has_sel_biascode()), e.g. observed C1C with a HAS
+ * E1-C bias -> C1C, observed C1X with only an E1-C bias -> C1C.
+ *
+ * @param[in] ssr    SSR entry of the satellite (vcbias / vpbias are read)
+ * @param[in] sys    Satellite system (SYS_GPS or SYS_GAL)
+ * @param[in] code   Observation code (CODE_???)
+ * @param[in] phase  0: code bias (vcbias), 1: phase bias (vpbias)
+ * @return Obs code of a valid HAS bias; has_sel_biascode(sys, code) if none of
+ *         the signal is valid; 0 (CODE_NONE) if the signal has no HAS mapping.
+ */
+int has_sel_bias(const ssr_t* ssr, int sys, uint8_t code, int phase);
+
 #ifdef __cplusplus
 }
 #endif

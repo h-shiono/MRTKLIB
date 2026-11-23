@@ -566,7 +566,7 @@ static int corr_meas(const obsd_t* obs, const nav_t* nav, const double* azel, co
                      const double* dants, double phw, double* L, double* P, double* Lc, double* Pc, int tl) {
     char satid[8], *tstr = time_str(obs->time, 3);
     double freq[NFREQ] = {0}, C1, C2, cb = 0.0, pb = 0.0;
-    int i, i2 = 1, nfread, sys = satsys(obs->sat, NULL), ssrcode = CODE_NONE, ant_idx;
+    int i, i2 = 1, nfread, sys = satsys(obs->sat, NULL), ssrcode = CODE_NONE, pbcode = CODE_NONE, ant_idx;
     int ssr_bias = 0;
     int corr = opt->correction; /* correction source (CORR_???); selects the bias path below */
 
@@ -682,7 +682,7 @@ static int corr_meas(const obsd_t* obs, const nav_t* nav, const double* azel, co
              * valid SSR bias is dropped (required for PPP-AR, MADOCALIB design).
              * Note: igs-rts does NOT take this path -- it uses the RTKLIB-style
              * measurement model above (RTCM-SSR has a different bias convention). */
-            ssrcode = (corr == CORR_GAL_HAS)   ? has_sel_biascode(sys, obs->code[i])
+            ssrcode = (corr == CORR_GAL_HAS)   ? has_sel_bias(nav->ssr_ch[0] + obs->sat - 1, sys, obs->code[i], 0)
                       : (corr == CORR_BDS_B2B) ? b2b_sel_biascode(sys, obs->code[i])
                                                : mcssr_sel_biascode(sys, obs->code[i]);
 
@@ -693,11 +693,14 @@ static int corr_meas(const obsd_t* obs, const nav_t* nav, const double* azel, co
                     ssrcode = CODE_L5X;
                 }
             }
+            /* HAS selects the phase-bias signal on its own valid flags (#473) */
+            pbcode =
+                (corr == CORR_GAL_HAS) ? has_sel_bias(nav->ssr_ch[0] + obs->sat - 1, sys, obs->code[i], 1) : ssrcode;
 
+            if (pbcode != CODE_NONE && nav->ssr_ch[0][obs->sat - 1].pbias[pbcode - 1] != 0.0) {
+                pb = nav->ssr_ch[0][obs->sat - 1].pbias[pbcode - 1];
+            }
             if (ssrcode != CODE_NONE) {
-                if (nav->ssr_ch[0][obs->sat - 1].pbias[ssrcode - 1] != 0.0) {
-                    pb = nav->ssr_ch[0][obs->sat - 1].pbias[ssrcode - 1];
-                }
                 if (nav->ssr_ch[0][obs->sat - 1].cbias[ssrcode - 1] != 0.0) {
                     cb = nav->ssr_ch[0][obs->sat - 1].cbias[ssrcode - 1];
                 }
@@ -734,7 +737,7 @@ static int corr_meas(const obsd_t* obs, const nav_t* nav, const double* azel, co
             if (pb != 0.0) {
                 L[i] += pb;
                 trace(NULL, tl > 0 ? 4 : 4, "corr_meas: %s pbias %s obscode=L%s ssrcode=L%s pbias=%7.3f\n", tstr, satid,
-                      code2obs(obs->code[i]), code2obs(ssrcode), pb);
+                      code2obs(obs->code[i]), code2obs(pbcode), pb);
             } else if (sys != SYS_GLO && corr != CORR_GAL_HAS && corr != CORR_BDS_B2B) {
                 /* HAS Initial Service and PPP-B2b broadcast no phase biases; for float
                  * PPP the carrier is kept and the float ambiguity absorbs the satellite
@@ -953,7 +956,9 @@ static void detslp_ssr(rtk_t* rtk, const obsd_t* obs, int n, const nav_t* nav) {
 
         /* detect slip by discontinuity indicator */
         for (j = 0; j < rtk->opt.nf && j < NFREQ; j++) {
-            ssrcode = mcssr_sel_biascode(sys, obs[i].code[j]);
+            ssrcode = rtk->opt.correction == CORR_GAL_HAS
+                          ? has_sel_bias(nav->ssr_ch[0] + obs[i].sat - 1, sys, obs[i].code[j], 1)
+                          : mcssr_sel_biascode(sys, obs[i].code[j]);
             if (ssrcode == CODE_NONE) {
                 continue;
             }

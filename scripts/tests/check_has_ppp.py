@@ -5,9 +5,17 @@ Validates a ``mrtk post`` Galileo HAS solution (.pos) against:
 
   1. Solution availability  : epochs >= min_ratio * expected.
   2. Solution quality       : every solution epoch has Q == 6 (PPP float).
-  3. Absolute accuracy      : the mean position over the last N minutes lies
-                              within the horizontal and 3D thresholds of a
-                              fixed reference ECEF coordinate.
+  3. Absolute accuracy      : over the last N minutes, the mean position and/or
+                              the 95th percentile of the per-epoch horizontal and
+                              vertical errors lie within the thresholds, against
+                              a fixed reference ECEF coordinate.
+  4. System usage (optional): from the solution status file (``-y 2``), the
+                              mean number of satellites used per epoch of each
+                              listed system reaches its minimum, so a system
+                              that silently drops out fails (#473).
+  5. Satellite count (optional): the mean ``ns`` of the .pos over the whole
+                              run reaches its minimum. ``mrtk run`` writes no
+                              status file, so the real-time tests use this.
 
 The reference coordinate is the surveyed/derived ITRF position of the receiver.
 It is passed on the command line (the CMake test records its provenance).
@@ -18,8 +26,7 @@ Reference provenance (for the bundled G5P3162a HAS fixture)
   full hour, ITRF current epoch (2026-06-12), ~1-2 cm.
     XYZ = -3961905.2046 3348992.8024 3698212.4790
     LLH = 35.666341868 deg, 139.792211087 deg, 59.837 m
-  The HAS float solution sits ~0.4 m from this reference (HAS Initial Service
-  absolute accuracy; investigation open -- see docs/design/gal-has.md §11).
+  HAS float accuracy against this reference: docs/design/gal-has.md §11.2.
 
 Usage
 -----
@@ -34,17 +41,24 @@ Options
     --interval SEC       Solution interval [s], default 1
     --max-horiz M        Max horizontal offset of the window mean [m]
     --max-3d M           Max 3D offset of the window mean [m]
+    --max-h95 M          Max 95th percentile horizontal error in the window [m]
+    --max-v95 M          Max 95th percentile vertical error in the window [m]
+    --stat FILE          Solution status file ($SAT records) for --min-sats
+    --min-sats S=N ...   Min mean satellites used per epoch, per system letter
+                         (e.g. G=4 E=3)
+    --min-mean-ns N      Min mean satellite count (.pos ns) over the whole run
 """
 
 import argparse
 import sys
+from collections import defaultdict
 
 import numpy as np
 from _geo import blh2xyz, xyz2blh, xyz2enu  # noqa: E402
 
 
 def read_pos(path):
-    """Read an RTKLIB llh .pos file -> list of (lat, lon, h, Q)."""
+    """Read an RTKLIB llh .pos file -> list of (lat, lon, h, Q, ns)."""
     rows = []
     with open(path) as f:
         for line in f:
@@ -52,11 +66,28 @@ def read_pos(path):
                 continue
             p = line.split()
             try:
-                lat, lon, h, q = float(p[2]), float(p[3]), float(p[4]), int(p[5])
+                lat, lon, h, q, ns = float(p[2]), float(p[3]), float(p[4]), int(p[5]), int(p[6])
             except (IndexError, ValueError):
                 continue
-            rows.append((lat, lon, h, q))
+            rows.append((lat, lon, h, q, ns))
     return rows
+
+
+def read_sat_usage(path):
+    """Read $SAT records -> (epoch count, {system letter: used satellite count})."""
+    epochs = set()
+    used = defaultdict(int)
+    with open(path) as f:
+        for line in f:
+            if not line.startswith("$SAT"):
+                continue
+            p = line.split(",")
+            if p[4] != "1":
+                continue
+            epochs.add(p[2])
+            if p[9] == "1":
+                used[p[3][0]] += 1
+    return len(epochs), used
 
 
 def main(argv=None):
@@ -68,8 +99,13 @@ def main(argv=None):
     ap.add_argument("--min-ratio", type=float, default=0.95)
     ap.add_argument("--last-min", type=float, default=5.0)
     ap.add_argument("--interval", type=float, default=1.0)
-    ap.add_argument("--max-horiz", type=float, default=1.0)
-    ap.add_argument("--max-3d", type=float, default=1.5)
+    ap.add_argument("--max-horiz", type=float, default=None)
+    ap.add_argument("--max-3d", type=float, default=None)
+    ap.add_argument("--max-h95", type=float, default=None)
+    ap.add_argument("--max-v95", type=float, default=None)
+    ap.add_argument("--stat", default=None)
+    ap.add_argument("--min-sats", nargs="+", default=[], metavar="S=N")
+    ap.add_argument("--min-mean-ns", type=float, default=None)
     args = ap.parse_args(argv)
 
     rows = read_pos(args.solution)
@@ -91,29 +127,63 @@ def main(argv=None):
         return 1
 
     # (2) quality: all Q == 6
-    qbad = [q for *_, q in rows if q != 6]
+    qbad = [r[3] for r in rows if r[3] != 6]
     q_ok = len(qbad) == 0
     ok &= q_ok
-    qset = sorted({q for *_, q in rows})
+    qset = sorted({r[3] for r in rows})
     print(f"quality      : Q values {qset}, non-Q6 epochs={len(qbad)} {'OK' if q_ok else 'FAIL'}")
 
     # (3) absolute accuracy of the last-N-min mean
     nlast = int(round(args.last_min * 60.0 / args.interval))
     nlast = min(nlast, n)
-    xyz = np.array([blh2xyz(lat, lon, h) for lat, lon, h, _ in rows[-nlast:]])
+    xyz = np.array([blh2xyz(lat, lon, h) for lat, lon, h, *_ in rows[-nlast:]])
     mean_xyz = xyz.mean(axis=0)
     enu = xyz2enu(mean_xyz - ref, rlat, rlon)
     horiz = float(np.hypot(enu[0], enu[1]))
     d3 = float(np.linalg.norm(enu))
-    h_ok = horiz <= args.max_horiz
-    d_ok = d3 <= args.max_3d
-    ok &= h_ok and d_ok
+    errs = np.array([xyz2enu(x - ref, rlat, rlon) for x in xyz])
+    h95 = float(np.percentile(np.hypot(errs[:, 0], errs[:, 1]), 95))
+    v95 = float(np.percentile(np.abs(errs[:, 2]), 95))
     print(
         f"accuracy     : last {args.last_min:.0f} min ({nlast} ep) mean "
         f"dENU=[{enu[0]:+.3f} {enu[1]:+.3f} {enu[2]:+.3f}] m"
     )
-    print(f"               horiz={horiz:.3f} m (<= {args.max_horiz}) {'OK' if h_ok else 'FAIL'}")
-    print(f"               3D   ={d3:.3f} m (<= {args.max_3d}) {'OK' if d_ok else 'FAIL'}")
+    for name, val, lim in (
+        ("horiz", horiz, args.max_horiz),
+        ("3D   ", d3, args.max_3d),
+        ("H95  ", h95, args.max_h95),
+        ("V95  ", v95, args.max_v95),
+    ):
+        if lim is None:
+            print(f"               {name}={val:.3f} m")
+            continue
+        g_ok = val <= lim
+        ok &= g_ok
+        print(f"               {name}={val:.3f} m (<= {lim}) {'OK' if g_ok else 'FAIL'}")
+
+    # (4) satellites used per system
+    if args.min_sats:
+        if not args.stat:
+            print("FAIL: --min-sats needs --stat")
+            return 1
+        nep, used = read_sat_usage(args.stat)
+        for spec in args.min_sats:
+            sysc, nmin = spec.split("=")
+            mean = used.get(sysc, 0) / nep if nep else 0.0
+            s_ok = mean >= float(nmin)
+            ok &= s_ok
+            print(
+                f"system usage : {sysc} mean {mean:.2f} sats/epoch (>= {nmin}) {'OK' if s_ok else 'FAIL'}"
+            )
+
+    # (5) mean satellite count of the solution
+    if args.min_mean_ns is not None:
+        mean_ns = sum(r[4] for r in rows) / n
+        ns_ok = mean_ns >= args.min_mean_ns
+        ok &= ns_ok
+        print(
+            f"satellites   : mean ns {mean_ns:.2f} (>= {args.min_mean_ns}) {'OK' if ns_ok else 'FAIL'}"
+        )
 
     print("RESULT:", "PASS" if ok else "FAIL")
     return 0 if ok else 1
