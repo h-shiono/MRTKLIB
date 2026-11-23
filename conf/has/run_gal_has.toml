@@ -10,9 +10,9 @@
 #
 # Usage:
 #   1. Edit [streams.input.rover] path to point at your SBF source
-#      (file:// replay, serial, or tcpcli).
+#      (file replay, serial, or tcpcli).
 #   2. Edit [streams.output.stream1] path to your solution sink.
-#   3. Run: ./build/mrtk run -k conf/has/run_gal_has.toml
+#   3. Run: ./build/mrtk run -o conf/has/run_gal_has.toml
 
 [positioning]
 mode = "ppp-kine"                   # (6:ppp-kine,7:ppp-static)
@@ -136,8 +136,8 @@ proxy = ""
 swap_margin = 30
 
 [streams.input.rover]
-type = "file"                      # (file:replay, serial, tcpcli)
-path = "file:///path/to/rover.sbf" # SBF source (edit for your setup)
+type = "file"               # (file:replay, serial, tcpcli)
+path = "/path/to/rover.sbf" # SBF file (append ::T::x10 to replay with its .tag) (edit for your setup)
 format = "sbf"
 
 [streams.input.base]

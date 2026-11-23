@@ -81,6 +81,9 @@ corrections are available.
 mrtk run -o conf/has/run_gal_has.toml
 ```
 
+Edit `[streams.input.rover] path` first. To replay a recorded file in real
+time, use its plain path with `::T::x<speed>` and a `.tag` file next to it.
+
 The real-time path takes a **single SBF stream**: the Septentrio decoder routes
 GALRawCNAV pages to the HAS decoder while the same stream supplies observations
 and broadcast ephemeris. No separate correction stream is required.
