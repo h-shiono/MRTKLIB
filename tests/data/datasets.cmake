@@ -11,6 +11,11 @@
 # section of CMakeLists.txt and docs/design/gal-has.md §11.
 mrtk_dataset(has-v1 SHA256 15d2723e6c9d0cea4ca26ec9af2d3a4776b62dda1efadd1b52b4a1cdbd2d5022)
 
+# Galileo HAS v2: has-v1 (G5P3162a_15m.sbf, byte-identical) plus one hour of the
+# kubolab mosaic-G5 capture of 2026-10-23 for the post and real-time tests
+# (G5P3296u_has.sbf + .tag); see tests/data/has/README.md (#473).
+mrtk_dataset(has-v2 SHA256 da75f5e8ab2cafe3c150d498b8dfa5a901fe32bebe5bfbc96e9cc3a0f2bf581b)
+
 # QZSS L6 handover: five 15-min windows (NEO-D9C UBX + mosaic-G5 SBF, mosaic-CLAS
 # SBF), DOY 2026-286; see tests/data/handover/README.md (#372).
 mrtk_dataset(handover-v1 SHA256 2690ac610a3696731dcfa629d2f98a9dfd54fef9126ae9b6de5c3349a3792fe9)

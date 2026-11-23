@@ -35,6 +35,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (measured 5.84 / 4.97), so a system that silently drops out fails. New
   `utest_has_mt1` case H covers the bias signal selection.
 
+- **Second Galileo HAS dataset and the first real-time HAS test**
+  ([#473](https://github.com/h-shiono/MRTKLIB/issues/473)). The new dataset
+  `has-v2` keeps the has-v1 file and adds one hour of a mosaic-G5 capture of
+  2026-10-23 (CR-G5 antenna, the handover reference coordinate), cut by
+  `scripts/tests/make_has_v2_fixture.py`; its PPP is bit-identical to the full
+  capture's. `has296_*` run it in `mrtk post`, `rtkrcv_has` replays it in
+  `mrtk run` at x20 (console port 52024). Gates as `has_ppp_check` (H95 ≤
+  0.40 m, V95 ≤ 0.80 m over the last 5 min; post: GPS ≥ 4 / Galileo ≥ 3
+  satellites per epoch; replay: mean ns ≥ 9, new `check_has_ppp.py
+  --min-mean-ns`). Measured: post H95 0.154 m / V95 0.273 m, Galileo 5.65;
+  replay H95 0.153 m / V95 0.273 m, mean ns 11.85. Without the #473 fix both
+  fail (Galileo 0.00, mean ns 6.21).
+
 - **Work directories of two ctests no longer accumulate**
   ([#524](https://github.com/h-shiono/MRTKLIB/issues/524)).
   `claslib_l6_null_drop_*` and `l6extract_names` created a new

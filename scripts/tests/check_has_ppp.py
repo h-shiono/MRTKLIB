@@ -13,6 +13,9 @@ Validates a ``mrtk post`` Galileo HAS solution (.pos) against:
                               mean number of satellites used per epoch of each
                               listed system reaches its minimum, so a system
                               that silently drops out fails (#473).
+  5. Satellite count (optional): the mean ``ns`` of the .pos over the whole
+                              run reaches its minimum. ``mrtk run`` writes no
+                              status file, so the real-time tests use this.
 
 The reference coordinate is the surveyed/derived ITRF position of the receiver.
 It is passed on the command line (the CMake test records its provenance).
@@ -43,6 +46,7 @@ Options
     --stat FILE          Solution status file ($SAT records) for --min-sats
     --min-sats S=N ...   Min mean satellites used per epoch, per system letter
                          (e.g. G=4 E=3)
+    --min-mean-ns N      Min mean satellite count (.pos ns) over the whole run
 """
 
 import argparse
@@ -54,7 +58,7 @@ from _geo import blh2xyz, xyz2blh, xyz2enu  # noqa: E402
 
 
 def read_pos(path):
-    """Read an RTKLIB llh .pos file -> list of (lat, lon, h, Q)."""
+    """Read an RTKLIB llh .pos file -> list of (lat, lon, h, Q, ns)."""
     rows = []
     with open(path) as f:
         for line in f:
@@ -62,10 +66,10 @@ def read_pos(path):
                 continue
             p = line.split()
             try:
-                lat, lon, h, q = float(p[2]), float(p[3]), float(p[4]), int(p[5])
+                lat, lon, h, q, ns = float(p[2]), float(p[3]), float(p[4]), int(p[5]), int(p[6])
             except (IndexError, ValueError):
                 continue
-            rows.append((lat, lon, h, q))
+            rows.append((lat, lon, h, q, ns))
     return rows
 
 
@@ -101,6 +105,7 @@ def main(argv=None):
     ap.add_argument("--max-v95", type=float, default=None)
     ap.add_argument("--stat", default=None)
     ap.add_argument("--min-sats", nargs="+", default=[], metavar="S=N")
+    ap.add_argument("--min-mean-ns", type=float, default=None)
     args = ap.parse_args(argv)
 
     rows = read_pos(args.solution)
@@ -122,16 +127,16 @@ def main(argv=None):
         return 1
 
     # (2) quality: all Q == 6
-    qbad = [q for *_, q in rows if q != 6]
+    qbad = [r[3] for r in rows if r[3] != 6]
     q_ok = len(qbad) == 0
     ok &= q_ok
-    qset = sorted({q for *_, q in rows})
+    qset = sorted({r[3] for r in rows})
     print(f"quality      : Q values {qset}, non-Q6 epochs={len(qbad)} {'OK' if q_ok else 'FAIL'}")
 
     # (3) absolute accuracy of the last-N-min mean
     nlast = int(round(args.last_min * 60.0 / args.interval))
     nlast = min(nlast, n)
-    xyz = np.array([blh2xyz(lat, lon, h) for lat, lon, h, _ in rows[-nlast:]])
+    xyz = np.array([blh2xyz(lat, lon, h) for lat, lon, h, *_ in rows[-nlast:]])
     mean_xyz = xyz.mean(axis=0)
     enu = xyz2enu(mean_xyz - ref, rlat, rlon)
     horiz = float(np.hypot(enu[0], enu[1]))
@@ -170,6 +175,15 @@ def main(argv=None):
             print(
                 f"system usage : {sysc} mean {mean:.2f} sats/epoch (>= {nmin}) {'OK' if s_ok else 'FAIL'}"
             )
+
+    # (5) mean satellite count of the solution
+    if args.min_mean_ns is not None:
+        mean_ns = sum(r[4] for r in rows) / n
+        ns_ok = mean_ns >= args.min_mean_ns
+        ok &= ns_ok
+        print(
+            f"satellites   : mean ns {mean_ns:.2f} (>= {args.min_mean_ns}) {'OK' if ns_ok else 'FAIL'}"
+        )
 
     print("RESULT:", "PASS" if ok else "FAIL")
     return 0 if ok else 1

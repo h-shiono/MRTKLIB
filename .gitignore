@@ -19,8 +19,13 @@ site/
 # Python virtual environments
 scripts/.venv/
 
-# Test data extracted by the dataset fixtures (#386)
-tests/data/has/
+# Test data extracted by the dataset fixtures (#386); README and conf template
+# of tests/data/has/ are committed
+tests/data/has/*.sbf
+tests/data/has/*.tag
+tests/data/has/*.has
+tests/data/has/*.obs
+tests/data/has/*.nav
 
 # Dataset madocalib_mdc005-v1 extracted by ctest (#401)
 tests/data/madocalib_mdc005/*.rnx

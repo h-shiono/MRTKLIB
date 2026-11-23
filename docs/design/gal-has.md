@@ -253,6 +253,11 @@ The struct keeps its own `ssr_t ssr[MAXSAT]` (like `rtcm_t`) so callers copy to
 
 ### 11.1 Bundled regression test data
 
+The tests use the dataset `has-v2` (~12 MB gz), a superset of `has-v1`: the
+`has-v1` member below, byte-identical, plus the 2026-10-23 hour of the
+`has296_*` and `rtkrcv_has*` tests (see the end of this section and
+`tests/data/has/README.md`).
+
 The dataset `has-v1` (~2.2 MB gz; a release asset of
 [h-shiono/mrtklib-data](https://github.com/h-shiono/mrtklib-data) since #386,
 previously `tests/data/has/has_testdata.tar.gz` in this repository) holds
@@ -288,6 +293,29 @@ trim must not change results):
 | (b) `mrtk convert` OBS records | **identical**, 900 epochs, md5 `db9d8624…`. NAV: orbit/clock coefficients identical; only the GAL-week/data-source field (line 5) and transmission-time `ttr` (line 7) differ for 13 ephemerides — a transmission-time-snapshot artifact of the shorter horizon, **zero positioning effect**. Against a same-block-set full-hour control the trimmed NAV is a perfect subset (0 differences). |
 | (c) `mrtk post` PPP solutions | **bit-identical** over all 893 common solution epochs: max \|ΔENU\| = 0.000000 m, 0 Q mismatches. |
 
+**Second dataset, 2026-10-23 hour** (#473). `G5P3296u_has.sbf` is one hour
+(19:59:30–21:00 GPST) of the kubolab mosaic-G5 capture `rovr_296u.sbf`, cut by
+`scripts/tests/make_has_v2_fixture.py` to blocks 4027 / 4007 / 4017 / 5891 /
+4002 / 4022 / 4023 / 4024, with a synthetic `.tag` for `mrtk run` replay. The
+Galileo raw navigation (4022 / 4023) is needed: with the decoded GALNav alone
+the slice lacks ephemeris sets (E13, E26) and its solution differs. With it,
+the `.has` is byte-identical to the full capture's over the window (13838
+records) and the PPP solution bit-identical over all 3549 common epochs. The
+antenna and reference are those of the handover dataset (CR-G5 ARP from a
+full-day static PPP-AR with CODE final products), and the test conf
+`tests/data/has/has_g5p3.toml.in` applies the `TPSCR.G5 NONE` model.
+
+```
+has296_extract    mrtk l6extract → G5P3296u_has.has (assert 13838 valid records)
+has296_convert    mrtk convert   → RINEX obs/nav
+has296_ppp        mrtk post -k has_g5p3.toml -y 2
+has296_ppp_check  epochs ≥ 95 % of 3557, all Q=6, last 5 min H95 ≤ 0.40 m /
+                  V95 ≤ 0.80 m, GPS ≥ 4 / Galileo ≥ 3 satellites per epoch
+rtkrcv_has        mrtk run, SBF replay x20 (console port 52024)
+rtkrcv_has_check  epochs ≥ 90 % of 3557, all Q=6, same H95 / V95 gates,
+                  mean ns ≥ 9 (mrtk run writes no status file)
+```
+
 ### 11.2 Reference position and accuracy status
 
 Reference receiver position (passed to `check_has_ppp.py --ref-xyz`):
@@ -322,6 +350,12 @@ horizontal / 40 cm vertical), evaluated on the last 5 minutes of the 15-minute
 window: H95 ≤ 0.40 m, V95 ≤ 0.80 m. The per-system usage gate (GPS ≥ 4,
 Galileo ≥ 3 satellites per epoch, from the `-y 2` status file) fails when a
 system silently drops out, as Galileo did before #473.
+
+On the 2026-10-23 hour (last 5 min, against the CR-G5 ARP), the fix brings
+Galileo from 0.00 to 5.65 satellites per epoch (GPS 6.21) and H95 0.244 →
+0.154 m, V95 0.535 → 0.273 m in `mrtk post`; the x20 replay gives the same
+(H95 0.153 m / V95 0.273 m, mean ns 6.21 → 11.85). Unlike has-v1 the vertical
+improves, and both are within the service targets.
 
 ### 11.3 l6extract L6E (mosaic-G5 block 4271)
 
