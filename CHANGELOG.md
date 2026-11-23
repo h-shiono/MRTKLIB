@@ -26,6 +26,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   0.456 → 0.652 m (vertical investigation: #215). Other correction sources are
   unchanged.
 
+- **`mrtk run`: the Galileo HAS context is freed on restart**
+  ([#459](https://github.com/h-shiono/MRTKLIB/issues/459)). After a console
+  `load` of another correction source and `restart`, the HAS decoder kept
+  decoding the SBF GALRawCNAV pages and wrote HAS corrections into
+  `nav.ssr_ch[0]` over the selected service. `rtksvrstart()` now frees the
+  previous context and creates one only for `correction = "gal-has"`, as for
+  PPP-B2b; a restart back into HAS starts clean. Replay of has-v1, `gal-has`
+  → `load` MADOCA → `restart`: HAS MT1 decodes after the restart 274 → 0.
+
 ### Documentation
 
 - **Real-time Galileo HAS sample opens its file input**

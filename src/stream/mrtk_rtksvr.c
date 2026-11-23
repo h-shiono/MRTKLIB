@@ -1351,8 +1351,14 @@ extern int rtksvrstart(rtksvr_t* svr, int cycle, int buffsize, int* strs, char**
     svr->nav.clas_ctx = svr->clas;
 
     /* initialize Galileo HAS context for HAS float PPP (correction = gal-has).
-     * Any input stream may carry SBF GALRawCNAV pages; routing is index-agnostic. */
-    if (prcopt->correction == CORR_GAL_HAS && !svr->has) {
+     * Any input stream may carry SBF GALRawCNAV pages; routing is index-agnostic.
+     * A context left by a previous run (rtkrcv `load` + `restart`) is freed, as
+     * for PPP-B2b below (#459). */
+    if (svr->has) {
+        has_free(svr->has);
+        svr->has = NULL;
+    }
+    if (prcopt->correction == CORR_GAL_HAS) {
         svr->has = has_new();
         if (!svr->has) {
             tracet(NULL, 1, "rtksvrstart: HAS context alloc error\n");
