@@ -2034,9 +2034,12 @@ static int relpos(rtk_t* rtk, const obsd_t* obs, int nu, int nr, const nav_t* na
     tracemat(NULL, 4, rtk->x, 1, NR(opt), 13, 4);
 
     xp = mat(rtk->nx, 1);
-    Pp = zeros(rtk->nx, rtk->nx);
+    Pp = mat(rtk->nx, rtk->nx);
     xa = mat(rtk->nx, 1);
     matcpy(xp, rtk->x, rtk->nx, 1);
+    /* the first pre-fit ddres() reads Pp to open the innovation gate 10x for newly
+       initialized phase biases (P == std[0]^2); a zero Pp kept that gate shut */
+    matcpy(Pp, rtk->P, rtk->nx, rtk->nx);
 
     ny = ns * nf * 2 + 2;
     v = mat(ny, 1);
