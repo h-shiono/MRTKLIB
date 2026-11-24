@@ -1535,8 +1535,10 @@ static int ddidx(rtk_t* rtk, int* ix, int gps, int glo, int sbs) {
     }
     for (m = 0; m < 6; m++) { /* m=0:GPS/SBS,1:GLO,2:GAL,3:BDS,4:QZS,5:IRN */
 
-        /* skip if ambiguity resolution turned off for this constellation */
-        nofix = (m == 0 && gps == 0) || (m == 1 && glo == 0) || (m == 3 && rtk->opt.bdsmodear == 0);
+        /* skip if ambiguity resolution turned off for this constellation; glomodear == off is
+           checked here as in RTKLIB / MALIB (the demo5 glo argument alone is 1 for off) */
+        nofix = (m == 0 && gps == 0) || (m == 1 && (glo == 0 || rtk->opt.glomodear == GLO_ARMODE_OFF)) ||
+                (m == 3 && rtk->opt.bdsmodear == 0);
 
         for (f = 0, k = na; f < nf; f++, k += MAXSAT) {
             /* find reference satellite: must be valid, locked, no half-cycle,
@@ -1687,7 +1689,8 @@ static int resamb_LAMBDA(rtk_t* rtk, double* bias, double* xa, int gps, int glo,
 
     /* create index of SD→DD transformation matrix */
     ix = imat(nx, 2);
-    if ((nb = ddidx(rtk, ix, gps, glo, sbs)) < (opt->minfixsats > 0 ? opt->minfixsats - 1 : 0)) {
+    /* nb == 0 also aborts: with min_fix_sats = 0 an empty search would reach lambda() */
+    if ((nb = ddidx(rtk, ix, gps, glo, sbs)) <= 0 || nb < opt->minfixsats - 1) {
         errmsg(rtk, "not enough valid double-differences\n");
         free(ix);
         return -1; /* flag abort — insufficient pairs */
@@ -1849,8 +1852,11 @@ static int manage_amb_LAMBDA(rtk_t* rtk, double* bias, double* xa, const int* sa
                 i = 0; /* wrap if not found */
             }
         }
-        /* find next sat currently used in AR */
+        /* find next sat currently used in AR (GLONASS is not when glonass_ar is off) */
         for (; i < ns; i++) {
+            if (rtk->opt.glomodear == GLO_ARMODE_OFF && rtk->ssat[sat[i] - 1].sys == SYS_GLO) {
+                continue;
+            }
             for (int f = 0; f < nf; f++) {
                 if (rtk->ssat[sat[i] - 1].vsat[f] && rtk->ssat[sat[i] - 1].lock[f] >= 0 &&
                     rtk->ssat[sat[i] - 1].azel[1] >= rtk->opt.elmin) {
