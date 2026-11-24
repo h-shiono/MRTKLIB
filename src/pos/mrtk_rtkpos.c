@@ -1535,8 +1535,10 @@ static int ddidx(rtk_t* rtk, int* ix, int gps, int glo, int sbs) {
     }
     for (m = 0; m < 6; m++) { /* m=0:GPS/SBS,1:GLO,2:GAL,3:BDS,4:QZS,5:IRN */
 
-        /* skip if ambiguity resolution turned off for this constellation */
-        nofix = (m == 0 && gps == 0) || (m == 1 && glo == 0) || (m == 3 && rtk->opt.bdsmodear == 0);
+        /* skip if ambiguity resolution turned off for this constellation; glomodear == off is
+           checked here as in RTKLIB / MALIB (the demo5 glo argument alone is 1 for off) */
+        nofix = (m == 0 && gps == 0) || (m == 1 && (glo == 0 || rtk->opt.glomodear == GLO_ARMODE_OFF)) ||
+                (m == 3 && rtk->opt.bdsmodear == 0);
 
         for (f = 0, k = na; f < nf; f++, k += MAXSAT) {
             /* find reference satellite: must be valid, locked, no half-cycle,
