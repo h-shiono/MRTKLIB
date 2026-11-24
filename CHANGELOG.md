@@ -9,6 +9,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **RTK: an unset 3rd-frequency error ratio no longer inflates carrier-phase
+  noise by 100²** ([#556](https://github.com/h-shiono/MRTKLIB/issues/556)).
+  `prcopt_default` leaves `eratio[2]` at 0, and `varerr()` fell back to
+  `eratio[0]` (100) for carrier phase as well as for code, so non-IFLC
+  3-frequency RTK without `code_phase_ratio_L5` weighted L5 phase like a
+  pseudorange (reporter's 1.2 m static baseline: 0/258 → 255/258 Fixed). Phase
+  now falls back to 1.0, as before v0.4.1; code still falls back to
+  `eratio[0]`. Regression from v0.4.1, `mrtk post` and `mrtk run`.
+
+- **`mrtk post`: `[positioning].signals` takes precedence over `pppsig`**
+  ([#555](https://github.com/h-shiono/MRTKLIB/issues/555)). `apply_pppsig()`
+  ran unconditionally for every correction except `igs` and overwrote the
+  obsdef built from `signals`; it now runs only when `signals` is not set, as
+  in `mrtk run`. The claslib slot layout for `qzs-clas` still applies (#535).
+  `conf/benchmark/rtk.toml` declared a triple-frequency `signals` list that had
+  never taken effect; it is pinned to the dual-frequency layout it actually ran
+  (GPS L1/L2, QZS L1/L5, GAL E1/E5a, BDS B1/B3), so the PPC score is unchanged
+  at 37.6 %. Enabling the triple-frequency list gives 29.9 %, tracked in #557.
+
 - **Galileo HAS: Galileo code biases are applied, so Galileo is used**
   ([#473](https://github.com/h-shiono/MRTKLIB/issues/473)). The HAS decoder
   stores each bias under the code of its mask signal (E1-C → `C1C`, E5a-Q →

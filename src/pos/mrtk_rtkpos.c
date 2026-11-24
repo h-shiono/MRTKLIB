@@ -423,14 +423,14 @@ static double varerr(int sat, int sys, double el, double snr_rover, double snr_b
 
     frq = f % nf;
     code = (f < nf) ? 0 : 1;
-    /* code uses eratio[frq] directly; phase scaled relative to eratio[0] */
+    /* code uses eratio[frq] directly; phase scaled relative to eratio[0].
+     * An unset ratio (prcopt_default leaves eratio[2] = 0) means "same as L1":
+     * code falls back to eratio[0], phase to 1.0 — falling back to eratio[0]
+     * for phase too inflated 3rd-frequency phase noise by 100^2 (#556) */
     if (code) {
-        fact = opt->eratio[frq];
+        fact = opt->eratio[frq] > 0.0 ? opt->eratio[frq] : opt->eratio[0];
     } else {
-        fact = opt->eratio[frq] / opt->eratio[0];
-    }
-    if (fact <= 0.0) {
-        fact = opt->eratio[0];
+        fact = (opt->eratio[frq] > 0.0 && opt->eratio[0] > 0.0) ? opt->eratio[frq] / opt->eratio[0] : 1.0;
     }
 
     /* per-constellation error factor */
