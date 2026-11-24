@@ -3,7 +3,8 @@
  *            detection (#286), the TOML saveopts() append error (#342), and
  *            the BeiDou PRN-reassignment lists and their presence flag (#401),
  *            and the enum options that share a value list (geoid_model), and
- *            the RTK code innovation threshold: unset vs explicit 0 (#563).
+ *            the RTK code innovation threshold: unset vs explicit 0 (#563), and
+ *            the hold variance default (#564).
  *
  * Uses explicit failure returns (not assert) so the checks run even in
  * NDEBUG builds where assert() is a no-op (see #277).
@@ -293,6 +294,19 @@ int main(void) {
     resetsysopts();
     getsysopts(&prcopt, &solopt, &filopt);
     expect(prcopt.maxinno_code < 0.0, "default code threshold is unset");
+
+    /* #564: hold variance defaults to 0.001 (RTK's former fixed value); an explicit 0
+       is kept (RTK and VRS use the value as given) */
+    expect(prcopt.varholdamb == 0.001, "default hold variance is 0.001");
+    fp = fopen(FIXTURE_INNO, "w");
+    if (fp) {
+        fprintf(fp, "[ambiguity_resolution.hold]\nvariance = 0.0\n");
+        fclose(fp);
+    }
+    resetsysopts();
+    loadopts_toml(FIXTURE_INNO, sysopts);
+    getsysopts(&prcopt, &solopt, &filopt);
+    expect(prcopt.varholdamb == 0.0, "hold variance = 0 is kept");
 
     remove(FIXTURE);
     remove(CAPTURE);

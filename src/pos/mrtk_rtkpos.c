@@ -87,8 +87,6 @@ extern int miono_get_corr(const double* rr, nav_t* nav);
 #define GAP_RESION 120  /* gap to reset ionosphere parameters (epochs) */
 #define MAXACC 30.0     /* max accel for doppler slip detection (m/s^2) */
 
-#define VAR_HOLDAMB 0.001 /* constraint to hold ambiguity (cycle^2) */
-
 #define TTOL_MOVEB (1.0 + 2 * DTTOL)
 /* time sync tolerance for moving-baseline (s) */
 
@@ -1663,9 +1661,13 @@ static void holdamb(rtk_t* rtk, const double* xa) {
     rtk->holdamb = 1; /* record that hold has occurred at least once */
 
     if (nv > 0) {
+        /* values <= 0 or not finite fall back to 0.001 as in PPP-RTK: older mrtk run saved
+           pos2-varholdamb = 0 (the uninitialized default) into .conf files, and RTK ignored the
+           option before #564, so such files must not turn into a zero-variance hold */
+        double var = rtk->opt.varholdamb > 0.0 && isfinite(rtk->opt.varholdamb) ? rtk->opt.varholdamb : 0.001;
         R = zeros(nv, nv);
         for (i = 0; i < nv; i++) {
-            R[i + i * nv] = VAR_HOLDAMB;
+            R[i + i * nv] = var;
         }
 
         /* update states with constraints */

@@ -489,6 +489,15 @@ target_link_libraries(utest_rtk_innovation PRIVATE mrtklib)
 add_test(NAME utest_rtk_innovation COMMAND utest_rtk_innovation)
 set_tests_properties(utest_rtk_innovation PROPERTIES LABELS "utest")
 
+# RTK fix-and-hold constraint variance (#564). Includes mrtk_rtkpos.c to reach
+# the private holdamb().
+add_executable(utest_rtk_holdamb ${_UTEST_DIR}/utest_rtk_holdamb.c)
+# Override global -ansi (=C90): this test uses C11 (P-01).
+target_compile_options(utest_rtk_holdamb PRIVATE -std=c11)
+target_link_libraries(utest_rtk_holdamb PRIVATE mrtklib)
+add_test(NAME utest_rtk_holdamb COMMAND utest_rtk_holdamb)
+set_tests_properties(utest_rtk_holdamb PROPERTIES LABELS "utest")
+
 # NavIC L5-only SPP group delay with the nominal S/L5 ratio (#384). Includes
 # mrtk_spp.c to reach the private prange().
 add_executable(utest_navic_l5_tgd ${_UTEST_DIR}/utest_navic_l5_tgd.c)
