@@ -1661,9 +1661,13 @@ static void holdamb(rtk_t* rtk, const double* xa) {
     rtk->holdamb = 1; /* record that hold has occurred at least once */
 
     if (nv > 0) {
+        /* values <= 0 or not finite fall back to 0.001 as in PPP-RTK: older mrtk run saved
+           pos2-varholdamb = 0 (the uninitialized default) into .conf files, and RTK ignored the
+           option before #564, so such files must not turn into a zero-variance hold */
+        double var = rtk->opt.varholdamb > 0.0 && isfinite(rtk->opt.varholdamb) ? rtk->opt.varholdamb : 0.001;
         R = zeros(nv, nv);
         for (i = 0; i < nv; i++) {
-            R[i + i * nv] = rtk->opt.varholdamb;
+            R[i + i * nv] = var;
         }
 
         /* update states with constraints */

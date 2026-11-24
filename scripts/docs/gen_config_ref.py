@@ -301,8 +301,8 @@ _OPTION_META: dict[str, tuple[str, str]] = {
     "pos2-varholdamb": (
         "RTK, PPP-RTK, VRS",
         "Variance of held ambiguity pseudo-observation (cyc\u00b2). Controls how tightly held"
-        " ambiguities constrain the filter. Unset: 0.001. RTK and VRS use the value as given"
-        " (including 0); PPP-RTK uses 0.001 for values <= 0.",
+        " ambiguities constrain the filter. Unset: 0.001. RTK and PPP-RTK use 0.001 for values"
+        " <= 0 (a `.conf` saved by an older `mrtk run` may carry 0); VRS uses the value as given.",
     ),
     # ── rejection ────────────────────────────────────────────────────────────
     "pos2-rejionno": (
