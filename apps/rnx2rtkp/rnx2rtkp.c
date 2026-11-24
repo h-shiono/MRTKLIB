@@ -310,9 +310,13 @@ int mrtk_post(int argc, char** argv) {
      * conventional IGS-product PPP, skip it so the receiver's actual 2nd band
      * (e.g. GAL E5b / BDS B2I on u-blox F9P) survives and the iono-free pair is
      * chosen from the available observations (see prange/corr_meas). MADOCA/CLAS
-     * and all other correction sources keep the legacy behaviour unchanged. */
+     * and all other correction sources keep the legacy behaviour unchanged.
+     * An obsdef built from [positioning].signals (sigcfg) takes precedence over
+     * pppsig, as in mrtk run (#555); the claslib slot layout still applies (#535). */
     if (prcopt.correction != CORR_IGS) {
-        apply_pppsig(prcopt.pppsig);
+        if (!prcopt.sigcfg_set) {
+            apply_pppsig(prcopt.pppsig);
+        }
         if (prcopt.correction == CORR_QZS_CLAS) {
             apply_claslib_ppprtk_obsdef();
         }

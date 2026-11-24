@@ -2,12 +2,13 @@
 # Converted from: rtk.conf
 
 [positioning]
-mode = "kinematic"                                                                             # (2:kinematic)
-correction = "none"                                                                            # relative RTK uses rover+base, no SSR correction (explicit)
-signals = ["G1C", "G2W", "G5X", "E1C", "E5Q", "E7Q", "J1C", "J5Q", "J2X", "C2I", "C6I", "C7I"]
+mode = "kinematic"  # (2:kinematic)
+correction = "none" # relative RTK uses rover+base, no SSR correction (explicit)
+# dual-frequency: the layout mrtk post ran before #555 made signals effective; triple-frequency scores lower (#557)
+signals = ["G1C", "G2W", "E1C", "E5Q", "J1C", "J5Q", "C2I", "C6I"]
 solution_type = "forward"
-elevation_mask = 15.0                                                                          # (deg)
-dynamics = true                                                                                # kinematic
+elevation_mask = 15.0                                              # (deg)
+dynamics = true                                                    # kinematic
 satellite_ephemeris = "brdc"
 excluded_sats = []
 # PPC-Dataset (2021-2023) predates the 2026-04 BeiDou PRN reassignment: PRN 1-18 are BDS-2
