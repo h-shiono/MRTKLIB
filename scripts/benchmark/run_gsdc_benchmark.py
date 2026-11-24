@@ -186,7 +186,9 @@ def print_summary(rows: list[dict]) -> None:
     if unscored:
         official_mean = f"incomplete ({len(unscored)} of {len(truth)} cases not scored)"
     elif truth:
-        official_mean = f"{_m(sum(r['official']['score'] for r in truth) / len(truth)):>8}"
+        mean_score = sum(r["official"]["score"] for r in truth) / len(truth)
+        mean_fill = sum(r["official"]["filled_rate"] for r in truth) / len(truth)
+        official_mean = f"{_m(mean_score):>8} {mean_fill:>5.1f}%"
     else:
         official_mean = "—"
     if ok:
@@ -231,7 +233,7 @@ def run(args: argparse.Namespace) -> int:
     mrtk = _find_mrtk(args.mrtk)
 
     cases = select_cases(dataset_dir, args.case)
-    if not cases:
+    if not any(not c.get("missing") for c in cases):
         sys.exit(
             f"FAIL: no cases under {dataset_dir} (extract the dataset; "
             "see docs/reference/benchmark-gsdc.md)"
@@ -245,6 +247,16 @@ def run(args: argparse.Namespace) -> int:
     rows = []
     for case in cases:
         print(f"\n[{case['id']}]")
+        if case.get("missing"):
+            print("  FAIL: requested case not found (no device_gnss.csv)")
+            rows.append({"id": case["id"], "metrics": None, "status": "missing-data"})
+            continue
+        # Check for truth first, so a missing nav cache does not decide whether
+        # a case without truth counts against the MEAN.
+        if case["ground_truth"] is None:
+            print("  skip: no ground truth (test split)")
+            rows.append({"id": case["id"], "metrics": None, "status": "no-truth"})
+            continue
         try:
             obs, days = _convert(case, out_dir, args.force)
         except Exception as exc:  # noqa: BLE001
@@ -266,12 +278,10 @@ def run(args: argparse.Namespace) -> int:
             rows.append({"id": case["id"], "metrics": None, "status": "no-nav"})
             continue
 
-        if case["ground_truth"] is None:
-            print("  skip: no ground truth (test split)")
-            rows.append({"id": case["id"], "metrics": None, "status": "no-truth"})
-            continue
-
         out = out_dir / f"{safe_name(case['id'])}.nmea"
+        # A solver that exits 0 without writing must not leave an old output to
+        # be scored as this run.
+        out.unlink(missing_ok=True)
         t0 = time.monotonic()
         ok = _run_mrtk(mrtk, confs, obs, navs, out, args.verbose)
         dt = time.monotonic() - t0

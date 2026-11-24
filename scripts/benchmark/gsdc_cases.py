@@ -81,7 +81,10 @@ def select_cases(dataset_dir: Path, which: str = "curated") -> list[dict]:
             comma-separated list of ``trip/device`` ids.
 
     Returns:
-        List of case dicts (see :func:`discover_cases`).
+        List of case dicts (see :func:`discover_cases`).  A requested id
+        without ``device_gnss.csv`` is returned as ``{"id": ..., "missing":
+        True}`` so the runner can count it as not scored instead of dropping
+        it silently.
     """
     discovered = {c["id"]: c for c in discover_cases(dataset_dir, "train")}
     if which == "all":
@@ -90,7 +93,7 @@ def select_cases(dataset_dir: Path, which: str = "curated") -> list[dict]:
         wanted = CURATED
     else:
         wanted = [w.strip() for w in which.split(",") if w.strip()]
-    return [discovered[i] for i in wanted if i in discovered]
+    return [discovered.get(i, {"id": i, "missing": True}) for i in wanted]
 
 
 def safe_name(case_id: str) -> str:
@@ -107,7 +110,7 @@ if __name__ == "__main__":
     root = Path(sys.argv[1]) if len(sys.argv) > 1 else Path("data/gsdc")
     found = discover_cases(root, "train")
     print(f"discovered {len(found)} train cases under {root}")
-    curated = select_cases(root, "curated")
+    curated = [c for c in select_cases(root, "curated") if not c.get("missing")]
     print(f"curated present: {len(curated)}/{len(CURATED)}")
     for c in curated:
         print(f"  {c['id']:50s}  date={c['date']}")

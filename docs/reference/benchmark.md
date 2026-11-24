@@ -244,9 +244,10 @@ do not reproduce this number.
 The same table carries three reliability columns. Holding the latest solution
 hides a solver that stopped, so these are counted on the epochs at which a new
 solution was expected: the reference epochs that fall on the rover
-observation interval (read from the rover RINEX header, or `--interval` /
-`--obs` in `compare_ppc.py`). The interval never comes from the solutions,
-which would hide gaps.
+observation grid, its interval and epoch phase read from the rover RINEX file
+(`--obs`, or `--interval` / `--phase`, in `compare_ppc.py`). The grid never
+comes from the solutions, which would hide gaps. A gap in the reference
+itself also ends a `longest` run.
 
 | Column | Meaning |
 |--------|---------|

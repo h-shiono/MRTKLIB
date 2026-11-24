@@ -258,24 +258,28 @@ def ppc_score(
     return good, total
 
 
-def rinex_obs_interval(obs_path: str) -> float | None:
-    """Observation interval of a RINEX 3 OBS file, in seconds.
+def rinex_obs_timing(obs_path: str) -> tuple[float | None, float | None]:
+    """Observation interval and epoch phase of a RINEX 3 OBS file.
 
-    Uses the ``INTERVAL`` header record, else the median spacing of the first
-    epoch records.
+    The interval is the ``INTERVAL`` header record, else the median spacing of
+    the first epoch records.  The phase is the time of day of the first epoch
+    modulo the interval, so a 5 Hz rover observing at .1, .3, ... s is not
+    gridded at .0, .2, ... s.  Leap seconds do not change the phase of
+    intervals that divide one second.
 
     Args:
         obs_path: Path to a RINEX 3.xx observation file.
 
     Returns:
-        Interval in seconds, or None when it cannot be determined.
+        ``(interval_s, phase_s)``; either is None when it cannot be determined.
     """
     times = []
+    interval = None
     with open(obs_path, errors="replace") as fh:
         for line in fh:
             if line[60:].startswith("INTERVAL"):
                 try:
-                    return float(line[:10])
+                    interval = float(line[:10])
                 except ValueError:
                     pass
             if line[60:].startswith("END OF HEADER"):
@@ -289,8 +293,11 @@ def rinex_obs_interval(obs_path: str) -> float | None:
                     continue
                 if len(times) >= 50:
                     break
-    dt = _median_interval(times)
-    return None if math.isnan(dt) else dt
+    if interval is None:
+        dt = _median_interval(times)
+        interval = None if math.isnan(dt) else dt
+    phase = times[0] % interval if interval and times else None
+    return interval, phase
 
 
 def _median_interval(times: list[float]) -> float:
@@ -306,6 +313,7 @@ def reliability_metrics(
     threshold_3d: float = PPC_SCORE_THRESHOLD_3D,
     fix_quality: int = 4,
     interval: float | None = None,
+    phase: float | None = None,
 ) -> dict:
     """Fix-reliability and solution-gap metrics on the expected-solution grid.
 
@@ -327,6 +335,8 @@ def reliability_metrics(
         interval: Expected solution interval in seconds (rover observation
             interval); None or not longer than the reference interval uses
             every reference epoch.
+        phase: Time of day of an observation epoch modulo ``interval`` (0 if
+            None), which anchors the decimated grid.
 
     Returns:
         Dict with ``n_expected``, ``missing_rate`` (% of grid epochs without a
@@ -351,21 +361,30 @@ def reliability_metrics(
     dt_grid = dt_ref
     grid = ref
     if interval is not None and interval > dt_ref + tol:
-        # Keep the reference epochs on the observation grid (time of day is a
-        # multiple of the interval).
+        # Keep the reference epochs on the observation grid.
         dt_grid = interval
+        ph = phase or 0.0
         grid = [
             (t, r)
             for t, r in ref
-            if abs(r[0] / interval - round(r[0] / interval)) * interval <= tol
+            if abs((r[0] - ph) / interval - round((r[0] - ph) / interval)) * interval <= tol
         ]
 
     sol_t = [t for t, _ in sol]
     n_missing = n_fix = n_misfix = 0
     run = longest = 0
+    prev_t = None
     for t, r in grid:
+        # A gap in the reference itself also ends a misfix run.
+        if prev_t is not None and t - prev_t > 1.5 * dt_grid:
+            run = 0
+        prev_t = t
         i = bisect.bisect_left(sol_t, t - tol)
-        s = sol[i][1] if i < len(sol) and abs(sol_t[i] - t) <= tol else None
+        s = None
+        if i < len(sol) and abs(sol_t[i] - t) <= tol:
+            # Same-time records: use the last one, as the hold of ppc_score() does.
+            i = bisect.bisect_right(sol_t, sol_t[i], lo=i) - 1
+            s = sol[i][1]
         bad_fix = False
         if s is None:
             n_missing += 1
@@ -681,7 +700,16 @@ def main() -> int:
         " metrics (default: the reference interval; see --obs)",
     )
     p.add_argument(
-        "--obs", default="", help="Rover RINEX OBS; its interval is used unless --interval is given"
+        "--obs",
+        default="",
+        help="Rover RINEX OBS; its interval and epoch phase are used unless --interval is given",
+    )
+    p.add_argument(
+        "--phase",
+        type=float,
+        default=None,
+        help="Epoch phase for --interval: time of day of an observation epoch modulo the"
+        " interval (default 0)",
     )
     p.add_argument("--plot", action="store_true", help="Generate ENU time-series PNG")
     p.add_argument("--plot-out", default="", help="Output path for plot (default: <result>.png)")
@@ -705,13 +733,14 @@ def main() -> int:
     if args.skip_epochs:
         print(f"Skip      : {args.skip_epochs} epochs")
     print()
-    interval = args.interval
+    interval, phase = args.interval, args.phase
     if interval is None and args.obs:
-        interval = rinex_obs_interval(args.obs)
+        interval, phase = rinex_obs_timing(args.obs)
     # The official score and the reliability metrics cover every reference
     # epoch, so they are reported even when no epoch matches.
     for line in format_official(
-        ppc_score(ref_rows, nmea_rows), reliability_metrics(ref_rows, nmea_rows, interval=interval)
+        ppc_score(ref_rows, nmea_rows),
+        reliability_metrics(ref_rows, nmea_rows, interval=interval, phase=phase),
     ):
         print(line)
     print()

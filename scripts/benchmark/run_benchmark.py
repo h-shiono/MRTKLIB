@@ -50,7 +50,7 @@ from compare_ppc import (
     plot_results,
     ppc_score,
     reliability_metrics,
-    rinex_obs_interval,
+    rinex_obs_timing,
 )
 from download_l6 import ensure_case_l6
 
@@ -632,8 +632,8 @@ def run_benchmark(args: argparse.Namespace) -> int:
 
             print(f"\n[{case['id']}  /  {mode.upper()}]")
 
-            if not extra_files and mode != "single":
-                print(f"  WARNING: no input files found for {mode}; skipping.")
+            if (not extra_files and mode != "single") or not all(f.exists() for f in extra_files):
+                print(f"  WARNING: input files missing for {mode}; skipping.")
                 results.append(
                     {"case_id": case["id"], "mode": mode, "metrics": None, "status": "skip"}
                 )
@@ -653,6 +653,9 @@ def run_benchmark(args: argparse.Namespace) -> int:
                 skip_run = False
 
             if not skip_run:
+                # A solver that exits 0 without writing must not leave an old
+                # output to be scored as this run.
+                out.unlink(missing_ok=True)
                 t0 = time.monotonic()
                 city_conf = str(conf_dir / f"{case['city']}.toml")
                 ok = _run_rnx2rtkp(
@@ -693,7 +696,8 @@ def run_benchmark(args: argparse.Namespace) -> int:
             # The official score covers the whole reference, so a run that
             # completed keeps it even with no matching epoch (good = 0).
             ppc = ppc_score(ref_rows, nmea_rows)
-            rel = reliability_metrics(ref_rows, nmea_rows, interval=rinex_obs_interval(str(obs)))
+            interval, phase = rinex_obs_timing(str(obs))
+            rel = reliability_metrics(ref_rows, nmea_rows, interval=interval, phase=phase)
 
             if m is None:
                 print("  FAIL: no matching epochs")
