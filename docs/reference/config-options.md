@@ -269,7 +269,7 @@ TOML section: `[ambiguity_resolution.hold]`
 
 | TOML Key | Type | Modes | Description |
 |:---------|:-----|:------|:------------|
-| `variance` | float | PPP-RTK, VRS | Variance of held ambiguity pseudo-observation (cyc²). Controls how tightly held ambiguities constrain the filter. |
+| `variance` | float | RTK, PPP-RTK, VRS | Variance of held ambiguity pseudo-observation (cyc²). Controls how tightly held ambiguities constrain the filter. Unset: 0.001. RTK and VRS use the value as given (including 0); PPP-RTK uses 0.001 for values <= 0. |
 
 ## Rejection Criteria
 

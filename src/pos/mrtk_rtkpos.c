@@ -87,8 +87,6 @@ extern int miono_get_corr(const double* rr, nav_t* nav);
 #define GAP_RESION 120  /* gap to reset ionosphere parameters (epochs) */
 #define MAXACC 30.0     /* max accel for doppler slip detection (m/s^2) */
 
-#define VAR_HOLDAMB 0.001 /* constraint to hold ambiguity (cycle^2) */
-
 #define TTOL_MOVEB (1.0 + 2 * DTTOL)
 /* time sync tolerance for moving-baseline (s) */
 
@@ -1665,7 +1663,7 @@ static void holdamb(rtk_t* rtk, const double* xa) {
     if (nv > 0) {
         R = zeros(nv, nv);
         for (i = 0; i < nv; i++) {
-            R[i + i * nv] = VAR_HOLDAMB;
+            R[i + i * nv] = rtk->opt.varholdamb;
         }
 
         /* update states with constraints */

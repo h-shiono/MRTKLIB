@@ -90,6 +90,7 @@ const prcopt_t prcopt_default = {
     .rejethres = 0.0,                  /* standalone SPP off; CLAS seed applies upstream auto-default */
     .rejeminsat = 7,
     .maxinno_code = -1.0, /* unset: RTK code innovation uses maxinno (#563) */
+    .varholdamb = 0.001,  /* hold variance when unset: RTK's former fixed value (#564) */
 };
 const solopt_t solopt_default = {
     /* defaults solution output options */

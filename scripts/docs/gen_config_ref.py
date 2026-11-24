@@ -299,8 +299,10 @@ _OPTION_META: dict[str, tuple[str, str]] = {
     "pos2-arfilter": ("RTK, PPP-RTK", "Exclude newly-locked satellites that degrade the AR ratio."),
     # ── ambiguity_resolution.hold ────────────────────────────────────────────
     "pos2-varholdamb": (
-        "PPP-RTK, VRS",
-        "Variance of held ambiguity pseudo-observation (cyc\u00b2). Controls how tightly held ambiguities constrain the filter.",
+        "RTK, PPP-RTK, VRS",
+        "Variance of held ambiguity pseudo-observation (cyc\u00b2). Controls how tightly held"
+        " ambiguities constrain the filter. Unset: 0.001. RTK and VRS use the value as given"
+        " (including 0); PPP-RTK uses 0.001 for values <= 0.",
     ),
     # ── rejection ────────────────────────────────────────────────────────────
     "pos2-rejionno": (
