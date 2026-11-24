@@ -14,6 +14,9 @@ config sets the [`correction`](../design/configuration.md) axis explicitly:
 | RTK | Kinematic RTK | `none` | Rover + base station RINEX |
 | single | SPP (single-point) | `none` | Broadcast ephemeris only (`base.nav`) |
 
+RTK is also benchmarked on the UrbanNav Tokyo drives; see
+[UrbanNav Tokyo (RTK)](#urbannav-tokyo-rtk).
+
 > **Note:** This benchmark is intentionally excluded from the regular CTest
 > suite because it requires large external datasets.  Run it on demand.
 
@@ -262,6 +265,117 @@ Runs that do not produce a score are not dropped from the overall:
 - If a run fails (solver error, no output, or skipped for missing inputs),
   the overall of its mode is shown as `incomplete` instead of a number over
   the remaining runs.
+
+---
+
+## UrbanNav Tokyo (RTK)
+
+A second RTK data set next to PPC: the Tokyo drives of
+[UrbanNav](https://github.com/IPNL-POLYU/UrbanNavDataset) (MIT licence), two
+drives (Odaiba, Shinjuku, 2018-12-19), each recorded with two rover receivers
+against one Trimble NetR9 base. PPC uses a single receiver pair; UrbanNav adds
+a low-cost receiver.
+
+| Case | Rover | Observation rate | Reference |
+|------|-------|------------------|-----------|
+| `odaiba_f9p`, `shinjuku_f9p` | u-blox F9P | 5 Hz | 10 Hz |
+| `odaiba_trimble`, `shinjuku_trimble` | Trimble NetR9 | 10 Hz | 10 Hz |
+
+### Getting the data
+
+The archive (`Tokyo_Data.zip`, ~6.4 GB) is mostly LiDAR bags.
+`download_urbannav.py` reads it over HTTP range requests and extracts only the
+GNSS files (~290 MB) into `data/benchmark/urbannav/Tokyo_Data/`. The data are
+not redistributed by MRTKLIB.
+
+```bash
+python scripts/benchmark/download_urbannav.py
+python scripts/benchmark/run_benchmark.py --dataset urbannav
+```
+
+`--dataset urbannav` runs RTK (or `--mode single`); the data predate the L6
+archives.
+
+### Configuration
+
+The cases use the same `rtk.toml` as PPC, plus:
+
+- `urbannav.toml`: the base coordinate and antenna types come from the RINEX
+  headers.
+- `urbannav_f9p.toml` (F9P cases only): the F9P's own signal list. With
+  `rtk.toml`'s list, or with no list, `mrtk post` writes no solution for the
+  F9P. The RTK SPP seed uses the ionosphere-free combination when two
+  frequencies are configured, and in this 2018 data too few GPS satellites
+  have L2C. Galileo E7Q in the list keeps enough dual-frequency satellites.
+  The base does not track L2L, so GPS / QZS RTK on these cases uses L1 only.
+  The file is a workaround, not a tuned setting (#565, item F).
+
+### Score
+
+UrbanNav has no official scoring rule. The benchmark reports the PPC metric
+(distance-weighted share of 3D error ≤ 0.5 m, hold-based) under the name
+"UrbanNav score", with three conditions:
+
+1. **Offset-corrected reference.** The reference trajectory has a constant
+   offset of about 0.7 m from the solutions. The benchmark adds
+   `URBANNAV_OFFSET_ENU` = (E −0.717, N −0.020, U −0.079) m, solution minus
+   reference in the local ENU frame of each reference point, to the reference
+   positions before scoring (`scripts/benchmark/cases.py`).
+2. **Rover observation grid.** Each rover is scored on the reference epochs of
+   its own observation grid: the F9P on the 10 Hz reference decimated to
+   5 Hz, the NetR9 on every epoch. Scoring a 5 Hz solver at 10 Hz holds every
+   other position 0.1 s late, which at driving speed alone exceeds 0.5 m.
+3. **NMEA times.** Solutions are read from NMEA GGA, whose times are rounded
+   to 0.01 s, so the receiver-clock fraction of `mrtk post` epoch times
+   (e.g. `.001`) does not shift the hold.
+
+Two reference columns show what the conditions change: `no-offset` (the
+reference as published) and `all-ref` (every 10 Hz epoch, which costs the F9P
+every other epoch).
+
+#### Where the offset comes from
+
+The value was estimated from another solver's solutions, not from an
+independent survey:
+
+- **Source.** RTKLIB-EX 2.5.1 (demo5) solutions of the four cases, run with
+  the `f9p_urban` / `trimble_urban` configurations published with
+  rtklibexplorer's UrbanNav benchmark (as first published).
+- **Estimate.** For every reference epoch with a solution at the same time
+  (any quality) and a 3D difference below 2 m, the solution-minus-reference
+  vector in the local ENU frame; the per-component median over the four
+  cases pooled (42,217 epochs). Per-case medians lie within E −0.703 to
+  −0.734, N −0.009 to −0.034 and U −0.053 to −0.086 m.
+
+Two checks support treating it as a constant of the data set rather than of a
+solver or a case:
+
+- Estimated from one area's demo5 solutions only and used to score the other
+  area, it changes no case score of the MRTKLIB run (develop 9a5bc66) by more
+  than 0.1 pt; the overall is 59.1 % either way.
+- In ECEF it is (+0.503, +0.514, −0.062) m. The per-case offsets in
+  rtklibexplorer's post of 2026-08-31 ("Updates to urban RTK benchmarking
+  with RTKLIB") are 0.49–0.51, 0.50–0.52 and −0.06 to −0.07 m, within 0.02 m
+  of these ECEF components. The post labels them East / North / Up and does
+  not state a sign convention.
+
+The cause is not known; the post does not identify it either. All four cases
+share one base station and its RINEX-header coordinate, so an error in that
+coordinate would produce a common offset of this kind, but this has not been
+verified. The corrected score therefore measures agreement with the reference
+trajectory up to this constant, not absolute accuracy; without the correction
+every solver scores near 0 % (`no-offset`).
+
+### Results (develop 9a5bc66)
+
+| Case | score | no-offset | all-ref | missing | misfix3d | longest |
+|------|------:|----------:|--------:|--------:|---------:|--------:|
+| odaiba_f9p | 57.6 % | 0.8 % | 31.4 % | 3.4 % | 1.2 % | 1.2 s |
+| odaiba_trimble | 59.9 % | 0.7 % | 59.9 % | 3.9 % | 2.1 % | 2.3 s |
+| shinjuku_f9p | 62.3 % | 1.3 % | 37.4 % | 6.3 % | 4.9 % | 14.0 s |
+| shinjuku_trimble | 56.6 % | 1.0 % | 56.6 % | 6.0 % | 6.1 % | 10.4 s |
+| overall, sum | 59.1 % | 1.0 % | 46.4 % | | | |
+| overall, mean | 59.1 % | 0.9 % | 46.3 % | | | |
 
 ---
 

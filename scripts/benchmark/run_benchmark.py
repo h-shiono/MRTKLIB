@@ -1,4 +1,4 @@
-"""run_benchmark.py - Run MRTKLIB kinematic positioning benchmark on PPC-Dataset.
+"""run_benchmark.py - Run MRTKLIB kinematic positioning benchmark on PPC-Dataset / UrbanNav.
 
 For each configured driving run, calls rnx2rtkp in PPP-RTK (CLAS), PPP
 (MADOCA), and/or kinematic RTK mode, then compares the NMEA output against the
@@ -19,10 +19,13 @@ Usage
 -----
     python run_benchmark.py [options]
 
-    --dataset-dir DIR           PPC-Dataset root (default: data/benchmark)
+    --dataset ppc|urbannav      Data set (default: ppc); urbannav = UrbanNav Tokyo, RTK only
+                                (fetch with download_urbannav.py)
+    --dataset-dir DIR           Benchmark data root (default: data/benchmark)
     --l6-dir DIR                L6 file cache (default: data/benchmark/l6)
     --out-dir DIR               Results directory (default: data/benchmark/results)
-    --mode single|clas|madoca|rtk|both|all  (both=clas+madoca, all=clas+madoca+rtk, default: all)
+    --mode single|clas|madoca|rtk|both|all  (both=clas+madoca, all=clas+madoca+rtk;
+                                default: all for ppc, rtk for urbannav)
                                 single = SPP baseline (rover.obs + base.nav only)
     --case ID[,ID...]           Run subset (default: all 6 runs)
     --rnx2rtkp PATH             rnx2rtkp binary path (default: auto-detect)
@@ -40,7 +43,7 @@ import sys
 import time
 from pathlib import Path
 
-from cases import CASES, case_by_id, tow_to_gpst
+from cases import DATASETS, case_by_id, case_files, tow_to_gpst
 from compare_ppc import (
     PPC_SCORE_THRESHOLD_3D,
     _match_epochs,
@@ -51,6 +54,7 @@ from compare_ppc import (
     ppc_score,
     reliability_metrics,
     rinex_obs_timing,
+    shift_reference,
 )
 from download_l6 import ensure_case_l6
 
@@ -199,7 +203,7 @@ def _discard_output(tmp: Path) -> None:
 def _run_rnx2rtkp(
     rnx2rtkp: str,
     conf: str,
-    city_conf: str,
+    site_confs: list[str],
     week: int,
     tow_start: float,
     tow_end: float,
@@ -215,7 +219,8 @@ def _run_rnx2rtkp(
     Args:
         rnx2rtkp: Path to rnx2rtkp binary.
         conf: Path to mode configuration file.
-        city_conf: Path to city override configuration file (applied after conf).
+        site_confs: Site / receiver override configuration files, applied in
+            order after conf.
         week: GPS week of tow_start / tow_end.
         tow_start: Run start TOW with margin already subtracted.
         tow_end: Run end TOW with margin already added.
@@ -245,8 +250,9 @@ def _run_rnx2rtkp(
         + [
             "-k",
             conf,
-            "-k",
-            city_conf,
+        ]
+        + [arg for c in site_confs for arg in ("-k", c)]
+        + [
             "-ts",
             ts.strftime("%Y/%m/%d"),
             ts.strftime("%H:%M:%S"),
@@ -460,8 +466,8 @@ def print_summary(rows: list[dict]) -> None:
     print("                  On the FIX row, 100% minus it is the misfix rate.")
 
 
-def print_ppc_scores(rows: list[dict]) -> None:
-    """Print the PPC official score and the reliability metrics per case and mode.
+def print_ppc_scores(rows: list[dict], dataset: str = "ppc") -> None:
+    """Print the PPC-metric score and the reliability metrics per case and mode.
 
     The score is the distance-weighted share of the reference trajectory with
     3D error <= 0.5 m (``compare_ppc.ppc_score()``).  Two per-mode overalls
@@ -470,6 +476,12 @@ def print_ppc_scores(rows: list[dict]) -> None:
     tables); ``mean`` averages the per-run scores (PPC2024 organizers' rule).
     ``--skip-epochs`` does not apply.
 
+    For UrbanNav, which has no official scoring rule, the score is the same
+    metric on the offset-corrected reference (``cases.URBANNAV_OFFSET_ENU``) at
+    the rover observation grid; two reference columns show it without the
+    offset correction (``no-offset``) and on every 10 Hz reference epoch
+    (``all-ref``, which costs the 5 Hz F9P every other epoch).
+
     A run that completed without a usable solution still counts, with no good
     distance.  A run that did not complete (solver failure, no output, or
     skipped for missing inputs) has no score, and the overall of its mode is
@@ -477,45 +489,61 @@ def print_ppc_scores(rows: list[dict]) -> None:
 
     Args:
         rows: List of result dicts from the benchmark loop.
+        dataset: ``"ppc"`` or ``"urbannav"`` (selects the title and columns).
     """
     if not rows:
         return
     thr = f"{PPC_SCORE_THRESHOLD_3D * 100:.0f} cm"
+    keys = [("ppc", "score")]
+    if dataset == "urbannav":
+        keys += [("ppc_raw", "no-offset"), ("ppc_allref", "all-ref")]
     print()
-    print(f"PPC official score (distance-weighted, 3D <= {thr}, all epochs)")
-    print(f"  {'case':<20} {'mode':<7} {'score':>7} {'missing':>8} {'misfix3d':>9} {'longest':>8}")
+    if dataset == "urbannav":
+        print(
+            f"UrbanNav score (PPC metric, 3D <= {thr}; offset-corrected reference;"
+            " F9P 5 Hz / NetR9 10 Hz grid)"
+        )
+    else:
+        print(f"PPC official score (distance-weighted, 3D <= {thr}, all epochs)")
+    head = "".join(f" {label:>9}" for _, label in keys)
+    print(f"  {'case':<20} {'mode':<7}{head} {'missing':>8} {'misfix3d':>9} {'longest':>8}")
 
     def pct(v: float) -> str:
         return "nan" if math.isnan(v) else f"{v:.1f}%"
 
-    totals: dict[str, list] = {}
+    totals: dict[str, dict] = {}
     for r in rows:
-        acc = totals.setdefault(r["mode"], [0.0, 0.0, 0, 0, []])
+        acc = totals.setdefault(r["mode"], {"bad": 0, **{k: [0.0, 0.0, []] for k, _ in keys}})
         ppc = r.get("ppc")
         if ppc is None or ppc[1] <= 0:
-            acc[3] += 1
+            acc["bad"] += 1
             tag = "skipped" if r["status"] == "skip" else "FAILED"
-            print(f"  {r['case_id']:<20} {r['mode']:<7} {tag:>7}")
+            print(f"  {r['case_id']:<20} {r['mode']:<7} {tag:>9}")
             continue
-        good, total = ppc
+        cols = ""
+        for k, _ in keys:
+            good, total = r[k]
+            acc[k][0] += good
+            acc[k][1] += total
+            acc[k][2].append(100.0 * good / total)
+            cols += f" {100.0 * good / total:8.1f}%"
         rel = r["rel"]
         longest = rel["misfix3d_longest_s"]
         print(
-            f"  {r['case_id']:<20} {r['mode']:<7} {100.0 * good / total:6.1f}% "
+            f"  {r['case_id']:<20} {r['mode']:<7}{cols} "
             f"{pct(rel['missing_rate']):>8} {pct(rel['misfix3d_rate']):>9} "
             f"{'nan' if math.isnan(longest) else f'{longest:.1f}s':>8}"
         )
-        acc[0] += good
-        acc[1] += total
-        acc[2] += 1
-        acc[4].append(100.0 * good / total)
-    for mode, (good, total, n, n_bad, shares) in totals.items():
-        if n_bad:
-            label = f"overall ({n + n_bad} runs)"
-            print(f"  {label:<20} {mode:<7} incomplete ({n_bad} run(s) not scored)")
+    for mode, acc in totals.items():
+        n_ok = len(acc["ppc"][2])
+        if acc["bad"]:
+            label = f"overall ({n_ok + acc['bad']} runs)"
+            print(f"  {label:<20} {mode:<7} incomplete ({acc['bad']} run(s) not scored)")
             continue
-        print(f"  {'overall, sum':<20} {mode:<7} {100.0 * good / total:6.1f}%  (summed distance)")
-        print(f"  {'overall, mean':<20} {mode:<7} {sum(shares) / n:6.1f}%  (mean of {n} runs)")
+        s_cols = "".join(f" {100.0 * acc[k][0] / acc[k][1]:8.1f}%" for k, _ in keys)
+        m_cols = "".join(f" {sum(acc[k][2]) / n_ok:8.1f}%" for k, _ in keys)
+        print(f"  {'overall, sum':<20} {mode:<7}{s_cols}  (summed distance)")
+        print(f"  {'overall, mean':<20} {mode:<7}{m_cols}  (mean of {n_ok} runs)")
     print(
         f"  missing  = expected-solution epochs without a solution;"
         f" misfix3d = fixed (Q=4) epochs with 3D error > {thr};"
@@ -554,28 +582,37 @@ def run_benchmark(args: argparse.Namespace) -> int:
     print(f"Dataset   : {dataset_dir}")
     print(f"L6 cache  : {l6_dir}")
     print(f"Results   : {out_dir}")
+    # UrbanNav Tokyo (2018) predates the L6 archives: RTK / SPP only.
+    if args.mode is None:
+        args.mode = "all" if args.dataset == "ppc" else "rtk"
+    if args.dataset == "urbannav" and args.mode not in ("rtk", "single"):
+        sys.exit("FAIL: --dataset urbannav supports --mode rtk or single only")
+    print(f"Data set  : {args.dataset}")
     print(f"Mode      : {args.mode}")
     print()
 
     # Filter cases
-    cases = CASES
+    cases = DATASETS[args.dataset]
     if args.case:
-        ids = {c.strip() for c in args.case.split(",")}
+        ids = [c.strip() for c in args.case.split(",") if c.strip()]
         try:
-            cases = [case_by_id(cid) for cid in ids]
+            cases = [case_by_id(cid, DATASETS[args.dataset]) for cid in ids]
         except KeyError as exc:
             sys.exit(f"FAIL: {exc}")
 
-    # Validate dataset presence (rover.obs, base.nav, reference.csv)
+    # Validate dataset presence (rover, nav and reference files)
+    hint = (
+        "  Fetch it with scripts/benchmark/download_urbannav.py"
+        if args.dataset == "urbannav"
+        else "  Download it manually — see docs/reference/benchmark.md for instructions."
+    )
     for case in cases:
-        case_dir = dataset_dir / case["city"] / case["run"]
-        for fname in ("rover.obs", "base.nav", "reference.csv"):
-            fpath = case_dir / fname
-            if not fpath.exists():
+        files = case_files(dataset_dir, case)
+        for key in ("rover", "nav", "ref"):
+            if not files[key].exists():
                 sys.exit(
-                    f"FAIL: PPC-Dataset file not found: {fpath}\n"
-                    f"  Dataset root: {dataset_dir}\n"
-                    "  Download it manually — see docs/benchmark.md for instructions."
+                    f"FAIL: {args.dataset} file not found: {files[key]}\n"
+                    f"  Dataset root: {dataset_dir}\n{hint}"
                 )
 
     # Expand mode aliases
@@ -594,11 +631,8 @@ def run_benchmark(args: argparse.Namespace) -> int:
     results = []
 
     for case in cases:
-        city, run = case["city"], case["run"]
-        obs = dataset_dir / city / run / "rover.obs"
-        nav = dataset_dir / city / run / "base.nav"
-        base_obs = dataset_dir / city / run / "base.obs"
-        ref = dataset_dir / city / run / "reference.csv"
+        files = case_files(dataset_dir, case)
+        obs, nav, base_obs, ref = files["rover"], files["nav"], files["base"], files["ref"]
 
         # Download L6 files (only needed for clas/madoca)
         l6_modes = [m for m in modes if m in ("clas", "madoca")]
@@ -679,11 +713,13 @@ def run_benchmark(args: argparse.Namespace) -> int:
                 # be scored from an old output nor erase it.
                 tmp = _temp_output(out)
                 t0 = time.monotonic()
-                city_conf = str(conf_dir / f"{case['city']}.toml")
+                site_confs = [
+                    str(conf_dir / f"{c}.toml") for c in case.get("confs", [case["city"]])
+                ]
                 ok = _run_rnx2rtkp(
                     rnx2rtkp,
                     conf,
-                    city_conf,
+                    site_confs,
                     case["gps_week"],
                     case["tow_start"] - 60,
                     case["tow_end"] + 60,
@@ -720,15 +756,25 @@ def run_benchmark(args: argparse.Namespace) -> int:
                 continue
 
             # Compare against reference
-            ref_rows = parse_reference(str(ref))
+            ref_raw = parse_reference(str(ref))
+            offset = case.get("ref_offset_enu")
+            ref_rows = shift_reference(ref_raw, offset) if offset else ref_raw
             nmea_rows = parse_nmea(str(out))
             pairs = _match_epochs(ref_rows, nmea_rows)
             m = compute_metrics(pairs, args.skip_epochs, threshold_2d=threshold)
             # The official score covers the whole reference, so a run that
-            # completed keeps it even with no matching epoch (good = 0).
-            ppc = ppc_score(ref_rows, nmea_rows)
+            # completed keeps it even with no matching epoch (good = 0).  It is
+            # taken on the rover observation grid (5 Hz F9P against a 10 Hz
+            # reference); for PPC the grid is every reference epoch.
             interval, phase = rinex_obs_timing(str(obs))
+            ppc = ppc_score(ref_rows, nmea_rows, interval=interval, phase=phase)
             rel = reliability_metrics(ref_rows, nmea_rows, interval=interval, phase=phase)
+            # Reference variants: without the offset correction, and on every
+            # reference epoch.
+            extra = {}
+            if offset:
+                extra["ppc_raw"] = ppc_score(ref_raw, nmea_rows, interval=interval, phase=phase)
+                extra["ppc_allref"] = ppc_score(ref_rows, nmea_rows)
 
             if m is None:
                 print("  FAIL: no matching epochs")
@@ -740,6 +786,7 @@ def run_benchmark(args: argparse.Namespace) -> int:
                         "status": "fail",
                         "ppc": ppc,
                         "rel": rel,
+                        **extra,
                     }
                 )
                 continue
@@ -772,6 +819,7 @@ def run_benchmark(args: argparse.Namespace) -> int:
                     "status": "ok",
                     "ppc": ppc,
                     "rel": rel,
+                    **extra,
                 }
             )
 
@@ -780,7 +828,7 @@ def run_benchmark(args: argparse.Namespace) -> int:
                 plot_results(m, title=f"{case['id']} / {mode.upper()}", output_path=str(png))
 
     print_summary(results)
-    print_ppc_scores(results)
+    print_ppc_scores(results, args.dataset)
     return 0
 
 
@@ -806,10 +854,16 @@ def main() -> int:
         help="Output directory for NMEA results (default: data/benchmark/results)",
     )
     p.add_argument(
+        "--dataset",
+        choices=sorted(DATASETS),
+        default="ppc",
+        help="Benchmark data set: ppc (PPC-Dataset, default) or urbannav (UrbanNav Tokyo, RTK)",
+    )
+    p.add_argument(
         "--mode",
         choices=["single", "clas", "madoca", "rtk", "both", "all"],
-        default="all",
-        help="Positioning mode (default: all = clas+madoca+rtk; "
+        default=None,
+        help="Positioning mode (default: all = clas+madoca+rtk for ppc, rtk for urbannav; "
         "single = SPP baseline, rover.obs + base.nav only)",
     )
     p.add_argument("--case", default="", help="Comma-separated case IDs (default: all)")
