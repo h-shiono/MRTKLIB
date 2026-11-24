@@ -173,23 +173,44 @@ scores are averaged to give the leaderboard number.  The official competition
 computes this over the **36 test runs** (public/private split), whose ground
 truth is withheld.
 
-This benchmark reports the **same metric** (`score` column = `(p50 + p95) / 2`)
-but on the **train** split, which has public ground truth, so the numbers are
-directly interpretable on the leaderboard's scale.  Top GSDC entries reach
-~1–2 m using carrier-phase PPP/RTK + IMU + map-matching; the SPP-only figures
-here are a code-pseudorange baseline, not a leaderboard-competitive solution.
+This benchmark reports the same metric on the **train** split, which has public
+ground truth.  The numbers are on the leaderboard's scale but are not
+leaderboard (test split) results.  Top GSDC entries reach ~1–2 m using
+carrier-phase PPP/RTK + IMU + map-matching; the SPP-only figures here are a
+code-pseudorange baseline, not a leaderboard-competitive solution.
+
+The competition scored a position at **every ground-truth epoch**, so an epoch
+without a solution cannot be left out.  The runner prints two scores:
+
+| Column | Epochs | Gaps |
+|--------|--------|------|
+| `official` | every ground-truth epoch, horizontal (latitude / longitude) error only | each epoch takes the latest solution at or before it (within 0.15 s it is the epoch's own solution); epochs before the first solution take the first solution |
+| `matched` | only epochs with a solution within 0.15 s | left out |
+
+Scoring every truth epoch is the competition's rule; the fill rule is this
+benchmark's choice.  `fill%` is the share of a case's epochs scored with a held
+or back-filled value (the `MEAN` row averages it per case).  The competition
+left gap filling to the entrant (interpolation was common); holding
+the latest solution is what a real-time user would see and does not use future
+solutions.  `matched` is kept for engineering insight but overstates accuracy
+when solutions are missing, so compare configurations on `official`.  The
+`MEAN` of `official` is over every case with ground truth; if any case cannot
+be scored (conversion, navigation or solver failure, or no solution at all) it
+is shown as `incomplete`.  `--skip-epochs` does not apply to `official`.
 
 The runner also prints `<2 m` rate, RMS and matched-epoch count `N`
-(availability) for engineering insight.  Per-epoch ENU error is taken against
-the matched ground-truth coordinate (moving-base projection), exactly as in the
-[PPC benchmark](benchmark.md#metrics-definitions); reference and NMEA GGA epochs
-are matched by UTC seconds-of-day within 0.15 s.
+(availability).  Per-epoch ENU error is taken against the ground-truth
+coordinate (moving-base projection), as in the
+[PPC benchmark](benchmark.md#metrics-definitions); for `matched`, reference and
+NMEA GGA epochs are matched by UTC seconds-of-day within 0.15 s.
 
 ---
 
-## Baseline results (v0.6.10, curated subset)
+## Baseline results (curated subset)
 
-GNSS-only SPP, broadcast ephemeris, all matched epochs (no skip).  Two
+GNSS-only SPP, broadcast ephemeris, no skip.  The `matched` columns were first
+measured on v0.6.10 and are unchanged on develop 9b3a220, where the `official`
+and `fill%` columns were added.  Two
 configurations bracket the #116 work and form the before/after reference for the
 P5/P6 effort:
 
@@ -198,39 +219,44 @@ P5/P6 effort:
 - **P1–P4** — `single.toml` as shipped: + C/N0 weighting, IGG-III robust +
   pre-robust gate, TDCP jump rejection.
 
-`score` is the official GSDC metric; lower is better.
+`official` is the GSDC metric over every ground-truth epoch; lower is better.
 
 ### P0 (classic SPP)
 
-| Case | N | nSV | <2 m | RMS 2D | p50 | p95 | **score** |
-|------|--:|----:|-----:|-------:|----:|----:|----------:|
-| mtv-sb-101 / pixel4 | 1289 | 14.3 | 21.5% | 4.30 m | 3.34 m | 7.61 m | 5.47 m |
-| sf-mtv-280 / pixel4 | 1680 | 11.6 | 20.7% | 4.98 m | 3.68 m | 8.94 m | 6.31 m |
-| sjc-c / mi8 | 1266 | 15.0 | 24.7% | 4.71 m | 3.16 m | 8.72 m | 5.94 m |
-| mtv-f / sm-g988b | 2284 | 19.9 | 37.0% | 3.35 m | 2.58 m | 6.03 m | 4.30 m |
-| lax-d / pixel5 | 1716 | 12.4 | 22.1% | 4.30 m | 3.37 m | 7.56 m | 5.47 m |
-| routen / pixel7pro | 1545 | 14.7 | 22.7% | 4.58 m | 3.41 m | 8.68 m | 6.05 m |
-| **mean** | **1630** | **14.6** | **24.8%** | **4.37 m** | **3.26 m** | **7.92 m** | **5.59 m** |
+| Case | N | nSV | <2 m | RMS 2D | p50 | p95 | matched | **official** | fill% |
+|------|--:|----:|-----:|-------:|----:|----:|--------:|-------------:|------:|
+| mtv-sb-101 / pixel4 | 1289 | 14.3 | 21.5% | 4.30 m | 3.34 m | 7.61 m | 5.47 m | 5.65 m | 0.8% |
+| sf-mtv-280 / pixel4 | 1680 | 11.6 | 20.7% | 4.98 m | 3.68 m | 8.94 m | 6.31 m | 6.42 m | 1.1% |
+| sjc-c / mi8 | 1266 | 15.0 | 24.7% | 4.71 m | 3.16 m | 8.72 m | 5.94 m | 6.57 m | 10.1% |
+| mtv-f / sm-g988b | 2284 | 19.9 | 37.0% | 3.35 m | 2.58 m | 6.03 m | 4.30 m | 4.30 m | 0.0% |
+| lax-d / pixel5 | 1716 | 12.4 | 22.1% | 4.30 m | 3.37 m | 7.56 m | 5.47 m | 5.62 m | 2.4% |
+| routen / pixel7pro | 1545 | 14.7 | 22.7% | 4.58 m | 3.41 m | 8.68 m | 6.05 m | 6.15 m | 1.2% |
+| **mean** | **1630** | **14.6** | **24.8%** | **4.37 m** | **3.26 m** | **7.92 m** | 5.59 m | **5.79 m** | 2.6% |
 
 ### P1–P4 (`single.toml`)
 
-| Case | N | nSV | <2 m | RMS 2D | p50 | p95 | **score** |
-|------|--:|----:|-----:|-------:|----:|----:|----------:|
-| mtv-sb-101 / pixel4 | 685 | 14.4 | 36.8% | 3.00 m | 2.41 m | 5.45 m | 3.93 m |
-| sf-mtv-280 / pixel4 | 370 | 11.8 | 34.3% | 3.12 m | 2.63 m | 5.47 m | 4.05 m |
-| sjc-c / mi8 | 815 | 15.1 | 36.0% | 3.62 m | 2.51 m | 6.88 m | 4.69 m |
-| mtv-f / sm-g988b | 2072 | 19.9 | 42.2% | 2.93 m | 2.33 m | 5.26 m | 3.80 m |
-| lax-d / pixel5 | 735 | 12.5 | 37.6% | 3.13 m | 2.42 m | 5.25 m | 3.84 m |
-| routen / pixel7pro | 768 | 14.8 | 28.6% | 3.86 m | 3.03 m | 6.64 m | 4.84 m |
-| **mean** | **907** | **14.7** | **35.9%** | **3.28 m** | **2.56 m** | **5.82 m** | **4.19 m** |
+| Case | N | nSV | <2 m | RMS 2D | p50 | p95 | matched | **official** | fill% |
+|------|--:|----:|-----:|-------:|----:|----:|--------:|-------------:|------:|
+| mtv-sb-101 / pixel4 | 685 | 14.4 | 36.8% | 3.00 m | 2.41 m | 5.45 m | 3.93 m | 55.56 m | 47.3% |
+| sf-mtv-280 / pixel4 | 370 | 11.8 | 34.3% | 3.12 m | 2.63 m | 5.47 m | 4.05 m | 234.77 m | 78.2% |
+| sjc-c / mi8 | 815 | 15.1 | 36.0% | 3.62 m | 2.51 m | 6.88 m | 4.69 m | 17.72 m | 42.1% |
+| mtv-f / sm-g988b | 2072 | 19.9 | 42.2% | 2.93 m | 2.33 m | 5.26 m | 3.80 m | 9.59 m | 9.3% |
+| lax-d / pixel5 | 735 | 12.5 | 37.6% | 3.13 m | 2.42 m | 5.25 m | 3.84 m | 65.11 m | 58.2% |
+| routen / pixel7pro | 768 | 14.8 | 28.6% | 3.86 m | 3.03 m | 6.64 m | 4.84 m | 24.39 m | 50.9% |
+| **mean** | **907** | **14.7** | **35.9%** | **3.28 m** | **2.56 m** | **5.82 m** | 4.19 m | **67.86 m** | 47.7% |
 
 ### Reading the two tables
 
-P1–P4 improves the GSDC score from **5.59 m → 4.19 m (−25 %)** (p50 3.26 →
-2.56 m, p95 7.92 → 5.82 m, `<2 m` +11 pp) **but the matched-epoch count drops
-~44 %** (mean 1630 → 907): the QC rejects the noisy/blunder epochs rather than
-solving them poorly.  This availability/accuracy trade-off is exactly the gap
-the remaining work targets:
+On the matched epochs alone, P1–P4 lowers the score from 5.59 m to 4.19 m
+(−25 %; p50 3.26 → 2.56 m, p95 7.92 → 5.82 m, `<2 m` +11 pp).  It gets there
+by rejecting epochs: the matched-epoch count drops ~44 % (mean 1630 → 907),
+and on the official metric, which scores every epoch, P1–P4 is worse than P0
+(67.86 m vs 5.79 m).  The gaps are long enough that a held position drifts far
+from a moving phone (sf-mtv-280: 78 % of epochs filled, 234.77 m).  The
+conclusion does not depend on the fill rule: with linear interpolation between
+solutions instead of holding, the means are 7.51 m (P1–P4) and 5.69 m (P0).
+
+The remaining work therefore has to recover availability, not only accuracy:
 
 - **P6 (position EKF)** should *coast* through the rejected epochs, recovering
   availability without giving back accuracy — and smartphone jitter (3–4 m, vs

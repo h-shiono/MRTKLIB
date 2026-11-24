@@ -388,6 +388,14 @@ Two findings, both confirming and **extending §4.6 to smartphone data**:
    availability⇄accuracy trade-off for *every* config without re-scoring the
    already-published P1–P4 numbers over all epochs.
 
+   *Update (#559, develop 9b3a220):* the harness now also reports the score
+   over every ground-truth epoch, gaps filled with the latest solution
+   (`official` in [`benchmark-gsdc.md`](../reference/benchmark-gsdc.md)). On
+   that metric P1–P4 is worse than P0 on the curated-6 anchor (67.86 m vs
+   5.79 m; 7.51 m vs 5.69 m with linear interpolation instead of holding). The
+   P6 coast verdict above was reached on the matched-only score and is open for
+   re-evaluation on the official one.
+
 **P5 is not applicable on this data either.** P5 targets the millisecond
 common-mode clock steering of low-cost receivers, but the chosen OBS source —
 Google's derived `device_gnss.csv` — already reconstructs the clock: across all
