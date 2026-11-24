@@ -35,8 +35,8 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+from compare_gsdc import gsdc_official, parse_ground_truth  # noqa: E402
 from compare_ppc import _match_epochs, compute_metrics, parse_nmea  # noqa: E402
-from compare_gsdc import parse_ground_truth  # noqa: E402
 from download_brdc import ensure_brdc  # noqa: E402
 from gsdc_cases import safe_name, select_cases  # noqa: E402
 from gsdc_to_rinex import _approx_xyz, parse_csv, write_rinex  # noqa: E402
@@ -93,6 +93,25 @@ def _convert(case: dict, out_dir: Path, force: bool) -> tuple[Path, list]:
     return obs, days
 
 
+def _temp_output(out: Path) -> Path:
+    """Per-invocation temporary path next to ``out`` (safe for parallel runs)."""
+    return out.with_name(f"{out.name}.{os.getpid()}.tmp")
+
+
+def _publish_output(tmp: Path, out: Path) -> None:
+    """Move a solver output and its sibling diagnostics (``<tmp>.stat`` ...) to ``out``."""
+    for f in tmp.parent.glob(tmp.name + ".*"):
+        f.replace(out.with_name(out.name + f.name[len(tmp.name) :]))
+    tmp.replace(out)
+
+
+def _discard_output(tmp: Path) -> None:
+    """Remove a temporary solver output and its sibling diagnostics."""
+    for f in tmp.parent.glob(tmp.name + ".*"):
+        f.unlink(missing_ok=True)
+    tmp.unlink(missing_ok=True)
+
+
 def _run_mrtk(
     mrtk: str, confs: list[str], obs: Path, navs: list[Path], out: Path, verbose: bool
 ) -> bool:
@@ -117,7 +136,7 @@ def _run_mrtk(
 # ---------------------------------------------------------------------------
 _HDR = (
     f"{'Case':<42} {'N':>5} {'Cov%':>6} {'nSV':>5} {'<2m%':>6} "
-    f"{'RMS2D':>8} {'p50':>8} {'p95':>8} {'score':>8}"
+    f"{'RMS2D':>8} {'p50':>8} {'p95':>8} {'matched':>8} {'official':>8} {'fill%':>6}"
 )
 _SEP = "-" * len(_HDR)
 
@@ -127,17 +146,36 @@ def _m(v: float) -> str:
 
 
 def gsdc_score(m: dict) -> float:
-    """Official GSDC metric for one case: mean of the 50th and 95th percentile
-    2D horizontal error (metres)."""
+    """GSDC metric over the matched epochs only.
+
+    Mean of the 50th and 95th percentile 2D horizontal error (metres).  The
+    official score, over every truth epoch, is ``compare_gsdc.gsdc_official()``.
+    """
     return (m["p50_2d_all"] + m["p95_2d_all"]) / 2.0
+
+
+def _off_cols(r: dict) -> str:
+    off = r.get("official")
+    if off is None:
+        return f"{'—':>8} {'—':>6}"
+    return f"{_m(off['score']):>8} {off['filled_rate']:>5.1f}%"
 
 
 def print_summary(rows: list[dict]) -> None:
     """Print the fixed-width GSDC SPP summary table.
 
-    The ``score`` column is the official Google Smartphone Decimeter Challenge
-    metric — the mean of the 50th and 95th percentile horizontal error — here
-    computed on the train split (which has public ground truth).
+    ``official`` is the Google Smartphone Decimeter Challenge 2023 metric (mean
+    of the 50th and 95th percentile horizontal error) over every ground-truth
+    epoch, gaps filled with the latest solution (``compare_gsdc.gsdc_official``);
+    ``fill%`` is the share of epochs scored with a filled value.  ``matched`` is
+    the same statistic over the matched epochs only, which leaves out the
+    stretches without a solution.  Scores are on the train split, whose ground
+    truth is public; they are not leaderboard (test split) numbers.
+
+    The official MEAN is over every case with ground truth.  If any such case
+    has no official score (conversion, navigation or solver failure, or no
+    solution at all), the MEAN is reported as incomplete instead of averaging
+    the rest.
     """
     print()
     print(_SEP)
@@ -150,7 +188,7 @@ def print_summary(rows: list[dict]) -> None:
             d = "—"
             print(
                 f"{cid:<42} {d:>5} {d:>6} {d:>5} {d:>6} "
-                f"{d:>8} {d:>8} {d:>8} {d:>8}  [{r['status']}]"
+                f"{d:>8} {d:>8} {d:>8} {d:>8} {_off_cols(r)}  [{r['status']}]"
             )
             continue
         print(
@@ -158,10 +196,20 @@ def print_summary(rows: list[dict]) -> None:
             f"{m['mean_sv_all']:>5.1f} "
             f"{m['thr_rate']:>5.1f}% {_m(m['rms_2d_all']):>8} "
             f"{_m(m['p50_2d_all']):>8} {_m(m['p95_2d_all']):>8} "
-            f"{_m(gsdc_score(m)):>8}"
+            f"{_m(gsdc_score(m)):>8} {_off_cols(r)}"
         )
     print(_SEP)
     ok = [r["metrics"] for r in rows if r["metrics"]]
+    truth = [r for r in rows if r["status"] != "no-truth"]
+    unscored = [r for r in truth if r.get("official") is None]
+    if unscored:
+        official_mean = f"incomplete ({len(unscored)} of {len(truth)} cases not scored)"
+    elif truth:
+        mean_score = sum(r["official"]["score"] for r in truth) / len(truth)
+        mean_fill = sum(r["official"]["filled_rate"] for r in truth) / len(truth)
+        official_mean = f"{_m(mean_score):>8} {mean_fill:>5.1f}%"
+    else:
+        official_mean = "—"
     if ok:
         import numpy as np
 
@@ -173,11 +221,16 @@ def print_summary(rows: list[dict]) -> None:
             f"{np.mean([m['rms_2d_all'] for m in ok]):>8.2f} "
             f"{np.mean([m['p50_2d_all'] for m in ok]):>8.2f} "
             f"{np.mean([m['p95_2d_all'] for m in ok]):>8.2f} "
-            f"{np.mean([gsdc_score(m) for m in ok]):>8.2f}"
+            f"{np.mean([gsdc_score(m) for m in ok]):>8.2f} {official_mean}"
         )
+    else:
+        print(f"{'MEAN':<42} official {official_mean}")
     print(
-        "  score = mean(p50, p95) 2D horizontal [m] = official GSDC metric "
-        "(here on the train split)"
+        "  official = mean(p50, p95) 2D horizontal [m] over every truth epoch, gaps filled"
+        " with the latest solution (GSDC-2023 metric, train split)"
+    )
+    print(
+        "  matched  = the same over matched epochs only; fill% = epochs scored with a filled value"
     )
 
 
@@ -199,7 +252,7 @@ def run(args: argparse.Namespace) -> int:
     mrtk = _find_mrtk(args.mrtk)
 
     cases = select_cases(dataset_dir, args.case)
-    if not cases:
+    if not any(not c.get("missing") for c in cases):
         sys.exit(
             f"FAIL: no cases under {dataset_dir} (extract the dataset; "
             "see docs/reference/benchmark-gsdc.md)"
@@ -213,6 +266,16 @@ def run(args: argparse.Namespace) -> int:
     rows = []
     for case in cases:
         print(f"\n[{case['id']}]")
+        if case.get("missing"):
+            print("  FAIL: requested case not found (no device_gnss.csv)")
+            rows.append({"id": case["id"], "metrics": None, "status": "missing-data"})
+            continue
+        # Check for truth first, so a missing nav cache does not decide whether
+        # a case without truth counts against the MEAN.
+        if case["ground_truth"] is None:
+            print("  skip: no ground truth (test split)")
+            rows.append({"id": case["id"], "metrics": None, "status": "no-truth"})
+            continue
         try:
             obs, days = _convert(case, out_dir, args.force)
         except Exception as exc:  # noqa: BLE001
@@ -234,36 +297,49 @@ def run(args: argparse.Namespace) -> int:
             rows.append({"id": case["id"], "metrics": None, "status": "no-nav"})
             continue
 
-        if case["ground_truth"] is None:
-            print("  skip: no ground truth (test split)")
-            rows.append({"id": case["id"], "metrics": None, "status": "no-truth"})
-            continue
-
         out = out_dir / f"{safe_name(case['id'])}.nmea"
+        # Write to a temporary path and publish only what this run produced: a
+        # solver that exits 0 without writing must neither be scored from an old
+        # output nor erase it.
+        tmp = _temp_output(out)
         t0 = time.monotonic()
-        ok = _run_mrtk(mrtk, confs, obs, navs, out, args.verbose)
+        ok = _run_mrtk(mrtk, confs, obs, navs, tmp, args.verbose)
         dt = time.monotonic() - t0
-        if not ok or not out.exists():
+        if not ok or not tmp.exists():
+            _discard_output(tmp)
             print(f"  FAIL mrtk post ({dt:.1f}s)")
             rows.append({"id": case["id"], "metrics": None, "status": "mrtk-fail"})
             continue
+        _publish_output(tmp, out)
 
         ref = parse_ground_truth(str(case["ground_truth"]))
         nmea = parse_nmea(str(out))
+        # Every truth epoch is scored, so the official score does not depend
+        # on matching or on --skip-epochs.
+        off = gsdc_official(ref, nmea)
         pairs = _match_epochs(ref, nmea)
         m = compute_metrics(pairs, args.skip_epochs, threshold_2d=args.threshold)
         if m is None:
             print("  FAIL: no matching epochs")
-            rows.append({"id": case["id"], "metrics": None, "status": "no-match"})
+            rows.append({"id": case["id"], "metrics": None, "status": "no-match", "official": off})
             continue
         ref_usable = max(0, len(ref) - args.skip_epochs)
         coverage = m["n_matched"] / ref_usable * 100.0 if ref_usable else math.nan
         print(
             f"  N={m['n_matched']}  <2m={m['thr_rate']:.1f}%  "
             f"p50={m['p50_2d_all']:.2f}m  p95={m['p95_2d_all']:.2f}m  "
-            f"score={gsdc_score(m):.2f}m  cov={coverage:.1f}%  ({dt:.1f}s)"
+            f"matched={gsdc_score(m):.2f}m  official={_m(off['score'])}m  "
+            f"cov={coverage:.1f}%  ({dt:.1f}s)"
         )
-        rows.append({"id": case["id"], "metrics": m, "coverage": coverage, "status": "ok"})
+        rows.append(
+            {
+                "id": case["id"],
+                "metrics": m,
+                "coverage": coverage,
+                "status": "ok",
+                "official": off,
+            }
+        )
 
     print_summary(rows)
     return 0
