@@ -63,9 +63,16 @@ class _HttpRangeFile(io.RawIOBase):
         n = min(len(b), self.size - self.pos)
         if n <= 0:
             return 0
-        h = dict(_UA, Range=f"bytes={self.pos}-{self.pos + n - 1}")
+        end = self.pos + n - 1
+        h = dict(_UA, Range=f"bytes={self.pos}-{end}")
         with urllib.request.urlopen(urllib.request.Request(self.url, headers=h)) as r:
-            data = r.read()
+            # A server that ignores Range would send the whole 6.4 GB archive.
+            expected = f"bytes {self.pos}-{end}/{self.size}"
+            if r.status != 206 or r.headers.get("Content-Range") != expected:
+                raise OSError(f"server did not return the requested byte range: {expected}")
+            data = r.read(n)
+            if len(data) != n:
+                raise OSError(f"short range response: expected {n} bytes, got {len(data)}")
         b[: len(data)] = data
         self.pos += len(data)
         return len(data)

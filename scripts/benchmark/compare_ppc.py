@@ -159,6 +159,10 @@ def _match_epochs(
     for nrow in nmea_rows:
         ns = nrow[0]
         i = bisect.bisect_left(ref_sods, ns)
+        # Take the closest neighbour: with a 10 Hz reference the previous
+        # epoch is also within tol, and pairing it would offset the error by
+        # one reference interval.
+        best = None
         for j in (i - 1, i):
             if 0 <= j < len(ref_rows):
                 dt = ns - ref_rows[j][0]
@@ -167,9 +171,10 @@ def _match_epochs(
                     dt -= 86400.0
                 elif dt < -43200.0:
                     dt += 86400.0
-                if abs(dt) <= tol:
-                    pairs.append((ref_rows[j], nrow))
-                    break
+                if abs(dt) <= tol and (best is None or abs(dt) < best[0]):
+                    best = (abs(dt), j)
+        if best is not None:
+            pairs.append((ref_rows[best[1]], nrow))
     return pairs
 
 

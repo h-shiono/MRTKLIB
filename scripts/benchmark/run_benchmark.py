@@ -594,7 +594,7 @@ def run_benchmark(args: argparse.Namespace) -> int:
     # Filter cases
     cases = DATASETS[args.dataset]
     if args.case:
-        ids = [c.strip() for c in args.case.split(",") if c.strip()]
+        ids = list(dict.fromkeys(c.strip() for c in args.case.split(",") if c.strip()))
         try:
             cases = [case_by_id(cid, DATASETS[args.dataset]) for cid in ids]
         except KeyError as exc:
@@ -694,10 +694,12 @@ def run_benchmark(args: argparse.Namespace) -> int:
                 )
                 continue
 
-            # Skip if output is newer than all inputs
+            site_confs = [str(conf_dir / f"{c}.toml") for c in case.get("confs", [case["city"]])]
+            # Skip if output is newer than all inputs, configurations included
             if out.exists() and not args.force:
                 in_mtimes = [obs.stat().st_mtime, nav.stat().st_mtime]
                 in_mtimes += [f.stat().st_mtime for f in extra_files]
+                in_mtimes += [Path(c).stat().st_mtime for c in [conf, *site_confs]]
                 newest_in = max(in_mtimes)
                 if out.stat().st_mtime > newest_in:
                     print(f"  [cached]  {out.name}")
@@ -713,9 +715,6 @@ def run_benchmark(args: argparse.Namespace) -> int:
                 # be scored from an old output nor erase it.
                 tmp = _temp_output(out)
                 t0 = time.monotonic()
-                site_confs = [
-                    str(conf_dir / f"{c}.toml") for c in case.get("confs", [case["city"]])
-                ]
                 ok = _run_rnx2rtkp(
                     rnx2rtkp,
                     conf,
@@ -763,11 +762,16 @@ def run_benchmark(args: argparse.Namespace) -> int:
             pairs = _match_epochs(ref_rows, nmea_rows)
             m = compute_metrics(pairs, args.skip_epochs, threshold_2d=threshold)
             # The official score covers the whole reference, so a run that
-            # completed keeps it even with no matching epoch (good = 0).  It is
-            # taken on the rover observation grid (5 Hz F9P against a 10 Hz
-            # reference); for PPC the grid is every reference epoch.
+            # completed keeps it even with no matching epoch (good = 0).  The
+            # PPC rule scores every reference epoch; UrbanNav, which has no
+            # official rule, is scored on the rover observation grid (5 Hz F9P
+            # against a 10 Hz reference).  The reliability metrics use the grid
+            # for both.
             interval, phase = rinex_obs_timing(str(obs))
-            ppc = ppc_score(ref_rows, nmea_rows, interval=interval, phase=phase)
+            if args.dataset == "urbannav":
+                ppc = ppc_score(ref_rows, nmea_rows, interval=interval, phase=phase)
+            else:
+                ppc = ppc_score(ref_rows, nmea_rows)
             rel = reliability_metrics(ref_rows, nmea_rows, interval=interval, phase=phase)
             # Reference variants: without the offset correction, and on every
             # reference epoch.
