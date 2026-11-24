@@ -1,0 +1,16 @@
+# MRTKLIB benchmark site configuration: UrbanNav Tokyo (Odaiba, Shinjuku)
+#
+# Layered on rtk.toml by run_benchmark.py --dataset urbannav.  Both drives use
+# the same Trimble NetR9 base (TRM57971.00 NONE), whose coordinate is taken
+# from the RINEX header (APPROX POSITION XYZ) by rtk.toml's
+# position_type = "rinexhead"; the antenna types come from the RINEX headers
+# (type = "*" in rtk.toml).  The rovers' headers carry no antenna type (u-blox
+# F9P: blank, NetR9: "UNKNOWN EXT"), so no rover PCV is applied.
+#
+# The reference trajectory has a constant offset from the solutions that the
+# benchmark removes when scoring (cases.URBANNAV_OFFSET_ENU); this file does
+# not change positions.
+
+[antenna.base]
+position_type = "rinexhead"
+type = "*"

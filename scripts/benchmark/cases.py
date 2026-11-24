@@ -70,6 +70,89 @@ CASES: list[dict] = [
 ]
 
 
+# ---------------------------------------------------------------------------
+# UrbanNav Tokyo (RTK only)
+# ---------------------------------------------------------------------------
+# Constant offset of the UrbanNav Tokyo reference trajectories, as local
+# (east, north, up) metres, solution minus reference.  The benchmark adds it to
+# the reference positions before scoring ("offset-corrected" score).
+#
+# How the value was obtained: from RTKLIB-EX 2.5.1 (demo5) solutions of the
+# four cases, run with the f9p_urban / trimble_urban configurations published
+# with rtklibexplorer's UrbanNav benchmark (as first published).  For every
+# reference epoch with a solution at the same time (any quality) and a 3D
+# difference below 2 m, the solution-minus-reference vector was taken in the
+# local ENU frame of the reference point; the value is the per-component
+# median over all four cases pooled (42,217 epochs).  Per-case medians lie
+# within E -0.703..-0.734, N -0.009..-0.034, U -0.053..-0.086 m.
+#
+# The value therefore comes from another solver's solutions, not from an
+# independent survey, and is not a property of MRTKLIB.  Two cross-checks
+# support treating it as a dataset-level constant:
+# - Estimated from one area's demo5 solutions only and used to score the
+#   other area, it changes no case score of the MRTKLIB benchmark run
+#   (develop 9a5bc66) by more than 0.1 pt (overall 59.1 % either way).
+# - In ECEF it is (+0.503, +0.514, -0.062) m.  The per-case offsets in
+#   rtklibexplorer's post of 2026-08-31 ("Updates to urban RTK benchmarking
+#   with RTKLIB") are 0.49-0.51, 0.50-0.52 and -0.06..-0.07 m, within 0.02 m
+#   of these ECEF components, although the post labels them East / North / Up
+#   and states no sign convention.
+# The cause is not known (the post does not identify it either).  The four
+# cases share one base station and its RINEX-header coordinate, so an error
+# there would produce a common offset of this kind, but that has not been
+# verified.
+URBANNAV_OFFSET_ENU = (-0.717, -0.020, -0.079)
+
+_URBANNAV_SITES = {
+    "odaiba": ("Odaiba", 2032, 273375.1, 274616.0),
+    "shinjuku": ("Shinjuku", 2032, 281275.1, 283370.0),
+}
+# (rover file, site configurations layered on the mode configuration)
+_URBANNAV_ROVERS = {
+    "f9p": ("rover_ublox.obs", ["urbannav", "urbannav_f9p"]),
+    "trimble": ("rover_trimble.obs", ["urbannav"]),
+}
+
+URBANNAV_CASES: list[dict] = [
+    {
+        "id": f"{site}_{rx}",
+        "city": "urbannav",
+        "dir": f"urbannav/Tokyo_Data/{name}",
+        "rover": rover,
+        "confs": confs,
+        "base": "base_trimble.obs",
+        "nav": "base.nav",
+        "gps_week": week,
+        "tow_start": t0,
+        "tow_end": t1,
+        "ref_offset_enu": URBANNAV_OFFSET_ENU,
+    }
+    for site, (name, week, t0, t1) in _URBANNAV_SITES.items()
+    for rx, (rover, confs) in _URBANNAV_ROVERS.items()
+]
+
+DATASETS = {"ppc": CASES, "urbannav": URBANNAV_CASES}
+
+
+def case_files(dataset_dir, case: dict) -> dict:
+    """Input paths of a case: rover, base, nav and reference files.
+
+    Args:
+        dataset_dir: Benchmark data root (``pathlib.Path``).
+        case: Case metadata dict from ``CASES`` or ``URBANNAV_CASES``.
+
+    Returns:
+        Dict with ``rover``, ``base``, ``nav`` and ``ref`` paths.
+    """
+    d = dataset_dir / case.get("dir", f"{case.get('city')}/{case.get('run')}")
+    return {
+        "rover": d / case.get("rover", "rover.obs"),
+        "base": d / case.get("base", "base.obs"),
+        "nav": d / case.get("nav", "base.nav"),
+        "ref": d / "reference.csv",
+    }
+
+
 def tow_to_utc(week: int, tow: float) -> datetime:
     """Convert GPS week + time-of-week to UTC datetime.
 
@@ -185,11 +268,12 @@ def l6_sessions(week: int, tow_start: float, tow_end: float) -> list[tuple[int, 
     return sessions
 
 
-def case_by_id(case_id: str) -> dict:
+def case_by_id(case_id: str, cases: list[dict] = CASES) -> dict:
     """Look up a case by its id string.
 
     Args:
         case_id: Case identifier (e.g. ``"nagoya_run1"``).
+        cases: Case list to search (default: the PPC cases).
 
     Returns:
         Case metadata dict.
@@ -197,7 +281,7 @@ def case_by_id(case_id: str) -> dict:
     Raises:
         KeyError: If no case with that id exists.
     """
-    for c in CASES:
+    for c in cases:
         if c["id"] == case_id:
             return c
     raise KeyError(f"unknown case: {case_id!r}")

@@ -30,7 +30,7 @@ import numpy as np
 # ---------------------------------------------------------------------------
 _TESTS_DIR = Path(__file__).resolve().parent.parent / "tests"
 sys.path.insert(0, str(_TESTS_DIR))
-from _geo import blh2xyz, nmea_to_deg, xyz2enu  # noqa: E402
+from _geo import blh2xyz, nmea_to_deg, xyz2blh, xyz2enu  # noqa: E402
 from cases import GPS_LEAP  # noqa: E402
 
 # ---------------------------------------------------------------------------
@@ -159,6 +159,10 @@ def _match_epochs(
     for nrow in nmea_rows:
         ns = nrow[0]
         i = bisect.bisect_left(ref_sods, ns)
+        # Take the closest neighbour: with a 10 Hz reference the previous
+        # epoch is also within tol, and pairing it would offset the error by
+        # one reference interval.
+        best = None
         for j in (i - 1, i):
             if 0 <= j < len(ref_rows):
                 dt = ns - ref_rows[j][0]
@@ -167,9 +171,10 @@ def _match_epochs(
                     dt -= 86400.0
                 elif dt < -43200.0:
                     dt += 86400.0
-                if abs(dt) <= tol:
-                    pairs.append((ref_rows[j], nrow))
-                    break
+                if abs(dt) <= tol and (best is None or abs(dt) < best[0]):
+                    best = (abs(dt), j)
+        if best is not None:
+            pairs.append((ref_rows[best[1]], nrow))
     return pairs
 
 
@@ -207,10 +212,78 @@ def continuous_epochs(ref_rows: list[tuple], sol_rows: list[tuple]) -> tuple[lis
     return ref, sol
 
 
+def observation_grid(
+    ref: list[tuple[float, tuple]], interval: float | None, phase: float | None
+) -> tuple[list[tuple[float, tuple]], float, float]:
+    """Reference epochs on the rover observation grid.
+
+    Args:
+        ref: ``(t, record)`` list from ``continuous_epochs()``; ``record[0]``
+            is the UTC seconds-of-day.
+        interval: Rover observation interval in seconds.  None, or not longer
+            than the reference interval, keeps every reference epoch.
+        phase: UTC time of day of an observation epoch modulo ``interval``
+            (0 if None).
+
+    Returns:
+        ``(grid, dt_grid, tol)``: the kept ``(t, record)`` pairs, the grid
+        interval, and the time tolerance (a quarter of the reference
+        interval) used to decide that an epoch lies on the grid or that a
+        solution belongs to an epoch.
+    """
+    dt_ref = _median_interval([t for t, _ in ref])
+    tol = 0.25 * dt_ref if not math.isnan(dt_ref) else 1e-3
+    if interval is None or math.isnan(dt_ref) or interval <= dt_ref + tol:
+        return ref, dt_ref, tol
+    ph = phase or 0.0
+    grid = [
+        (t, r)
+        for t, r in ref
+        if abs((r[0] - ph) / interval - round((r[0] - ph) / interval)) * interval <= tol
+    ]
+    return grid, interval, tol
+
+
+def shift_reference(rows: list[tuple], offset_enu: tuple[float, float, float]) -> list[tuple]:
+    """Move reference positions by a constant local ENU offset.
+
+    Used for datasets whose reference trajectory has a documented constant
+    offset from the solutions (UrbanNav Tokyo, see ``cases.URBANNAV_OFFSET_ENU``).
+    Shifting the reference, not the solutions, keeps solution records intact.
+
+    Args:
+        rows: ``(t, lat_deg, lon_deg, h, ...)`` records.
+        offset_enu: ``(east, north, up)`` in metres, added at each position.
+
+    Returns:
+        Records with the shifted position and the remaining fields unchanged.
+    """
+    out = []
+    de, dn, du = offset_enu
+    for r in rows:
+        la, lo = math.radians(r[1]), math.radians(r[2])
+        dx = np.array(
+            [
+                -math.sin(lo) * de
+                - math.sin(la) * math.cos(lo) * dn
+                + math.cos(la) * math.cos(lo) * du,
+                math.cos(lo) * de
+                - math.sin(la) * math.sin(lo) * dn
+                + math.cos(la) * math.sin(lo) * du,
+                math.cos(la) * dn + math.sin(la) * du,
+            ]
+        )
+        lat, lon, h = xyz2blh(*(blh2xyz(r[1], r[2], r[3]) + dx))
+        out.append((r[0], lat, lon, h) + tuple(r[4:]))
+    return out
+
+
 def ppc_score(
     ref_rows: list[tuple[float, float, float, float]],
     nmea_rows: list[tuple],
     threshold_3d: float = PPC_SCORE_THRESHOLD_3D,
+    interval: float | None = None,
+    phase: float | None = None,
 ) -> tuple[float, float]:
     """Score a solution with the PPC-Dataset official metric.
 
@@ -222,10 +295,19 @@ def ppc_score(
     rules (distance per epoch, hold, 0.5 m) and rtklibexplorer's
     ``score_ppc_sol.py`` (RTKLIB-EX util/ppc-dataset).
 
+    When the rover observes more slowly than the reference (UrbanNav F9P:
+    5 Hz against 10 Hz), pass ``interval`` / ``phase``: the score is then taken
+    on the reference epochs of the observation grid, with distances between
+    those epochs.  Scoring a 5 Hz solver at 10 Hz would hold every other
+    position 0.1 s late, which at driving speed alone exceeds 0.5 m.
+
     Args:
         ref_rows: Sorted list from ``parse_reference()``.
         nmea_rows: Sorted list from ``parse_nmea()``.
         threshold_3d: 3D error bound in metres (PPC rules: 0.5 m).
+        interval: Rover observation interval in seconds (see
+            ``observation_grid()``); None scores every reference epoch.
+        phase: Observation epoch phase for ``interval``.
 
     Returns:
         ``(good_m, total_m)``: distance within the bound and total distance.
@@ -239,6 +321,7 @@ def ppc_score(
     if not ref_rows:
         return 0.0, 0.0
     ref_c, sol_c = continuous_epochs(ref_rows, nmea_rows)
+    ref_c, _, _ = observation_grid(ref_c, interval, phase)
     ref = [(t, blh2xyz(r[1], r[2], r[3])) for t, r in ref_c]
     sol = [(t, blh2xyz(n[1], n[2], n[3])) for t, n in sol_c]
 
@@ -364,20 +447,7 @@ def reliability_metrics(
     if len(ref_rows) < 2:
         return out
     ref, sol = continuous_epochs(ref_rows, nmea_rows)
-    dt_ref = _median_interval([t for t, _ in ref])
-    tol = 0.25 * dt_ref
-
-    dt_grid = dt_ref
-    grid = ref
-    if interval is not None and interval > dt_ref + tol:
-        # Keep the reference epochs on the observation grid.
-        dt_grid = interval
-        ph = phase or 0.0
-        grid = [
-            (t, r)
-            for t, r in ref
-            if abs((r[0] - ph) / interval - round((r[0] - ph) / interval)) * interval <= tol
-        ]
+    grid, dt_grid, tol = observation_grid(ref, interval, phase)
 
     sol_t = [t for t, _ in sol]
     n_missing = n_fix = n_misfix = 0

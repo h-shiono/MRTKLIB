@@ -1,0 +1,18 @@
+# MRTKLIB benchmark receiver configuration: UrbanNav Tokyo u-blox F9P rover
+#
+# Layered on rtk.toml + urbannav.toml for the two F9P cases only; it replaces
+# rtk.toml's signal list with the F9P's own signals (RINEX 3.02: GPS/QZS L1C +
+# L2L, Galileo E1C + E7Q, BeiDou B1I + B2I).
+#
+# Why: in RTK modes the SPP seed uses the ionosphere-free combination when
+# nf > 1.  In this 2018 data few GPS satellites carry L2C, so with rtk.toml's
+# list (GPS L2W, Galileo E5a), or with no list at all, too few satellites have
+# both frequencies, the SPP seed fails at every epoch and mrtk post writes no
+# solution.  With Galileo E7Q in the list enough dual-frequency satellites
+# remain.  The base (NetR9) does not track L2L, so GPS / QZS RTK on these
+# cases uses L1 only; the list is not meant as a tuned setting.  Remove this
+# file once the RTK SPP seed no longer depends on dual-frequency coverage
+# (#565, item F).
+
+[positioning]
+signals = ["G1C", "G2L", "E1C", "E7Q", "J1C", "J2L", "C2I", "C7I"]
