@@ -462,6 +462,15 @@ target_link_libraries(utest_rtk_varerr PRIVATE mrtklib)
 add_test(NAME utest_rtk_varerr COMMAND utest_rtk_varerr)
 set_tests_properties(utest_rtk_varerr PROPERTIES LABELS "utest")
 
+# RTK integer-search candidates under glonass_ar = "off" / "on" (#561). Includes
+# mrtk_rtkpos.c to reach the private ddidx() / resamb_LAMBDA().
+add_executable(utest_rtk_glo_ar ${_UTEST_DIR}/utest_rtk_glo_ar.c)
+# Override global -ansi (=C90): this test uses C11 (P-01).
+target_compile_options(utest_rtk_glo_ar PRIVATE -std=c11)
+target_link_libraries(utest_rtk_glo_ar PRIVATE mrtklib)
+add_test(NAME utest_rtk_glo_ar COMMAND utest_rtk_glo_ar)
+set_tests_properties(utest_rtk_glo_ar PROPERTIES LABELS "utest")
+
 # NavIC L5-only SPP group delay with the nominal S/L5 ratio (#384). Includes
 # mrtk_spp.c to reach the private prange().
 add_executable(utest_navic_l5_tgd ${_UTEST_DIR}/utest_navic_l5_tgd.c)

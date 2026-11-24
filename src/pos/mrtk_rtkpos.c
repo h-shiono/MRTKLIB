@@ -1689,7 +1689,8 @@ static int resamb_LAMBDA(rtk_t* rtk, double* bias, double* xa, int gps, int glo,
 
     /* create index of SD→DD transformation matrix */
     ix = imat(nx, 2);
-    if ((nb = ddidx(rtk, ix, gps, glo, sbs)) < (opt->minfixsats > 0 ? opt->minfixsats - 1 : 0)) {
+    /* nb == 0 also aborts: with min_fix_sats = 0 an empty search would reach lambda() */
+    if ((nb = ddidx(rtk, ix, gps, glo, sbs)) <= 0 || nb < opt->minfixsats - 1) {
         errmsg(rtk, "not enough valid double-differences\n");
         free(ix);
         return -1; /* flag abort — insufficient pairs */
@@ -1851,8 +1852,11 @@ static int manage_amb_LAMBDA(rtk_t* rtk, double* bias, double* xa, const int* sa
                 i = 0; /* wrap if not found */
             }
         }
-        /* find next sat currently used in AR */
+        /* find next sat currently used in AR (GLONASS is not when glonass_ar is off) */
         for (; i < ns; i++) {
+            if (rtk->opt.glomodear == GLO_ARMODE_OFF && rtk->ssat[sat[i] - 1].sys == SYS_GLO) {
+                continue;
+            }
             for (int f = 0; f < nf; f++) {
                 if (rtk->ssat[sat[i] - 1].vsat[f] && rtk->ssat[sat[i] - 1].lock[f] >= 0 &&
                     rtk->ssat[sat[i] - 1].azel[1] >= rtk->opt.elmin) {
