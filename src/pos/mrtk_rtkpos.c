@@ -1266,8 +1266,8 @@ static int test_sys(int sys, int m) {
 }
 /* DD (double-differenced) phase/code residuals ------------------------------*/
 static int ddres(rtk_t* rtk, const nav_t* nav, const obsd_t* obs, double dt, const double* x, const double* P,
-                 const int* sat, double* y, double* e, double* azel, double* freq, const int* iu, const int* ir, int ns,
-                 double* v, double* H, double* R, int* vflg) {
+                 const double* Pbl, const int* sat, double* y, double* e, double* azel, double* freq, const int* iu,
+                 const int* ir, int ns, double* v, double* H, double* R, int* vflg) {
     prcopt_t* opt = &rtk->opt;
     double bl, dr[3], posu[3], posr[3], didxi = 0.0, didxj = 0.0, *im;
     double *tropr, *tropu, *dtdxr, *dtdxu, *Ri, *Rj, freqi, freqj, *Hi = NULL;
@@ -1451,7 +1451,7 @@ static int ddres(rtk_t* rtk, const nav_t* nav, const obsd_t* obs, double dt, con
     /* end of system loop */
 
     /* baseline length constraint for moving baseline */
-    if (opt->mode == PMODE_MOVEB && constbl(rtk, x, P, v, H, Ri, Rj, nv)) {
+    if (opt->mode == PMODE_MOVEB && constbl(rtk, x, Pbl, v, H, Ri, Rj, nv)) {
         vflg[nv++] = 3 << 4;
         nb[b++]++;
     }
@@ -2058,7 +2058,11 @@ static int relpos(rtk_t* rtk, const obsd_t* obs, int nu, int nr, const nav_t* na
             break;
         }
         /* DD (double-differenced) residuals and partial derivatives */
-        if ((nv = ddres(rtk, nav, obs, dt, xp, Pp, sat, y, e, azel, freq, iu, ir, ns, v, H, R, vflg)) < 4) {
+        /* the moving-base baseline-length constraint gets no covariance on the first pass, so
+           it is applied unconditionally there as in RTKLIB / MALIB (whose Pp is still zero);
+           with only three other rows it supplies the fourth that lets the first update run */
+        if ((nv = ddres(rtk, nav, obs, dt, xp, Pp, i == 0 ? NULL : Pp, sat, y, e, azel, freq, iu, ir, ns, v, H, R,
+                        vflg)) < 4) {
             errmsg(rtk, "insufficient double-differenced residuals (%d)\n", nv);
             stat = SOLQ_NONE;
             break;
@@ -2075,7 +2079,7 @@ static int relpos(rtk_t* rtk, const obsd_t* obs, int nu, int nr, const nav_t* na
     }
     if (stat != SOLQ_NONE && zdres(0, obs, nu, rs, dts, var, svh, nav, xp, opt, 0, y, e, azel, freq)) {
         /* post-fit residuals for float solution */
-        nv = ddres(rtk, nav, obs, dt, xp, Pp, sat, y, e, azel, freq, iu, ir, ns, v, NULL, R, vflg);
+        nv = ddres(rtk, nav, obs, dt, xp, Pp, Pp, sat, y, e, azel, freq, iu, ir, ns, v, NULL, R, vflg);
 
         /* validation of float solution */
         if (valpos(rtk, v, R, vflg, nv, 4.0)) {
@@ -2112,7 +2116,7 @@ static int relpos(rtk_t* rtk, const obsd_t* obs, int nu, int nr, const nav_t* na
     if (stat == SOLQ_FLOAT && manage_amb_LAMBDA(rtk, bias, xa, sat, nf, ns) > 1) {
         if (zdres(0, obs, nu, rs, dts, var, svh, nav, xa, opt, 0, y, e, azel, freq)) {
             /* post-fit residuals for fixed solution */
-            nv = ddres(rtk, nav, obs, dt, xa, NULL, sat, y, e, azel, freq, iu, ir, ns, v, NULL, R, vflg);
+            nv = ddres(rtk, nav, obs, dt, xa, NULL, NULL, sat, y, e, azel, freq, iu, ir, ns, v, NULL, R, vflg);
 
             /* validation of fixed solution */
             if (valpos(rtk, v, R, vflg, nv, 4.0)) {

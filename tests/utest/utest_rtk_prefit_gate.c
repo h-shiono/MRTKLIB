@@ -76,8 +76,19 @@ static int run(double var2, int zero_p) {
     double* H = zeros(rtk->nx, NS * 2 * 2);
     double* R = mat(NS * 2 * 2, NS * 2 * 2);
     int vflg[NS * 2 * 2];
-    ddres(rtk, NULL, obs, 0.0, x, P, sat, y, e, azel, freq, iu, ir, NS, v, H, R, vflg);
+    int nv = ddres(rtk, NULL, obs, 0.0, x, P, P, sat, y, e, azel, freq, iu, ir, NS, v, H, R, vflg);
     int rejc = rtk->ssat[sat[1] - 1].rejc[0];
+    /* the accepted case must return the satellite 1-2 phase row, not just leave
+       rejc at 0 */
+    int phase_row = 0;
+    for (int k = 0; k < nv; k++) {
+        if (vflg[k] == ((sat[0] << 16) | (sat[1] << 8))) { /* phase, frequency 0 */
+            phase_row = 1;
+        }
+    }
+    char name[96];
+    snprintf(name, sizeof(name), "phase row %s (var2=%g zero_p=%d)", rejc ? "absent" : "present", var2, zero_p);
+    check(name, phase_row, rejc == 0);
 
     free(v);
     free(H);
