@@ -2,7 +2,9 @@
 
 Reads rnx2rtkp NMEA GGA output and the PPC-Dataset ground-truth reference.csv,
 matches epochs by UTC time-of-day, computes ENU positioning errors, and reports
-2D/3D RMS, fix rate, and convergence time.
+2D/3D RMS, fix rate, and convergence time.  It also reports the PPC official
+score (distance-weighted share of 3D error <= 0.5 m, see ``ppc_score()``).
+``--skip-epochs`` does not apply to the PPC score.
 
 Usage
 -----
@@ -169,6 +171,257 @@ def _match_epochs(
                     pairs.append((ref_rows[j], nrow))
                     break
     return pairs
+
+
+# ---------------------------------------------------------------------------
+# PPC official score
+# ---------------------------------------------------------------------------
+PPC_SCORE_THRESHOLD_3D = 0.50
+
+
+def continuous_epochs(ref_rows: list[tuple], sol_rows: list[tuple]) -> tuple[list, list]:
+    """Put reference and solution records on one continuous time axis.
+
+    Both parsers key records by UTC (or GPS) seconds-of-day and sort on it, so
+    a run across midnight comes back out of order.  Times are taken relative to
+    the first reference record and unwrapped into (-12 h, +12 h], then both
+    lists are re-sorted on that time.  Records with the same time keep their
+    file order (the sort key is the time only), so a hold takes the last one.
+
+    Args:
+        ref_rows: Records whose first element is seconds-of-day.
+        sol_rows: Records whose first element is seconds-of-day.
+
+    Returns:
+        ``(ref, sol)``: lists of ``(t, record)`` sorted by ``t`` (seconds).
+    """
+    if not ref_rows:
+        return [], []
+    t0 = ref_rows[0][0]
+
+    def rel(t: float) -> float:
+        return (t - t0 + 43200.0) % 86400.0 - 43200.0
+
+    ref = sorted(((rel(r[0]), r) for r in ref_rows), key=lambda x: x[0])
+    sol = sorted(((rel(n[0]), n) for n in sol_rows), key=lambda x: x[0])
+    return ref, sol
+
+
+def ppc_score(
+    ref_rows: list[tuple[float, float, float, float]],
+    nmea_rows: list[tuple],
+    threshold_3d: float = PPC_SCORE_THRESHOLD_3D,
+) -> tuple[float, float]:
+    """Score a solution with the PPC-Dataset official metric.
+
+    The score is the share of the travelled reference distance on which the
+    3D error is at most ``threshold_3d``.  At every reference epoch the latest
+    solution at or before that epoch is held (any quality flag), so epochs
+    with no solution yet count as failures.  The distance between consecutive
+    reference epochs is credited to the later epoch.  This matches the PPC
+    rules (distance per epoch, hold, 0.5 m) and rtklibexplorer's
+    ``score_ppc_sol.py`` (RTKLIB-EX util/ppc-dataset).
+
+    Args:
+        ref_rows: Sorted list from ``parse_reference()``.
+        nmea_rows: Sorted list from ``parse_nmea()``.
+        threshold_3d: 3D error bound in metres (PPC rules: 0.5 m).
+
+    Returns:
+        ``(good_m, total_m)``: distance within the bound and total distance.
+        Runs can be combined two ways (``run_benchmark.print_ppc_scores()``
+        prints both): ``sum(good_m) / sum(total_m)``, one long drive, as
+        RTKLIB-EX ``score_ppc_sol.py`` does; or the mean of the per-run
+        shares, as the PPC2024 organizers describe.  The organizers take the
+        distance as reference speed x time; the position-difference distance
+        used here changes the per-run shares by <= 0.1 pt on the six runs.
+    """
+    if not ref_rows:
+        return 0.0, 0.0
+    ref_c, sol_c = continuous_epochs(ref_rows, nmea_rows)
+    ref = [(t, blh2xyz(r[1], r[2], r[3])) for t, r in ref_c]
+    sol = [(t, blh2xyz(n[1], n[2], n[3])) for t, n in sol_c]
+
+    good = total = 0.0
+    j = 0
+    held = None
+    for i, (t, xyz) in enumerate(ref):
+        while j < len(sol) and sol[j][0] <= t + 1e-3:
+            held = sol[j][1]
+            j += 1
+        if i == 0:
+            continue
+        w = float(np.linalg.norm(xyz - ref[i - 1][1]))
+        total += w
+        if held is not None and float(np.linalg.norm(held - xyz)) <= threshold_3d:
+            good += w
+    return good, total
+
+
+def rinex_obs_interval(obs_path: str) -> float | None:
+    """Observation interval of a RINEX 3 OBS file, in seconds.
+
+    Uses the ``INTERVAL`` header record, else the median spacing of the first
+    epoch records.
+
+    Args:
+        obs_path: Path to a RINEX 3.xx observation file.
+
+    Returns:
+        Interval in seconds, or None when it cannot be determined.
+    """
+    times = []
+    with open(obs_path, errors="replace") as fh:
+        for line in fh:
+            if line[60:].startswith("INTERVAL"):
+                try:
+                    return float(line[:10])
+                except ValueError:
+                    pass
+            if line[60:].startswith("END OF HEADER"):
+                break
+        for line in fh:
+            if line.startswith(">"):
+                f = line[1:].split()
+                try:
+                    times.append(int(f[3]) * 3600 + int(f[4]) * 60 + float(f[5]))
+                except (IndexError, ValueError):
+                    continue
+                if len(times) >= 50:
+                    break
+    dt = _median_interval(times)
+    return None if math.isnan(dt) else dt
+
+
+def _median_interval(times: list[float]) -> float:
+    """Median positive spacing of sorted epoch times, or NaN for fewer than two."""
+    d = np.diff(np.asarray(times, dtype=float))
+    d = d[d > 1e-6]
+    return float(np.median(d)) if d.size else math.nan
+
+
+def reliability_metrics(
+    ref_rows: list[tuple[float, float, float, float]],
+    nmea_rows: list[tuple],
+    threshold_3d: float = PPC_SCORE_THRESHOLD_3D,
+    fix_quality: int = 4,
+    interval: float | None = None,
+) -> dict:
+    """Fix-reliability and solution-gap metrics on the expected-solution grid.
+
+    The PPC score holds the latest solution, so it cannot tell a solver that
+    stopped from one that kept solving.  These metrics are evaluated on the
+    epochs at which a new solution was expected instead: the reference epochs
+    that fall on the observation interval (e.g. every other epoch for 5 Hz
+    observations against a 10 Hz reference).  The interval comes from the
+    caller (the rover observation interval), never from the solutions, which
+    would hide gaps.  Without it the grid is every reference epoch.  A grid
+    epoch has a solution when one lies within a quarter of the reference
+    interval.
+
+    Args:
+        ref_rows: Sorted list from ``parse_reference()``.
+        nmea_rows: Sorted list from ``parse_nmea()``.
+        threshold_3d: 3D error bound in metres for a correct fix.
+        fix_quality: Quality flag of an integer-fixed solution (NMEA GGA: 4).
+        interval: Expected solution interval in seconds (rover observation
+            interval); None or not longer than the reference interval uses
+            every reference epoch.
+
+    Returns:
+        Dict with ``n_expected``, ``missing_rate`` (% of grid epochs without a
+        solution), ``n_fix3d`` (fixed grid epochs), ``misfix3d_rate`` (% of
+        those with 3D error > ``threshold_3d``, NaN without fixes) and
+        ``misfix3d_longest_s`` (longest run of consecutive misfixed grid
+        epochs in seconds; a missing or non-misfixed epoch ends a run).
+    """
+    out = {
+        "n_expected": 0,
+        "missing_rate": math.nan,
+        "n_fix3d": 0,
+        "misfix3d_rate": math.nan,
+        "misfix3d_longest_s": math.nan,
+    }
+    if len(ref_rows) < 2:
+        return out
+    ref, sol = continuous_epochs(ref_rows, nmea_rows)
+    dt_ref = _median_interval([t for t, _ in ref])
+    tol = 0.25 * dt_ref
+
+    dt_grid = dt_ref
+    grid = ref
+    if interval is not None and interval > dt_ref + tol:
+        # Keep the reference epochs on the observation grid (time of day is a
+        # multiple of the interval).
+        dt_grid = interval
+        grid = [
+            (t, r)
+            for t, r in ref
+            if abs(r[0] / interval - round(r[0] / interval)) * interval <= tol
+        ]
+
+    sol_t = [t for t, _ in sol]
+    n_missing = n_fix = n_misfix = 0
+    run = longest = 0
+    for t, r in grid:
+        i = bisect.bisect_left(sol_t, t - tol)
+        s = sol[i][1] if i < len(sol) and abs(sol_t[i] - t) <= tol else None
+        bad_fix = False
+        if s is None:
+            n_missing += 1
+        elif s[4] == fix_quality:
+            n_fix += 1
+            err = float(np.linalg.norm(blh2xyz(s[1], s[2], s[3]) - blh2xyz(r[1], r[2], r[3])))
+            if err > threshold_3d:
+                n_misfix += 1
+                bad_fix = True
+        run = run + 1 if bad_fix else 0
+        longest = max(longest, run)
+
+    out["n_expected"] = len(grid)
+    out["missing_rate"] = 100.0 * n_missing / len(grid) if grid else math.nan
+    out["n_fix3d"] = n_fix
+    if n_fix:
+        out["misfix3d_rate"] = 100.0 * n_misfix / n_fix
+        out["misfix3d_longest_s"] = longest * dt_grid
+    return out
+
+
+def format_official(ppc: tuple[float, float], rel: dict) -> list[str]:
+    """Format the PPC score and the reliability metrics as report lines.
+
+    Args:
+        ppc: ``(good_m, total_m)`` from ``ppc_score()``.
+        rel: Dict from ``reliability_metrics()``.
+
+    Returns:
+        Lines without trailing newlines.
+    """
+    good_m, total_m = ppc
+    thr = f"{PPC_SCORE_THRESHOLD_3D * 100:.0f} cm"
+    lines = []
+    if total_m > 0:
+        lines.append(
+            f"PPC score         : {100.0 * good_m / total_m:.1f}%  "
+            f"({good_m:.1f} / {total_m:.1f} m within 3D {thr}; official metric, all epochs)"
+        )
+    else:
+        lines.append("PPC score         : n/a (reference has no travelled distance)")
+    lines.append(
+        f"missing_rate      : {_pct(rel['missing_rate'])}  "
+        f"(of {rel['n_expected']} expected-solution epochs)"
+    )
+    lines.append(
+        f"misfix3d_rate     : {_pct(rel['misfix3d_rate'])}  "
+        f"(of {rel['n_fix3d']} fixed epochs, 3D > {thr})"
+    )
+    longest = rel["misfix3d_longest_s"]
+    lines.append(f"misfix3d_longest  : {'nan' if math.isnan(longest) else f'{longest:.1f} s'}")
+    return lines
+
+
+def _pct(v: float) -> str:
+    return "nan" if math.isnan(v) else f"{v:.1f}%"
 
 
 # ---------------------------------------------------------------------------
@@ -420,6 +673,16 @@ def main() -> int:
         default=0,
         help="Initial epochs to skip (convergence exclusion, default: 0)",
     )
+    p.add_argument(
+        "--interval",
+        type=float,
+        default=None,
+        help="Expected solution interval in seconds for the missing / misfix3d"
+        " metrics (default: the reference interval; see --obs)",
+    )
+    p.add_argument(
+        "--obs", default="", help="Rover RINEX OBS; its interval is used unless --interval is given"
+    )
     p.add_argument("--plot", action="store_true", help="Generate ENU time-series PNG")
     p.add_argument("--plot-out", default="", help="Output path for plot (default: <result>.png)")
     args = p.parse_args()
@@ -436,6 +699,23 @@ def main() -> int:
     if not ref_rows:
         print("FAIL: no data in reference.csv", file=sys.stderr)
         return 1
+
+    print(f"Reference : {args.ref}")
+    print(f"Result    : {args.result}")
+    if args.skip_epochs:
+        print(f"Skip      : {args.skip_epochs} epochs")
+    print()
+    interval = args.interval
+    if interval is None and args.obs:
+        interval = rinex_obs_interval(args.obs)
+    # The official score and the reliability metrics cover every reference
+    # epoch, so they are reported even when no epoch matches.
+    for line in format_official(
+        ppc_score(ref_rows, nmea_rows), reliability_metrics(ref_rows, nmea_rows, interval=interval)
+    ):
+        print(line)
+    print()
+
     if not nmea_rows:
         print("FAIL: no GGA sentences in result", file=sys.stderr)
         return 1
@@ -450,11 +730,6 @@ def main() -> int:
         print("FAIL: no usable epochs after skip", file=sys.stderr)
         return 1
 
-    print(f"Reference : {args.ref}")
-    print(f"Result    : {args.result}")
-    if args.skip_epochs:
-        print(f"Skip      : {args.skip_epochs} epochs")
-    print()
     print(f"Matched epochs : {m['n_matched']}")
     print(f"Fix epochs     : {m['n_fix']}  ({m['fix_rate']:.1f}%)")
     print()

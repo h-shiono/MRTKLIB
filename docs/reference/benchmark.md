@@ -216,6 +216,52 @@ was added in v0.7.7, so the earlier tables below do not carry it.
 - CLAS / RTK: first epoch of a ≥30-consecutive Q=4 run (shown on FIX row)
 - MADOCA: first epoch of a ≥30-consecutive sub-30 cm run (shown on PPP row)
 
+### PPC official score
+
+After the tier table, `run_benchmark.py` prints the **PPC official score**
+for each case and an overall score per mode. `compare_ppc.py` prints the same
+score for a single file. It is the metric of the PPC-Dataset rules, so use it
+when comparing with other libraries.
+
+- At each reference epoch, the latest solution at or before that epoch is
+  held, whatever its quality flag. Epochs with no solution yet count as
+  failures.
+- The score is the share of the travelled reference distance on which the 3D
+  error is at most 0.5 m.
+- The distance of each epoch is the distance from the previous reference
+  position. The PPC2024 organizers use reference speed × time; on the six runs
+  the two give per-run scores within 0.1 pt.
+- Two overall scores are printed. `overall, sum` divides summed distances,
+  treating the six runs as one long drive, as rtklibexplorer's
+  `score_ppc_sol.py` does (the convention of published comparison tables).
+  `overall, mean` averages the per-run scores, as the PPC2024 organizers
+  describe. On develop 9b3a220 they are 37.6 % and 37.1 %.
+- `--skip-epochs` does not apply.
+
+The tier metrics are 2D, quality-filtered and skip the first epochs, so they
+do not reproduce this number.
+
+The same table carries three reliability columns. Holding the latest solution
+hides a solver that stopped, so these are counted on the epochs at which a new
+solution was expected: the reference epochs that fall on the rover
+observation interval (read from the rover RINEX header, or `--interval` /
+`--obs` in `compare_ppc.py`). The interval never comes from the solutions,
+which would hide gaps.
+
+| Column | Meaning |
+|--------|---------|
+| `missing` | Share of expected-solution epochs without a solution |
+| `misfix3d` | Share of integer-fixed epochs (NMEA GGA quality 4) with 3D error > 0.5 m. Not the 2D 30 cm `misfix` of the progress line. |
+| `longest` | Longest run of consecutive `misfix3d` epochs, in seconds. A missing epoch ends a run. |
+
+Runs that do not produce a score are not dropped from the overall:
+
+- A run that completes without a usable solution scores 0 over its full
+  distance.
+- If a run fails (solver error, no output, or skipped for missing inputs),
+  the overall of its mode is shown as `incomplete` instead of a number over
+  the remaining runs.
+
 ---
 
 ## v0.3.3 Benchmark Results

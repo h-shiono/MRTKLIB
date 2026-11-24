@@ -41,7 +41,17 @@ import time
 from pathlib import Path
 
 from cases import CASES, case_by_id, tow_to_gpst
-from compare_ppc import _match_epochs, compute_metrics, parse_nmea, parse_reference, plot_results
+from compare_ppc import (
+    PPC_SCORE_THRESHOLD_3D,
+    _match_epochs,
+    compute_metrics,
+    parse_nmea,
+    parse_reference,
+    plot_results,
+    ppc_score,
+    reliability_metrics,
+    rinex_obs_interval,
+)
 from download_l6 import ensure_case_l6
 
 # ---------------------------------------------------------------------------
@@ -429,6 +439,69 @@ def print_summary(rows: list[dict]) -> None:
     print("                  On the FIX row, 100% minus it is the misfix rate.")
 
 
+def print_ppc_scores(rows: list[dict]) -> None:
+    """Print the PPC official score and the reliability metrics per case and mode.
+
+    The score is the distance-weighted share of the reference trajectory with
+    3D error <= 0.5 m (``compare_ppc.ppc_score()``).  Two per-mode overalls
+    are printed: ``sum`` divides summed distances, treating the runs as one
+    long drive (RTKLIB-EX ``score_ppc_sol.py``, used by published comparison
+    tables); ``mean`` averages the per-run scores (PPC2024 organizers' rule).
+    ``--skip-epochs`` does not apply.
+
+    A run that completed without a usable solution still counts, with no good
+    distance.  A run that did not complete (solver failure, no output, or
+    skipped for missing inputs) has no score, and the overall of its mode is
+    reported as incomplete rather than computed over the remaining runs.
+
+    Args:
+        rows: List of result dicts from the benchmark loop.
+    """
+    if not rows:
+        return
+    thr = f"{PPC_SCORE_THRESHOLD_3D * 100:.0f} cm"
+    print()
+    print(f"PPC official score (distance-weighted, 3D <= {thr}, all epochs)")
+    print(f"  {'case':<20} {'mode':<7} {'score':>7} {'missing':>8} {'misfix3d':>9} {'longest':>8}")
+
+    def pct(v: float) -> str:
+        return "nan" if math.isnan(v) else f"{v:.1f}%"
+
+    totals: dict[str, list] = {}
+    for r in rows:
+        acc = totals.setdefault(r["mode"], [0.0, 0.0, 0, 0, []])
+        ppc = r.get("ppc")
+        if ppc is None or ppc[1] <= 0:
+            acc[3] += 1
+            tag = "skipped" if r["status"] == "skip" else "FAILED"
+            print(f"  {r['case_id']:<20} {r['mode']:<7} {tag:>7}")
+            continue
+        good, total = ppc
+        rel = r["rel"]
+        longest = rel["misfix3d_longest_s"]
+        print(
+            f"  {r['case_id']:<20} {r['mode']:<7} {100.0 * good / total:6.1f}% "
+            f"{pct(rel['missing_rate']):>8} {pct(rel['misfix3d_rate']):>9} "
+            f"{'nan' if math.isnan(longest) else f'{longest:.1f}s':>8}"
+        )
+        acc[0] += good
+        acc[1] += total
+        acc[2] += 1
+        acc[4].append(100.0 * good / total)
+    for mode, (good, total, n, n_bad, shares) in totals.items():
+        if n_bad:
+            label = f"overall ({n + n_bad} runs)"
+            print(f"  {label:<20} {mode:<7} incomplete ({n_bad} run(s) not scored)")
+            continue
+        print(f"  {'overall, sum':<20} {mode:<7} {100.0 * good / total:6.1f}%  (summed distance)")
+        print(f"  {'overall, mean':<20} {mode:<7} {sum(shares) / n:6.1f}%  (mean of {n} runs)")
+    print(
+        f"  missing  = expected-solution epochs without a solution;"
+        f" misfix3d = fixed (Q=4) epochs with 3D error > {thr};"
+    )
+    print("  longest  = longest consecutive misfix3d span.")
+
+
 # ---------------------------------------------------------------------------
 # Main benchmark loop
 # ---------------------------------------------------------------------------
@@ -617,11 +690,22 @@ def run_benchmark(args: argparse.Namespace) -> int:
             nmea_rows = parse_nmea(str(out))
             pairs = _match_epochs(ref_rows, nmea_rows)
             m = compute_metrics(pairs, args.skip_epochs, threshold_2d=threshold)
+            # The official score covers the whole reference, so a run that
+            # completed keeps it even with no matching epoch (good = 0).
+            ppc = ppc_score(ref_rows, nmea_rows)
+            rel = reliability_metrics(ref_rows, nmea_rows, interval=rinex_obs_interval(str(obs)))
 
             if m is None:
                 print("  FAIL: no matching epochs")
                 results.append(
-                    {"case_id": case["id"], "mode": mode, "metrics": None, "status": "fail"}
+                    {
+                        "case_id": case["id"],
+                        "mode": mode,
+                        "metrics": None,
+                        "status": "fail",
+                        "ppc": ppc,
+                        "rel": rel,
+                    }
                 )
                 continue
 
@@ -645,13 +729,23 @@ def run_benchmark(args: argparse.Namespace) -> int:
                 f"RMS(all)={m['rms_2d_all']:.3f}m  "
                 f"TTFF={conv_str}s"
             )
-            results.append({"case_id": case["id"], "mode": mode, "metrics": m, "status": "ok"})
+            results.append(
+                {
+                    "case_id": case["id"],
+                    "mode": mode,
+                    "metrics": m,
+                    "status": "ok",
+                    "ppc": ppc,
+                    "rel": rel,
+                }
+            )
 
             if args.plot:
                 png = out_dir / f"{case['id']}_{mode}.png"
                 plot_results(m, title=f"{case['id']} / {mode.upper()}", output_path=str(png))
 
     print_summary(results)
+    print_ppc_scores(results)
     return 0
 
 
