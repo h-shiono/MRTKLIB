@@ -117,6 +117,8 @@ MAPPING: list[tuple[str, str, str, str]] = [
     ("pos2-varholdamb", "ambiguity_resolution.hold", "variance", "float"),
     # ── rejection ────────────────────────────────────────────────────────────
     ("pos2-rejionno", "rejection", "innovation", "float"),
+    ("pos2-rejphase", "rejection", "innovation", "float"),  # alias (demo5)
+    ("pos2-rejcode", "rejection", "code_innovation", "float"),
     ("pos2-rejionno1", "rejection", "l1_l2_residual", "float"),
     ("pos2-rejionno2", "rejection", "dispersive", "float"),
     ("pos2-rejionno3", "rejection", "non_dispersive", "float"),

@@ -335,6 +335,10 @@ typedef struct prcopt_t {         /* processing options type */
     char bds3igso[256]; /* BDS-3 IGSO satellites ("": C06-C08) */
     int bds2prn_set;    /* bds2prn given by the configuration (0: not given, see bds2prn_warning()) */
     char bdsgeo[256];   /* BDS-3 GEO satellites, PPP-B2b transmitters ("": C01-C04; #417, appended) */
+
+    /* RTK code innovation threshold (#563, appended for ABI stability). maxinno is the
+     * phase threshold in RTK; PPP / PPP-RTK keep using maxinno for all residuals. */
+    double maxinno_code; /* reject threshold of code DD innovation (m); <0: same as maxinno, 0: off */
 } prcopt_t;
 
 /* enhanced_spp_seed profiles (applied to the PPP-RTK/VRS a-priori SPP seed only).

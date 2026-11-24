@@ -1397,8 +1397,10 @@ static int ddres(rtk_t* rtk, const nav_t* nav, const obsd_t* obs, double dt, con
                     rtk->ssat[sat[j] - 1].resp[f - nf] = v[nv];
                 }
 
-                /* test innovation */
-                if (opt->maxinno > 0.0) {
+                /* test innovation: phase against maxinno, code against maxinno_code (unset:
+                   maxinno); each threshold is chosen first, then 0 disables that test (#563) */
+                double maxinno = f < nf ? opt->maxinno : (opt->maxinno_code < 0.0 ? opt->maxinno : opt->maxinno_code);
+                if (maxinno > 0.0) {
                     /* open threshold 10x if either phase-bias just initialized */
                     double threshadj = 1.0;
                     if (f < nf && opt->mode > PMODE_DGPS && P) {
@@ -1407,7 +1409,7 @@ static int ddres(rtk_t* rtk, const nav_t* nav, const obsd_t* obs, double dt, con
                             threshadj = 10.0;
                         }
                     }
-                    if (fabs(v[nv]) > opt->maxinno * threshadj) {
+                    if (fabs(v[nv]) > maxinno * threshadj) {
                         /* only count phase outliers: rejc[] drives phase-bias resets
                            in udbias(); code outliers must not trigger phase resets */
                         if (f < nf) {

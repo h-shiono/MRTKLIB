@@ -277,7 +277,8 @@ TOML section: `[rejection]`
 
 | TOML Key | Type | Modes | Description |
 |:---------|:-----|:------|:------------|
-| `innovation` | float | RTK, PPP | Innovation (pre-fit residual) threshold (m). Observations exceeding this are rejected. |
+| `innovation` | float | RTK, PPP | Innovation (pre-fit residual) threshold (m). Observations exceeding this are rejected. In RTK it applies to carrier phase, and to pseudorange unless `code_innovation` is set; PPP and PPP-RTK apply it to all residuals. 0 disables the test. Legacy names `pos2-rejionno`, `pos2-rejphase` (demo5). |
+| `code_innovation` | float | RTK | Pseudorange double-difference innovation threshold (m). Unset: same as `innovation`; 0: no pseudorange innovation test. |
 | `l1_l2_residual` | float | PPP-RTK, VRS | L1/L2 residual rejection threshold (σ). |
 | `dispersive` | float | PPP-RTK, VRS | Dispersive (ionospheric) residual rejection threshold (σ). |
 | `non_dispersive` | float | PPP-RTK, VRS | Non-dispersive (geometric) residual rejection threshold (σ). |

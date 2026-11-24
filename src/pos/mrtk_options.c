@@ -151,6 +151,8 @@ opt_t sysopts[] = {
     {"pos2-rejethres", 1, (void*)&prcopt_.rejethres, "m"},
     {"pos2-rejeminsat", 0, (void*)&prcopt_.rejeminsat, ""},
     {"pos2-rejionno", 1, (void*)&prcopt_.maxinno, "m"},
+    {"pos2-rejphase", 1, (void*)&prcopt_.maxinno, "m"}, /* demo5 name of the RTK phase threshold */
+    {"pos2-rejcode", 1, (void*)&prcopt_.maxinno_code, "m"},
     {"pos2-rejgdop", 1, (void*)&prcopt_.maxgdop, ""},
     {"pos2-niter", 0, (void*)&prcopt_.niter, ""},
     {"pos2-baselen", 1, (void*)&prcopt_.baseline[0], "m"},

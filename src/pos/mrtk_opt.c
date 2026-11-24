@@ -89,6 +89,7 @@ const prcopt_t prcopt_default = {
     .enhanced_spp_seed = SEEDENH_BASE, /* default on: C/N0 + TDCP a-priori seed (PPP-RTK/VRS) */
     .rejethres = 0.0,                  /* standalone SPP off; CLAS seed applies upstream auto-default */
     .rejeminsat = 7,
+    .maxinno_code = -1.0, /* unset: RTK code innovation uses maxinno (#563) */
 };
 const solopt_t solopt_default = {
     /* defaults solution output options */
