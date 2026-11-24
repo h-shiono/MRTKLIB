@@ -274,6 +274,22 @@ int main(void) {
     getsysopts(&prcopt, &solopt, &filopt);
     expect(prcopt.maxinno == 1.0 && prcopt.maxinno_code == 0.0,
            ".conf pos2-rejphase sets the phase threshold, pos2-rejcode = 0 is kept");
+    /* pos2-rejphase is read only: a saved .conf must not carry a second copy of the
+       phase threshold that would override an edited pos2-rejionno on reload */
+    saveopts(FIXTURE_INNO_CONF, "w", NULL, sysopts);
+    {
+        char line[512];
+        int rejphase = 0, rejcode = 0;
+        fp = fopen(FIXTURE_INNO_CONF, "r");
+        while (fp && fgets(line, sizeof(line), fp)) {
+            rejphase |= strncmp(line, "pos2-rejphase", 13) == 0;
+            rejcode |= strncmp(line, "pos2-rejcode", 12) == 0;
+        }
+        if (fp) {
+            fclose(fp);
+        }
+        expect(!rejphase && rejcode, "saved .conf has pos2-rejcode and no pos2-rejphase");
+    }
     resetsysopts();
     getsysopts(&prcopt, &solopt, &filopt);
     expect(prcopt.maxinno_code < 0.0, "default code threshold is unset");

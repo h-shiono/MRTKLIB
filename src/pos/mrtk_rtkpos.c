@@ -1397,8 +1397,8 @@ static int ddres(rtk_t* rtk, const nav_t* nav, const obsd_t* obs, double dt, con
                     rtk->ssat[sat[j] - 1].resp[f - nf] = v[nv];
                 }
 
-                /* test innovation: phase against maxinno, code against maxinno_code (unset:
-                   maxinno); each threshold is chosen first, then 0 disables that test (#563) */
+                /* choose the threshold before testing it against 0: disabling phase rejection
+                   must not bypass an explicit code threshold (#563) */
                 double maxinno = f < nf ? opt->maxinno : (opt->maxinno_code < 0.0 ? opt->maxinno : opt->maxinno_code);
                 if (maxinno > 0.0) {
                     /* open threshold 10x if either phase-bias just initialized */
