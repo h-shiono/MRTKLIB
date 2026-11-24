@@ -302,13 +302,13 @@ The cases use the same `rtk.toml` as PPC, plus:
 
 - `urbannav.toml`: the base coordinate and antenna types come from the RINEX
   headers.
-- `urbannav_f9p.toml` (F9P cases only): the F9P's own signal list. With
-  `rtk.toml`'s list, or with no list, `mrtk post` writes no solution for the
-  F9P. The RTK SPP seed uses the ionosphere-free combination when two
-  frequencies are configured, and in this 2018 data too few GPS satellites
-  have L2C. Galileo E7Q in the list keeps enough dual-frequency satellites.
-  The base does not track L2L, so GPS / QZS RTK on these cases uses L1 only.
-  The file is a workaround, not a tuned setting (#565, item F).
+- `urbannav_f9p.toml` (F9P cases only): the F9P's own signal list.
+  `rtk.toml`'s list (GPS L2W, Galileo E5a) does not match the F9P, and a
+  configured code the rover does not track drops that band for the rover, so
+  with `rtk.toml`'s list the F9P runs on L1 for most satellites and fixes
+  poorly. The base does not track L2L, so GPS / QZS RTK on these cases uses
+  L1 only even with this list. The file is a workaround, not a tuned setting;
+  it goes once RTK falls back to an available code of the band (#193).
 
 ### Score
 

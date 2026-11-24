@@ -898,7 +898,10 @@ int pntpos(mrtk_ctx_t* ctx, const obsd_t* obs, int n, const nav_t* nav, const pr
     resp = mat(1, n);
 
     if (opt_.mode != PMODE_SINGLE) { /* for precise positioning */
-        if (opt_.nf > 1) {
+        /* relative modes seed with the broadcast model as RTKLIB / MALIB / demo5 do: IFLC
+           (MADOCALIB) needs both frequencies, so a rover with sparse L2 (low-cost receivers)
+           got no seed at all. PPP / PPP-RTK / VRS keep the MADOCALIB choice. */
+        if (opt_.nf > 1 && opt_.mode > PMODE_FIXED) {
             opt_.ionoopt = IONOOPT_IFLC;
         } else {
             opt_.ionoopt = IONOOPT_BRDC;
