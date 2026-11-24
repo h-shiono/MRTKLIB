@@ -265,7 +265,8 @@ def rinex_obs_timing(obs_path: str) -> tuple[float | None, float | None]:
     the first observation records (event records are ignored).  The phase is
     the UTC time of day of the first observation epoch modulo the interval, so
     a 5 Hz rover observing at .1, .3, ... s is not gridded at .0, .2, ... s,
-    and a 5 s GPST grid is mapped onto the UTC reference.
+    and a 5 s GPST grid is mapped onto the UTC reference.  The epoch time
+    system comes from ``TIME OF FIRST OBS`` (GPS when absent).
 
     Args:
         obs_path: Path to a RINEX 3.xx observation file.
@@ -275,8 +276,13 @@ def rinex_obs_timing(obs_path: str) -> tuple[float | None, float | None]:
     """
     times = []
     interval = None
+    utc_minus = float(GPS_LEAP)  # epoch time minus UTC, by TIME OF FIRST OBS system
     with open(obs_path, errors="replace") as fh:
         for line in fh:
+            if line[60:].startswith("TIME OF FIRST OBS"):
+                # GLO epochs are UTC(SU) = UTC + 3 h (a whole number of any
+                # interval); BDT = GPST - 14 s; GAL / QZS follow GPST.
+                utc_minus = {"GLO": 0.0, "BDT": GPS_LEAP - 14.0}.get(line[48:51], float(GPS_LEAP))
             if line[60:].startswith("INTERVAL"):
                 try:
                     interval = float(line[:10])
@@ -298,8 +304,8 @@ def rinex_obs_timing(obs_path: str) -> tuple[float | None, float | None]:
     if interval is None:
         dt = _median_interval(times)
         interval = None if math.isnan(dt) else dt
-    # Epochs are GPST; the references and NMEA are UTC.
-    phase = (times[0] - GPS_LEAP) % interval if interval and times else None
+    # The references and NMEA are UTC.
+    phase = (times[0] - utc_minus) % interval if interval and times else None
     return interval, phase
 
 

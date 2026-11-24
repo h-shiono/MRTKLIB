@@ -93,6 +93,25 @@ def _convert(case: dict, out_dir: Path, force: bool) -> tuple[Path, list]:
     return obs, days
 
 
+def _temp_output(out: Path) -> Path:
+    """Per-invocation temporary path next to ``out`` (safe for parallel runs)."""
+    return out.with_name(f"{out.name}.{os.getpid()}.tmp")
+
+
+def _publish_output(tmp: Path, out: Path) -> None:
+    """Move a solver output and its sibling diagnostics (``<tmp>.stat`` ...) to ``out``."""
+    for f in tmp.parent.glob(tmp.name + ".*"):
+        f.replace(out.with_name(out.name + f.name[len(tmp.name) :]))
+    tmp.replace(out)
+
+
+def _discard_output(tmp: Path) -> None:
+    """Remove a temporary solver output and its sibling diagnostics."""
+    for f in tmp.parent.glob(tmp.name + ".*"):
+        f.unlink(missing_ok=True)
+    tmp.unlink(missing_ok=True)
+
+
 def _run_mrtk(
     mrtk: str, confs: list[str], obs: Path, navs: list[Path], out: Path, verbose: bool
 ) -> bool:
@@ -282,17 +301,16 @@ def run(args: argparse.Namespace) -> int:
         # Write to a temporary path and publish only what this run produced: a
         # solver that exits 0 without writing must neither be scored from an old
         # output nor erase it.
-        tmp = out.with_name(out.name + ".tmp")
-        tmp.unlink(missing_ok=True)
+        tmp = _temp_output(out)
         t0 = time.monotonic()
         ok = _run_mrtk(mrtk, confs, obs, navs, tmp, args.verbose)
         dt = time.monotonic() - t0
         if not ok or not tmp.exists():
-            tmp.unlink(missing_ok=True)
+            _discard_output(tmp)
             print(f"  FAIL mrtk post ({dt:.1f}s)")
             rows.append({"id": case["id"], "metrics": None, "status": "mrtk-fail"})
             continue
-        tmp.replace(out)
+        _publish_output(tmp, out)
 
         ref = parse_ground_truth(str(case["ground_truth"]))
         nmea = parse_nmea(str(out))
