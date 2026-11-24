@@ -10,6 +10,11 @@ the receiver container:
     l6route_mcla.sbf      SBF 4069 (mosaic-CLAS) carries L6D, not L6E
     l6route_sbf_211.sbf   L6E PRN 211 (QZS7) is kept
     l6route_ubx_l6e.ubx   UBX L6E is named by the header PRN, not the svId
+    l6route_ma10p.dgs     DGS (MA-10P): frames flagged Reed-Solomon failure are
+                          dropped, interleaved RTCM3 is skipped
+    l6route_dgs_l6e.dgs   DGS L6E: a stray sync sequence does not swallow the
+                          next frame; bad-checksum and time-flagged frames
+                          are dropped
 
 WORK_DIR is removed and recreated on every run, so it must belong to this test
 alone. The extracted files are left there, one directory per fixture.
@@ -36,6 +41,8 @@ EXPECTED = {
     "l6route_d9c.ubx": {"194.l6d": 30, "199.l6d": 30},
     "l6route_ubx_iono.ubx": {"200.l6d": 30},
     "l6route_ubx_l6e.ubx": {"205.l6e": 30},
+    "l6route_ma10p.dgs": {"195.l6d": 29, "199.l6d": 29},
+    "l6route_dgs_l6e.dgs": {"205.l6e": 30},
 }
 
 

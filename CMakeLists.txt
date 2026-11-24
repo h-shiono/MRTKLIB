@@ -86,6 +86,7 @@ add_library(mrtklib STATIC
     src/data/mrtk_l6.c
     src/data/rcv/mrtk_rcv_binex.c
     src/data/rcv/mrtk_rcv_crescent.c
+    src/data/rcv/mrtk_rcv_dgs.c
     src/data/rcv/mrtk_rcv_javad.c
     src/data/rcv/mrtk_rcv_novatel.c
     src/data/rcv/mrtk_rcv_nvs.c
@@ -551,6 +552,17 @@ target_link_libraries(utest_l6_header PRIVATE mrtklib)
 add_test(NAME utest_l6_header COMMAND utest_l6_header
          WORKING_DIRECTORY ${_UTEST_DIR})
 set_tests_properties(utest_l6_header PROPERTIES LABELS "utest")
+
+# DGS QZSS L6 frame container of DATAGNSS QZS-6C / MA-10P. Fixtures
+# tests/utest/l6route_ma10p.dgs (real slice) and l6route_dgs_l6e.dgs
+# (re-wrapped L6E frames), scripts/tests/make_dgs_fixtures.py.
+add_executable(utest_dgs ${_UTEST_DIR}/utest_dgs.c)
+# Override global -ansi (=C90): this test uses C11 (P-01).
+target_compile_options(utest_dgs PRIVATE -std=c11)
+target_link_libraries(utest_dgs PRIVATE mrtklib)
+add_test(NAME utest_dgs COMMAND utest_dgs
+         WORKING_DIRECTORY ${_UTEST_DIR})
+set_tests_properties(utest_dgs PROPERTIES LABELS "utest")
 
 # QZSS L6 frame routing in the UBX/SBF decoders (issue #351 PR-B). Fixtures
 # tests/utest/l6route_*: short real SBF/UBX slices plus re-wrapped real frames

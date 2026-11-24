@@ -193,7 +193,7 @@ TOML section: `[positioning.clas.resilience]`
 |:---------|:-----|:------|:------------|
 | `max_obs_loss` | float | PPP-RTK | Maximum observation gap duration before filter reset (s). |
 | `float_count` | integer | PPP-RTK, VRS | Number of float epochs before triggering filter reset. |
-| `l6_merge` | integer | PPP-RTK, VRS | L6 message merge mode for CLAS corrections, across the two CLAS transmit pattern channels. `0` = off (channel 0 only). `1` = merge, choosing the per-satellite channel with more valid observations. `2` = merge with load-balanced channel choice. Applies to post-processing PPP-RTK (since the dual-channel correction merge, [#303](https://github.com/h-shiono/MRTKLIB/issues/303)) and VRS-RTK, and to real-time `mrtk run` ([#309](https://github.com/h-shiono/MRTKLIB/issues/309)), where a channel is keyed to an L6 transmit pattern — two `clas` input streams, or one UBX/SBF stream carrying both patterns. Enabled by default in the real-time CLAS configs; an epoch in which only one channel has corrections is served from that channel, so a satellite handover on one pattern does not interrupt positioning. |
+| `l6_merge` | integer | PPP-RTK, VRS | L6 message merge mode for CLAS corrections, across the two CLAS transmit pattern channels. `0` = off (channel 0 only). `1` = merge, choosing the per-satellite channel with more valid observations. `2` = merge with load-balanced channel choice. Applies to post-processing PPP-RTK (since the dual-channel correction merge, [#303](https://github.com/h-shiono/MRTKLIB/issues/303)) and VRS-RTK, and to real-time `mrtk run` ([#309](https://github.com/h-shiono/MRTKLIB/issues/309)), where a channel is keyed to an L6 transmit pattern — two `clas` input streams, or one UBX/SBF/DGS stream carrying both patterns. Enabled by default in the real-time CLAS configs; an epoch in which only one channel has corrections is served from that channel, so a satellite handover on one pattern does not interrupt positioning. |
 | `reset_interval` | integer | PPP-RTK, VRS | Regular filter reset interval (s). 0 = disabled. |
 
 ## Positioning — CLAS Adaptive Filter
@@ -509,7 +509,7 @@ path = "rover.log"
 |:----|:-----|:------------|
 | `type` | string | Stream type: `serial` · `file` · `tcpsvr` · `tcpcli` · `ntrip` · `off` |
 | `path` | string | Stream path (serial device, file path, or URL) |
-| `format` | string | Data format: `rtcm3` · `ubx` · `sbf` · `binex` · `rinex` · `clas` · `l6e` |
+| `format` | string | Data format: `rtcm3` · `ubx` · `sbf` · `binex` · `rinex` · `clas` · `l6e` · `dgs` |
 | `nmeareq` | boolean | Send NMEA position request to stream |
 | `nmealat` | float | NMEA request latitude (degrees) |
 | `nmealon` | float | NMEA request longitude (degrees) |

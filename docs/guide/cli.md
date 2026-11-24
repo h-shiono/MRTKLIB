@@ -334,7 +334,7 @@ mrtk dump [options] l6file [navfile...]
 
 ### mrtk l6extract
 
-Extract QZSS L6 frames from SBF or UBX binary logs into per-PRN `.l6d` /
+Extract QZSS L6 frames from SBF, UBX or DGS binary logs into per-PRN `.l6d` /
 `.l6e` files, and Galileo HAS pages from SBF into a `.has` file.
 
 ```bash
@@ -343,8 +343,8 @@ mrtk l6extract [options] [FILE]
 
 | Option | Description |
 |--------|-------------|
-| `-in`, `--input FILE` | Input SBF or UBX binary file (required) |
-| `-r FORMAT` | Receiver format: `sbf`, `ubx` (auto-detected from extension by default) |
+| `-in`, `--input FILE` | Input SBF, UBX or DGS binary file (required) |
+| `-r FORMAT` | Receiver format: `sbf`, `ubx`, `dgs` (auto-detected from the extension `.sbf` / `.ubx` / `.dgs` by default) |
 | `-o`, `--output PREFIX` | Output file prefix (default: `l6`) |
 | `-l6d` | Extract L6D frames only (CLAS, MADOCA iono) |
 | `-l6e` | Extract L6E frames only (MADOCA, QZNMA) |
@@ -360,7 +360,8 @@ Output files:
 | `{input-basename}.has` | Galileo HAS pages (SBF block 4024), 64-byte records |
 
 The signal (L6D/L6E) and PRN come from the L6 frame header (IS-QZSS-L6),
-not from the SBF block ID, `Source` field or SVID, or the UBX svId. For
+not from the SBF block ID, `Source` field or SVID, the UBX svId or the DGS
+SVN. For
 example, a QZS-3 capture gives `l6.199.l6d` (CLAS) and `l6.209.l6e`
 (MADOCA-PPP and QZNMA). Both are `mrtk post` inputs: a `.l6d` file is routed
 by its content (CLAS, or MADOCA iono for PRN 200/201), and a `.l6e` file is
@@ -368,6 +369,18 @@ MADOCA-PPP input (in CLAS mode it is reserved for CLAS CMA and ignored with a
 warning). A receiver channel that hands over from one QZS to another ends up
 in two files; `mrtk post` takes all of them and rebuilds the channels (see
 [CLAS channels](#mrtk-post)).
+
+DGS is the L6 output of the DATAGNSS QZS-6C module, also built into the
+MA-10P receiver: one Allystar binary message (`F1 D9 02 10`) per L6 frame,
+mixed with NMEA and RTCM3 in the same serial stream. Log the L6 port as it is
+and pass the file with `-r dgs` (or name it `*.dgs`). Frames the receiver
+flags as Reed-Solomon failed, or with an unconfirmed week or time of week,
+are dropped and counted as skipped. The observations of the MA-10P come from
+its other port as RTCM3 (`mrtk convert -r rtcm3`).
+
+```bash
+mrtk l6extract -r dgs -o ma10p ma10p_l6.bin   # ma10p.195.l6d, ma10p.199.l6d, ...
+```
 
 !!! note "Changed in v0.7.12"
     Earlier versions wrote `{prefix}_J{PRN}_{l6d|l6e}.l6`, named by the

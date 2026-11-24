@@ -53,8 +53,8 @@ the internet (NTRIP).
 
 | Service | `mrtk post` corrections | `mrtk run` receiver input |
 |---------|-------------------------|---------------------------|
-| **QZSS CLAS** | L6 file (`.l6`), one per channel | u-blox UBX `RXM-QZSSL6`; Septentrio SBF `QZSRawL6` (4069) / `QZSRawL6D` (4270); raw L6 stream (`clas`); rover observations in any supported format (e.g. BINEX, RTCM3, SBF, UBX) |
-| **QZSS MADOCA-PPP** | L6E file (`.l6` / `.l6e`, several files allowed); L6D ionosphere (`.l6d`) | UBX `RXM-QZSSL6`; SBF `QZSRawL6` (4069) / `QZSRawL6E` (4271), L6D ionosphere from the same UBX / SBF stream; raw L6E stream (`l6e`) |
+| **QZSS CLAS** | L6 file (`.l6`), one per channel | u-blox UBX `RXM-QZSSL6`; Septentrio SBF `QZSRawL6` (4069) / `QZSRawL6D` (4270); DATAGNSS DGS L6 frames (`dgs`, QZS-6C / MA-10P); raw L6 stream (`clas`); rover observations in any supported format (e.g. BINEX, RTCM3, SBF, UBX) |
+| **QZSS MADOCA-PPP** | L6E file (`.l6` / `.l6e`, several files allowed); L6D ionosphere (`.l6d`) | UBX `RXM-QZSSL6`; SBF `QZSRawL6` (4069) / `QZSRawL6E` (4271), L6D ionosphere from the same UBX / SBF stream; DGS L6 frames (`dgs`); raw L6E stream (`l6e`) |
 | **Galileo HAS** | `.has` pages from the SBF capture (`mrtk l6extract`) | SBF `GALRawCNAV` (4024) |
 | **BeiDou PPP-B2b** | `.b2b` messages from the SBF capture (`mrtk l6extract`) | SBF `BDSRawB2b` (4242) + `BDSCNav1` (4251) |
 | **SouthPAN PVS** | `.sbs` PRN 122 L5 messages, from SBF (`mrtk convert -s`) or a DAS log (`scripts/tests/das2sbs.py`) | SBF `GEORawL5` (4021), with GPS LNAV and Galileo F/NAV ephemeris |

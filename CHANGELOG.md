@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **DGS QZSS L6 input (DATAGNSS QZS-6C / MA-10P).** DGS is the vendor's name
+  for the Allystar binary message `F1 D9 02 10`, one 250-byte L6 frame per
+  message with the L6 PRN, GPS week, time of week and status flags.
+  `mrtk l6extract -r dgs` (or a `*.dgs` file) writes the per-PRN `.l6d` /
+  `.l6e` files that `mrtk post` reads, and `format = "dgs"` is a real-time
+  input format of `mrtk run`, routed by the L6 header like the UBX / SBF L6
+  messages (CLAS, MADOCA-PPP, MADOCA-PPP ionosphere). The NMEA and RTCM3
+  messages the receiver mixes into the same stream are skipped; frames flagged
+  Reed-Solomon failed, or with an unconfirmed week or time of week, are
+  dropped. The week and time of week are big-endian in an otherwise
+  little-endian container, which the vendor notes do not state. Verified on an
+  MA-10P: observations and ephemerides from its RTCM3 port, CLAS from its L6
+  port. New `STRFMT_DGS`, `dgs_decode_l6()` and `input_dgs()`.
+
 ### Fixed
 
 - **RTK: an unset 3rd-frequency error ratio no longer inflates carrier-phase

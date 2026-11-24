@@ -25,6 +25,13 @@ the rtksvr thread, with corrections decoded from a separate L6 input stream.
 | BINEX (`.bnx`)  | CLAS L6D (`.l6`)     | `binex` + `clas` |
 | SBF (`.sbf`)    | CLAS L6D (`.l6`)     | `sbf` + `clas` |
 | RTCM3 (`.rtcm`) | UBX L6 (`.ubx`)      | `rtcm3` + `ubx` |
+| RTCM3 (`.rtcm`) | DGS L6 (`.dgs`)      | `rtcm3` + `dgs` |
+
+`dgs` is the L6 output of the DATAGNSS QZS-6C module, also built into the
+MA-10P receiver (its other port gives the observations and ephemerides as
+RTCM3). The stream carries one frame per second from each tracked L6 PRN,
+mixed with NMEA and RTCM3; as with UBX / SBF, each frame is routed by its L6
+header and a CLAS channel stays locked to one PRN.
 
 **Dual-channel L6:**
 
