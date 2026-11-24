@@ -471,6 +471,15 @@ target_link_libraries(utest_rtk_glo_ar PRIVATE mrtklib)
 add_test(NAME utest_rtk_glo_ar COMMAND utest_rtk_glo_ar)
 set_tests_properties(utest_rtk_glo_ar PROPERTIES LABELS "utest")
 
+# RTK pre-fit innovation gate for newly initialized phase biases (#562).
+# Includes mrtk_rtkpos.c to reach the private ddres().
+add_executable(utest_rtk_prefit_gate ${_UTEST_DIR}/utest_rtk_prefit_gate.c)
+# Override global -ansi (=C90): this test uses C11 (P-01).
+target_compile_options(utest_rtk_prefit_gate PRIVATE -std=c11)
+target_link_libraries(utest_rtk_prefit_gate PRIVATE mrtklib)
+add_test(NAME utest_rtk_prefit_gate COMMAND utest_rtk_prefit_gate)
+set_tests_properties(utest_rtk_prefit_gate PROPERTIES LABELS "utest")
+
 # NavIC L5-only SPP group delay with the nominal S/L5 ratio (#384). Includes
 # mrtk_spp.c to reach the private prange().
 add_executable(utest_navic_l5_tgd ${_UTEST_DIR}/utest_navic_l5_tgd.c)
