@@ -6,8 +6,9 @@
 #
 # Why: rtk.toml's list (GPS L2W, Galileo E5a) does not match the F9P. A
 # configured code the rover does not track drops that band for the rover, so
-# with rtk.toml's list the F9P cases run on L1 for most satellites and fix
-# poorly (odaiba 37.7 %, shinjuku 12.5 %, misfix 23 % / 55 %). The base (NetR9)
+# with rtk.toml's list the F9P cases run on L1 for most satellites and score
+# poorly (UrbanNav score odaiba 37.7 %, shinjuku 12.5 %; misfix3d, integer-fixed
+# epochs with 3D error > 0.5 m, 23 % / 55 %). The base (NetR9)
 # does not track L2L, so GPS / QZS RTK on these cases uses L1 only even with
 # this list; it is not meant as a tuned setting. Remove this file once RTK
 # falls back to an available code of the band (#193).
