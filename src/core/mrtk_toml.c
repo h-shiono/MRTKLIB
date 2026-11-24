@@ -119,6 +119,7 @@ static const toml_map_t toml_mapping[] = {
 
     /* ── rejection ─────────────────────────────────────────────────────────── */
     {"rejection", "innovation", "pos2-rejionno"},
+    {"rejection", "code_innovation", "pos2-rejcode"},
     {"rejection", "l1_l2_residual", "pos2-rejionno1"},
     {"rejection", "dispersive", "pos2-rejionno2"},
     {"rejection", "non_dispersive", "pos2-rejionno3"},

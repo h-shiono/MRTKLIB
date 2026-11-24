@@ -480,6 +480,15 @@ target_link_libraries(utest_rtk_prefit_gate PRIVATE mrtklib)
 add_test(NAME utest_rtk_prefit_gate COMMAND utest_rtk_prefit_gate)
 set_tests_properties(utest_rtk_prefit_gate PROPERTIES LABELS "utest")
 
+# RTK innovation thresholds for carrier phase and pseudorange (#563). Includes
+# mrtk_rtkpos.c to reach the private ddres().
+add_executable(utest_rtk_innovation ${_UTEST_DIR}/utest_rtk_innovation.c)
+# Override global -ansi (=C90): this test uses C11 (P-01).
+target_compile_options(utest_rtk_innovation PRIVATE -std=c11)
+target_link_libraries(utest_rtk_innovation PRIVATE mrtklib)
+add_test(NAME utest_rtk_innovation COMMAND utest_rtk_innovation)
+set_tests_properties(utest_rtk_innovation PROPERTIES LABELS "utest")
+
 # NavIC L5-only SPP group delay with the nominal S/L5 ratio (#384). Includes
 # mrtk_spp.c to reach the private prange().
 add_executable(utest_navic_l5_tgd ${_UTEST_DIR}/utest_navic_l5_tgd.c)

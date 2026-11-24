@@ -151,6 +151,7 @@ opt_t sysopts[] = {
     {"pos2-rejethres", 1, (void*)&prcopt_.rejethres, "m"},
     {"pos2-rejeminsat", 0, (void*)&prcopt_.rejeminsat, ""},
     {"pos2-rejionno", 1, (void*)&prcopt_.maxinno, "m"},
+    {"pos2-rejcode", 1, (void*)&prcopt_.maxinno_code, "m"},
     {"pos2-rejgdop", 1, (void*)&prcopt_.maxgdop, ""},
     {"pos2-niter", 0, (void*)&prcopt_.niter, ""},
     {"pos2-baselen", 1, (void*)&prcopt_.baseline[0], "m"},
@@ -502,6 +503,10 @@ extern int loadopts(const char* file, opt_t* opts) {
             p++; /* skip leading whitespace in value */
         }
         chop(buff);
+        /* input-only legacy names: read, never written back by saveopts() */
+        if (!strcmp(buff, "pos2-rejphase")) { /* demo5 name of the RTK phase threshold (#563) */
+            strcpy(buff, "pos2-rejionno");
+        }
         if (!(opt = searchopt(buff, opts))) {
             continue;
         }

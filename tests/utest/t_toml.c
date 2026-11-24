@@ -2,7 +2,8 @@
  * t_toml.c : unit test for the TOML loader deprecation aliases and unknown-key
  *            detection (#286), the TOML saveopts() append error (#342), and
  *            the BeiDou PRN-reassignment lists and their presence flag (#401),
- *            and the enum options that share a value list (geoid_model).
+ *            and the enum options that share a value list (geoid_model), and
+ *            the RTK code innovation threshold: unset vs explicit 0 (#563).
  *
  * Uses explicit failure returns (not assert) so the checks run even in
  * NDEBUG builds where assert() is a no-op (see #277).
@@ -18,6 +19,24 @@
 #define CAPTURE "t_toml_stderr.txt"
 #define SAVED "t_toml_saved.toml"
 #define FIXTURE_BDS "t_toml_fixture_bds.toml"
+#define FIXTURE_INNO "t_toml_fixture_inno.toml"
+#define FIXTURE_INNO_CONF "t_toml_fixture_inno.conf"
+
+/* Load a [rejection] TOML body and return the resulting options. */
+static prcopt_t load_rejection(const char* body) {
+    prcopt_t prcopt;
+    solopt_t solopt;
+    filopt_t filopt;
+    FILE* fp = fopen(FIXTURE_INNO, "w");
+    if (fp) {
+        fprintf(fp, "[rejection]\n%s", body);
+        fclose(fp);
+    }
+    resetsysopts();
+    loadopts_toml(FIXTURE_INNO, sysopts);
+    getsysopts(&prcopt, &solopt, &filopt);
+    return prcopt;
+}
 
 static int fail = 0;
 
@@ -236,9 +255,50 @@ int main(void) {
            "oversized bds2_sats / bds3_igso_sats are reported as invalid");
     resetsysopts();
 
+    /* #563: code_innovation unset (inherit innovation) vs explicit 0 (off). */
+    prcopt = load_rejection("innovation = 1.0\n");
+    expect(prcopt.maxinno == 1.0 && prcopt.maxinno_code < 0.0, "code_innovation unset stays < 0 (inherits innovation)");
+    prcopt = load_rejection("innovation = 1.0\ncode_innovation = 0.0\n");
+    expect(prcopt.maxinno == 1.0 && prcopt.maxinno_code == 0.0, "code_innovation = 0 is kept as 0 (code test off)");
+    prcopt = load_rejection("innovation = 1.0\ncode_innovation = 10.0\n");
+    expect(prcopt.maxinno_code == 10.0, "code_innovation = 10 is applied");
+
+    /* legacy .conf: demo5 names pos2-rejphase / pos2-rejcode, explicit 0 kept */
+    fp = fopen(FIXTURE_INNO_CONF, "w");
+    if (fp) {
+        fprintf(fp, "pos2-rejionno =30\npos2-rejphase =1\npos2-rejcode =0\n");
+        fclose(fp);
+    }
+    resetsysopts();
+    loadopts(FIXTURE_INNO_CONF, sysopts);
+    getsysopts(&prcopt, &solopt, &filopt);
+    expect(prcopt.maxinno == 1.0 && prcopt.maxinno_code == 0.0,
+           ".conf pos2-rejphase sets the phase threshold, pos2-rejcode = 0 is kept");
+    /* pos2-rejphase is read only: a saved .conf must not carry a second copy of the
+       phase threshold that would override an edited pos2-rejionno on reload */
+    saveopts(FIXTURE_INNO_CONF, "w", NULL, sysopts);
+    {
+        char line[512];
+        int rejphase = 0, rejcode = 0;
+        fp = fopen(FIXTURE_INNO_CONF, "r");
+        while (fp && fgets(line, sizeof(line), fp)) {
+            rejphase |= strncmp(line, "pos2-rejphase", 13) == 0;
+            rejcode |= strncmp(line, "pos2-rejcode", 12) == 0;
+        }
+        if (fp) {
+            fclose(fp);
+        }
+        expect(!rejphase && rejcode, "saved .conf has pos2-rejcode and no pos2-rejphase");
+    }
+    resetsysopts();
+    getsysopts(&prcopt, &solopt, &filopt);
+    expect(prcopt.maxinno_code < 0.0, "default code threshold is unset");
+
     remove(FIXTURE);
     remove(CAPTURE);
     remove(SAVED);
     remove(FIXTURE_BDS);
+    remove(FIXTURE_INNO);
+    remove(FIXTURE_INNO_CONF);
     return fail;
 }

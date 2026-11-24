@@ -304,8 +304,18 @@ _OPTION_META: dict[str, tuple[str, str]] = {
     ),
     # ── rejection ────────────────────────────────────────────────────────────
     "pos2-rejionno": (
-        "RTK, PPP",
-        "Innovation (pre-fit residual) threshold (m). Observations exceeding this are rejected.",
+        "RTK, PPP, PPP-RTK",
+        "Innovation (pre-fit residual) threshold. Observations exceeding this are rejected."
+        " RTK (m): carrier phase, and pseudorange unless `code_innovation` is set; 0 disables"
+        " the test. PPP (m): all residuals. PPP-RTK: fallback (\u03c3) for each of"
+        " `l1_l2_residual`, `dispersive` and `non_dispersive` left at 0; positive per-component"
+        " thresholds stay active when this is 0."
+        " Legacy names `pos2-rejionno`, `pos2-rejphase` (demo5, read only).",
+    ),
+    "pos2-rejcode": (
+        "DGPS, RTK",
+        "Pseudorange double-difference innovation threshold (m). Unset: same as `innovation`;"
+        " 0: no pseudorange innovation test.",
     ),
     "pos2-rejionno1": ("PPP-RTK, VRS", "L1/L2 residual rejection threshold (\u03c3)."),
     "pos2-rejionno2": (
