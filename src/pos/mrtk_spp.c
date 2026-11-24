@@ -229,7 +229,9 @@ static double prange(const obsd_t* obs, const nav_t* nav, const prcopt_t* opt, d
             return P1 - b1;
         } else if (sys == SYS_GLO) {  /* G1 */
             b1 = gettgd(sat, nav, 0); /* -dtaun (m) */
-            return P1 - b1 / (gamma - 1.0);
+            /* G1/G2 is 9/7 for every FDMA channel; the observed G2 frequency is 0 when G2 is
+               not tracked, which would drop the correction (RTKLIB uses the fixed ratio) */
+            return P1 - b1 / (SQR(FREQ1_GLO / FREQ2_GLO) - 1.0);
         } else if (sys == SYS_GAL) { /* E1 */
             if (getseleph(SYS_GAL)) {
                 b1 = gettgd(sat, nav, 0); /* BGD_E1E5a */
@@ -898,7 +900,10 @@ int pntpos(mrtk_ctx_t* ctx, const obsd_t* obs, int n, const nav_t* nav, const pr
     resp = mat(1, n);
 
     if (opt_.mode != PMODE_SINGLE) { /* for precise positioning */
-        if (opt_.nf > 1) {
+        /* relative modes seed with the broadcast model as RTKLIB / MALIB / demo5 do: IFLC
+           (MADOCALIB) needs both frequencies, so a rover with sparse L2 (low-cost receivers)
+           got no seed at all. PPP / PPP-RTK / VRS keep the MADOCALIB choice. */
+        if (opt_.nf > 1 && opt_.mode > PMODE_FIXED) {
             opt_.ionoopt = IONOOPT_IFLC;
         } else {
             opt_.ionoopt = IONOOPT_BRDC;
