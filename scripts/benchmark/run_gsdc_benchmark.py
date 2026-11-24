@@ -279,16 +279,20 @@ def run(args: argparse.Namespace) -> int:
             continue
 
         out = out_dir / f"{safe_name(case['id'])}.nmea"
-        # A solver that exits 0 without writing must not leave an old output to
-        # be scored as this run.
-        out.unlink(missing_ok=True)
+        # Write to a temporary path and publish only what this run produced: a
+        # solver that exits 0 without writing must neither be scored from an old
+        # output nor erase it.
+        tmp = out.with_name(out.name + ".tmp")
+        tmp.unlink(missing_ok=True)
         t0 = time.monotonic()
-        ok = _run_mrtk(mrtk, confs, obs, navs, out, args.verbose)
+        ok = _run_mrtk(mrtk, confs, obs, navs, tmp, args.verbose)
         dt = time.monotonic() - t0
-        if not ok or not out.exists():
+        if not ok or not tmp.exists():
+            tmp.unlink(missing_ok=True)
             print(f"  FAIL mrtk post ({dt:.1f}s)")
             rows.append({"id": case["id"], "metrics": None, "status": "mrtk-fail"})
             continue
+        tmp.replace(out)
 
         ref = parse_ground_truth(str(case["ground_truth"]))
         nmea = parse_nmea(str(out))

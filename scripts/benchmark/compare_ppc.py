@@ -262,10 +262,10 @@ def rinex_obs_timing(obs_path: str) -> tuple[float | None, float | None]:
     """Observation interval and epoch phase of a RINEX 3 OBS file.
 
     The interval is the ``INTERVAL`` header record, else the median spacing of
-    the first epoch records.  The phase is the time of day of the first epoch
-    modulo the interval, so a 5 Hz rover observing at .1, .3, ... s is not
-    gridded at .0, .2, ... s.  Leap seconds do not change the phase of
-    intervals that divide one second.
+    the first observation records (event records are ignored).  The phase is
+    the UTC time of day of the first observation epoch modulo the interval, so
+    a 5 Hz rover observing at .1, .3, ... s is not gridded at .0, .2, ... s,
+    and a 5 s GPST grid is mapped onto the UTC reference.
 
     Args:
         obs_path: Path to a RINEX 3.xx observation file.
@@ -285,8 +285,10 @@ def rinex_obs_timing(obs_path: str) -> tuple[float | None, float | None]:
             if line[60:].startswith("END OF HEADER"):
                 break
         for line in fh:
-            if line.startswith(">"):
-                f = line[1:].split()
+            f = line[1:].split()
+            # Observation records only (epoch flag 0 / 1); events do not set
+            # the grid.
+            if line.startswith(">") and len(f) > 6 and f[6] in ("0", "1"):
                 try:
                     times.append(int(f[3]) * 3600 + int(f[4]) * 60 + float(f[5]))
                 except (IndexError, ValueError):
@@ -296,7 +298,8 @@ def rinex_obs_timing(obs_path: str) -> tuple[float | None, float | None]:
     if interval is None:
         dt = _median_interval(times)
         interval = None if math.isnan(dt) else dt
-    phase = times[0] % interval if interval and times else None
+    # Epochs are GPST; the references and NMEA are UTC.
+    phase = (times[0] - GPS_LEAP) % interval if interval and times else None
     return interval, phase
 
 
@@ -335,7 +338,7 @@ def reliability_metrics(
         interval: Expected solution interval in seconds (rover observation
             interval); None or not longer than the reference interval uses
             every reference epoch.
-        phase: Time of day of an observation epoch modulo ``interval`` (0 if
+        phase: UTC time of day of an observation epoch modulo ``interval`` (0 if
             None), which anchors the decimated grid.
 
     Returns:
@@ -708,7 +711,7 @@ def main() -> int:
         "--phase",
         type=float,
         default=None,
-        help="Epoch phase for --interval: time of day of an observation epoch modulo the"
+        help="Epoch phase for --interval: UTC time of day of an observation epoch modulo the"
         " interval (default 0)",
     )
     p.add_argument("--plot", action="store_true", help="Generate ENU time-series PNG")

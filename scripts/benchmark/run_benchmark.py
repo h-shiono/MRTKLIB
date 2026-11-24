@@ -653,9 +653,11 @@ def run_benchmark(args: argparse.Namespace) -> int:
                 skip_run = False
 
             if not skip_run:
-                # A solver that exits 0 without writing must not leave an old
-                # output to be scored as this run.
-                out.unlink(missing_ok=True)
+                # Write to a temporary path and publish only what this run
+                # produced: a solver that exits 0 without writing must neither
+                # be scored from an old output nor erase it.
+                tmp = out.with_name(out.name + ".tmp")
+                tmp.unlink(missing_ok=True)
                 t0 = time.monotonic()
                 city_conf = str(conf_dir / f"{case['city']}.toml")
                 ok = _run_rnx2rtkp(
@@ -665,7 +667,7 @@ def run_benchmark(args: argparse.Namespace) -> int:
                     case["gps_week"],
                     case["tow_start"] - 60,
                     case["tow_end"] + 60,
-                    out,
+                    tmp,
                     obs,
                     nav,
                     extra_files,
@@ -674,11 +676,19 @@ def run_benchmark(args: argparse.Namespace) -> int:
                 )
                 elapsed = time.monotonic() - t0
                 if not ok:
+                    tmp.unlink(missing_ok=True)
                     print(f"  FAIL: rnx2rtkp returned non-zero (elapsed {elapsed:.1f}s)")
                     results.append(
                         {"case_id": case["id"], "mode": mode, "metrics": None, "status": "fail"}
                     )
                     continue
+                if not tmp.exists():
+                    print("  FAIL: output file not produced")
+                    results.append(
+                        {"case_id": case["id"], "mode": mode, "metrics": None, "status": "fail"}
+                    )
+                    continue
+                tmp.replace(out)
                 print(f"  rnx2rtkp completed in {elapsed:.1f}s → {out.name}")
 
             if not out.exists():
