@@ -259,6 +259,90 @@ itself also ends a `longest` run.
 | `misfix3d` | Share of integer-fixed epochs (NMEA GGA quality 4) with 3D error > 0.5 m. Not the 2D 30 cm `misfix` of the progress line. |
 | `longest` | Longest run of consecutive `misfix3d` epochs, in seconds. A missing epoch ends a run. |
 
+#### Fix reliability table
+
+An epoch rate counts one long misfix as many failures (a 20 s misfix at
+10 Hz is 200 epochs), and `misfix3d` is conditional on a fix, so a solver
+that rarely fixes can look reliable. A second table, **Fix reliability**,
+gives the fixes as a share of all expected epochs and counts misfixes as
+events. It uses the same grid and the same 0.5 m 3D bound, and covers the
+integer-fixing modes (RTK, CLAS).
+
+"Misfix" here means a fixed solution beyond 0.5 m. It is a position-error
+proxy: the benchmark does not check the integer ambiguities themselves.
+
+A **misfix event** starts at a misfixed epoch and lasts until the next correct
+fix. Float, missing and further misfixed epochs in between belong to the same
+event, so a float epoch inside a long misfix does not split it. An event ends
+in one of three ways:
+
+- **recovered** at a correct fix;
+- **censored** by a gap in the reference (grid epochs more than 1.5 intervals
+  apart), where recovery cannot be observed;
+- **unrecovered**, still open at the end of the run (at most one per run).
+
+Time and distance across a reference gap are not evaluated.
+
+| Column | Meaning |
+|--------|---------|
+| `cfix` | Correct-fix rate: fixed epochs with 3D error ≤ 0.5 m, as a share of all expected epochs (missing epochs included) |
+| `mfixdst` | Share of the evaluated trajectory length on misfixed epochs. The distance between consecutive grid epochs is credited to the later epoch, as in the score. |
+| `events` | Misfix events |
+| `ev/h` | Misfix events per evaluated hour (grid epochs × grid interval) |
+| `span50` / `span95` / `spanmax` | Event span, from its first to its last misfixed epoch (one interval for a single misfixed epoch): median, 95th percentile (nearest rank), maximum |
+| `rec50` / `recmax` | Recovery time, from an event's last misfixed epoch to the correct fix that ends it: median and maximum over the recovered events |
+| `cens` | Events censored by a reference gap |
+| `unrec` | Events still open at the end of the run |
+
+`longest` in the score table keeps its definition (consecutive misfixed
+epochs only), so it can be shorter than `spanmax`. The `overall (pooled)` row
+adds up the scored runs, weighting epochs by the grid interval (5 Hz and 10 Hz
+runs count by time). Like the score, it is shown as `incomplete` when a run of
+the mode was not scored.
+
+#### Run records (JSON)
+
+Each run writes two files to `--out-dir`, named `<dataset>_<mode>`, plus
+`_subset` for a `--case` run, so that a partial run does not overwrite the
+records of a full one:
+
+- `<stem>_manifest.json` records what produced the numbers:
+  - the MRTKLIB state at the start of the run: commit, `git describe`, and the
+    modified tracked files;
+  - the solver binary of this run: path, `--version` and SHA-256;
+  - the SHA-256 of the benchmark scripts, the command-line options, and
+    whether the run completed;
+  - per case and mode: the status (`ok` / `fail` / `skip`, with the reason
+    and the missing inputs of a skip), whether the solution came from the
+    cache, its solver record (below), the reference with its SHA-256 and the
+    offset applied, and the solution file with its SHA-256.
+
+  Failed and skipped cases are listed, not dropped. A run that stops early
+  still writes its records, marked incomplete.
+- `<stem>_results.json` holds every scalar metric per case and mode:
+  - the score and its reference variants, as good and total distance;
+  - the grid interval and phase;
+  - the reliability metrics above, including the list of misfix events
+    (start, span, misfix time, recovery time, how it ended);
+  - the tier statistics.
+
+  NaN is written as `null`.
+
+Each solution also gets a **solver record**, `<solution>.run.json`, written when
+it is solved. It holds:
+
+- the solver binary (`--version`, SHA-256);
+- each configuration, and each file named inside it (antenna, grid and table
+  files), with its SHA-256;
+- the input files with their SHA-256;
+- the time span.
+
+Without `--force`, a cached solution is reused only when its record equals the
+one of the current run. Otherwise the case is solved again (`[stale]`), so a
+rebuilt solver never inherits old solutions. The manifest copies the record of
+the solution actually scored. Solutions from before this record existed are
+solved again once.
+
 Runs that do not produce a score are not dropped from the overall:
 
 - A run that completes without a usable solution scores 0 over its full
