@@ -137,14 +137,15 @@ URBANNAV_CASES: list[dict] = [
 # Built by prepare_gici.py from the hand-downloaded sequence zips.  The rover
 # is 10 Hz; the base is a 1 Hz Qianxun network VRS, so the baseline is short.
 # reference.csv already holds the antenna position (prepare_gici.LEVER_RFU).
-# (GPS week, first and last reference TOW)
+# (GPS week, first and last reference TOW; the reference is clipped to the
+# rover observations)
 _GICI_SEQUENCES = {
     "3.1": (2255, 114317.0, 114789.0),
-    "3.2": (2255, 111852.0, 112281.0),
+    "3.2": (2255, 111852.0, 112269.0),
     "3.3": (2255, 107155.0, 107708.0),
     "4.1": (2263, 24983.1, 25369.0),
-    "4.2": (2255, 115567.0, 115841.0),
-    "4.3": (2255, 104100.0, 104556.0),
+    "4.2": (2255, 115567.1, 115806.0),
+    "4.3": (2255, 104100.1, 104556.0),
     "5.2": (2263, 25485.1, 27172.0),
 }
 
@@ -169,7 +170,7 @@ def case_files(dataset_dir, case: dict) -> dict:
 
     Args:
         dataset_dir: Benchmark data root (``pathlib.Path``).
-        case: Case metadata dict from ``CASES`` or ``URBANNAV_CASES``.
+        case: Case metadata dict from ``CASES``, ``URBANNAV_CASES`` or ``GICI_CASES``.
 
     Returns:
         Dict with ``rover``, ``base``, ``nav`` and ``ref`` paths.

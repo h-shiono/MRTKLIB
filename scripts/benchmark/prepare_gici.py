@@ -18,8 +18,10 @@ after BeiDou 1042 messages whose toe lies outside the week are rewritten
 The ground truth is the position of the IMU, not of the GNSS antenna.
 ``reference.csv`` holds the antenna position: the IMU position plus
 ``LEVER_RFU`` (right, forward, up) turned by the reference heading, on the
-rover's 0.1 s grid, in the PPC-Dataset ``reference.csv`` column layout.  The
-data are not redistributed by MRTKLIB.
+rover's 0.1 s grid and clipped to the span of the rover observations (the
+ground truth runs on after the GNSS recordings of some sequences end).  Its
+first five columns follow the PPC-Dataset ``reference.csv``; the sixth is the
+heading.  The data are not redistributed by MRTKLIB.
 
 Usage
 -----
@@ -37,15 +39,21 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 MEMBERS = ("gnss_rover.bin", "gnss_reference.bin", "gnss_ephemeris.bin", "ground_truth.txt")
+OUTPUTS = ("rover.obs", "base.obs", "base.nav")
 
 # GNSS antenna relative to the IMU in the vehicle frame (right, forward, up),
-# metres.  Measured, not taken from the ground_truth.txt header: the mean of
-# fixed RTK solutions minus ground truth, turned into the vehicle frame by the
-# reference heading, is (0.361, 0.274, -0.060) on sequence 1.1 (open sky,
-# 1106 fixes, std 4 mm), (0.364, 0.259, -0.061) on 3.1 (2997 fixes, std
-# 12 mm) and (0.361, 0.273, -0.060) on 5.2 (15891 fixes, std 36 / 19 mm);
-# the value is their mean.  The header states 0.356 / 0.278 / 0.049 m
-# "x-right, y-fwd, z-up"; the magnitudes agree, the sign of x does not.
+# metres.  Measured: the mean of fixed RTK solutions minus ground truth,
+# turned into the vehicle frame by the reference heading, is
+# (0.361, 0.274, -0.060) on sequence 1.1 (open sky, 1106 fixes of rtk.toml,
+# std 4 mm), (0.364, 0.259, -0.061) on 3.1 (2997 fixes of rtk.toml, std
+# 12 mm) and (0.361, 0.273, -0.060) on 5.2 (15891 fixes of demo5's
+# trimble_urban settings, std 36 / 19 mm); the value is their mean.  The
+# ground_truth.txt header gives x = -0.356, y = 0.278, z = 0.049 m
+# "x-right, y-fwd, z-up" in the IMU frame of the solution, which is rolled by
+# 180 degrees (left-forward-down, roll ~181 degrees in every sequence); turned
+# by the full attitude it gives (0.355, 0.277, -0.057 ... -0.061), within
+# about 1 cm of the measured value.  Only the heading is applied here: the
+# pitch and roll terms change the offset by 1.2 cm on average.
 LEVER_RFU = (0.362, 0.269, -0.060)
 
 GRID = 0.1  # rover observation interval, s
@@ -159,7 +167,9 @@ def _setbits(buf: bytearray, pos: int, n: int, v: int) -> None:
         v >>= 1
 
 
-# Bit offsets in a 1042 message body (after the 12-bit message number).
+# Bit offsets in a 1042 message body (after the 12-bit message number), and
+# the body length the decoder requires.
+_B1042_BITS = 12 + 499
 _B1042_WEEK = 12 + 6
 _B1042_TOC = _B1042_WEEK + 13 + 4 + 14 + 5
 _B1042_TOE = _B1042_TOC + 17 + 11 + 22 + 24 + 5 + 18 + 16 + 32 + 18 + 32 + 18 + 32
@@ -168,8 +178,9 @@ _B1042_TOE = _B1042_TOC + 17 + 11 + 22 + 24 + 5 + 18 + 16 + 32 + 18 + 32 + 18 + 
 def fix_bds_ephemeris(data: bytes) -> tuple[bytes, int]:
     """Bring RTCM3 1042 toe / toc that lie one week ahead back into the week.
 
-    The Qianxun stream of sequence 5.2 sends BeiDou ephemerides as BDT week
-    906 with toe = toc = 630000 s instead of week 907, 25200 s.  The 1042 field
+    The Qianxun streams of sequences 4.1 and 5.2 (2023-05-21) send BeiDou
+    ephemerides as BDT week 906 with toe = toc = 626400 or 630000 s instead of
+    week 907, 21600 or 25200 s.  The 1042 field
     is 17 bits x 8 s, so the value fits the bits, but it is outside the range
     the standard allows (0-604792 s).  A decoder keeps it, and the orbit
     computation, which subtracts omega_e * toe, then turns every satellite by
@@ -177,10 +188,11 @@ def fix_bds_ephemeris(data: bytes) -> tuple[bytes, int]:
     week + 1, toe - 604800, toc - 604800 and recompute the CRC.
 
     Returns:
-        The rewritten stream and the number of messages changed.
+        The rewritten stream, the number of messages changed, and the number of
+        messages left unchanged with only one of toe / toc out of range.
     """
     buf = bytearray(data)
-    n_fixed = i = 0
+    n_fixed = n_odd = i = 0
     while i + 6 <= len(buf):
         if buf[i] != 0xD3 or buf[i + 1] & 0xFC:
             i += 1
@@ -191,7 +203,7 @@ def fix_bds_ephemeris(data: bytes) -> tuple[bytes, int]:
             i += 1
             continue
         body = i + 3
-        if _getbits(buf, body * 8, 12) == 1042:
+        if length * 8 >= _B1042_BITS and _getbits(buf, body * 8, 12) == 1042:
             toe = _getbits(buf, body * 8 + _B1042_TOE, 17) * 8
             toc = _getbits(buf, body * 8 + _B1042_TOC, 17) * 8
             if toe >= 604800 and toc >= 604800:
@@ -201,8 +213,34 @@ def fix_bds_ephemeris(data: bytes) -> tuple[bytes, int]:
                 _setbits(buf, body * 8 + _B1042_TOC, 17, (toc - 604800) // 8)
                 buf[end : end + 3] = _crc24q(buf[i:end]).to_bytes(3, "big")
                 n_fixed += 1
+            elif toe >= 604800 or toc >= 604800:
+                n_odd += 1
         i = end + 3
-    return bytes(buf), n_fixed
+    return bytes(buf), n_fixed, n_odd
+
+
+def _has_records(path: Path) -> bool:
+    """Return True if a RINEX file exists and has a line after its header."""
+    if not path.is_file():
+        return False
+    with open(path) as fh:
+        for line in fh:
+            if "END OF HEADER" in line:
+                return any(rec.strip() for rec in fh)
+    return False
+
+
+def _obs_span(path: Path) -> tuple[float, float]:
+    """Return the GPS TOW of the first and last epoch of a RINEX 3 OBS file."""
+    tows = []
+    with open(path) as fh:
+        for line in fh:
+            if line.startswith("> "):
+                y, mo, d, h, mi = (int(v) for v in line[2:].split()[:5])
+                sec = float(line[2:].split()[5])
+                t = datetime(y, mo, d, h, mi, tzinfo=timezone.utc) - _GPS_EPOCH
+                tows.append((t.total_seconds() + sec) % 604800.0)
+    return round(tows[0], 1), round(tows[-1], 1)
 
 
 def _run(argv: list[str]) -> None:
@@ -229,12 +267,13 @@ def prepare(src: Path, dataset_dir: Path, mrtk: str) -> Path:
     """
     seq = src.stem if src.suffix == ".zip" else src.name
     out = dataset_dir / "gici" / seq
-    out.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory() as tmp:
         work = Path(tmp)
         if src.suffix == ".zip":
             with zipfile.ZipFile(src) as zf:
                 for name in MEMBERS:
+                    if f"{seq}/{name}" not in zf.namelist():
+                        sys.exit(f"FAIL: {src} has no {seq}/{name} (keep the zip's sequence name)")
                     with zf.open(f"{seq}/{name}") as fin, open(work / name, "wb") as fout:
                         shutil.copyfileobj(fin, fout)
         else:
@@ -242,29 +281,45 @@ def prepare(src: Path, dataset_dir: Path, mrtk: str) -> Path:
                 shutil.copy2(src / name, work / name)
 
         eph = work / "gnss_ephemeris.bin"
-        fixed, n_fixed = fix_bds_ephemeris(eph.read_bytes())
+        fixed, n_fixed, n_odd = fix_bds_ephemeris(eph.read_bytes())
         if n_fixed:
             eph.write_bytes(fixed)
             print(f"{seq}: {n_fixed} BeiDou 1042 messages with toe beyond the week rewritten")
+        if n_odd:
+            print(
+                f"{seq}: WARNING {n_odd} BeiDou 1042 messages with only toe or toc beyond the week"
+            )
 
         gt = read_ground_truth(work / "ground_truth.txt")
         if not gt:
             sys.exit(f"FAIL: no ground-truth epochs in {src}")
-        # RTCM3 carries no week number; -tr resolves it from an approximate time.
+        # RTCM3 MSM carries no week number; -tr resolves it from an approximate time.
         tr = _gpst_string(gt[0][0], gt[0][1]).split()
         conv = [mrtk, "convert"]
-        _run(conv + ["-r", "nov", "-o", str(out / "rover.obs"), str(work / "gnss_rover.bin")])
+        _run(conv + ["-r", "nov", "-o", str(work / "rover.obs"), str(work / "gnss_rover.bin")])
         _run(
             conv
-            + ["-r", "rtcm3", "-tr", *tr, "-o", str(out / "base.obs")]
+            + ["-r", "rtcm3", "-tr", *tr, "-o", str(work / "base.obs")]
             + [str(work / "gnss_reference.bin")]
         )
         _run(
             conv
-            + ["-r", "rtcm3", "-tr", *tr, "-n", str(out / "base.nav")]
+            + ["-r", "rtcm3", "-tr", *tr, "-n", str(work / "base.nav")]
             + ["-o", str(work / "eph.obs"), str(work / "gnss_ephemeris.bin")]
         )
-        write_reference(gt, out / "reference.csv")
+        # mrtk convert exits 0 and removes an output file it wrote no record to,
+        # so check every input the benchmark needs before replacing the old ones.
+        for name in OUTPUTS:
+            if not _has_records(work / name):
+                sys.exit(f"FAIL: {seq}: mrtk convert wrote no records to {name}")
+        t_first, t_last = _obs_span(work / "rover.obs")
+        gt = [r for r in gt if t_first - 1e-6 <= r[1] <= t_last + 1e-6]
+        if not gt:
+            sys.exit(f"FAIL: {seq}: no ground-truth epoch within the rover observations")
+        write_reference(gt, work / "reference.csv")
+        out.mkdir(parents=True, exist_ok=True)
+        for name in (*OUTPUTS, "reference.csv"):
+            shutil.move(work / name, out / name)
     week, t0, t1 = gt[0][0], gt[0][1], gt[-1][1]
     print(f"{seq}: {len(gt)} reference epochs, GPS week {week} TOW {t0:.1f}-{t1:.1f} -> {out}")
     return out

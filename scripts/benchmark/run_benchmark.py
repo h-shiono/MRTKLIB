@@ -28,7 +28,7 @@ Usage
     --mode single|clas|madoca|rtk|both|all  (both=clas+madoca, all=clas+madoca+rtk;
                                 default: all for ppc, rtk for urbannav / gici)
                                 single = SPP baseline (rover.obs + base.nav only)
-    --case ID[,ID...]           Run subset (default: all 6 runs)
+    --case ID[,ID...]           Run subset (default: every case of the data set)
     --rnx2rtkp PATH             rnx2rtkp binary path (default: auto-detect)
     --skip-download             Skip L6 download step
     --skip-epochs N             Epochs to skip for metrics (default: 60)
@@ -773,8 +773,9 @@ def run_benchmark(args: argparse.Namespace) -> int:
             # completed keeps it even with no matching epoch (good = 0).  The
             # PPC rule scores every reference epoch; UrbanNav and GICI, which
             # have no official rule, are scored on the rover observation grid
-            # (5 Hz F9P against a 10 Hz reference).  The reliability metrics
-            # use the grid for all.
+            # (UrbanNav: 5 Hz F9P against a 10 Hz reference; GICI: both 10 Hz,
+            # so the grid keeps every epoch).  The reliability metrics use the
+            # grid for all.
             interval, phase = rinex_obs_timing(str(obs))
             if args.dataset != "ppc":
                 ppc = ppc_score(ref_rows, nmea_rows, interval=interval, phase=phase)
