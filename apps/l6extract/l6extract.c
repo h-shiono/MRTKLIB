@@ -1,23 +1,24 @@
 /*------------------------------------------------------------------------------
- * l6extract.c : extract QZSS L6 frames from SBF/UBX binary files
+ * l6extract.c : extract QZSS L6 frames from SBF/UBX/DGS binary files
  *
  * Copyright (C) 2026, MRTKLIB Contributors, All rights reserved.
  *
  * SPDX-License-Identifier: BSD-2-Clause
  *
  * description : Extracts L6D (CLAS) and/or L6E (MADOCA) raw 250-byte frames
- *               from Septentrio SBF or u-blox UBX binary files, writing
- *               per-PRN {prefix}.{PRN}.l6d / .l6e files that mrtk post reads.
- *               The signal (L6D/L6E) and PRN come from the L6 frame header,
- *               not from the receiver container (SBF block ID / Source /
- *               SVID, UBX svId / message type), see IS-QZSS-L6-008 4.1.2.
+ *               from Septentrio SBF, u-blox UBX or DATAGNSS DGS (QZS-6C /
+ *               MA-10P) binary files, writing per-PRN {prefix}.{PRN}.l6d /
+ *               .l6e files that mrtk post reads. The signal (L6D/L6E) and PRN
+ *               come from the L6 frame header, not from the receiver
+ *               container (SBF block ID / Source / SVID, UBX svId / message
+ *               type, DGS SVN), see IS-QZSS-L6-008 4.1.2.
  *
  *               For SBF input it also extracts Galileo HAS pages from
  *               GALRawCNAV blocks (block ID 4024) into a single .has file in
  *               the 64-byte record format of docs/design/gal-has.md §3.
  *
- *               Parses SBF/UBX framing directly without calling the full
- *               receiver decoders, avoiding SSR decode side-effects.
+ *               Parses the receiver framing directly without calling the
+ *               full receiver decoders, avoiding SSR decode side-effects.
  *
  *-----------------------------------------------------------------------------*/
 #include <stdint.h>
@@ -29,6 +30,7 @@
 #include "mrtklib/mrtk_cli.h"
 #include "mrtklib/mrtk_l6.h"
 #include "mrtklib/mrtk_nav.h"
+#include "mrtklib/mrtk_rcvraw.h"
 
 /* byte extraction macros (little-endian, matching RTKLIB convention) */
 #define U1(p) ((uint8_t)(p)[0])
@@ -69,7 +71,7 @@
 #define B2B_MSG_START_BIT 12 /* message offset in NAVBits: PRN(6)+reserved(6) */
 
 /* format type */
-enum { FMT_UNKNOWN = 0, FMT_SBF, FMT_UBX };
+enum { FMT_UNKNOWN = 0, FMT_SBF, FMT_UBX, FMT_DGS };
 
 /* L6 type */
 enum { L6_D = 0, L6_E = 1 };
@@ -603,6 +605,41 @@ static int process_ubx(FILE* fp) {
     return 0;
 }
 
+/* ---- DGS L6 extraction ---- */
+
+static int process_dgs(FILE* fp) {
+    static const uint8_t sync[4] = {DGS_SYNC1, DGS_SYNC2, DGS_GROUP_RAW, DGS_ID_QZSSL6};
+    uint8_t frame[DGS_FRAME_LEN];
+    dgs_l6_t dgs;
+    size_t nr;
+    int c, n = 0;
+
+    while ((c = fgetc(fp)) != EOF) {
+        if (c != sync[n]) {
+            n = c == sync[0] ? 1 : 0;
+            continue;
+        }
+        if (++n < 4) continue;
+        n = 0;
+
+        memcpy(frame, sync, 4);
+        nr = fread(frame + 4, 1, DGS_FRAME_LEN - 4, fp);
+        if (nr != DGS_FRAME_LEN - 4 || !dgs_decode_l6(frame, &dgs)) {
+            /* the NMEA / RTCM3 messages of the same stream can contain the
+             * sync bytes: resume right after them so that a frame starting
+             * inside the bytes just read is not lost */
+            if (fseek(fp, -(long)nr, SEEK_CUR)) break;
+            continue;
+        }
+        if (dgs.flag & DGS_FLAG_UNUSABLE) {
+            total_skipped++;
+            continue;
+        }
+        write_frame(dgs.l6);
+    }
+    return 0;
+}
+
 /* ---- format detection ---- */
 
 static int detect_format(const char* path) {
@@ -610,6 +647,7 @@ static int detect_format(const char* path) {
     if (!ext) return FMT_UNKNOWN;
     if (!strcasecmp(ext, ".sbf")) return FMT_SBF;
     if (!strcasecmp(ext, ".ubx")) return FMT_UBX;
+    if (!strcasecmp(ext, ".dgs")) return FMT_DGS;
     return FMT_UNKNOWN;
 }
 
@@ -625,13 +663,14 @@ static const mrtk_optmap_t opt_aliases[] = {
 
 static void print_usage(void) {
     static const char* lines[] = {
-        "mrtk l6extract: extract QZSS L6 / Galileo HAS / BeiDou PPP-B2b from SBF/UBX files",
+        "mrtk l6extract: extract QZSS L6 / Galileo HAS / BeiDou PPP-B2b from SBF/UBX/DGS files",
         "",
         "Usage: mrtk l6extract [OPTIONS] [FILE]",
         "",
         "Options:",
-        "  -in, --input  FILE     Input SBF or UBX binary file (required)",
-        "  -r   FORMAT            Receiver format: sbf, ubx (auto-detect)",
+        "  -in, --input  FILE     Input SBF, UBX or DGS binary file (required)",
+        "  -r   FORMAT            Receiver format: sbf, ubx, dgs (auto-detect",
+        "                         from the extension .sbf / .ubx / .dgs)",
         "  -o,  --output PREFIX   Output file prefix                  [\"l6\"]",
         "  -l6d                   Extract L6D frames only (CLAS, MADOCA iono)",
         "  -l6e                   Extract L6E frames only (MADOCA, QZNMA)",
@@ -646,7 +685,8 @@ static void print_usage(void) {
         "  {prefix}.{PRN}.l6d            Concatenated 250-byte QZSS L6 frames,",
         "  {prefix}.{PRN}.l6e            one file per L6 signal. Signal and PRN",
         "                                (L6D 193-202, L6E 203-212) come from",
-        "                                the L6 frame header.",
+        "                                the L6 frame header. DGS is the L6",
+        "                                output of DATAGNSS QZS-6C / MA-10P.",
         "  {input-basename}.has          Galileo HAS pages from SBF GALRawCNAV",
         "                                (block 4024), 64-byte records per",
         "                                docs/design/gal-has.md §3, all PRNs in",
@@ -687,6 +727,8 @@ int mrtk_l6extract(int argc, char** argv) {
                 fmt = FMT_SBF;
             else if (!strcasecmp(argv[i], "ubx"))
                 fmt = FMT_UBX;
+            else if (!strcasecmp(argv[i], "dgs"))
+                fmt = FMT_DGS;
             else {
                 fprintf(stderr, "Error: unknown format '%s'\n", argv[i]);
                 return 1;
@@ -736,7 +778,7 @@ int mrtk_l6extract(int argc, char** argv) {
     if (fmt == FMT_UNKNOWN) {
         fmt = detect_format(infile);
         if (fmt == FMT_UNKNOWN) {
-            fprintf(stderr, "Error: cannot determine format from '%s'. Use -r sbf|ubx\n", infile);
+            fprintf(stderr, "Error: cannot determine format from '%s'. Use -r sbf|ubx|dgs\n", infile);
             return 1;
         }
     }
@@ -747,9 +789,9 @@ int mrtk_l6extract(int argc, char** argv) {
         return 1;
     }
 
-    fprintf(stderr, "l6extract: %s (%s)\n", infile, fmt == FMT_SBF ? "SBF" : "UBX");
+    fprintf(stderr, "l6extract: %s (%s)\n", infile, fmt == FMT_SBF ? "SBF" : fmt == FMT_UBX ? "UBX" : "DGS");
 
-    /* HAS output path: <input-basename>.has (UBX carries no GALRawCNAV) */
+    /* HAS output path: <input-basename>.has (only SBF carries GALRawCNAV) */
     if (has_enable && fmt == FMT_SBF) {
         const char* base = strrchr(infile, '/');
         const char* dot;
@@ -763,7 +805,7 @@ int mrtk_l6extract(int argc, char** argv) {
         has_enable = 0;
     }
 
-    /* PPP-B2b output path: <input-basename>.b2b (UBX carries no BDSRawB2b) */
+    /* PPP-B2b output path: <input-basename>.b2b (only SBF carries BDSRawB2b) */
     if (b2b_enable && fmt == FMT_SBF) {
         const char* base = strrchr(infile, '/');
         const char* dot;
@@ -779,8 +821,10 @@ int mrtk_l6extract(int argc, char** argv) {
 
     if (fmt == FMT_SBF) {
         process_sbf(fp);
-    } else {
+    } else if (fmt == FMT_UBX) {
         process_ubx(fp);
+    } else {
+        process_dgs(fp);
     }
 
     fclose(fp);

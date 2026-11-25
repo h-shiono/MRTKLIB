@@ -44,3 +44,8 @@ mrtk_dataset(southpan-v1 SHA256 cf55f6ce2ffb900606078cd2366d0ccf4a843fb7707c8709
 # 2026-10-11, 200 s around a ~50 s signal blockage); see
 # tests/data/rtksvr_empty/README.md (#382).
 mrtk_dataset(rtksvr_empty-v1 SHA256 3ccc8f3ca8b4711356f41ce9ba6ba43ea5823fbb022452480e88b8b49ce01f0a)
+
+# DATAGNSS MA-10P (D10P RTCM3 + QZS-6C DGS L6): CLAS L6D, vendor station 203,
+# 2026-11-25 (30 min + the 5 min test cut), and a 5 min MADOCA-PPP L6E capture,
+# both recorded by DATAGNSS; see tests/data/ma10p_dgs/README.md (#570).
+mrtk_dataset(ma10p_dgs-v1 SHA256 72c325c2359c745359a207e2b88acf70a226c59dcafedc83813cce0d29232442)

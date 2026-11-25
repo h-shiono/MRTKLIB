@@ -238,7 +238,7 @@ static const char* pathopts[] = {/* path options help */
 #define OSTOPT "0:off,1:serial,2:file,3:tcpsvr,4:tcpcli,5:ntripsvr,9:ntripcas,10:udpsvr,11:udpcli"
 #define FMTOPT                                                                                                     \
     "0:rtcm2,1:rtcm3,2:oem4,3:oem3,4:ubx,5:ss2,6:hemis,7:skytraq,8:javad,9:nvs,10:binex,11:rt17,12:sbf,14:sp3,20:" \
-    "stat,21:l6e,22:clas"
+    "stat,21:l6e,22:clas,23:dgs"
 #define NMEOPT "0:off,1:latlon,2:single"
 #define SOLOPT "0:llh,1:xyz,2:enu,3:nmea,4:stat"
 #define MSGOPT "0:all,1:rover,2:base,3:corr"
@@ -1275,7 +1275,7 @@ static void prstream(vt_t* vt) {
                           "ftp", "http",   "ntripcas", "udpsvr", "udpcli", ""};
     const char* fmt[] = {"rtcm2", "rtcm3", "oem4",  "oem3", "ubx",  "ss2", "hemis", "skytreq",
                          "javad", "nvs",   "binex", "rt17", "sbf",  "",    "sp3",   "",
-                         "",      "",      "",      "",     "stat", "l6e", "clas"};
+                         "",      "",      "",      "",     "stat", "l6e", "clas",  "dgs"};
     const char* sol[] = {"llh", "xyz", "enu", "nmea", "stat", "-"};
     stream_t stream[9];
     uint64_t inb[9], outb[9];

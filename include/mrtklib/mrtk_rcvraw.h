@@ -67,6 +67,7 @@ extern "C" {
 #define STRFMT_STAT 20   /* stream format: stat */
 #define STRFMT_L6E 21    /* stream format: L6E CSSR */
 #define STRFMT_CLAS 22   /* stream format: CLAS L6 CSSR */
+#define STRFMT_DGS 23    /* stream format: DGS QZSS L6 frames (DATAGNSS QZS-6C / MA-10P) */
 
 /*============================================================================
  * Receiver Raw Data Control Type
@@ -187,6 +188,60 @@ int decode_irn_nav(const uint8_t* buff, eph_t* eph, double* ion, double* utc);
  *         17: QZNMA frame, 0: no message / reserved vendor, -1: error.
  */
 int decode_qzss_l6frame(rtcm_t* rtcm, int is_l6d, double tag);
+
+/*============================================================================
+ * DGS QZSS L6 Frame Container (DATAGNSS QZS-6C / MA-10P)
+ *===========================================================================*/
+
+#define DGS_SYNC1 0xF1         /* DGS frame sync code 1 */
+#define DGS_SYNC2 0xD9         /* DGS frame sync code 2 */
+#define DGS_GROUP_RAW 0x02     /* DGS message group: raw data */
+#define DGS_ID_QZSSL6 0x10     /* DGS message id: QZSS L6 frame */
+#define DGS_FRAME_LEN 272      /* DGS L6 frame length with sync and checksum (bytes) */
+#define DGS_FLAG_RS 0x01       /* DGS status flag: Reed-Solomon decoding failed */
+#define DGS_FLAG_WEEK 0x02     /* DGS status flag: GPS week not confirmed */
+#define DGS_FLAG_TOW 0x04      /* DGS status flag: time of week not confirmed */
+#define DGS_FLAG_UNUSABLE 0x07 /* DGS status flags of a frame to be discarded */
+
+/** @brief Decoded DGS L6 frame container. */
+typedef struct {
+    int prn;           /**< L6 PRN reported by the receiver (SVN - 700) */
+    int week;          /**< GPS week of the frame */
+    double tow;        /**< time of week of the frame (s) */
+    int snr;           /**< signal strength reported by the receiver (dB-Hz) */
+    int flag;          /**< status flags (DGS_FLAG_*) */
+    const uint8_t* l6; /**< 250-byte L6 frame, starting at the preamble (points into the input) */
+} dgs_l6_t;
+
+/**
+ * @brief Decode the container of one DGS QZSS L6 frame.
+ *
+ * Checks the sync and message id, the lengths and the checksum. The status
+ * flags are returned, not applied: a frame with any DGS_FLAG_UNUSABLE bit set
+ * has a failed Reed-Solomon decoding or an unreliable time tag.
+ *
+ * @param[in]  frame  DGS frame starting at the sync; DGS_FRAME_LEN bytes.
+ * @param[out] dgs    Decoded container fields (unchanged when the frame is invalid).
+ * @return 1 if the frame is a valid DGS L6 frame, 0 otherwise.
+ */
+int dgs_decode_l6(const uint8_t* frame, dgs_l6_t* dgs);
+
+/**
+ * @brief Input one byte of a DGS stream (STRFMT_DGS).
+ *
+ * Other data in the stream (NMEA, RTCM3, other Allystar messages) is skipped.
+ * A complete, usable L6 frame is copied to rtcm->buff and routed by its L6
+ * header like the UBX / SBF L6 messages (decode_qzss_l6frame()), with
+ * raw->l6tag and raw->time set from the frame week and time of week. Frames
+ * flagged week / time of week not confirmed are dropped.
+ *
+ * @param[in,out] raw   Receiver raw data control struct.
+ * @param[in,out] rtcm  RTCM control struct; receives the L6 frame and MADOCA-PPP SSR.
+ * @param[in]     data  Stream data (1 byte).
+ * @return 10: CLAS frame, 15: MADOCA SSR decoded, 16: MADOCA iono frame,
+ *         17: QZNMA frame, 0: no message, -1: frame with a Reed-Solomon failure.
+ */
+int input_dgs(raw_t* raw, rtcm_t* rtcm, uint8_t data);
 
 /*============================================================================
  * Receiver-Specific Initialization Functions

@@ -1877,6 +1877,8 @@ extern int input_raw(raw_t* raw, rtcm_t* rtcm, int format, uint8_t data) {
             return input_rt17(raw, data);
         case STRFMT_SEPT:
             return input_sbf(raw, rtcm, data);
+        case STRFMT_DGS:
+            return input_dgs(raw, rtcm, data);
     }
     return 0;
 }

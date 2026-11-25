@@ -402,6 +402,10 @@ static gtime_t rover_time(const rtksvr_t* svr) {
     }
     return svr->raw[0].time;
 }
+/* receiver formats that deliver QZSS L6 frames in a container: input_raw()
+ * returns 10 / 16 for a CLAS / MADOCA-PPP iono frame left in rtcm->buff, to be
+ * redirected to the service decoder, not for decoded SSR */
+static int l6_container(int format) { return format == STRFMT_UBX || format == STRFMT_SEPT || format == STRFMT_DGS; }
 /* decode receiver raw/rtcm data ---------------------------------------------*/
 static int decoderaw(rtksvr_t* svr, int index) {
     obs_t* obs = {0};
@@ -516,17 +520,16 @@ static int decoderaw(rtksvr_t* svr, int index) {
                   time_str(obs->data[0].time,0),obs->n);
         }
 #endif
-        /* update rtk server (skip update_ssr for UBX/SBF L6 frame-ready codes:
-         * ret=10 means "CLAS L6 frame ready for redirect" and ret=16 means
-         * "MADOCA-PPP iono L6 frame ready", neither is a decoded SSR) */
-        if (ret > 0 &&
-            !((ret == 10 || ret == 16) && (svr->format[index] == STRFMT_UBX || svr->format[index] == STRFMT_SEPT))) {
+        /* update rtk server (skip update_ssr for UBX/SBF/DGS L6 frame-ready
+         * codes: ret=10 means "CLAS L6 frame ready for redirect" and ret=16
+         * means "MADOCA-PPP iono L6 frame ready", neither is a decoded SSR) */
+        if (ret > 0 && !((ret == 10 || ret == 16) && l6_container(svr->format[index]))) {
             update_svr(svr, ret, obs, nav, ephsat, ephset, sbsmsg, index, fobs);
         }
-        /* redirect a CLAS L6 frame to the CLAS decoder (UBX/SBF → CLAS path).
-         * Raw L6D byte streams use STRFMT_CLAS above; STRFMT_L6E carries
+        /* redirect a CLAS L6 frame to the CLAS decoder (UBX/SBF/DGS → CLAS
+         * path). Raw L6D byte streams use STRFMT_CLAS above; STRFMT_L6E carries
          * MADOCA-PPP only (CLAS is broadcast on L6D only). */
-        if (svr->clas && ret == 10 && (svr->format[index] == STRFMT_UBX || svr->format[index] == STRFMT_SEPT)) {
+        if (svr->clas && ret == 10 && l6_container(svr->format[index])) {
             int k, ch, cret, max_cret = 0;
 
             /* UBX/SBF: a multi-channel L6 receiver (e.g. u-blox D9C, 2ch)
@@ -600,7 +603,7 @@ static int decoderaw(rtksvr_t* svr, int index) {
          * into nav.pppiono->re[rid], exactly as update_qzssl6d() does in
          * mrtk_postpos.c. The decoder slot comes from the L6 PRN table
          * (PRN 200/201); the L6 header PRN is at frame byte 4. */
-        if (svr->mdciono && ret == 16 && (svr->format[index] == STRFMT_UBX || svr->format[index] == STRFMT_SEPT)) {
+        if (svr->mdciono && ret == 16 && l6_container(svr->format[index])) {
             int prn = svr->rtcm[index].buff[4];
             const l6_prn_info_t* info = l6_prn_info(prn);
             int j = info ? info->iono_slot : -1;
@@ -1338,8 +1341,7 @@ extern int rtksvrstart(rtksvr_t* svr, int cycle, int buffsize, int* strs, char**
     /* initialize CLAS context if L6 source is available for PPP-RTK */
     for (i = 0; i < 3; i++) {
         if ((formats[i] == STRFMT_CLAS ||
-             ((formats[i] == STRFMT_UBX || formats[i] == STRFMT_L6E || formats[i] == STRFMT_SEPT) &&
-              prcopt->mode == PMODE_PPP_RTK)) &&
+             ((l6_container(formats[i]) || formats[i] == STRFMT_L6E) && prcopt->mode == PMODE_PPP_RTK)) &&
             !svr->clas) {
             svr->clas = (clas_ctx_t*)calloc(1, sizeof(clas_ctx_t));
             if (svr->clas) {

@@ -86,6 +86,7 @@ add_library(mrtklib STATIC
     src/data/mrtk_l6.c
     src/data/rcv/mrtk_rcv_binex.c
     src/data/rcv/mrtk_rcv_crescent.c
+    src/data/rcv/mrtk_rcv_dgs.c
     src/data/rcv/mrtk_rcv_javad.c
     src/data/rcv/mrtk_rcv_novatel.c
     src/data/rcv/mrtk_rcv_nvs.c
@@ -551,6 +552,17 @@ target_link_libraries(utest_l6_header PRIVATE mrtklib)
 add_test(NAME utest_l6_header COMMAND utest_l6_header
          WORKING_DIRECTORY ${_UTEST_DIR})
 set_tests_properties(utest_l6_header PROPERTIES LABELS "utest")
+
+# DGS QZSS L6 frame container of DATAGNSS QZS-6C / MA-10P. Fixtures
+# tests/utest/l6route_ma10p.dgs (real slice) and l6route_dgs_l6e.dgs
+# (re-wrapped L6E frames), scripts/tests/make_dgs_fixtures.py.
+add_executable(utest_dgs ${_UTEST_DIR}/utest_dgs.c)
+# Override global -ansi (=C90): this test uses C11 (P-01).
+target_compile_options(utest_dgs PRIVATE -std=c11)
+target_link_libraries(utest_dgs PRIVATE mrtklib)
+add_test(NAME utest_dgs COMMAND utest_dgs
+         WORKING_DIRECTORY ${_UTEST_DIR})
+set_tests_properties(utest_dgs PROPERTIES LABELS "utest")
 
 # QZSS L6 frame routing in the UBX/SBF decoders (issue #351 PR-B). Fixtures
 # tests/utest/l6route_*: short real SBF/UBX slices plus re-wrapped real frames
@@ -1273,6 +1285,8 @@ endforeach()
 #                           frame removed: recovery after the loss (#406)
 #   rtkrcv_rt_clas_rtcm3    rtkrcv_rt_clas with the rover converted to RTCM3:
 #                           CLAS paths on the RTCM3 rover clock (#365)
+#   rtkrcv_rt_dgs_clas      Real-time CLAS PPP-RTK with the L6 frames in the DGS
+#                           format (DATAGNSS MA-10P): format = "dgs" wiring (#570)
 #   rtkrcv_rt_empty_epoch   Rover epochs with no observations are not positioned
 #                           or written under a stale time (#382)
 set(_CLSDATA  ${CMAKE_SOURCE_DIR}/tests/data/claslib)
@@ -2699,6 +2713,48 @@ add_test(NAME rtkrcv_rt_empty_epoch_check
 set_tests_properties(rtkrcv_rt_empty_epoch_check PROPERTIES
     DEPENDS           rtkrcv_rt_empty_epoch
     LABELS            "regression;realtime"
+)
+
+# ── rtkrcv CLAS through the DGS input (#570) ──────────────────────────────────
+# Dataset ma10p_dgs-v1 (release asset of h-shiono/mrtklib-data, #386): DATAGNSS
+# MA-10P, D10P RTCM3 rover + QZS-6C DGS L6D, 5 min cut with time tags;
+# provenance in tests/data/ma10p_dgs/README.md. Covers format = "dgs" in
+# mrtk run (frames reach the CLAS engine); gates on behaviour, not accuracy,
+# which the rtkrcv_rt_clas* tests guard. Measured: Fix / Float / Single
+# 285 / 5 / 11, first Fix after 16 s; without the L6 path the run stays Single.
+set(_DGSDATA ${CMAKE_BINARY_DIR}/tests/data/ma10p_dgs)
+mrtk_dataset_setup_test(ma10p_dgs_setup ma10p_dgs-v1 ${_DGSDATA})
+set_tests_properties(ma10p_dgs_setup PROPERTIES
+    FIXTURES_SETUP ma10p_dgs_data
+    LABELS         "regression;realtime"
+)
+configure_file(${CMAKE_SOURCE_DIR}/tests/data/ma10p_dgs/rtkrcv_dgs_clas.toml.in
+    ${CMAKE_BINARY_DIR}/ma10p_dgs/rtkrcv_dgs_clas.toml @ONLY)
+add_test(NAME rtkrcv_rt_dgs_clas
+    COMMAND bash ${_TESTCMAKE}/run_rtkrcv_test.sh
+        $<TARGET_FILE:mrtk> run
+        ${CMAKE_SOURCE_DIR}
+        300
+        10
+        ${CMAKE_BINARY_DIR}/ma10p_dgs/rtkrcv_dgs_clas.toml
+        52025
+        120
+        ${CMAKE_BINARY_DIR}/out_rtkrcv_rt_dgs_clas.pos
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+set_tests_properties(rtkrcv_rt_dgs_clas PROPERTIES
+    FIXTURES_REQUIRED "claslib_data;ma10p_dgs_data"
+    TIMEOUT           200
+    LABELS            "regression;claslib;realtime"
+)
+add_test(NAME rtkrcv_rt_dgs_clas_check
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/scripts/tests/check_dgs_replay.py
+        ${CMAKE_BINARY_DIR}/out_rtkrcv_rt_dgs_clas.pos
+        --min-epochs 270 --first-fix 60 --min-fix 200
+)
+set_tests_properties(rtkrcv_rt_dgs_clas_check PROPERTIES
+    DEPENDS           rtkrcv_rt_dgs_clas
+    LABELS            "regression;claslib;realtime"
 )
 
 # ═══════════════════════════════════════════════════════════════════════════════

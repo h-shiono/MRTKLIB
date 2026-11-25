@@ -606,7 +606,7 @@ _OPTION_META: dict[str, tuple[str, str]] = {
         "the dual-channel correction merge, [#303](https://github.com/h-shiono/MRTKLIB/issues/303)) "
         "and VRS-RTK, and to real-time `mrtk run` "
         "([#309](https://github.com/h-shiono/MRTKLIB/issues/309)), where a channel is keyed to an "
-        "L6 transmit pattern — two `clas` input streams, or one UBX/SBF stream carrying both "
+        "L6 transmit pattern — two `clas` input streams, or one UBX/SBF/DGS stream carrying both "
         "patterns. Enabled by default in the real-time CLAS configs; an epoch in which only one "
         "channel has corrections is served from that channel, so a satellite handover on one "
         "pattern does not interrupt positioning.",
@@ -904,7 +904,7 @@ def main() -> int:
     )
     lines.append("| `path` | string | Stream path (serial device, file path, or URL) |")
     lines.append(
-        "| `format` | string | Data format: `rtcm3` · `ubx` · `sbf` · `binex` · `rinex` · `clas` · `l6e` |"
+        "| `format` | string | Data format: `rtcm3` · `ubx` · `sbf` · `binex` · `rinex` · `clas` · `l6e` · `dgs` |"
     )
     lines.append("| `nmeareq` | boolean | Send NMEA position request to stream |")
     lines.append("| `nmealat` | float | NMEA request latitude (degrees) |")

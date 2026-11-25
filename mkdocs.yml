@@ -103,6 +103,7 @@ nav:
     - NTRIP Streams: guide/ntrip.md
   - Hardware:
     - CLAS Positioning with mosaic-G5: hardware/cssr2rtcm3-mosaic-g5.md
+    - CLAS Positioning with MA-10P: hardware/clas-ma10p.md
   - Reference:
     - Correction Services: reference/correction-services.md
     - Configuration Options: reference/config-options.md
