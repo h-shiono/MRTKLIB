@@ -14,8 +14,9 @@ config sets the [`correction`](../design/configuration.md) axis explicitly:
 | RTK | Kinematic RTK | `none` | Rover + base station RINEX |
 | single | SPP (single-point) | `none` | Broadcast ephemeris only (`base.nav`) |
 
-RTK is also benchmarked on the UrbanNav Tokyo drives; see
-[UrbanNav Tokyo (RTK)](#urbannav-tokyo-rtk).
+RTK is also benchmarked on the UrbanNav Tokyo drives and, held out, on the
+GICI Shanghai drives; see [UrbanNav Tokyo (RTK)](#urbannav-tokyo-rtk) and
+[GICI Shanghai (RTK, held out)](#gici-shanghai-rtk-held-out).
 
 > **Note:** This benchmark is intentionally excluded from the regular CTest
 > suite because it requires large external datasets.  Run it on demand.
@@ -376,6 +377,125 @@ every solver scores near 0 % (`no-offset`).
 | shinjuku_trimble | 56.6 % | 1.0 % | 56.6 % | 6.0 % | 6.1 % | 10.4 s |
 | overall, sum | 59.1 % | 1.0 % | 46.4 % | | | |
 | overall, mean | 59.1 % | 0.9 % | 46.3 % | | | |
+
+---
+
+## GICI Shanghai (RTK, held out)
+
+A third RTK data set: the
+[GICI open dataset](https://github.com/chichengcn/gici-open-dataset)
+(Shanghai, 2023). It is held out: it checks RTK changes and configuration
+defaults that were developed on PPC and UrbanNav, and is not used to tune them.
+
+| Item | Content |
+|------|---------|
+| Rover | Tersus David30, NovAtel OEM binary, 10 Hz; GPS L1C/L2W/L2C/L5, GLONASS L1/L2, Galileo E1/E5a/E5b, QZSS L1/L5/L2C, BeiDou B1I/B3I/B2I/B2a |
+| Base | Qianxun network VRS, RTCM3 MSM4 with 1005, 1 Hz; GPS L1C/L2W/L5, GLONASS code only; baseline 0.2–3.7 km in the benchmark cases |
+| Navigation | RTCM3 broadcast ephemerides recorded from the same stream |
+| Reference | Inertial Explorer GNSS / fibre-optic-IMU smoothed solution, 100 Hz, at the IMU |
+
+| Case | Scene | Date | Duration |
+|------|-------|------|---------:|
+| `gici_3.1` | typical urban | 2023-03-27 | 8 min |
+| `gici_3.2` | typical urban | 2023-03-27 | 7 min |
+| `gici_3.3` | typical urban | 2023-03-27 | 9 min |
+| `gici_4.1` | dense urban | 2023-05-21 | 6 min |
+| `gici_4.2` | dense urban | 2023-03-27 | 4 min |
+| `gici_4.3` | dense urban | 2023-03-27 | 8 min |
+| `gici_5.2` | long-term, city centre | 2023-05-21 | 28 min |
+
+The open-sky (1.x) and tree-lined (2.x) sequences are not included: they do
+not separate the configurations. Nor is the second long-term sequence 5.1
+(8.2 GB): 5.2, recorded the same day, already covers 5.5 of the 17.4 km
+driven in the seven cases.
+
+### Getting the data
+
+The sequences are shared as one zip each on OneDrive / BaiduCloud (links in
+the GICI README) and must be downloaded by hand. A zip is 0.8–5.8 GB, almost
+all camera images; the benchmark reads four files of 10–90 MB in total
+(`gnss_rover.bin`, `gnss_reference.bin`, `gnss_ephemeris.bin`,
+`ground_truth.txt`). `prepare_gici.py` reads them straight from the zip and
+writes `data/benchmark/gici/<sequence>/`:
+
+```bash
+python scripts/benchmark/prepare_gici.py ~/Downloads/{3.1,3.2,3.3,4.1,4.2,4.3,5.2}.zip
+python scripts/benchmark/run_benchmark.py --dataset gici
+```
+
+The GICI repository is GPL-3.0 and states no separate terms for the data.
+MRTKLIB does not redistribute them.
+
+`prepare_gici.py` does four things besides the `mrtk convert` runs:
+
+- **Reference at the antenna.** `ground_truth.txt` is the IMU position. The
+  script adds the antenna offset `LEVER_RFU` = (right 0.362, forward 0.269,
+  up −0.060) m, turned by the reference heading, and writes the result as
+  `reference.csv` on the rover's 0.1 s grid. The offset was measured as the
+  mean of fixed RTK solutions minus ground truth in the vehicle frame:
+  (0.361, 0.274, −0.060) on 1.1 and (0.364, 0.259, −0.061) on 3.1 from
+  `rtk.toml` fixes, (0.361, 0.273, −0.060) on 5.2 from fixes of demo5's
+  `trimble_urban` settings. It agrees within about 1 cm with the lever arm in
+  the `ground_truth.txt` header (x = −0.356, y = 0.278, z = 0.049 m), which
+  is given in the IMU frame of the solution, rolled by 180° (left-forward-down);
+  only the heading is applied, which differs from the full attitude by 1.2 cm
+  on average. On 3.3, 4.1, 4.2 and 4.3, which were not used to measure it, the
+  median residual of `rtk.toml` fixes is at most 1.8 cm per axis. Without the
+  correction a correct fix is about 0.45 m off.
+- **Reference span.** The ground truth runs on after the GNSS recordings of
+  3.2 and 4.2 end (by 12 s and 35 s). The reference is clipped to the first
+  and last rover epoch, so that no case scores data that do not exist.
+- **BeiDou ephemerides.** The streams of 4.1 and 5.2 (2023-05-21) send
+  BeiDou ephemerides (RTCM3 1042) as BDT week 906 with toe = toc = 626400 or
+  630000 s instead of week 907, 21600 or 25200 s, outside the range the
+  standard allows (0–604792 s). The orbit computation subtracts ωe × toe, so
+  the extra week turns every satellite by 6.9° (ωe × 604800 s = 7.02 turns),
+  and BeiDou-only SPP on 5.2 comes out at longitude 114.4° instead of
+  121.48°. The script rewrites such messages (week + 1, toe and toc −
+  604800 s, new CRC) before conversion; MRTKLIB's decoder is not changed.
+- **RTCM3 week.** RTCM3 MSM messages carry no week number; `mrtk convert -tr`
+  resolves it from the first reference epoch.
+
+### Configuration and score
+
+The cases use `rtk.toml` without a site layer; the base coordinate comes from
+the RINEX header (1005). `rtk.toml` selects GPS L2W, which the base sends on
+every satellite, but the rover's L2W carrier phase is sparse (0 % of its GPS
+L1 phase observations on 3.2, 9.5 % on 3.1, 22 % on 5.2; its L2 phase is
+mostly L2C, which the base does not send), so GPS runs mostly on L1 here. The
+score is the UrbanNav score (PPC metric on the rover observation grid,
+10 Hz), on the antenna reference, with no offset correction.
+
+The VRS base differs from PPC's real stations: the baseline is short and the
+base observations are generated by the network. A configuration that scores
+well here is not shown to work on a long baseline.
+
+### Results (develop b8f841ec)
+
+`python scripts/benchmark/run_benchmark.py --dataset gici`, default preset
+build on macOS arm64 with Accelerate as BLAS / LAPACK (not a
+`MRTK_DETERMINISTIC_BLAS` build). A different BLAS / LAPACK backend can move
+marginal fix decisions (see the PPC results below).
+
+| Case | score | missing | misfix3d | longest |
+|------|------:|--------:|---------:|--------:|
+| gici_3.1 | 98.5 % | 0.2 % | 0.0 % | 0.0 s |
+| gici_3.2 | 0.0 % | 2.7 % | 100.0 % | 5.4 s |
+| gici_3.3 | 61.6 % | 1.4 % | 17.3 % | 9.3 s |
+| gici_4.1 | 32.6 % | 0.0 % | 9.4 % | 2.3 s |
+| gici_4.2 | 29.0 % | 2.4 % | 6.4 % | 0.8 s |
+| gici_4.3 | 18.3 % | 6.9 % | 27.5 % | 5.5 s |
+| gici_5.2 | 0.0 % | 0.0 % | 100.0 % | 0.6 s |
+| overall, sum | 25.7 % | | | |
+| overall, mean | 34.3 % | | | |
+
+On 3.2 and 5.2 every `rtk.toml` fix is wrong. On 5.2 the whole solution is
+off (median 3D error 64 m, against 9.5 m for SPP of the same rover); on 3.2
+fixed and float solutions share an offset of about (E −0.3, N +0.6, U +2.0) m.
+The inputs are not the cause on 5.2: `mrtk post` in DGPS mode on the same
+files (GPS L1 C/A and BeiDou B1I, 1 Hz) has a median horizontal error of
+0.49 m. Why `rtk.toml` fails is a question for
+#565; the benchmark only reports it.
 
 ---
 
