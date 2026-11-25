@@ -35,9 +35,13 @@ Usage
     --plot                      Save per-case ENU PNG to --out-dir
     -v / --verbose              Show rnx2rtkp stdout/stderr
 
-Besides the text report, every run writes two JSON files to --out-dir:
-<dataset>_manifest.json (code, configuration and input hashes, every case with
-its status) and <dataset>_results.json (all metrics per case and mode).
+Besides the text report, every run writes two JSON files to --out-dir,
+<stem>_manifest.json (code, configuration and input hashes, every case with its
+status) and <stem>_results.json (all metrics per case and mode), <stem> being
+<dataset>_<mode>, plus "_subset" for a --case run.  Each solution gets a
+<solution>.run.json record (solver, configurations and the files they name,
+inputs, time span); a cached solution is reused only when that record matches
+the current run.
 """
 
 import argparse
@@ -49,6 +53,7 @@ import os
 import subprocess
 import sys
 import time
+import tomllib
 from pathlib import Path
 
 from cases import DATASETS, case_by_id, case_files, tow_to_gpst
@@ -568,15 +573,17 @@ def print_misfix_events(rows: list[dict]) -> None:
 
     All columns come from ``compare_ppc.reliability_metrics()`` on the
     expected-solution grid.  An epoch rate counts one long misfix as many
-    failures; the event columns count it once and give its duration and the
-    time to the next correct fix.  The overall row pools the epochs and
-    events of the scored runs.
+    failures; an event counts it once, from its first misfix to the next
+    correct fix, with its span and recovery time.  Only the integer-fixing
+    modes (RTK, CLAS) are shown.  The overall row pools the scored runs,
+    weighting epochs by the grid interval; as in the score table, it is
+    reported as incomplete if a run of the mode was not scored.
 
     Args:
         rows: List of result dicts from the benchmark loop.
     """
-    scored = [r for r in rows if r.get("ppc") is not None and r["ppc"][1] > 0]
-    if not scored:
+    rows = [r for r in rows if r["mode"] in ("rtk", "clas")]
+    if not rows:
         return
 
     def pct(v: float) -> str:
@@ -590,43 +597,60 @@ def print_misfix_events(rows: list[dict]) -> None:
     print(f"Fix reliability (expected-solution grid, 3D <= {thr})")
     print(
         f"  {'case':<20} {'mode':<7} {'cfix':>7} {'mfixdst':>8} {'events':>6} {'ev/h':>6}"
-        f" {'dur50':>6} {'dur95':>6} {'durmax':>7} {'rec50':>6} {'recmax':>7} {'unrec':>5}"
+        f" {'span50':>7} {'span95':>7} {'spanmax':>8} {'rec50':>7} {'recmax':>7}"
+        f" {'cens':>4} {'unrec':>5}"
     )
-    totals: dict[str, list] = {}
-    for r in scored:
+    totals: dict[str, dict] = {}
+    for r in rows:
+        acc = totals.setdefault(
+            r["mode"],
+            {"bad": 0, "ok_s": 0.0, "exp_s": 0.0, "ev": 0, "h": 0.0, "cens": 0, "unrec": 0},
+        )
+        if r.get("ppc") is None or r["ppc"][1] <= 0:
+            acc["bad"] += 1
+            tag = "skipped" if r["status"] == "skip" else "FAILED"
+            print(f"  {r['case_id']:<20} {r['mode']:<7} {tag:>7}")
+            continue
         rel = r["rel"]
-        acc = totals.setdefault(r["mode"], [0, 0, 0, 0.0, 0])
-        acc[0] += rel["n_fix3d_correct"]
-        acc[1] += rel["n_expected"]
-        acc[2] += rel["misfix_events"]
-        acc[3] += rel["n_expected"] * rel.get("dt_grid_s", math.nan)
-        acc[4] += rel["n_unrecovered"]
+        dt = rel["dt_grid_s"]
+        acc["ok_s"] += rel["n_fix3d_correct"] * dt
+        acc["exp_s"] += rel["n_expected"] * dt
+        acc["ev"] += rel["misfix_events"]
+        acc["h"] += rel["evaluated_h"]
+        acc["cens"] += rel["n_censored"]
+        acc["unrec"] += rel["n_unrecovered"]
         evh = rel["misfix_events_per_h"]
         print(
             f"  {r['case_id']:<20} {r['mode']:<7} {pct(rel['correct_fix_rate']):>7}"
             f" {pct(rel['misfix3d_dist_rate']):>8} {rel['misfix_events']:>6}"
             f" {'nan' if math.isnan(evh) else f'{evh:.1f}':>6}"
-            f" {sec(rel['misfix_dur_p50_s']):>6} {sec(rel['misfix_dur_p95_s']):>6}"
-            f" {sec(rel['misfix_dur_max_s']):>7} {sec(rel['recovery_p50_s']):>6}"
-            f" {sec(rel['recovery_max_s']):>7} {rel['n_unrecovered']:>5}"
+            f" {sec(rel['misfix_span_p50_s']):>7} {sec(rel['misfix_span_p95_s']):>7}"
+            f" {sec(rel['misfix_span_max_s']):>8} {sec(rel['recovery_p50_s']):>7}"
+            f" {sec(rel['recovery_max_s']):>7} {rel['n_censored']:>4} {rel['n_unrecovered']:>5}"
         )
-    for mode, (n_ok, n_exp, n_ev, span_s, n_unrec) in totals.items():
-        cfix = 100.0 * n_ok / n_exp if n_exp else math.nan
-        evh = n_ev / (span_s / 3600.0) if span_s > 0 else math.nan
+    for mode, acc in totals.items():
+        if acc["bad"]:
+            print(f"  {'overall':<20} {mode:<7} incomplete ({acc['bad']} run(s) not scored)")
+            continue
+        cfix = 100.0 * acc["ok_s"] / acc["exp_s"] if acc["exp_s"] > 0 else math.nan
+        evh = acc["ev"] / acc["h"] if acc["h"] > 0 else math.nan
         print(
-            f"  {'overall (pooled)':<20} {mode:<7} {pct(cfix):>7} {'':>8} {n_ev:>6}"
-            f" {'nan' if math.isnan(evh) else f'{evh:.1f}':>6} {'':>6} {'':>6} {'':>7}"
-            f" {'':>6} {'':>7} {n_unrec:>5}"
+            f"  {'overall (pooled)':<20} {mode:<7} {pct(cfix):>7} {'':>8} {acc['ev']:>6}"
+            f" {'nan' if math.isnan(evh) else f'{evh:.1f}':>6} {'':>7} {'':>7} {'':>8}"
+            f" {'':>7} {'':>7} {acc['cens']:>4} {acc['unrec']:>5}"
         )
     print(
         "  cfix    = correctly fixed epochs / all expected epochs;"
         " mfixdst = share of the trajectory length on misfixed epochs;"
     )
     print(
-        "  events  = runs of consecutive misfixed epochs (dur = duration);"
-        " rec = time from an event's last misfix to the next correct fix;"
+        "  events  = misfix events, each from a misfix to the next correct fix;"
+        " span = first to last misfix of an event;"
     )
-    print("  unrec   = events with no correct fix afterwards.")
+    print(
+        "  rec     = last misfix to the next correct fix; cens = ended by a reference gap;"
+        " unrec = still open at the end of the run."
+    )
 
 
 def _sha256(path: Path, cache: dict) -> str | None:
@@ -644,6 +668,11 @@ def _sha256(path: Path, cache: dict) -> str | None:
     return cache[key]
 
 
+def _fileinfo(path, cache: dict) -> dict:
+    """``{"path", "sha256"}`` of a file (sha256 None if it does not exist)."""
+    return {"path": str(path), "sha256": _sha256(Path(path), cache)}
+
+
 def _git(root: Path, *argv: str) -> str | None:
     """Output of a git command in ``root``, or None when git fails."""
     try:
@@ -652,83 +681,195 @@ def _git(root: Path, *argv: str) -> str | None:
         )
     except (OSError, subprocess.SubprocessError):
         return None
-    return res.stdout.strip()
+    # Keep leading spaces: they are part of `git status --porcelain` lines.
+    return res.stdout.rstrip()
 
 
-def _binary_version(binary: str) -> str | None:
-    """First line of ``<binary> --version``, or None."""
+def _git_state(root: Path) -> dict:
+    """MRTKLIB commit, ``git describe`` and the modified tracked files, at the start of a run."""
+    status = _git(root, "status", "--porcelain", "--untracked-files=no")
+    modified = None if status is None else [line[3:] for line in status.splitlines()]
+    return {
+        "commit": _git(root, "rev-parse", "HEAD"),
+        "describe": _git(root, "describe", "--always", "--dirty", "--tags"),
+        "dirty": None if modified is None else bool(modified),
+        "modified": modified,
+    }
+
+
+def _binary_info(binary: str) -> dict:
+    """Path, ``--version`` (None unless it exits 0) and SHA-256 of the solver binary."""
+    version = None
     try:
         res = subprocess.run(
             [binary, "--version"], capture_output=True, text=True, timeout=30, check=False
         )
+        lines = res.stdout.strip().splitlines()
+        if res.returncode == 0 and lines:
+            version = lines[0]
     except (OSError, subprocess.SubprocessError):
+        pass
+    return {
+        "path": str(Path(binary).resolve()),
+        "version": version,
+        "sha256": _sha256(Path(binary), {}),
+    }
+
+
+def _referenced_files(conf: str, root: Path, cache: dict) -> list[dict]:
+    """Files named inside a TOML configuration, with their SHA-256.
+
+    Every string value that names an existing file (relative paths resolve
+    against the repository root, the solver's working directory) is listed, so
+    a changed antenna, grid or table file shows up although the TOML did not
+    change.  A configuration that is not TOML gives an empty list.
+    """
+    try:
+        with open(conf, "rb") as f:
+            data = tomllib.load(f)
+    except (OSError, tomllib.TOMLDecodeError):
+        return []
+    found = []
+
+    def walk(node, key):
+        if isinstance(node, dict):
+            for k, v in node.items():
+                walk(v, f"{key}.{k}" if key else k)
+        elif isinstance(node, list):
+            for v in node:
+                walk(v, key)
+        elif isinstance(node, str) and node and len(node) < 4096:
+            path = Path(node) if Path(node).is_absolute() else root / node
+            if path.is_file():
+                found.append({"key": key, **_fileinfo(path, cache)})
+
+    walk(data, "")
+    return found
+
+
+def _solver_record(binary_info: dict, ctx: dict, span: tuple, root: Path, cache: dict) -> dict:
+    """What produces a solution: solver, configurations with their files, inputs, time span.
+
+    Written next to each solution at solve time (``<solution>.run.json``) and
+    compared on the next run: a cached solution is reused only when the two
+    records are equal.
+    """
+    inputs = {}
+    for k, v in ctx["inputs"].items():
+        inputs[k] = [_fileinfo(f, cache) for f in v] if isinstance(v, list) else _fileinfo(v, cache)
+    return {
+        "binary": {"version": binary_info["version"], "sha256": binary_info["sha256"]},
+        "configs": [
+            {**_fileinfo(c, cache), "referenced": _referenced_files(c, root, cache)}
+            for c in ctx["configs"]
+        ],
+        "inputs": inputs,
+        "span": {"gps_week": span[0], "tow_start": span[1], "tow_end": span[2]},
+    }
+
+
+def _sidecar_path(out: Path) -> Path:
+    """Path of the solver record written next to a solution file."""
+    return out.with_name(out.name + ".run.json")
+
+
+def _read_json(path: Path):
+    """Parsed JSON file, or None if it is missing or unreadable."""
+    try:
+        return json.loads(path.read_text())
+    except (OSError, ValueError):
         return None
-    lines = (res.stdout or res.stderr).strip().splitlines()
-    return lines[0] if lines else None
 
 
 def _jsonable(v):
-    """Convert a metric value to strict JSON (NaN / inf -> None, numpy -> Python)."""
+    """Convert a value to strict JSON (NaN / inf -> None, numpy scalars -> Python, Path -> str).
+
+    Raises:
+        TypeError: For any other type, so that nothing is dropped silently.
+    """
     if isinstance(v, dict):
         return {k: _jsonable(x) for k, x in v.items()}
     if isinstance(v, (list, tuple)):
         return [_jsonable(x) for x in v]
-    if hasattr(v, "item") and not hasattr(v, "__len__"):
+    if isinstance(v, Path):
+        return str(v)
+    if hasattr(v, "item") and getattr(v, "ndim", None) == 0:
         v = v.item()
     if isinstance(v, float) and not math.isfinite(v):
         return None
     if isinstance(v, (str, int, float, bool)) or v is None:
         return v
-    return None
+    raise TypeError(f"not JSON-serialisable: {type(v).__name__}")
+
+
+def records_stem(args: argparse.Namespace) -> str:
+    """File-name stem of the run records: data set, mode, and ``subset`` for a ``--case`` run.
+
+    A run of a different mode, or of a few cases, does not overwrite the
+    records of a full run.
+    """
+    return f"{args.dataset}_{args.mode}" + ("_subset" if args.case else "")
 
 
 def write_run_records(
-    out_dir: Path, root: Path, args: argparse.Namespace, binary: str, rows: list[dict], started: str
+    out_dir: Path,
+    args: argparse.Namespace,
+    git_state: dict,
+    binary_info: dict,
+    rows: list[dict],
+    started: str,
+    complete: bool,
+    cache: dict,
 ) -> None:
-    """Write ``<dataset>_manifest.json`` and ``<dataset>_results.json`` to ``out_dir``.
+    """Write ``<stem>_manifest.json`` and ``<stem>_results.json`` to ``out_dir``.
 
-    The manifest records what produced the numbers: the MRTKLIB commit and
-    whether the tree was dirty, the solver binary (path, ``--version``,
-    SHA-256), the SHA-256 of the benchmark scripts, the command-line options,
-    and per case and mode the configurations, input files and solution file
-    with their SHA-256, the reference offset applied, and the status (``ok``,
-    ``fail``, ``skip``).  A case that failed is listed, never dropped.  The
-    results file holds every scalar metric per case and mode.
+    The manifest records what produced the numbers: the MRTKLIB state at the
+    start of the run (commit, ``git describe``, modified tracked files), the
+    solver binary of this run, the SHA-256 of the benchmark scripts, the
+    command-line options, whether the run completed, and per case and mode the
+    status (``ok`` / ``fail`` / ``skip``, with the reason and missing inputs of
+    a skip), whether the solution came from the cache, the solver record of
+    the solution (binary, configurations and the files they name, inputs, time
+    span: for a cached solution, the record written when it was solved), the
+    reference with its offset, and the solution file.  A case that failed or
+    was skipped is listed, never dropped.  The results file holds every scalar
+    metric per case and mode.  ``<stem>`` is ``records_stem(args)``.
 
     Args:
         out_dir: Results directory.
-        root: Repository root.
         args: Parsed CLI arguments.
-        binary: Solver binary path.
+        git_state: From ``_git_state()`` at the start of the run.
+        binary_info: From ``_binary_info()``.
         rows: List of result dicts from the benchmark loop.
         started: Start time of the run (UTC, ISO 8601).
+        complete: False when the run stopped before the last case.
+        cache: SHA-256 cache shared with the run.
     """
-    cache: dict = {}
     here = Path(__file__).resolve().parent
     scripts = [here / "run_benchmark.py", here / "compare_ppc.py", here / "cases.py"]
-    scripts.append(root / "scripts" / "tests" / "_geo.py")
-    status = _git(root, "status", "--porcelain", "--untracked-files=no")
-
-    def fileinfo(p) -> dict:
-        p = Path(p)
-        return {"path": str(p), "sha256": _sha256(p, cache)}
+    scripts.append(here.parent / "tests" / "_geo.py")
 
     cases = []
     results = []
     for r in rows:
-        entry = {
-            "case_id": r["case_id"],
-            "mode": r["mode"],
-            "status": r["status"],
-            "cached": r.get("cached", False),
-            "configs": [fileinfo(c) for c in r.get("configs", [])],
-            "inputs": {k: fileinfo(v) for k, v in r.get("inputs", {}).items()},
-            "extra_inputs": [fileinfo(f) for f in r.get("extra_inputs", [])],
-            "solution": fileinfo(r["solution"]) if r.get("solution") else None,
-            "reference_offset_enu": r.get("ref_offset_enu"),
-        }
-        cases.append(entry)
+        ctx = r.get("ctx", {})
+        cases.append(
+            {
+                "case_id": r["case_id"],
+                "mode": r["mode"],
+                "status": r["status"],
+                "skip_reason": ctx.get("skip_reason"),
+                "missing_inputs": ctx.get("missing_inputs", []),
+                "cached": ctx.get("cached", False),
+                "solver_record": ctx.get("solver_record"),
+                "reference": _fileinfo(ctx["ref"], cache) if ctx.get("ref") else None,
+                "reference_offset_enu": ctx.get("ref_offset_enu"),
+                "solution": _fileinfo(r["solution"], cache) if r.get("solution") else None,
+            }
+        )
         res = {"case_id": r["case_id"], "mode": r["mode"], "status": r["status"]}
+        if r.get("grid") is not None:
+            res["grid"] = {"interval_s": r["grid"][0], "phase_s": r["grid"][1]}
         for key in ("ppc", "ppc_raw", "ppc_allref"):
             if r.get(key) is not None:
                 good, total = r[key]
@@ -742,22 +883,21 @@ def write_run_records(
         m = r.get("metrics")
         if m is not None:
             res["metrics"] = {
-                k: v for k, v in m.items() if not isinstance(v, (list, tuple)) and k != "enu_errors"
+                k: v
+                for k, v in m.items()
+                if not isinstance(v, (list, tuple)) and getattr(v, "ndim", 0) == 0
             }
         results.append(res)
 
     manifest = {
         "schema": 1,
         "dataset": args.dataset,
+        "complete": complete,
         "started_utc": started,
         "finished_utc": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds"),
-        "mrtklib": {
-            "commit": _git(root, "rev-parse", "HEAD"),
-            "describe": _git(root, "describe", "--always", "--dirty", "--tags"),
-            "dirty": None if status is None else bool(status),
-        },
-        "binary": {"version": _binary_version(binary), **fileinfo(binary)},
-        "scripts": [fileinfo(p) for p in scripts],
+        "mrtklib": git_state,
+        "binary": binary_info,
+        "scripts": [_fileinfo(p, cache) for p in scripts],
         "options": {
             "mode": args.mode,
             "case": args.case,
@@ -769,8 +909,9 @@ def write_run_records(
         "cases": cases,
     }
     out_dir.mkdir(parents=True, exist_ok=True)
+    stem = records_stem(args)
     for name, data in (("manifest", manifest), ("results", {"schema": 1, "results": results})):
-        path = out_dir / f"{args.dataset}_{name}.json"
+        path = out_dir / f"{stem}_{name}.json"
         path.write_text(json.dumps(_jsonable(data), indent=1, allow_nan=False) + "\n")
         print(f"Wrote {path}")
 
@@ -857,131 +998,168 @@ def run_benchmark(args: argparse.Namespace) -> int:
     _SPP_THRESHOLD = 2.0  # metres
 
     results = []
+    git_state = _git_state(root)
+    binary_info = _binary_info(rnx2rtkp)
+    hashes: dict = {}
+    complete = False
+    try:
+        for case in cases:
+            files = case_files(dataset_dir, case)
+            obs, nav, base_obs, ref = files["rover"], files["nav"], files["base"], files["ref"]
 
-    for case in cases:
-        files = case_files(dataset_dir, case)
-        obs, nav, base_obs, ref = files["rover"], files["nav"], files["base"], files["ref"]
-
-        # Download L6 files (only needed for clas/madoca)
-        l6_modes = [m for m in modes if m in ("clas", "madoca")]
-        l6_paths: dict[str, list[Path]] = {"clas": [], "madoca": []}
-        if l6_modes:
-            l6_mode_arg = "both" if set(l6_modes) == {"clas", "madoca"} else l6_modes[0]
-            if not args.skip_download:
-                print(f"Downloading L6 for {case['id']} ...")
-                l6_paths = ensure_case_l6(case, l6_dir, l6_mode_arg)
-            else:
-                # Build expected paths without downloading
-                from cases import l6_sessions
-                from download_l6 import MADOCA_L6D_PRNS, MADOCA_PRNS
-
-                sessions = l6_sessions(case["gps_week"], case["tow_start"], case["tow_end"])
-                for year, doy, session in sessions:
-                    l6d = l6_dir / f"{year}{doy:03d}{session}.l6"
-                    if l6d.exists():
-                        l6_paths["clas"].append(l6d)
-                    for prn in MADOCA_PRNS:
-                        l6e = l6_dir / f"{year}{doy:03d}{session}.{prn}.l6"
-                        if l6e.exists():
-                            l6_paths["madoca"].append(l6e)
-                            break
-                    # MADOCA-PPP L6D iono: every available PRN, as ensure_case_l6 does
-                    for prn in MADOCA_L6D_PRNS:
-                        mdc_l6d = l6_dir / f"{year}{doy:03d}{session}.{prn}.l6"
-                        if mdc_l6d.exists():
-                            l6_paths["madoca"].append(mdc_l6d)
-
-            # Join multi-session streams so corrections survive the hour boundary
-            for key in list(l6_paths):
-                l6_paths[key] = _merge_l6_sessions(l6_paths[key], l6_dir / "merged")
-
-        for mode in modes:
-            conf = str(conf_dir / f"{mode}.toml")
-            out = out_dir / f"{case['id']}_{mode}.nmea"
-
-            # Determine extra input files and convergence threshold
-            if mode == "rtk":
-                extra_files = [base_obs]
-                threshold = math.nan  # RTK uses Q=4
-            elif mode == "madoca":
-                extra_files = l6_paths.get("madoca", [])
-                threshold = _PPP_THRESHOLD  # PPP: use <30cm threshold
-            elif mode == "single":
-                extra_files = []  # SPP: rover.obs + base.nav (broadcast eph) only
-                threshold = _SPP_THRESHOLD
-            else:  # clas
-                extra_files = l6_paths.get("clas", [])
-                threshold = math.nan  # PPP-RTK uses Q=4
-
-            print(f"\n[{case['id']}  /  {mode.upper()}]")
-
-            if (not extra_files and mode != "single") or not all(f.exists() for f in extra_files):
-                print(f"  WARNING: input files missing for {mode}; skipping.")
-                results.append(
-                    {"case_id": case["id"], "mode": mode, "metrics": None, "status": "skip"}
-                )
-                continue
-
-            site_confs = [str(conf_dir / f"{c}.toml") for c in case.get("confs", [case["city"]])]
-            # Run context for the manifest, attached to every result of this case/mode.
-            ctx = {
-                "configs": [conf, *site_confs],
-                "inputs": {"rover": obs, "nav": nav, "ref": ref},
-                "extra_inputs": list(extra_files),
-                "ref_offset_enu": case.get("ref_offset_enu"),
-                "cached": False,
-            }
-            # Skip if output is newer than all inputs, configurations included
-            if out.exists() and not args.force:
-                in_mtimes = [obs.stat().st_mtime, nav.stat().st_mtime]
-                in_mtimes += [f.stat().st_mtime for f in extra_files]
-                in_mtimes += [Path(c).stat().st_mtime for c in [conf, *site_confs]]
-                newest_in = max(in_mtimes)
-                if out.stat().st_mtime > newest_in:
-                    print(f"  [cached]  {out.name}")
-                    skip_run = True
-                    ctx["cached"] = True
+            # Download L6 files (only needed for clas/madoca)
+            l6_modes = [m for m in modes if m in ("clas", "madoca")]
+            l6_paths: dict[str, list[Path]] = {"clas": [], "madoca": []}
+            if l6_modes:
+                l6_mode_arg = "both" if set(l6_modes) == {"clas", "madoca"} else l6_modes[0]
+                if not args.skip_download:
+                    print(f"Downloading L6 for {case['id']} ...")
+                    l6_paths = ensure_case_l6(case, l6_dir, l6_mode_arg)
                 else:
-                    skip_run = False
-            else:
-                skip_run = False
+                    # Build expected paths without downloading
+                    from cases import l6_sessions
+                    from download_l6 import MADOCA_L6D_PRNS, MADOCA_PRNS
 
-            if not skip_run:
-                # Write to a temporary path and publish only what this run
-                # produced: a solver that exits 0 without writing must neither
-                # be scored from an old output nor erase it.
-                tmp = _temp_output(out)
-                t0 = time.monotonic()
-                ok = _run_rnx2rtkp(
-                    rnx2rtkp,
-                    conf,
-                    site_confs,
-                    case["gps_week"],
-                    case["tow_start"] - 60,
-                    case["tow_end"] + 60,
-                    tmp,
-                    obs,
-                    nav,
-                    extra_files,
-                    cwd=str(root),
-                    verbose=args.verbose,
-                )
-                elapsed = time.monotonic() - t0
-                if not ok:
-                    _discard_output(tmp)
-                    print(f"  FAIL: rnx2rtkp returned non-zero (elapsed {elapsed:.1f}s)")
+                    sessions = l6_sessions(case["gps_week"], case["tow_start"], case["tow_end"])
+                    for year, doy, session in sessions:
+                        l6d = l6_dir / f"{year}{doy:03d}{session}.l6"
+                        if l6d.exists():
+                            l6_paths["clas"].append(l6d)
+                        for prn in MADOCA_PRNS:
+                            l6e = l6_dir / f"{year}{doy:03d}{session}.{prn}.l6"
+                            if l6e.exists():
+                                l6_paths["madoca"].append(l6e)
+                                break
+                        # MADOCA-PPP L6D iono: every available PRN, as ensure_case_l6 does
+                        for prn in MADOCA_L6D_PRNS:
+                            mdc_l6d = l6_dir / f"{year}{doy:03d}{session}.{prn}.l6"
+                            if mdc_l6d.exists():
+                                l6_paths["madoca"].append(mdc_l6d)
+
+                # Join multi-session streams so corrections survive the hour boundary
+                for key in list(l6_paths):
+                    l6_paths[key] = _merge_l6_sessions(l6_paths[key], l6_dir / "merged")
+
+            for mode in modes:
+                conf = str(conf_dir / f"{mode}.toml")
+                out = out_dir / f"{case['id']}_{mode}.nmea"
+
+                # Determine extra input files and convergence threshold
+                if mode == "rtk":
+                    extra_files = [base_obs]
+                    threshold = math.nan  # RTK uses Q=4
+                elif mode == "madoca":
+                    extra_files = l6_paths.get("madoca", [])
+                    threshold = _PPP_THRESHOLD  # PPP: use <30cm threshold
+                elif mode == "single":
+                    extra_files = []  # SPP: rover.obs + base.nav (broadcast eph) only
+                    threshold = _SPP_THRESHOLD
+                else:  # clas
+                    extra_files = l6_paths.get("clas", [])
+                    threshold = math.nan  # PPP-RTK uses Q=4
+
+                print(f"\n[{case['id']}  /  {mode.upper()}]")
+
+                site_confs = [
+                    str(conf_dir / f"{c}.toml") for c in case.get("confs", [case["city"]])
+                ]
+                # Run context for the manifest, attached to every result of this case/mode.
+                ctx = {
+                    "configs": [conf, *site_confs],
+                    "inputs": {"rover": obs, "nav": nav},
+                    "ref": ref,
+                    "ref_offset_enu": case.get("ref_offset_enu"),
+                    "cached": False,
+                }
+                if mode == "rtk":
+                    ctx["inputs"]["base"] = base_obs
+                elif mode in ("clas", "madoca"):
+                    ctx["inputs"]["l6"] = list(extra_files)
+
+                missing = [str(f) for f in extra_files if not f.exists()]
+                if (not extra_files and mode != "single") or missing:
+                    print(f"  WARNING: input files missing for {mode}; skipping.")
+                    ctx["skip_reason"] = "no L6 files" if not extra_files else "input files missing"
+                    ctx["missing_inputs"] = missing
                     results.append(
                         {
                             "case_id": case["id"],
                             "mode": mode,
                             "metrics": None,
-                            "status": "fail",
-                            **ctx,
+                            "status": "skip",
+                            "ctx": ctx,
                         }
                     )
                     continue
-                if not tmp.exists():
-                    _discard_output(tmp)
+
+                # What produces the solution: solver, configurations (and the files
+                # they name), inputs and time span.  A cached solution is reused only
+                # when the record written next to it at solve time matches.
+                span = (case["gps_week"], case["tow_start"] - 60, case["tow_end"] + 60)
+                solver_rec = _solver_record(binary_info, ctx, span, root, hashes)
+                sidecar = _sidecar_path(out)
+                skip_run = False
+                if out.exists() and not args.force:
+                    if _read_json(sidecar) == solver_rec:
+                        print(f"  [cached]  {out.name}")
+                        skip_run = True
+                        ctx["cached"] = True
+                    else:
+                        print(f"  [stale]   {out.name}: solver, configuration or inputs changed")
+                ctx["solver_record"] = solver_rec
+
+                if not skip_run:
+                    # Write to a temporary path and publish only what this run
+                    # produced: a solver that exits 0 without writing must neither
+                    # be scored from an old output nor erase it.
+                    tmp = _temp_output(out)
+                    t0 = time.monotonic()
+                    ok = _run_rnx2rtkp(
+                        rnx2rtkp,
+                        conf,
+                        site_confs,
+                        case["gps_week"],
+                        case["tow_start"] - 60,
+                        case["tow_end"] + 60,
+                        tmp,
+                        obs,
+                        nav,
+                        extra_files,
+                        cwd=str(root),
+                        verbose=args.verbose,
+                    )
+                    elapsed = time.monotonic() - t0
+                    if not ok:
+                        _discard_output(tmp)
+                        print(f"  FAIL: rnx2rtkp returned non-zero (elapsed {elapsed:.1f}s)")
+                        results.append(
+                            {
+                                "case_id": case["id"],
+                                "mode": mode,
+                                "metrics": None,
+                                "status": "fail",
+                                "ctx": ctx,
+                            }
+                        )
+                        continue
+                    if not tmp.exists():
+                        _discard_output(tmp)
+                        print("  FAIL: output file not produced")
+                        results.append(
+                            {
+                                "case_id": case["id"],
+                                "mode": mode,
+                                "metrics": None,
+                                "status": "fail",
+                                "ctx": ctx,
+                            }
+                        )
+                        continue
+                    _publish_output(tmp, out)
+                    sidecar.write_text(json.dumps(solver_rec, indent=1) + "\n")
+                    print(f"  rnx2rtkp completed in {elapsed:.1f}s → {out.name}")
+
+                if not out.exists():
                     print("  FAIL: output file not produced")
                     results.append(
                         {
@@ -989,107 +1167,108 @@ def run_benchmark(args: argparse.Namespace) -> int:
                             "mode": mode,
                             "metrics": None,
                             "status": "fail",
-                            **ctx,
+                            "ctx": ctx,
                         }
                     )
                     continue
-                _publish_output(tmp, out)
-                print(f"  rnx2rtkp completed in {elapsed:.1f}s → {out.name}")
 
-            if not out.exists():
-                print("  FAIL: output file not produced")
-                results.append(
-                    {"case_id": case["id"], "mode": mode, "metrics": None, "status": "fail", **ctx}
+                # Compare against reference
+                ref_raw = parse_reference(str(ref))
+                offset = case.get("ref_offset_enu")
+                ref_rows = shift_reference(ref_raw, offset) if offset else ref_raw
+                nmea_rows = parse_nmea(str(out))
+                pairs = _match_epochs(ref_rows, nmea_rows)
+                m = compute_metrics(pairs, args.skip_epochs, threshold_2d=threshold)
+                # The official score covers the whole reference, so a run that
+                # completed keeps it even with no matching epoch (good = 0).  The
+                # PPC rule scores every reference epoch; UrbanNav and GICI, which
+                # have no official rule, are scored on the rover observation grid
+                # (UrbanNav: 5 Hz F9P against a 10 Hz reference; GICI: both 10 Hz,
+                # so the grid keeps every epoch).  The reliability metrics use the
+                # grid for all.
+                interval, phase = rinex_obs_timing(str(obs))
+                if args.dataset != "ppc":
+                    ppc = ppc_score(ref_rows, nmea_rows, interval=interval, phase=phase)
+                else:
+                    ppc = ppc_score(ref_rows, nmea_rows)
+                rel = reliability_metrics(ref_rows, nmea_rows, interval=interval, phase=phase)
+                # Reference variants: without the offset correction, and on every
+                # reference epoch.
+                extra = {}
+                if offset:
+                    extra["ppc_raw"] = ppc_score(ref_raw, nmea_rows, interval=interval, phase=phase)
+                    extra["ppc_allref"] = ppc_score(ref_rows, nmea_rows)
+
+                if m is None:
+                    print("  FAIL: no matching epochs")
+                    results.append(
+                        {
+                            "case_id": case["id"],
+                            "mode": mode,
+                            "metrics": None,
+                            "status": "fail",
+                            "ppc": ppc,
+                            "rel": rel,
+                            **extra,
+                            "ctx": ctx,
+                            "solution": out,
+                            "grid": (interval, phase),
+                        }
+                    )
+                    continue
+
+                # Progress line
+                if not math.isnan(threshold):
+                    thr_label = (
+                        f"<{threshold:.1f}m" if threshold >= 1.0 else f"<{threshold * 100:.0f}cm"
+                    )
+                    rate_str = f"{thr_label}={m['thr_rate']:.1f}%"
+                    conv_str = _fmt_s(m["conv_thr_s"])
+                else:
+                    rate_str = (
+                        f"Fix={m['fix_rate']:.1f}%  FF={m['ff_rate']:.1f}%  "
+                        f"misfix={_fmt_pct(100.0 - m['acc_rate_fix'])}"
+                    )
+                    conv_str = _fmt_s(m["conv_time_s"])
+                print(
+                    f"  N={m['n_matched']}  {rate_str}  "
+                    f"RMS(fix)={_fmt_m(m['rms_2d_fix'])}  "
+                    f"RMS(ff)={_fmt_m(m['rms_2d_ff'])}  "
+                    f"RMS(all)={m['rms_2d_all']:.3f}m  "
+                    f"TTFF={conv_str}s"
                 )
-                continue
-
-            # Compare against reference
-            ref_raw = parse_reference(str(ref))
-            offset = case.get("ref_offset_enu")
-            ref_rows = shift_reference(ref_raw, offset) if offset else ref_raw
-            nmea_rows = parse_nmea(str(out))
-            pairs = _match_epochs(ref_rows, nmea_rows)
-            m = compute_metrics(pairs, args.skip_epochs, threshold_2d=threshold)
-            # The official score covers the whole reference, so a run that
-            # completed keeps it even with no matching epoch (good = 0).  The
-            # PPC rule scores every reference epoch; UrbanNav and GICI, which
-            # have no official rule, are scored on the rover observation grid
-            # (UrbanNav: 5 Hz F9P against a 10 Hz reference; GICI: both 10 Hz,
-            # so the grid keeps every epoch).  The reliability metrics use the
-            # grid for all.
-            interval, phase = rinex_obs_timing(str(obs))
-            if args.dataset != "ppc":
-                ppc = ppc_score(ref_rows, nmea_rows, interval=interval, phase=phase)
-            else:
-                ppc = ppc_score(ref_rows, nmea_rows)
-            rel = reliability_metrics(ref_rows, nmea_rows, interval=interval, phase=phase)
-            # Reference variants: without the offset correction, and on every
-            # reference epoch.
-            extra = {}
-            if offset:
-                extra["ppc_raw"] = ppc_score(ref_raw, nmea_rows, interval=interval, phase=phase)
-                extra["ppc_allref"] = ppc_score(ref_rows, nmea_rows)
-
-            if m is None:
-                print("  FAIL: no matching epochs")
                 results.append(
                     {
                         "case_id": case["id"],
                         "mode": mode,
-                        "metrics": None,
-                        "status": "fail",
+                        "metrics": m,
+                        "status": "ok",
                         "ppc": ppc,
                         "rel": rel,
                         **extra,
-                        **ctx,
+                        "ctx": ctx,
                         "solution": out,
+                        "grid": (interval, phase),
                     }
                 )
-                continue
 
-            # Progress line
-            if not math.isnan(threshold):
-                thr_label = (
-                    f"<{threshold:.1f}m" if threshold >= 1.0 else f"<{threshold * 100:.0f}cm"
-                )
-                rate_str = f"{thr_label}={m['thr_rate']:.1f}%"
-                conv_str = _fmt_s(m["conv_thr_s"])
-            else:
-                rate_str = (
-                    f"Fix={m['fix_rate']:.1f}%  FF={m['ff_rate']:.1f}%  "
-                    f"misfix={_fmt_pct(100.0 - m['acc_rate_fix'])}"
-                )
-                conv_str = _fmt_s(m["conv_time_s"])
-            print(
-                f"  N={m['n_matched']}  {rate_str}  "
-                f"RMS(fix)={_fmt_m(m['rms_2d_fix'])}  "
-                f"RMS(ff)={_fmt_m(m['rms_2d_ff'])}  "
-                f"RMS(all)={m['rms_2d_all']:.3f}m  "
-                f"TTFF={conv_str}s"
-            )
-            results.append(
-                {
-                    "case_id": case["id"],
-                    "mode": mode,
-                    "metrics": m,
-                    "status": "ok",
-                    "ppc": ppc,
-                    "rel": rel,
-                    **extra,
-                    **ctx,
-                    "solution": out,
-                }
-            )
+                if args.plot:
+                    png = out_dir / f"{case['id']}_{mode}.png"
+                    plot_results(m, title=f"{case['id']} / {mode.upper()}", output_path=str(png))
 
-            if args.plot:
-                png = out_dir / f"{case['id']}_{mode}.png"
-                plot_results(m, title=f"{case['id']} / {mode.upper()}", output_path=str(png))
+        complete = True
+    finally:
+        # A run that stops early still leaves its records, marked incomplete.
+        if not complete:
+            write_run_records(
+                out_dir, args, git_state, binary_info, results, started, False, hashes
+            )
 
     print_summary(results)
     print_ppc_scores(results, args.dataset)
     print_misfix_events(results)
     print()
-    write_run_records(out_dir, root, args, rnx2rtkp, results, started)
+    write_run_records(out_dir, args, git_state, binary_info, results, started, True, hashes)
     return 0
 
 
