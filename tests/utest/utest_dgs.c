@@ -17,8 +17,9 @@
  * input_dgs() (STRFMT_DGS) on the same fixtures: return codes as for the UBX /
  * SBF L6 messages (10 CLAS frame, 15 MADOCA-PPP SSR decoded, 17 QZNMA frame,
  * -1 Reed-Solomon failure), with raw->l6tag, raw->time and raw->ephsat set.
- * The L6E fixture is re-wrapped from l6route_ubx_l6e.ubx, so its QZNMA count
- * must equal the one of input_ubx() on the original. A truncated frame right
+ * The L6E fixture is re-wrapped from l6route_ubx_l6e.ubx, so its MADOCA-PPP SSR
+ * and QZNMA counts must equal the ones of input_ubx() on the original, each
+ * run from a fresh MADOCA decoder state. A truncated frame right
  * before a complete one must not cost the complete one.
  *
  * Explicit CHECK macro (not assert) so it is robust under -DNDEBUG.
@@ -205,6 +206,7 @@ static int feed(const uint8_t* buf, long len, int format, feed_t* r) {
     }
     init_raw(raw, format);
     init_rtcm(rtcm);
+    init_mcssr(gpst2time(2446, 0.0)); /* MADOCA decoder state is global: a fresh one per stream */
     for (i = 0; i < len; i++) {
         ret = format == STRFMT_DGS ? input_dgs(raw, rtcm, buf[i]) : input_ubx(raw, rtcm, buf[i]);
         if (ret >= 10 && ret <= 17) r->n[ret]++;
@@ -264,6 +266,7 @@ static void test_input_rewrapped(void) {
     /* the stray sync sequence, the corrupted frame and the two frames with
      * an unconfirmed time deliver nothing: 30 frames, as in the UBX original */
     CHECK(rd.nframe == 30 && ru.nframe == 30 && rd.nerr == 0, "30 frames delivered");
+    CHECK(rd.n[15] > 0 && rd.n[15] == ru.n[15], "MADOCA-PPP SSR decoded as through input_ubx()");
     CHECK(rd.n[17] > 0 && rd.n[17] == ru.n[17], "QZNMA frames as through input_ubx()");
     CHECK(rd.n[10] == 0 && rd.n[16] == 0, "no L6E frame routed as CLAS or iono");
     free(dgs);
