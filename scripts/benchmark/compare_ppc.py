@@ -419,6 +419,15 @@ def reliability_metrics(
     epoch has a solution when one lies within a quarter of the reference
     interval.
 
+    A grid epoch is a *correct fix* when its solution is fixed with 3D error
+    <= ``threshold_3d`` and a *misfix* when it is fixed beyond it.  "Misfix"
+    is a position-error proxy, not a verified wrong integer set.  A *misfix
+    event* is a run of consecutive misfixed grid epochs; a missing or
+    non-misfixed epoch, or a gap in the reference, ends it.  Its duration is
+    its epoch count times the grid interval.  An event's *recovery time* is
+    the time from its last misfixed epoch to the next correct fix; an event
+    with no later correct fix is *unrecovered*.
+
     Args:
         ref_rows: Sorted list from ``parse_reference()``.
         nmea_rows: Sorted list from ``parse_nmea()``.
@@ -431,18 +440,49 @@ def reliability_metrics(
             None), which anchors the decimated grid.
 
     Returns:
-        Dict with ``n_expected``, ``missing_rate`` (% of grid epochs without a
-        solution), ``n_fix3d`` (fixed grid epochs), ``misfix3d_rate`` (% of
-        those with 3D error > ``threshold_3d``, NaN without fixes) and
-        ``misfix3d_longest_s`` (longest run of consecutive misfixed grid
-        epochs in seconds; a missing or non-misfixed epoch ends a run).
+        Dict with
+
+        - ``n_expected`` (grid epochs), ``dt_grid_s`` (grid interval),
+          ``missing_rate`` (% of grid epochs without a solution);
+        - ``n_fix3d`` (fixed grid epochs), ``misfix3d_rate`` (% of those that
+          are misfixes, NaN without fixes), ``misfix3d_longest_s`` (longest
+          misfix event in seconds, NaN without fixes);
+        - ``n_fix3d_correct``, ``correct_fix_rate`` (% of all grid epochs that
+          are correct fixes);
+        - ``misfix3d_dist_rate``: % of the grid trajectory length on misfixed
+          epochs (the distance between consecutive grid epochs is credited to
+          the later one, as in ``ppc_score()``);
+        - ``misfix_events`` (count), ``misfix_events_per_h`` (per hour of grid
+          time), ``misfix_dur_p50_s`` / ``misfix_dur_p95_s`` /
+          ``misfix_dur_max_s`` (event durations), ``recovery_p50_s`` /
+          ``recovery_max_s`` (recovered events), ``n_unrecovered``;
+        - ``misfix_event_list``: per event ``(start, duration_s, recovery_s)``,
+          ``start`` being the reference time of its first epoch and
+          ``recovery_s`` None when unrecovered.
+
+        Distribution fields are NaN when there is no event (or no recovered
+        event for the recovery fields).
     """
+    nan = math.nan
     out = {
         "n_expected": 0,
-        "missing_rate": math.nan,
+        "dt_grid_s": nan,
+        "missing_rate": nan,
         "n_fix3d": 0,
-        "misfix3d_rate": math.nan,
-        "misfix3d_longest_s": math.nan,
+        "misfix3d_rate": nan,
+        "misfix3d_longest_s": nan,
+        "n_fix3d_correct": 0,
+        "correct_fix_rate": nan,
+        "misfix3d_dist_rate": nan,
+        "misfix_events": 0,
+        "misfix_events_per_h": nan,
+        "misfix_dur_p50_s": nan,
+        "misfix_dur_p95_s": nan,
+        "misfix_dur_max_s": nan,
+        "recovery_p50_s": nan,
+        "recovery_max_s": nan,
+        "n_unrecovered": 0,
+        "misfix_event_list": [],
     }
     if len(ref_rows) < 2:
         return out
@@ -450,38 +490,86 @@ def reliability_metrics(
     grid, dt_grid, tol = observation_grid(ref, interval, phase)
 
     sol_t = [t for t, _ in sol]
-    n_missing = n_fix = n_misfix = 0
-    run = longest = 0
-    prev_t = None
+    n_missing = n_fix = n_misfix = n_correct = 0
+    dist_total = dist_misfix = 0.0
+    events: list[list] = []  # [start record time, n epochs, last t, recovery_s]
+    open_event = False
+    pending: list[list] = []  # events waiting for a correct fix
+    prev_t = prev_xyz = None
     for t, r in grid:
-        # A gap in the reference itself also ends a misfix run.
+        xyz = blh2xyz(r[1], r[2], r[3])
+        # A gap in the reference itself also ends a misfix event.
         if prev_t is not None and t - prev_t > 1.5 * dt_grid:
-            run = 0
-        prev_t = t
+            open_event = False
         i = bisect.bisect_left(sol_t, t - tol)
         s = None
         if i < len(sol) and abs(sol_t[i] - t) <= tol:
             # Same-time records: use the last one, as the hold of ppc_score() does.
             i = bisect.bisect_right(sol_t, sol_t[i], lo=i) - 1
             s = sol[i][1]
-        bad_fix = False
+        bad_fix = good_fix = False
         if s is None:
             n_missing += 1
         elif s[4] == fix_quality:
             n_fix += 1
-            err = float(np.linalg.norm(blh2xyz(s[1], s[2], s[3]) - blh2xyz(r[1], r[2], r[3])))
+            err = float(np.linalg.norm(blh2xyz(s[1], s[2], s[3]) - xyz))
             if err > threshold_3d:
                 n_misfix += 1
                 bad_fix = True
-        run = run + 1 if bad_fix else 0
-        longest = max(longest, run)
+            else:
+                n_correct += 1
+                good_fix = True
+        if prev_xyz is not None:
+            w = float(np.linalg.norm(xyz - prev_xyz))
+            dist_total += w
+            if bad_fix:
+                dist_misfix += w
+        if bad_fix:
+            if open_event:
+                events[-1][1] += 1
+                events[-1][2] = t
+            else:
+                events.append([r[0], 1, t, None])
+                pending.append(events[-1])
+                open_event = True
+        else:
+            open_event = False
+            if good_fix:
+                for ev in pending:
+                    ev[3] = t - ev[2]
+                pending = []
+        prev_t, prev_xyz = t, xyz
 
-    out["n_expected"] = len(grid)
-    out["missing_rate"] = 100.0 * n_missing / len(grid) if grid else math.nan
+    n_exp = len(grid)
+    out["n_expected"] = n_exp
+    out["dt_grid_s"] = dt_grid
+    out["missing_rate"] = 100.0 * n_missing / n_exp if grid else nan
     out["n_fix3d"] = n_fix
+    out["n_fix3d_correct"] = n_correct
+    if grid:
+        out["correct_fix_rate"] = 100.0 * n_correct / n_exp
+        out["misfix_events_per_h"] = len(events) / (n_exp * dt_grid / 3600.0)
+    if dist_total > 0:
+        out["misfix3d_dist_rate"] = 100.0 * dist_misfix / dist_total
+    durs = [ev[1] * dt_grid for ev in events]
+    recs = [ev[3] for ev in events if ev[3] is not None]
+    out["misfix_events"] = len(events)
+    out["n_unrecovered"] = len(events) - len(recs)
+    # Rounded to 1 ms: the grid interval is a median of float times.
+    out["misfix_event_list"] = [
+        (round(ev[0], 3), round(d, 3), None if ev[3] is None else round(ev[3], 3))
+        for ev, d in zip(events, durs)
+    ]
+    if durs:
+        out["misfix_dur_p50_s"] = float(np.percentile(durs, 50))
+        out["misfix_dur_p95_s"] = float(np.percentile(durs, 95))
+        out["misfix_dur_max_s"] = max(durs)
+    if recs:
+        out["recovery_p50_s"] = float(np.percentile(recs, 50))
+        out["recovery_max_s"] = max(recs)
     if n_fix:
         out["misfix3d_rate"] = 100.0 * n_misfix / n_fix
-        out["misfix3d_longest_s"] = longest * dt_grid
+        out["misfix3d_longest_s"] = max(durs) if durs else 0.0
     return out
 
 

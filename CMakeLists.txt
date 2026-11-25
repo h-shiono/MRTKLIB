@@ -694,6 +694,12 @@ add_test(NAME stream_tcpsvr_rebind
         $<TARGET_FILE:mrtk>)
 set_tests_properties(stream_tcpsvr_rebind PROPERTIES TIMEOUT 60 LABELS "utest;stream")
 
+# Benchmark fix-reliability metrics (correct fixes, misfix events, recovery)
+# on a synthetic grid (#582).
+add_test(NAME benchmark_reliability_metrics
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/scripts/tests/check_reliability_metrics.py)
+set_tests_properties(benchmark_reliability_metrics PROPERTIES TIMEOUT 30 LABELS "utest")
+
 # ── Regression test data ─────────────────────────────────────────────────────
 set(_TESTDATA  ${CMAKE_SOURCE_DIR}/tests/data/malib)
 set(_REFDATA   ${CMAKE_SOURCE_DIR}/tests/data/malib)

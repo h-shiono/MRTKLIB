@@ -259,6 +259,56 @@ itself also ends a `longest` run.
 | `misfix3d` | Share of integer-fixed epochs (NMEA GGA quality 4) with 3D error > 0.5 m. Not the 2D 30 cm `misfix` of the progress line. |
 | `longest` | Longest run of consecutive `misfix3d` epochs, in seconds. A missing epoch ends a run. |
 
+#### Fix reliability table
+
+An epoch rate counts one long misfix as many failures (a 20 s misfix at
+10 Hz is 200 epochs), and `misfix3d` is conditional on a fix, so a solver
+that rarely fixes can look reliable. A second table, **Fix reliability**,
+gives the fixes as a share of all expected epochs and counts misfixes as
+events. It uses the same grid and the same 0.5 m 3D bound.
+
+"Misfix" here means a fixed solution beyond 0.5 m. It is a position-error
+proxy: the benchmark does not check the integer ambiguities themselves.
+
+| Column | Meaning |
+|--------|---------|
+| `cfix` | Correct-fix rate: fixed epochs with 3D error ≤ 0.5 m, as a share of all expected epochs (missing epochs included) |
+| `mfixdst` | Share of the grid trajectory length on misfixed epochs. The distance between consecutive grid epochs is credited to the later epoch, as in the score. |
+| `events` | Misfix events: runs of consecutive misfixed epochs. A missing or non-misfixed epoch, or a gap in the reference, ends an event (the same rule as `longest`). |
+| `ev/h` | Misfix events per hour of grid time |
+| `dur50` / `dur95` / `durmax` | Event duration: median, 95th percentile, maximum. `durmax` equals `longest`. |
+| `rec50` / `recmax` | Recovery time, from an event's last misfixed epoch to the next correct fix: median and maximum over the recovered events |
+| `unrec` | Events with no correct fix before the end of the run |
+
+The `overall (pooled)` row adds up the epochs and events of the scored runs.
+
+#### Run records (JSON)
+
+Each run writes two files to `--out-dir`, named after the data set:
+
+- `<dataset>_manifest.json` records what produced the numbers:
+  - the MRTKLIB commit, `git describe`, and whether tracked files were
+    modified;
+  - the solver binary: path, `--version` and SHA-256;
+  - the SHA-256 of the benchmark scripts;
+  - the command-line options;
+  - per case and mode: the status (`ok` / `fail` / `skip`), whether the
+    solution was taken from the cache, each layered configuration, each input
+    file (rover, base, nav, reference, L6) and the solution file with its
+    SHA-256, and the reference offset applied.
+
+  Failed and skipped cases are listed, not dropped.
+- `<dataset>_results.json` holds every scalar metric per case and mode:
+  - the score and its reference variants, as good and total distance;
+  - the reliability metrics above, including the list of misfix events
+    (start time, duration, recovery time);
+  - the tier statistics.
+
+  NaN is written as `null`.
+
+Two runs can be compared case by case from these files, and the manifest shows
+whether the code, configurations and data were the same.
+
 Runs that do not produce a score are not dropped from the overall:
 
 - A run that completes without a usable solution scores 0 over its full

@@ -34,9 +34,16 @@ Usage
     --skip-epochs N             Epochs to skip for metrics (default: 60)
     --plot                      Save per-case ENU PNG to --out-dir
     -v / --verbose              Show rnx2rtkp stdout/stderr
+
+Besides the text report, every run writes two JSON files to --out-dir:
+<dataset>_manifest.json (code, configuration and input hashes, every case with
+its status) and <dataset>_results.json (all metrics per case and mode).
 """
 
 import argparse
+import datetime
+import hashlib
+import json
 import math
 import os
 import subprocess
@@ -556,6 +563,218 @@ def print_ppc_scores(rows: list[dict], dataset: str = "ppc") -> None:
     print("  longest  = longest consecutive misfix3d span.")
 
 
+def print_misfix_events(rows: list[dict]) -> None:
+    """Print the correct-fix rate and the misfix-event metrics per case and mode.
+
+    All columns come from ``compare_ppc.reliability_metrics()`` on the
+    expected-solution grid.  An epoch rate counts one long misfix as many
+    failures; the event columns count it once and give its duration and the
+    time to the next correct fix.  The overall row pools the epochs and
+    events of the scored runs.
+
+    Args:
+        rows: List of result dicts from the benchmark loop.
+    """
+    scored = [r for r in rows if r.get("ppc") is not None and r["ppc"][1] > 0]
+    if not scored:
+        return
+
+    def pct(v: float) -> str:
+        return "nan" if math.isnan(v) else f"{v:.1f}%"
+
+    def sec(v: float) -> str:
+        return "-" if math.isnan(v) else f"{v:.1f}s"
+
+    thr = f"{PPC_SCORE_THRESHOLD_3D * 100:.0f} cm"
+    print()
+    print(f"Fix reliability (expected-solution grid, 3D <= {thr})")
+    print(
+        f"  {'case':<20} {'mode':<7} {'cfix':>7} {'mfixdst':>8} {'events':>6} {'ev/h':>6}"
+        f" {'dur50':>6} {'dur95':>6} {'durmax':>7} {'rec50':>6} {'recmax':>7} {'unrec':>5}"
+    )
+    totals: dict[str, list] = {}
+    for r in scored:
+        rel = r["rel"]
+        acc = totals.setdefault(r["mode"], [0, 0, 0, 0.0, 0])
+        acc[0] += rel["n_fix3d_correct"]
+        acc[1] += rel["n_expected"]
+        acc[2] += rel["misfix_events"]
+        acc[3] += rel["n_expected"] * rel.get("dt_grid_s", math.nan)
+        acc[4] += rel["n_unrecovered"]
+        evh = rel["misfix_events_per_h"]
+        print(
+            f"  {r['case_id']:<20} {r['mode']:<7} {pct(rel['correct_fix_rate']):>7}"
+            f" {pct(rel['misfix3d_dist_rate']):>8} {rel['misfix_events']:>6}"
+            f" {'nan' if math.isnan(evh) else f'{evh:.1f}':>6}"
+            f" {sec(rel['misfix_dur_p50_s']):>6} {sec(rel['misfix_dur_p95_s']):>6}"
+            f" {sec(rel['misfix_dur_max_s']):>7} {sec(rel['recovery_p50_s']):>6}"
+            f" {sec(rel['recovery_max_s']):>7} {rel['n_unrecovered']:>5}"
+        )
+    for mode, (n_ok, n_exp, n_ev, span_s, n_unrec) in totals.items():
+        cfix = 100.0 * n_ok / n_exp if n_exp else math.nan
+        evh = n_ev / (span_s / 3600.0) if span_s > 0 else math.nan
+        print(
+            f"  {'overall (pooled)':<20} {mode:<7} {pct(cfix):>7} {'':>8} {n_ev:>6}"
+            f" {'nan' if math.isnan(evh) else f'{evh:.1f}':>6} {'':>6} {'':>6} {'':>7}"
+            f" {'':>6} {'':>7} {n_unrec:>5}"
+        )
+    print(
+        "  cfix    = correctly fixed epochs / all expected epochs;"
+        " mfixdst = share of the trajectory length on misfixed epochs;"
+    )
+    print(
+        "  events  = runs of consecutive misfixed epochs (dur = duration);"
+        " rec = time from an event's last misfix to the next correct fix;"
+    )
+    print("  unrec   = events with no correct fix afterwards.")
+
+
+def _sha256(path: Path, cache: dict) -> str | None:
+    """SHA-256 of a file (cached per path), or None if it does not exist."""
+    key = str(path)
+    if key not in cache:
+        if not path.is_file():
+            cache[key] = None
+        else:
+            h = hashlib.sha256()
+            with open(path, "rb") as f:
+                for chunk in iter(lambda: f.read(1 << 20), b""):
+                    h.update(chunk)
+            cache[key] = h.hexdigest()
+    return cache[key]
+
+
+def _git(root: Path, *argv: str) -> str | None:
+    """Output of a git command in ``root``, or None when git fails."""
+    try:
+        res = subprocess.run(
+            ["git", *argv], cwd=root, capture_output=True, text=True, check=True, timeout=30
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    return res.stdout.strip()
+
+
+def _binary_version(binary: str) -> str | None:
+    """First line of ``<binary> --version``, or None."""
+    try:
+        res = subprocess.run(
+            [binary, "--version"], capture_output=True, text=True, timeout=30, check=False
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    lines = (res.stdout or res.stderr).strip().splitlines()
+    return lines[0] if lines else None
+
+
+def _jsonable(v):
+    """Convert a metric value to strict JSON (NaN / inf -> None, numpy -> Python)."""
+    if isinstance(v, dict):
+        return {k: _jsonable(x) for k, x in v.items()}
+    if isinstance(v, (list, tuple)):
+        return [_jsonable(x) for x in v]
+    if hasattr(v, "item") and not hasattr(v, "__len__"):
+        v = v.item()
+    if isinstance(v, float) and not math.isfinite(v):
+        return None
+    if isinstance(v, (str, int, float, bool)) or v is None:
+        return v
+    return None
+
+
+def write_run_records(
+    out_dir: Path, root: Path, args: argparse.Namespace, binary: str, rows: list[dict], started: str
+) -> None:
+    """Write ``<dataset>_manifest.json`` and ``<dataset>_results.json`` to ``out_dir``.
+
+    The manifest records what produced the numbers: the MRTKLIB commit and
+    whether the tree was dirty, the solver binary (path, ``--version``,
+    SHA-256), the SHA-256 of the benchmark scripts, the command-line options,
+    and per case and mode the configurations, input files and solution file
+    with their SHA-256, the reference offset applied, and the status (``ok``,
+    ``fail``, ``skip``).  A case that failed is listed, never dropped.  The
+    results file holds every scalar metric per case and mode.
+
+    Args:
+        out_dir: Results directory.
+        root: Repository root.
+        args: Parsed CLI arguments.
+        binary: Solver binary path.
+        rows: List of result dicts from the benchmark loop.
+        started: Start time of the run (UTC, ISO 8601).
+    """
+    cache: dict = {}
+    here = Path(__file__).resolve().parent
+    scripts = [here / "run_benchmark.py", here / "compare_ppc.py", here / "cases.py"]
+    scripts.append(root / "scripts" / "tests" / "_geo.py")
+    status = _git(root, "status", "--porcelain", "--untracked-files=no")
+
+    def fileinfo(p) -> dict:
+        p = Path(p)
+        return {"path": str(p), "sha256": _sha256(p, cache)}
+
+    cases = []
+    results = []
+    for r in rows:
+        entry = {
+            "case_id": r["case_id"],
+            "mode": r["mode"],
+            "status": r["status"],
+            "cached": r.get("cached", False),
+            "configs": [fileinfo(c) for c in r.get("configs", [])],
+            "inputs": {k: fileinfo(v) for k, v in r.get("inputs", {}).items()},
+            "extra_inputs": [fileinfo(f) for f in r.get("extra_inputs", [])],
+            "solution": fileinfo(r["solution"]) if r.get("solution") else None,
+            "reference_offset_enu": r.get("ref_offset_enu"),
+        }
+        cases.append(entry)
+        res = {"case_id": r["case_id"], "mode": r["mode"], "status": r["status"]}
+        for key in ("ppc", "ppc_raw", "ppc_allref"):
+            if r.get(key) is not None:
+                good, total = r[key]
+                res[key] = {
+                    "good_m": good,
+                    "total_m": total,
+                    "score_pct": 100.0 * good / total if total > 0 else None,
+                }
+        if r.get("rel") is not None:
+            res["reliability"] = r["rel"]
+        m = r.get("metrics")
+        if m is not None:
+            res["metrics"] = {
+                k: v for k, v in m.items() if not isinstance(v, (list, tuple)) and k != "enu_errors"
+            }
+        results.append(res)
+
+    manifest = {
+        "schema": 1,
+        "dataset": args.dataset,
+        "started_utc": started,
+        "finished_utc": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds"),
+        "mrtklib": {
+            "commit": _git(root, "rev-parse", "HEAD"),
+            "describe": _git(root, "describe", "--always", "--dirty", "--tags"),
+            "dirty": None if status is None else bool(status),
+        },
+        "binary": {"version": _binary_version(binary), **fileinfo(binary)},
+        "scripts": [fileinfo(p) for p in scripts],
+        "options": {
+            "mode": args.mode,
+            "case": args.case,
+            "force": args.force,
+            "skip_epochs": args.skip_epochs,
+            "dataset_dir": str(args.dataset_dir),
+            "threshold_3d_m": PPC_SCORE_THRESHOLD_3D,
+        },
+        "cases": cases,
+    }
+    out_dir.mkdir(parents=True, exist_ok=True)
+    for name, data in (("manifest", manifest), ("results", {"schema": 1, "results": results})):
+        path = out_dir / f"{args.dataset}_{name}.json"
+        path.write_text(json.dumps(_jsonable(data), indent=1, allow_nan=False) + "\n")
+        print(f"Wrote {path}")
+
+
 # ---------------------------------------------------------------------------
 # Main benchmark loop
 # ---------------------------------------------------------------------------
@@ -581,6 +800,7 @@ def run_benchmark(args: argparse.Namespace) -> int:
     if not out_dir.is_absolute():
         out_dir = root / out_dir
     conf_dir = root / "conf" / "benchmark"
+    started = datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds")
 
     rnx2rtkp = _find_rnx2rtkp(args.rnx2rtkp)
     print(f"rnx2rtkp  : {rnx2rtkp}")
@@ -703,6 +923,14 @@ def run_benchmark(args: argparse.Namespace) -> int:
                 continue
 
             site_confs = [str(conf_dir / f"{c}.toml") for c in case.get("confs", [case["city"]])]
+            # Run context for the manifest, attached to every result of this case/mode.
+            ctx = {
+                "configs": [conf, *site_confs],
+                "inputs": {"rover": obs, "nav": nav, "ref": ref},
+                "extra_inputs": list(extra_files),
+                "ref_offset_enu": case.get("ref_offset_enu"),
+                "cached": False,
+            }
             # Skip if output is newer than all inputs, configurations included
             if out.exists() and not args.force:
                 in_mtimes = [obs.stat().st_mtime, nav.stat().st_mtime]
@@ -712,6 +940,7 @@ def run_benchmark(args: argparse.Namespace) -> int:
                 if out.stat().st_mtime > newest_in:
                     print(f"  [cached]  {out.name}")
                     skip_run = True
+                    ctx["cached"] = True
                 else:
                     skip_run = False
             else:
@@ -742,14 +971,26 @@ def run_benchmark(args: argparse.Namespace) -> int:
                     _discard_output(tmp)
                     print(f"  FAIL: rnx2rtkp returned non-zero (elapsed {elapsed:.1f}s)")
                     results.append(
-                        {"case_id": case["id"], "mode": mode, "metrics": None, "status": "fail"}
+                        {
+                            "case_id": case["id"],
+                            "mode": mode,
+                            "metrics": None,
+                            "status": "fail",
+                            **ctx,
+                        }
                     )
                     continue
                 if not tmp.exists():
                     _discard_output(tmp)
                     print("  FAIL: output file not produced")
                     results.append(
-                        {"case_id": case["id"], "mode": mode, "metrics": None, "status": "fail"}
+                        {
+                            "case_id": case["id"],
+                            "mode": mode,
+                            "metrics": None,
+                            "status": "fail",
+                            **ctx,
+                        }
                     )
                     continue
                 _publish_output(tmp, out)
@@ -758,7 +999,7 @@ def run_benchmark(args: argparse.Namespace) -> int:
             if not out.exists():
                 print("  FAIL: output file not produced")
                 results.append(
-                    {"case_id": case["id"], "mode": mode, "metrics": None, "status": "fail"}
+                    {"case_id": case["id"], "mode": mode, "metrics": None, "status": "fail", **ctx}
                 )
                 continue
 
@@ -800,6 +1041,8 @@ def run_benchmark(args: argparse.Namespace) -> int:
                         "ppc": ppc,
                         "rel": rel,
                         **extra,
+                        **ctx,
+                        "solution": out,
                     }
                 )
                 continue
@@ -833,6 +1076,8 @@ def run_benchmark(args: argparse.Namespace) -> int:
                     "ppc": ppc,
                     "rel": rel,
                     **extra,
+                    **ctx,
+                    "solution": out,
                 }
             )
 
@@ -842,6 +1087,9 @@ def run_benchmark(args: argparse.Namespace) -> int:
 
     print_summary(results)
     print_ppc_scores(results, args.dataset)
+    print_misfix_events(results)
+    print()
+    write_run_records(out_dir, root, args, rnx2rtkp, results, started)
     return 0
 
 
