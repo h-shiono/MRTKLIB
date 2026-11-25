@@ -131,7 +131,37 @@ URBANNAV_CASES: list[dict] = [
     for rx, (rover, confs) in _URBANNAV_ROVERS.items()
 ]
 
-DATASETS = {"ppc": CASES, "urbannav": URBANNAV_CASES}
+# ---------------------------------------------------------------------------
+# GICI open dataset, Shanghai (RTK only; held out, not used for tuning)
+# ---------------------------------------------------------------------------
+# Built by prepare_gici.py from the hand-downloaded sequence zips.  The rover
+# is 10 Hz; the base is a 1 Hz Qianxun network VRS, so the baseline is short.
+# reference.csv already holds the antenna position (prepare_gici.LEVER_RFU).
+# (GPS week, first and last reference TOW)
+_GICI_SEQUENCES = {
+    "3.1": (2255, 114317.0, 114789.0),
+    "3.2": (2255, 111852.0, 112281.0),
+    "3.3": (2255, 107155.0, 107708.0),
+    "4.1": (2263, 24983.1, 25369.0),
+    "4.2": (2255, 115567.0, 115841.0),
+    "4.3": (2255, 104100.0, 104556.0),
+    "5.2": (2263, 25485.1, 27172.0),
+}
+
+GICI_CASES: list[dict] = [
+    {
+        "id": f"gici_{seq}",
+        "city": "gici",
+        "dir": f"gici/{seq}",
+        "confs": [],
+        "gps_week": week,
+        "tow_start": t0,
+        "tow_end": t1,
+    }
+    for seq, (week, t0, t1) in _GICI_SEQUENCES.items()
+]
+
+DATASETS = {"ppc": CASES, "urbannav": URBANNAV_CASES, "gici": GICI_CASES}
 
 
 def case_files(dataset_dir, case: dict) -> dict:

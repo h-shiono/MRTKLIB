@@ -1,4 +1,4 @@
-"""run_benchmark.py - Run MRTKLIB kinematic positioning benchmark on PPC-Dataset / UrbanNav.
+"""run_benchmark.py - Run MRTKLIB kinematic positioning benchmark on PPC-Dataset / UrbanNav / GICI.
 
 For each configured driving run, calls rnx2rtkp in PPP-RTK (CLAS), PPP
 (MADOCA), and/or kinematic RTK mode, then compares the NMEA output against the
@@ -19,13 +19,14 @@ Usage
 -----
     python run_benchmark.py [options]
 
-    --dataset ppc|urbannav      Data set (default: ppc); urbannav = UrbanNav Tokyo, RTK only
-                                (fetch with download_urbannav.py)
+    --dataset ppc|urbannav|gici Data set (default: ppc); urbannav = UrbanNav Tokyo, RTK only
+                                (fetch with download_urbannav.py); gici = GICI Shanghai,
+                                RTK only (build with prepare_gici.py)
     --dataset-dir DIR           Benchmark data root (default: data/benchmark)
     --l6-dir DIR                L6 file cache (default: data/benchmark/l6)
     --out-dir DIR               Results directory (default: data/benchmark/results)
     --mode single|clas|madoca|rtk|both|all  (both=clas+madoca, all=clas+madoca+rtk;
-                                default: all for ppc, rtk for urbannav)
+                                default: all for ppc, rtk for urbannav / gici)
                                 single = SPP baseline (rover.obs + base.nav only)
     --case ID[,ID...]           Run subset (default: all 6 runs)
     --rnx2rtkp PATH             rnx2rtkp binary path (default: auto-detect)
@@ -476,11 +477,12 @@ def print_ppc_scores(rows: list[dict], dataset: str = "ppc") -> None:
     tables); ``mean`` averages the per-run scores (PPC2024 organizers' rule).
     ``--skip-epochs`` does not apply.
 
-    For UrbanNav, which has no official scoring rule, the score is the same
-    metric on the offset-corrected reference (``cases.URBANNAV_OFFSET_ENU``) at
-    the rover observation grid; two reference columns show it without the
-    offset correction (``no-offset``) and on every 10 Hz reference epoch
-    (``all-ref``, which costs the 5 Hz F9P every other epoch).
+    For UrbanNav and GICI, which have no official scoring rule, the score is
+    the same metric at the rover observation grid.  UrbanNav is scored on the
+    offset-corrected reference (``cases.URBANNAV_OFFSET_ENU``); two reference
+    columns show it without the offset correction (``no-offset``) and on every
+    10 Hz reference epoch (``all-ref``, which costs the 5 Hz F9P every other
+    epoch).  The GICI reference is already at the antenna (prepare_gici.py).
 
     A run that completed without a usable solution still counts, with no good
     distance.  A run that did not complete (solver failure, no output, or
@@ -489,7 +491,8 @@ def print_ppc_scores(rows: list[dict], dataset: str = "ppc") -> None:
 
     Args:
         rows: List of result dicts from the benchmark loop.
-        dataset: ``"ppc"`` or ``"urbannav"`` (selects the title and columns).
+        dataset: ``"ppc"``, ``"urbannav"`` or ``"gici"`` (selects the title and
+            columns).
     """
     if not rows:
         return
@@ -503,6 +506,8 @@ def print_ppc_scores(rows: list[dict], dataset: str = "ppc") -> None:
             f"UrbanNav score (PPC metric, 3D <= {thr}; offset-corrected reference;"
             " F9P 5 Hz / NetR9 10 Hz grid)"
         )
+    elif dataset == "gici":
+        print(f"GICI score (PPC metric, 3D <= {thr}; antenna reference; 10 Hz grid)")
     else:
         print(f"PPC official score (distance-weighted, 3D <= {thr}, all epochs)")
     head = "".join(f" {label:>9}" for _, label in keys)
@@ -582,11 +587,12 @@ def run_benchmark(args: argparse.Namespace) -> int:
     print(f"Dataset   : {dataset_dir}")
     print(f"L6 cache  : {l6_dir}")
     print(f"Results   : {out_dir}")
-    # UrbanNav Tokyo (2018) predates the L6 archives: RTK / SPP only.
+    # UrbanNav Tokyo (2018) predates the L6 archives, and GICI has no L6
+    # recording: RTK / SPP only.
     if args.mode is None:
         args.mode = "all" if args.dataset == "ppc" else "rtk"
-    if args.dataset == "urbannav" and args.mode not in ("rtk", "single"):
-        sys.exit("FAIL: --dataset urbannav supports --mode rtk or single only")
+    if args.dataset != "ppc" and args.mode not in ("rtk", "single"):
+        sys.exit(f"FAIL: --dataset {args.dataset} supports --mode rtk or single only")
     print(f"Data set  : {args.dataset}")
     print(f"Mode      : {args.mode}")
     print()
@@ -601,10 +607,12 @@ def run_benchmark(args: argparse.Namespace) -> int:
             sys.exit(f"FAIL: {exc}")
 
     # Validate dataset presence (rover, nav and reference files)
-    hint = (
-        "  Fetch it with scripts/benchmark/download_urbannav.py"
-        if args.dataset == "urbannav"
-        else "  Download it manually — see docs/reference/benchmark.md for instructions."
+    hint = {
+        "urbannav": "  Fetch it with scripts/benchmark/download_urbannav.py",
+        "gici": "  Download the sequence zips and run scripts/benchmark/prepare_gici.py"
+        " — see docs/reference/benchmark.md.",
+    }.get(
+        args.dataset, "  Download it manually — see docs/reference/benchmark.md for instructions."
     )
     for case in cases:
         files = case_files(dataset_dir, case)
@@ -763,12 +771,12 @@ def run_benchmark(args: argparse.Namespace) -> int:
             m = compute_metrics(pairs, args.skip_epochs, threshold_2d=threshold)
             # The official score covers the whole reference, so a run that
             # completed keeps it even with no matching epoch (good = 0).  The
-            # PPC rule scores every reference epoch; UrbanNav, which has no
-            # official rule, is scored on the rover observation grid (5 Hz F9P
-            # against a 10 Hz reference).  The reliability metrics use the grid
-            # for both.
+            # PPC rule scores every reference epoch; UrbanNav and GICI, which
+            # have no official rule, are scored on the rover observation grid
+            # (5 Hz F9P against a 10 Hz reference).  The reliability metrics
+            # use the grid for all.
             interval, phase = rinex_obs_timing(str(obs))
-            if args.dataset == "urbannav":
+            if args.dataset != "ppc":
                 ppc = ppc_score(ref_rows, nmea_rows, interval=interval, phase=phase)
             else:
                 ppc = ppc_score(ref_rows, nmea_rows)
@@ -861,13 +869,14 @@ def main() -> int:
         "--dataset",
         choices=sorted(DATASETS),
         default="ppc",
-        help="Benchmark data set: ppc (PPC-Dataset, default) or urbannav (UrbanNav Tokyo, RTK)",
+        help="Benchmark data set: ppc (PPC-Dataset, default), urbannav (UrbanNav Tokyo, RTK)"
+        " or gici (GICI Shanghai, RTK)",
     )
     p.add_argument(
         "--mode",
         choices=["single", "clas", "madoca", "rtk", "both", "all"],
         default=None,
-        help="Positioning mode (default: all = clas+madoca+rtk for ppc, rtk for urbannav; "
+        help="Positioning mode (default: all = clas+madoca+rtk for ppc, rtk for urbannav / gici; "
         "single = SPP baseline, rover.obs + base.nav only)",
     )
     p.add_argument("--case", default="", help="Comma-separated case IDs (default: all)")
