@@ -137,7 +137,7 @@ int mrtk_post(int argc, char** argv) {
     filopt_t filopt = {""};
     gtime_t ts = {0}, te = {0};
     double tint = 0.0, es[] = {2000, 1, 1, 0, 0, 0}, ee[] = {2000, 12, 31, 23, 59, 59}, pos[3];
-    int i, j, n, ret;
+    int i, j, n, ret, obsdef_flags = MRTK_OBSDEF_PPPSIG | MRTK_OBSDEF_CLAS;
     char *infile[MAXFILE], *outfile = "", *p;
     mrtk_ctx_t* ctx;
 
@@ -197,6 +197,7 @@ int mrtk_post(int argc, char** argv) {
             prcopt.mode = atoi(argv[++i]);
         } else if (!strcmp(argv[i], "-f") && i + 1 < argc) {
             prcopt.nf = atoi(argv[++i]);
+            obsdef_flags |= MRTK_OBSDEF_NF_SET;
         } else if (!strcmp(argv[i], "-sys") && i + 1 < argc) {
             for (p = argv[++i]; *p; p++) {
                 switch (*p) {
@@ -307,7 +308,7 @@ int mrtk_post(int argc, char** argv) {
     }
     /* observation slot tables: signals list or pppsig (not for igs, #135), the
      * claslib slot layout for qzs-clas (#535) */
-    mrtk_apply_obsdef(&prcopt, MRTK_OBSDEF_PPPSIG | MRTK_OBSDEF_CLAS);
+    mrtk_apply_obsdef(&prcopt, obsdef_flags);
     ret = postpos(ctx, ts, te, tint, 0.0, &prcopt, &solopt, &filopt, infile, n, outfile, "", "");
 
     if (!ret) {

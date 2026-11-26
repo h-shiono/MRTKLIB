@@ -838,7 +838,8 @@ extern void mrtk_apply_obsdef(prcopt_t* opt, int flags) {
         /* the signals list sets nf by its signal count; under the claslib layout
          * the slot of a band is fixed (L5 / E5a in slot 2), so nf follows the
          * highest slot the CLAS engines use (0-2). An nf given apart from the
-         * list (mrtk post -f) is kept. */
+         * list (mrtk post -f, MRTK_OBSDEF_NF_SET; or one that differs from the
+         * signal count) is kept. */
         for (i = 0; i < MRTK_NSYS; i++) {
             if (opt->sigcfg[i].nsig > nsig) {
                 nsig = opt->sigcfg[i].nsig;
@@ -853,7 +854,7 @@ extern void mrtk_apply_obsdef(prcopt_t* opt, int flags) {
                 }
             }
         }
-        if (nf > 0 && opt->nf == nsig) {
+        if (nf > 0 && !(flags & MRTK_OBSDEF_NF_SET) && opt->nf == nsig) {
             opt->nf = nf < NFREQ ? nf : NFREQ;
         }
         clas_freq_pair(opt, 0, SYS_GPS, 10, "gps_frequency");

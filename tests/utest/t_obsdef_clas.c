@@ -7,7 +7,7 @@
  *   - the layout is applied over the signals list (list order does not matter);
  *   - nf follows the highest slot 0-2 the listed bands occupy, so an L1 + L5
  *     list needs no placeholder signal, E5b (slot 4) does not raise it, and an
- *     nf given apart from the list is kept;
+ *     nf given apart from the list (mrtk post -f) is kept;
  *   - gps_frequency / qzs_frequency left unset (auto) resolve from the list:
  *     l1+l5 without L2, l1 for L1 only, unchanged when L2 is listed; an
  *     explicit value is kept;
@@ -92,6 +92,12 @@ int main(void) {
     mrtk_apply_obsdef(&opt, flags);
     CHECK(opt.posopt[10] == 2 && opt.posopt[12] == 3, "explicit gps_frequency kept, auto qzs_frequency resolved");
     CHECK(opt.nf == 1, "nf given apart from the signals list kept");
+
+    /* an explicit nf equal to the signal count (mrtk post -f 2 on an L1 + L5 list) */
+    opt = load("signals = [\"G1C\", \"G5Q\", \"E1X\", \"E5Q\", \"J1C\", \"J5Q\"]\n");
+    opt.nf = 2;
+    mrtk_apply_obsdef(&opt, flags | MRTK_OBSDEF_NF_SET);
+    CHECK(opt.nf == 2, "explicit nf equal to the signal count kept (MRTK_OBSDEF_NF_SET)");
 
     /* loading options does not touch the tables */
     opt = load("signals = [\"G1C\", \"G5Q\", \"E1X\", \"E5Q\", \"J1C\", \"J5Q\"]\n");

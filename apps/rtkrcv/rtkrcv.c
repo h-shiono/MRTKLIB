@@ -518,6 +518,14 @@ static int startsvr(vt_t* vt) {
 
     trace(NULL, 3, "startsvr:\n");
 
+    /* rtksvrstart() refuses a running server, but only after the slot tables,
+     * antennas and DCBs below are replaced under the running decoders */
+    if (svr->state) {
+        trace(NULL, 2, "rtk server start error (server already started)\n");
+        vt_printf(vt, "rtk server start error (server already started)\n");
+        return 0;
+    }
+
     /* resolve/validate correction source against the positioning mode */
     {
         char cmsg[256] = "";

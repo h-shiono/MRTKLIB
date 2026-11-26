@@ -2777,6 +2777,7 @@ add_test(NAME ma10p_dgs_extract
 )
 set_tests_properties(ma10p_dgs_extract PROPERTIES
     FIXTURES_REQUIRED ma10p_dgs_data
+    FIXTURES_SETUP    ma10p_dgs_post
     TIMEOUT           60
     LABELS            "regression;claslib"
 )
@@ -2786,6 +2787,7 @@ add_test(NAME ma10p_dgs_convert
 )
 set_tests_properties(ma10p_dgs_convert PROPERTIES
     FIXTURES_REQUIRED ma10p_dgs_data
+    FIXTURES_SETUP    ma10p_dgs_post
     TIMEOUT           60
     LABELS            "regression;claslib"
 )
@@ -2798,8 +2800,7 @@ add_test(NAME claslib_ppp_rtk_ma10p
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
 )
 set_tests_properties(claslib_ppp_rtk_ma10p PROPERTIES
-    FIXTURES_REQUIRED "claslib_data;ma10p_dgs_data"
-    DEPENDS           "ma10p_dgs_extract;ma10p_dgs_convert"
+    FIXTURES_REQUIRED "claslib_data;ma10p_dgs_data;ma10p_dgs_post"
     TIMEOUT           120
     LABELS            "regression;claslib;ppp-rtk"
 )
