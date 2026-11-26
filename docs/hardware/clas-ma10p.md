@@ -1,12 +1,5 @@
 # CLAS Positioning with DATAGNSS MA-10P
 
-!!! warning "Status"
-    Real time (`mrtk run`) is tested and works. Post-processing fixes at wrong
-    positions on this receiver's data
-    ([#585](https://github.com/h-shiono/MRTKLIB/issues/585)), and there is no
-    bundled configuration yet: the signal list needs a placeholder
-    ([#584](https://github.com/h-shiono/MRTKLIB/issues/584)).
-
 This guide describes how to use a **DATAGNSS MA-10P** as the observation and
 correction source of MRTKLIB's CLAS PPP-RTK engine, in post-processing
 (`mrtk post`) and in real time (`mrtk run`).
@@ -167,11 +160,6 @@ L6 signal was tracked and was silent in a capture with weak signals.
 
 ## Post-processing
 
-!!! warning
-    `mrtk post` currently fixes at wrong positions on this receiver's data
-    ([#585](https://github.com/h-shiono/MRTKLIB/issues/585)). Use the real-time
-    path, or replay the logged files with `mrtk run`, until it is resolved.
-
 Log the two ports with `mrtk relay`. The first few seconds after a port is
 opened can be out of order, so start a little early.
 
@@ -195,7 +183,7 @@ mrtk convert -r rtcm3 -tr 2026/11/24 07:00:00 -o ma10p.obs -n ma10p.nav ma10p.rt
 mrtk l6extract -r dgs -o ma10p ma10p.dgs
 
 # CLAS PPP-RTK
-mrtk post -k <conf> -o ma10p.pos ma10p.obs ma10p.nav ma10p.195.l6d ma10p.199.l6d
+mrtk post -k conf/claslib/rnx2rtkp_ma10p.toml -o ma10p.nmea ma10p.obs ma10p.nav ma10p.195.l6d ma10p.199.l6d
 ```
 
 The logged files can also be replayed in real time: set the two input streams
@@ -219,34 +207,36 @@ format = "dgs"
 ```
 
 ```bash
-mrtk run -s --config <conf>
+mrtk run -s --config conf/claslib/rtkrcv_ma10p.toml
 ```
 
 ## Configuration
 
-There is no bundled `conf/claslib/` file for the MA-10P yet. Start from
-`conf/claslib/rtkrcv_rtcm3_ubx.toml` with the two streams above, an empty rover
-antenna type (`[antenna.rover] type = ""`), `gps_frequency` / `qzs_frequency`
-left unset, and this signal list (layout from the vendor's test):
+Two bundled configurations, run from the repository root (the CLAS support
+files are read from `tests/data/claslib/`):
+
+| File | Use |
+|------|-----|
+| `conf/claslib/rnx2rtkp_ma10p.toml` | `mrtk post`, derived from `rnx2rtkp.toml` |
+| `conf/claslib/rtkrcv_ma10p.toml` | `mrtk run` with the two serial ports, derived from `rtkrcv_rtcm3_ubx.toml`; set the port paths of your unit |
+
+Both use the signal list of the D10P, no rover antenna model
+(`[antenna.rover] type = ""`) and leave `gps_frequency` / `qzs_frequency`
+unset:
 
 ```toml
 [positioning]
-signals = ["G1C", "G5Q", "E1X", "E7Q", "E5Q", "J1C", "J5Q"]
+signals = ["G1C", "G5Q", "E1X", "E5Q", "J1C", "J5Q"]
 ```
 
-The list fills the observation slots of each constellation in order, and the
-CLAS PPP-RTK engine takes the second frequency from a fixed slot:
-
-- GPS and QZSS: slot 1 by default, which holds L5 here. `gps_frequency =
-  "l1+l5"` selects slot 2 instead, which is empty with this list, so those
-  keys must stay unset.
-- Galileo: slot 2 only. `E7Q` is not output by the receiver; it is listed to
-  push `E5Q` into slot 2. Without it Galileo runs on E1 alone.
-
-This placeholder is a workaround, not the intended interface
-([#584](https://github.com/h-shiono/MRTKLIB/issues/584)). The test
-configuration `tests/data/ma10p_dgs/rtkrcv_dgs_clas.toml.in` is a complete
-example.
+For CLAS, `mrtk post` and `mrtk run` place the observations in the claslib
+slot layout (GPS / QZSS L1, L2, L5; Galileo E1, –, E5a), so L5 and E5a sit in
+slot 2 whatever the order of the list. With the frequency keys unset, the pair
+is taken from the list: L5 without L2 gives `l1+l5`, and the program prints
+one line saying so. Older releases needed a placeholder `E7Q` in the list and
+different keys in post-processing and real time
+([#584](https://github.com/h-shiono/MRTKLIB/issues/584),
+[#585](https://github.com/h-shiono/MRTKLIB/issues/585)).
 
 ## Test Results
 
@@ -264,24 +254,32 @@ the vendor's numbers were reproduced here on the same build:
 The run is not clean: about 3.5 minutes of Fix sit 17 cm off in north, and the
 last 5.5 minutes stay Float. The cause is not investigated.
 
+`mrtk post` with `conf/claslib/rnx2rtkp_ma10p.toml` on the same data (PRN 194
+alone, RINEX from `mrtk convert`, L6 from `mrtk l6extract`), up to 06:30:00:
+
+| Item | Result |
+|------|--------|
+| Fix | 99.65 % of 1441 epochs, first Fix after 5 s |
+| Fixed solutions vs the known antenna position | horizontal 68 % / 95 %: 5.9 / 7.4 cm, mean U −13.6 cm; no Fix more than 30 cm off |
+
+Over the whole 30 min, Fix drops to 90.2 %: as in real time, the last minutes
+stay Float.
+
 The dataset is published as `ma10p_dgs-v1` in
 [h-shiono/mrtklib-data](https://github.com/h-shiono/mrtklib-data/releases/tag/ma10p_dgs-v1).
 The regression test `rtkrcv_rt_dgs_clas` replays its first five minutes
 through `format = "dgs"`: Fix / Float / Single 285 / 5 / 11, first Fix after
-16 s.
+16 s. The post-processing test `claslib_ppp_rtk_ma10p` runs the 24 min above
+and checks the horizontal 95 % error against 15 cm.
 
 ## Known Issues
 
-- **`mrtk post` gives wrong Fix positions on this receiver's data.** On the
-  vendor dataset, the same build and settings that give centimetre-level Fix
-  in `mrtk run` give Fix solutions 0.3 to 2 m off in `mrtk post` (RINEX from
-  `mrtk convert`, L6 from `mrtk l6extract`). Use the real-time path until
-  this is resolved ([#585](https://github.com/h-shiono/MRTKLIB/issues/585)).
 - **The first capture of the unit used for this guide did not give a usable
   Fix.** Five minutes under a partly blocked sky, six to seven satellites
-  used: Fix on 135 of 301 epochs with the layout above, but those solutions
+  used: Fix on 135 of 301 epochs with the vendor's signal list, but those solutions
   scatter by more than a metre. An earlier trial with `gps_frequency` /
-  `qzs_frequency` = `"l1+l5"` ran every satellite on L1 alone and stayed Float.
+  `qzs_frequency` = `"l1+l5"` ran every satellite on L1 alone and stayed Float
+  (real-time slot layout before #535).
 - **MADOCA-PPP not tested on this unit.** Only the CLAS (L6D) firmware was
   available. The vendor tested the L6E firmware (see the table above): the
   receiver then sends the tracked L6E PRNs interleaved, one frame per second

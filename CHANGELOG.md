@@ -25,6 +25,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **CLAS: one observation-slot layout for `mrtk run` and `mrtk post`**
+  ([#535](https://github.com/h-shiono/MRTKLIB/issues/535),
+  [#584](https://github.com/h-shiono/MRTKLIB/issues/584),
+  [#585](https://github.com/h-shiono/MRTKLIB/issues/585)). The CLAS PPP-RTK and
+  VRS-RTK engines address observation slots (GPS / QZSS L1, L2, L5; Galileo
+  E1, –, E5a). `mrtk post` applied that claslib layout over the `signals` list,
+  `mrtk run` kept the list order, so the same configuration paired different
+  bands in the two paths. On a GPS / QZSS L1 + L5 receiver (DATAGNSS MA-10P)
+  post-processing ran GPS and QZSS on L1 alone and fixed 0.3–2 m off, and real
+  time needed a placeholder `E7Q` to put Galileo E5a in slot 2. `mrtk run` now
+  applies the layout too, through one helper `mrtk_apply_obsdef()` that both
+  call (and `cssr2rtcm3` / `ssr2obs` / `ssr2osr` for their signals list);
+  loading options no longer rewrites the running tables, so `set` / `load` in
+  the `mrtk run` shell cannot change them under a running server. For CLAS,
+  `nf` follows the highest slot (0–2) the listed bands occupy, and
+  `gps_frequency` / `qzs_frequency` have a documented `auto` default: L5
+  without L2 in the list gives `l1+l5`, L1 only gives `l1`, otherwise the
+  claslib default (L2); one line says when the pair was derived, and a warning
+  names an explicit pair whose band is not listed. MA-10P post-processing
+  (vendor dataset, 24 min): 2D 95 % 36.0 → 7.4 cm, Fix 98.6 → 99.65 %. Real
+  time now uses Galileo E1 + E5a and, where L2 is listed, QZSS L1 + L2 like
+  post-processing: on the bundled replays 3D 95 % moves to the post-processing
+  values (handover MCLA-A 8.7 → 14.2 cm vs 14.6 cm in post-processing, D9C-S
+  12.2 → 15.0 vs 16.0 cm, MCLA-E 14.3 → 15.6 vs 12.3 cm, D9C-M 4.9 → 4.5 cm,
+  MCLA-O 5.8 → 5.6 cm), the 2025/157 two-channel replay fixes 99.36 → 98.53 %
+  at 2D 95 % 7.0 → 7.2 cm, the subframe-1 gap replay 2D 95 % 112.9 → 96.2 cm,
+  and `rnx2rtkp_L1CL5.toml` (QZSS L1 + L5 listed) runs QZSS on L1 + L5 like the
+  claslib configuration of the same name (3D RMS vs claslib 40.22 → 40.17 mm).
+  Other post-processing outputs are byte-identical (deterministic BLAS). The
+  handover losses come from the SPP seed, not from the PPP-RTK signals: for
+  CLAS it takes the Galileo second frequency from slot 2 (E5a), so a receiver
+  without E5a (the mosaic-CLAS captures log E1 + E5b) seeds without Galileo
+  (17 → 8 satellites on MCLA-A); the list order had put E5b there in real time.
+  Post-processing already behaved this way.
+
 - **RTK: an unset 3rd-frequency error ratio no longer inflates carrier-phase
   noise by 100²** ([#556](https://github.com/h-shiono/MRTKLIB/issues/556)).
   `prcopt_default` leaves `eratio[2]` at 0, and `varerr()` fell back to
@@ -72,6 +107,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Documentation
 
+- Hardware guide `docs/hardware/clas-ma10p.md`: bundled configurations
+  `conf/claslib/rnx2rtkp_ma10p.toml` and `rtkrcv_ma10p.toml`, post-processing
+  results, no placeholder signal.
 - **Real-time Galileo HAS sample opens its file input**
   ([#456](https://github.com/h-shiono/MRTKLIB/issues/456)).
   `conf/has/run_gal_has.toml` gave the rover as `file:///path/to/rover.sbf`,
@@ -82,6 +120,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Tests
 
+- `utest_t_obsdef_clas`: slot layout, nf, frequency pair and table reset of
+  `mrtk_apply_obsdef()` (#535). `claslib_ppp_rtk_ma10p` (+ `_abs_check`):
+  MA-10P post-processing on `ma10p_dgs-v1` through `mrtk l6extract` and
+  `mrtk convert`, 2D 95 % against 15 cm (#585). `rtkrcv_rt_dgs_clas` runs
+  without the `E7Q` placeholder (#584).
 - **`has_ppp_check` gates the 95th percentile and the systems used**
   ([#473](https://github.com/h-shiono/MRTKLIB/issues/473)). The mean-position
   gates (1.0 m horizontal / 1.5 m 3D) are replaced by twice the HAS service
