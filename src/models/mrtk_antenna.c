@@ -167,7 +167,7 @@ static int readantex(const char* file, pcvs_t* pcvs) {
     pcv_t pcv;
     double neu[3], zen1 = 0.0, zen2 = 90.0, dzen = 5.0;
     int i, f, idx = -1, state = 0, sys;
-    char buff[512], s = 0;
+    char buff[2048], s = 0;
 
     trace(NULL, 3, "readantex: file=%s\n", file);
 
@@ -176,6 +176,13 @@ static int readantex(const char* file, pcvs_t* pcvs) {
         return 0;
     }
     while (fgets(buff, sizeof(buff), fp)) {
+        if (!strchr(buff, '\n') && !feof(fp)) {
+            int ch;
+            do {
+                ch = fgetc(fp);
+            } while (ch != '\n' && ch != EOF);
+            continue;
+        }
         if (strlen(buff) < 60 || strstr(buff + 60, "COMMENT")) {
             continue;
         }
@@ -246,7 +253,7 @@ static int readantex(const char* file, pcvs_t* pcvs) {
             pcv.off[idx][1] = neu[pcv.sat ? 1 : 0]; /* y or n */
             pcv.off[idx][2] = neu[2];               /* z or u */
         } else if (strstr(buff, "NOAZI")) {
-            if (idx < 0 || NFREQPCV <= idx) {
+            if (idx < 0 || NFREQPCV <= idx || !isfinite(dzen) || dzen <= 0.0) {
                 continue;
             }
             double step = pcv.sat ? 1.0 : 5.0;

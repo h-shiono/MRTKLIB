@@ -1508,18 +1508,9 @@ static int ppp_res(int post, const obsd_t* obs, int n, const double* rs, const d
             !model_iono(obs[i].time, pos, azel + i * 2, opt, sat, x, nav, &dion, &vari)) {
             continue;
         }
-        /* Satellite antenna correction relative to the orbit reference point. */
+        /* Satellite antenna phase center variation. */
         if (opt->posopt[0]) {
-            double dants_pco[NFREQPCV] = {0}, dants_pcv[NFREQPCV] = {0};
-
-            if (opt->correction == CORR_IGS && opt->sateph == EPHOPT_PREC && opt->ionoopt == IONOOPT_EST) {
-                /* Approximate the satellite axes using reception time and the IF position. */
-                satantpco(obs[i].time, rs + i * 6, rr, e, sat, nav, dants_pco);
-            }
-            satantpcv(rs + i * 6, rr, nav->pcvs + sat - 1, dants_pcv);
-            for (k = 0; k < NFREQPCV; k++) {
-                dants[k] = dants_pco[k] + dants_pcv[k];
-            }
+            satantpcv(rs + i * 6, rr, nav->pcvs + sat - 1, dants);
         }
         /* receiver antenna model */
         antmodel(opt->pcvr, opt->antdel[0], azel + i * 2, opt->posopt[1], dantr);
