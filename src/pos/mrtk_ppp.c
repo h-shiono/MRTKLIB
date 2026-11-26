@@ -137,7 +137,6 @@ extern double time2gpst(gtime_t t, int* week);
 extern void sunmoonpos(gtime_t tut, const double* erpv, double* rsun, double* rmoon, double* gmst);
 extern double geodist(const double* rs, const double* rr, double* e);
 extern double satazel(const double* pos, const double* e, double* azel);
-extern void satantoff(gtime_t time, const double* rs, int sat, const nav_t* nav, double* dant);
 extern void ecef2pos(const double* r, double* pos);
 extern void ecef2enu(const double* pos, const double* r, double* e);
 extern void xyz2enu(const double* pos, double* E);
@@ -1377,8 +1376,6 @@ static void satantpcv(const double* rs, const double* rr, const pcv_t* pcv, doub
     double ru[3], rz[3], eu[3], ez[3], nadir, cosa;
     int i;
 
-    return; /* disable for madoca-ppp */
-
     for (i = 0; i < 3; i++) {
         ru[i] = rr[i] - rs[i];
         rz[i] = -rs[i];
@@ -1472,7 +1469,7 @@ static int ppp_res(int post, const obsd_t* obs, int n, const double* rs, const d
     double y, r, cdtr, bias, C = 0.0, rr[3], pos[3], e[3], dtdx[3] = {0.0}, L[NFREQ], P[NFREQ], Lc, Pc;
     double var[MAXOBS * 2 * NFREQ], dtrp = 0.0, dion = 0.0, vart = 0.0, vari = 0.0, freq, ifb, ifb_std, bias_std,
                                     dion_std, dtrp_std;
-    double dantr[NFREQPCV] = {0}, dants[NFREQPCV] = {0};
+    double dantr[NFREQPCV] = {0};
     double ve[MAXOBS * 2 * NFREQ] = {0}, vmax = 0, resc_rms = 0, resp_rms = 0, resc_ave = 0, resp_ave = 0;
     char str[32], satstr[6];
     int ne = 0, obsi[MAXOBS * 2 * NFREQ] = {0}, frqi[MAXOBS * 2 * NFREQ], maxobs, maxfrq, rej;
@@ -1492,6 +1489,8 @@ static int ppp_res(int post, const obsd_t* obs, int n, const double* rs, const d
     ecef2pos(rr, pos);
 
     for (i = 0; i < n && i < MAXOBS; i++) {
+        double dants[NFREQPCV] = {0};
+
         sat = obs[i].sat;
         satno2id(sat, satstr);
 
@@ -1509,10 +1508,20 @@ static int ppp_res(int post, const obsd_t* obs, int n, const double* rs, const d
             !model_iono(obs[i].time, pos, azel + i * 2, opt, sat, x, nav, &dion, &vari)) {
             continue;
         }
-        /* receiver antenna model */
+        /* Satellite antenna correction relative to the orbit reference point. */
         if (opt->posopt[0]) {
-            satantpcv(rs + i * 6, rr, nav->pcvs + sat - 1, dants);
+            double dants_pco[NFREQPCV] = {0}, dants_pcv[NFREQPCV] = {0};
+
+            if (opt->correction == CORR_IGS && opt->sateph == EPHOPT_PREC && opt->ionoopt == IONOOPT_EST) {
+                /* Approximate the satellite axes using reception time and the IF position. */
+                satantpco(obs[i].time, rs + i * 6, rr, e, sat, nav, dants_pco);
+            }
+            satantpcv(rs + i * 6, rr, nav->pcvs + sat - 1, dants_pcv);
+            for (k = 0; k < NFREQPCV; k++) {
+                dants[k] = dants_pco[k] + dants_pcv[k];
+            }
         }
+        /* receiver antenna model */
         antmodel(opt->pcvr, opt->antdel[0], azel + i * 2, opt->posopt[1], dantr);
 
         /* phase windup model */

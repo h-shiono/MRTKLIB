@@ -843,6 +843,55 @@ extern void satantoff(gtime_t time, const double* rs, int sat, const nav_t* nav,
         }
     }
 }
+
+/* Satellite PCO range corrections relative to the IF antenna phase center. */
+extern void satantpco(gtime_t time, const double* rs, const double* rr, const double* e, int sat, const nav_t* nav,
+                      double* dant) {
+    const pcv_t* pcv = nav->pcvs + sat - 1;
+    int sys = satsys_bd2(sat, NULL);
+    double freq1, freq2, ex[3], ey[3], ez[3], es[3], r[3], rsun[3], erpv[5] = {0};
+    double ref[3], delta[3];
+
+    if (sys == SYS_GLO) {
+        freq1 = sat2freq(sat, CODE_L1C, nav);
+        freq2 = sat2freq(sat, CODE_L2C, nav);
+    } else {
+        freq1 = freq_num2freq(sys, freq_idx2freq_num(sys, 0), 0);
+        freq2 = freq_num2freq(sys, freq_idx2freq_num(sys, 1), 0);
+    }
+    if (freq1 == 0.0 || freq2 == 0.0) {
+        return;
+    }
+    satantoff(time, rs, sat, nav, ref);
+
+    /* Recompute the satellite-fixed axes for the per-frequency offsets. */
+    sunmoonpos(gpst2utc(time), erpv, rsun, NULL, NULL);
+    for (int i = 0; i < 3; i++) {
+        r[i] = -rs[i];
+    }
+    if (!normv3(r, ez)) {
+        return;
+    }
+    for (int i = 0; i < 3; i++) {
+        r[i] = rsun[i] - rs[i];
+    }
+    if (!normv3(r, es)) {
+        return;
+    }
+    cross3(ez, es, r);
+    if (!normv3(r, ey)) {
+        return;
+    }
+    cross3(ey, ez, ex);
+
+    for (int k = 0; k < NFREQPCV - 1; k++) {
+        for (int i = 0; i < 3; i++) {
+            delta[i] = pcv->off[k][0] * ex[i] + pcv->off[k][1] * ey[i] + pcv->off[k][2] * ez[i] - ref[i];
+        }
+        /* Include the change in the Sagnac term used by geodist(). */
+        dant[k] = dot(e, delta, 3) + OMGE / CLIGHT * (delta[0] * rr[1] - delta[1] * rr[0]);
+    }
+}
 /* satellite position/clock by precise ephemeris/clock -------------------------
  * compute satellite position/clock with precise ephemeris/clock
  * args   : gtime_t time       I   time (gpst)

@@ -717,6 +717,18 @@ int peph2pos(gtime_t time, int sat, const nav_t* nav, int opt, double* rs, doubl
 void satantoff(gtime_t time, const double* rs, int sat, const nav_t* nav, double* dant);
 
 /**
+ * @brief Compute satellite PCO range corrections relative to the IF phase center.
+ * @param[in]  time  GPST for satellite attitude
+ * @param[in]  rs    Satellite ECEF position
+ * @param[in]  rr    Receiver ECEF position
+ * @param[in]  e     Receiver-to-satellite unit vector
+ * @param[in]  sat   Satellite number
+ * @param[in]  nav   Navigation data
+ * @param[out] dant  Zero-initialized array of NFREQPCV antenna slots (m)
+ */
+void satantpco(gtime_t time, const double* rs, const double* rr, const double* e, int sat, const nav_t* nav, double* dant);
+
+/**
  * @brief Read sp3 precise ephemeris file.
  * @param[in]  file  SP3 precise ephemeris file (wild-card * expanded)
  * @param[in,out] nav  Navigation data
