@@ -699,6 +699,10 @@ set_tests_properties(stream_tcpsvr_rebind PROPERTIES TIMEOUT 60 LABELS "utest;st
 add_test(NAME benchmark_reliability_metrics
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/scripts/tests/check_reliability_metrics.py)
 set_tests_properties(benchmark_reliability_metrics PROPERTIES TIMEOUT 30 LABELS "utest")
+# GICI reference: lever-arm attitude rotations and header parsing (#583).
+add_test(NAME benchmark_gici_reference
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/scripts/tests/check_gici_reference.py)
+set_tests_properties(benchmark_gici_reference PROPERTIES TIMEOUT 30 LABELS "utest")
 
 # ── Regression test data ─────────────────────────────────────────────────────
 set(_TESTDATA  ${CMAKE_SOURCE_DIR}/tests/data/malib)
