@@ -308,7 +308,7 @@ set_tests_properties(dataset_fetch_selftest PROPERTIES TIMEOUT 60 LABELS "utest"
 set(_UTEST_DIR ${CMAKE_SOURCE_DIR}/tests/utest)
 set(_UTEST_SOURCES
     t_atmos t_clas_route t_coord t_freqidx t_geoid t_gloeph t_ionex
-    t_lambda t_matrix t_misc t_obsdef t_ppp t_preceph
+    t_lambda t_matrix t_misc t_obsdef t_obsdef_clas t_ppp t_preceph
     t_rinex t_rinex2_qzs t_rinex4 t_rinex_glo305 t_rinex_lli t_sigcfg_decode t_snrmask t_time t_toml
     # t_tle excluded: tle_pos() implementation not yet in library
 )
@@ -1287,6 +1287,9 @@ endforeach()
 #                           CLAS paths on the RTCM3 rover clock (#365)
 #   rtkrcv_rt_dgs_clas      Real-time CLAS PPP-RTK with the L6 frames in the DGS
 #                           format (DATAGNSS MA-10P): format = "dgs" wiring (#570)
+#   claslib_ppp_rtk_ma10p   Post-processing on the same MA-10P data (L1 + L5,
+#                           l6extract -r dgs, convert -r rtcm3): one slot layout
+#                           for mrtk run and mrtk post (#535, #585)
 #   rtkrcv_rt_empty_epoch   Rover epochs with no observations are not positioned
 #                           or written under a stale time (#382)
 set(_CLSDATA  ${CMAKE_SOURCE_DIR}/tests/data/claslib)
@@ -2726,7 +2729,7 @@ set(_DGSDATA ${CMAKE_BINARY_DIR}/tests/data/ma10p_dgs)
 mrtk_dataset_setup_test(ma10p_dgs_setup ma10p_dgs-v1 ${_DGSDATA})
 set_tests_properties(ma10p_dgs_setup PROPERTIES
     FIXTURES_SETUP ma10p_dgs_data
-    LABELS         "regression;realtime"
+    LABELS         "regression;claslib"
 )
 configure_file(${CMAKE_SOURCE_DIR}/tests/data/ma10p_dgs/rtkrcv_dgs_clas.toml.in
     ${CMAKE_BINARY_DIR}/ma10p_dgs/rtkrcv_dgs_clas.toml @ONLY)
@@ -2755,6 +2758,59 @@ add_test(NAME rtkrcv_rt_dgs_clas_check
 set_tests_properties(rtkrcv_rt_dgs_clas_check PROPERTIES
     DEPENDS           rtkrcv_rt_dgs_clas
     LABELS            "regression;claslib;realtime"
+)
+
+# MA-10P post-processing (#585): the 30 min of D203329g through mrtk l6extract
+# (DGS, PRN 194) and mrtk convert (RTCM3), then conf/claslib/rnx2rtkp_ma10p.toml
+# with no frequency keys. Before #535 the post-processing slot layout put GPS /
+# QZSS L5 in slot 2 while the default frequency pair read slot 1, so GPS and
+# QZSS ran on L1 alone and fixed 0.3-2 m off (2D 95 % 36 cm). The window ends
+# at 06:30:00: all paths lose the fix in the last 6 min of the capture
+# (docs/hardware/clas-ma10p.md). Measured: Fix 99.65 %, 2D 1 sigma / 95 %
+# 5.9 / 7.4 cm vs the antenna position given by the vendor; tolerance 2D 15 cm.
+set(_MA10P_POST ${CMAKE_BINARY_DIR}/ma10p_dgs/post)
+# l6extract does not create the output directory and exits 0 when it cannot
+# write, so the directory is made here (convert may run later).
+add_test(NAME ma10p_dgs_extract
+    COMMAND bash -c "mkdir -p \"$2\" && \"$0\" l6extract -in \"$1\" -o \"$2/d203\""
+        $<TARGET_FILE:mrtk> ${_DGSDATA}/D203329g_30m.dgs ${_MA10P_POST}
+)
+set_tests_properties(ma10p_dgs_extract PROPERTIES
+    FIXTURES_REQUIRED ma10p_dgs_data
+    TIMEOUT           60
+    LABELS            "regression;claslib"
+)
+add_test(NAME ma10p_dgs_convert
+    COMMAND $<TARGET_FILE:mrtk> convert -r rtcm3 -tr 2026/11/25 06:06:00
+        -o ${_MA10P_POST}/d203.obs -n ${_MA10P_POST}/d203.nav ${_DGSDATA}/D203329g_30m.rtcm3
+)
+set_tests_properties(ma10p_dgs_convert PROPERTIES
+    FIXTURES_REQUIRED ma10p_dgs_data
+    TIMEOUT           60
+    LABELS            "regression;claslib"
+)
+add_test(NAME claslib_ppp_rtk_ma10p
+    COMMAND $<TARGET_FILE:mrtk> post
+        -k ${CMAKE_SOURCE_DIR}/conf/claslib/rnx2rtkp_ma10p.toml
+        -te 2026/11/25 06:30:00
+        -o ${CMAKE_BINARY_DIR}/out_claslib_ppp_rtk_ma10p.nmea
+        ${_MA10P_POST}/d203.obs ${_MA10P_POST}/d203.nav ${_MA10P_POST}/d203.194.l6d
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+set_tests_properties(claslib_ppp_rtk_ma10p PROPERTIES
+    FIXTURES_REQUIRED "claslib_data;ma10p_dgs_data"
+    DEPENDS           "ma10p_dgs_extract;ma10p_dgs_convert"
+    TIMEOUT           120
+    LABELS            "regression;claslib;ppp-rtk"
+)
+add_test(NAME claslib_ppp_rtk_ma10p_abs_check
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/scripts/tests/compare_nmea_abs.py
+        --llh 34.691885173,135.545748367,50.6173 --tolerance 0.15
+        ${CMAKE_BINARY_DIR}/out_claslib_ppp_rtk_ma10p.nmea
+)
+set_tests_properties(claslib_ppp_rtk_ma10p_abs_check PROPERTIES
+    DEPENDS           claslib_ppp_rtk_ma10p
+    LABELS            "regression;claslib;ppp-rtk;absolute"
 )
 
 # ═══════════════════════════════════════════════════════════════════════════════

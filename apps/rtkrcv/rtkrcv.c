@@ -546,13 +546,8 @@ static int startsvr(vt_t* vt) {
      * can `load` a new config and `restart` in the same process) that changes
      * the correction or signal selection — including switching to correction=igs,
      * which skips apply_pppsig — cannot inherit a previously trimmed obsdef.
-     * sigcfg-configured obsdef (pos1-signals) is left untouched. */
-    if (!prcopt.sigcfg_set) {
-        reset_obsdef();
-        if (prcopt.correction != CORR_IGS) {
-            apply_pppsig(prcopt.pppsig);
-        }
-    }
+     * The tables are rebuilt from the defaults on every start. */
+    mrtk_apply_obsdef(&prcopt, MRTK_OBSDEF_PPPSIG);
 
     /* read start commads from command files */
     for (i = 0; i < 3; i++) {

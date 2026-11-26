@@ -305,23 +305,9 @@ int mrtk_post(int argc, char** argv) {
             return -2;
         }
     }
-    /* #135: the legacy pppsig signal selection reshapes the obsdef tables and
-     * destructively drops bands the receiver does not nominally provide. For
-     * conventional IGS-product PPP, skip it so the receiver's actual 2nd band
-     * (e.g. GAL E5b / BDS B2I on u-blox F9P) survives and the iono-free pair is
-     * chosen from the available observations (see prange/corr_meas). MADOCA/CLAS
-     * and all other correction sources keep the legacy behaviour unchanged.
-     * An obsdef built from [positioning].signals (sigcfg) takes precedence over
-     * pppsig, as in mrtk run (#555); the claslib slot layout still applies (#535). */
-    if (prcopt.correction != CORR_IGS) {
-        if (!prcopt.sigcfg_set) {
-            apply_pppsig(prcopt.pppsig);
-        }
-        if (prcopt.correction == CORR_QZS_CLAS) {
-            apply_claslib_ppprtk_obsdef();
-        }
-    }
-    mrtk_use_claslib_qzs_l1_priority(prcopt.correction == CORR_QZS_CLAS);
+    /* observation slot tables: signals list or pppsig (not for igs, #135), the
+     * claslib slot layout for qzs-clas (#535) */
+    mrtk_apply_obsdef(&prcopt, MRTK_OBSDEF_PPPSIG | MRTK_OBSDEF_CLAS);
     ret = postpos(ctx, ts, te, tint, 0.0, &prcopt, &solopt, &filopt, infile, n, outfile, "", "");
 
     if (!ret) {

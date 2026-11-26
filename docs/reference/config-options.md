@@ -106,9 +106,9 @@ TOML section: `[positioning.corrections]`
 | `shapiro_delay` | boolean | PPP-RTK, VRS | Apply relativistic Shapiro time delay correction. |
 | `exclude_qzs_ref` | boolean | PPP-RTK, VRS | Exclude QZS satellites from reference satellite selection in DD processing. |
 | `no_phase_bias_adj` | boolean | PPP-RTK, VRS | Disable phase bias adjustment. Used when phase bias is already applied by SSR corrections. |
-| `gps_frequency` | enum | PPP-RTK, VRS | GPS frequency pair selection for CLAS processing. `l1` · `l1+l2` · `l1+l5` · `l1+l2+l5` · `l1+l5(l2)` |
+| `gps_frequency` | enum | PPP-RTK, VRS | GPS frequency pair selection for CLAS processing. `auto` (default): `l1+l5` when `signals` lists GPS L5 but not L2, `l1` when it lists L1 only, else the claslib default (L2). `auto` · `l1` · `l1+l2` · `l1+l5` · `l1+l2+l5` · `l1+l5(l2)` |
 | `snr_fixed` | integer | SSR2OSR | Fixed output SNR (integer dB-Hz). 0 uses the elevation-dependent SNR model. |
-| `qzs_frequency` | enum | PPP-RTK, VRS | QZS frequency pair selection for CLAS processing. `l1` · `l1+l2` · `l1+l5` · `l1+l2+l5` · `l1+l5(l2)` |
+| `qzs_frequency` | enum | PPP-RTK, VRS | QZS frequency pair selection for CLAS processing. `auto` (default): `l1+l5` when `signals` lists QZS L5 but not L2, `l1` when it lists L1 only, else the claslib default (L2). `auto` · `l1` · `l1+l2` · `l1+l5` · `l1+l2+l5` · `l1+l5(l2)` |
 | `tidal_correction` | enum | PPP, PPP-RTK, VRS | Tidal displacement correction. Option `solid+otl-clasgrid+pole` uses CLAS grid-based ocean tide loading. `off` · `on` · `otl` · `solid+otl-clasgrid+pole` |
 
 ## Positioning — SPP

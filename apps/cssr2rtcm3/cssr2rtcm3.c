@@ -1199,6 +1199,7 @@ int mrtk_cssr2rtcm3(int argc, char** argv) {
             return -1;
         }
         getsysopts(&prcopt, &solopt, &filopt);
+        mrtk_apply_obsdef(&prcopt, 0);
 
         /* load [signal_remap] section */
         load_sig_remap(conffile);

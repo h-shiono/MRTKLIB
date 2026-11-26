@@ -116,6 +116,7 @@ int mrtk_ssr2osr(int argc, char** argv) {
                 return -1;
             }
             getsysopts(&prcopt, &solopt, &filopt);
+            mrtk_apply_obsdef(&prcopt, 0);
         }
     }
     for (i = 1, n = 0; i < argc; i++) {
