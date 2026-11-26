@@ -680,7 +680,7 @@ static int search_amb_lambda(rtk_t* rtk, const obsd_t* obs, int n, const double*
         if (fabs(N[i] - N[i + na]) < 0.001) {
             nm++;
         } else {
-            exc_sat_flag[sat1s[i] - 1] = (int)fabs(N[i] - N[i + na]);
+            exc_sat_flag[sat1s[i] - 1] = 1; /* Boolean flag; upstream MADOCALIB truncates 0.999... to 0. */
         }
     }
     trace(NULL, 3, "search_amb_lambda(%4d): %s na=%2d nm= %2d match_rate=%7.2f\n", __LINE__, tstr, na, nm,
