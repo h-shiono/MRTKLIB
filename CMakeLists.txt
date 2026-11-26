@@ -307,7 +307,7 @@ set_tests_properties(dataset_fetch_selftest PROPERTIES TIMEOUT 60 LABELS "utest"
 # ── Unit tests ───────────────────────────────────────────────────────────────
 set(_UTEST_DIR ${CMAKE_SOURCE_DIR}/tests/utest)
 set(_UTEST_SOURCES
-    t_atmos t_clas_route t_coord t_freqidx t_geoid t_gloeph t_ionex
+    t_antenna t_atmos t_clas_route t_coord t_freqidx t_geoid t_gloeph t_ionex
     t_lambda t_matrix t_misc t_obsdef t_obsdef_clas t_ppp t_preceph
     t_rinex t_rinex2_qzs t_rinex4 t_rinex_glo305 t_rinex_lli t_sigcfg_decode t_snrmask t_time t_toml
     # t_tle excluded: tle_pos() implementation not yet in library
