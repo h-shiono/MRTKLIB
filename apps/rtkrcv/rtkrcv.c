@@ -514,9 +514,17 @@ static int startsvr(vt_t* vt) {
     char* ropts[] = {"", "", ""};
     char* paths[] = {strpath[0], strpath[1], strpath[2], strpath[3], strpath[4], strpath[5], strpath[6], strpath[7]};
     char errmsg[2048] = "";
-    int i, ret, stropt[8] = {0};
+    int i, ret, stropt[8] = {0}, nf0, frq0[2];
 
     trace(NULL, 3, "startsvr:\n");
+
+    /* rtksvrstart() refuses a running server, but only after the slot tables,
+     * antennas and DCBs below are replaced under the running decoders */
+    if (svr->state) {
+        trace(NULL, 2, "rtk server start error (server already started)\n");
+        vt_printf(vt, "rtk server start error (server already started)\n");
+        return 0;
+    }
 
     /* resolve/validate correction source against the positioning mode */
     {
@@ -529,28 +537,6 @@ static int startsvr(vt_t* vt) {
                 fprintf(stderr, "error: %s\n", cmsg);
             }
             return 0;
-        }
-    }
-
-    /* #184: apply PPP signal selection in the real-time path, mirroring the
-     * post-processing path (rnx2rtkp.c). apply_pppsig() reshapes the obsdef
-     * tables (GPS/QZS/GAL/BDS) that every receiver decoder consults via
-     * code2freq_idx(); without it a non-GPS 2nd band that differs from the
-     * default slot (e.g. GAL E5b, BDS B2I) is never mapped, so the madocalib
-     * PPP engine can only form the iono-free pair for GPS. As in post, IGS
-     * precise-product PPP skips it (#135) so the receiver's actual 2nd band
-     * survives. (GLONASS is unaffected: apply_pppsig() does not touch it and
-     * its default G1/G2 obsdef already maps correctly.)
-     *
-     * #186: reset to the pristine defaults first so a restart (the rtkrcv shell
-     * can `load` a new config and `restart` in the same process) that changes
-     * the correction or signal selection — including switching to correction=igs,
-     * which skips apply_pppsig — cannot inherit a previously trimmed obsdef.
-     * sigcfg-configured obsdef (pos1-signals) is left untouched. */
-    if (!prcopt.sigcfg_set) {
-        reset_obsdef();
-        if (prcopt.correction != CORR_IGS) {
-            apply_pppsig(prcopt.pppsig);
         }
     }
 
@@ -585,6 +571,17 @@ static int startsvr(vt_t* vt) {
     pos[1] = nmeapos[1] * D2R;
     pos[2] = nmeapos[2];
     pos2ecef(pos, npos);
+
+    /* observation slot tables, as in mrtk post: the signals list or pppsig
+     * (#184; not for igs, #135), rebuilt from the defaults on every start
+     * (#186), and for qzs-clas the claslib slot layout the CLAS engines
+     * address (#535). Before the antenna / DCB files and the decoders. The nf
+     * and frequency pair it derives go to the server only; the shell options
+     * keep what the configuration says (save, restart). */
+    nf0 = prcopt.nf;
+    frq0[0] = prcopt.posopt[10];
+    frq0[1] = prcopt.posopt[12];
+    mrtk_apply_obsdef(&prcopt, MRTK_OBSDEF_PPPSIG | MRTK_OBSDEF_CLAS);
 
     /* read antenna file */
     readant(vt, &prcopt, &svr->nav);
@@ -633,11 +630,18 @@ static int startsvr(vt_t* vt) {
     /* start rtk server */
     if (!rtksvrstart(svr, svrcycle, buffsize, strtype, paths, strfmt, navmsgsel, cmds, cmds_periodic, ropts, nmeacycle,
                      nmeareq, npos, &prcopt, solopt, &moni, rst, errmsg)) {
+        prcopt.nf = nf0;
+        prcopt.posopt[10] = frq0[0];
+        prcopt.posopt[12] = frq0[1];
         trace(NULL, 2, "rtk server start error (%s)\n", errmsg);
         fprintf(stderr, "rtk server start error: %s\n", errmsg);
         vt_printf(vt, "rtk server start error (%s)\n", errmsg);
         return 0;
     }
+    prcopt.nf = nf0;
+    prcopt.posopt[10] = frq0[0];
+    prcopt.posopt[12] = frq0[1];
+
     /* load CLAS auxiliary files after server start.
      * lock to avoid racing with the rtksvr thread */
     if (svr->clas) {

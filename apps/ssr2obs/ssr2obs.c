@@ -580,6 +580,7 @@ static int set_prcopt(const char* file, prcopt_t* prcopt, solopt_t* solopt, filo
             return 0;
         }
         getsysopts(prcopt, solopt, filopt);
+        mrtk_apply_obsdef(prcopt, 0);
     }
     if (norm(pos, 3) > 0.0) {
         pos[0] *= D2R;

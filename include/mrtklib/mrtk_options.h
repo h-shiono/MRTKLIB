@@ -134,6 +134,33 @@ void getsysopts(prcopt_t* popt, solopt_t* sopt, filopt_t* fopt);
  */
 void setsysopts(const prcopt_t* prcopt, const solopt_t* solopt, const filopt_t* filopt);
 
+#define MRTK_OBSDEF_PPPSIG 0x1 /* apply prcopt.pppsig when no signals list is set */
+#define MRTK_OBSDEF_CLAS 0x2   /* claslib slot layout for correction = qzs-clas */
+#define MRTK_OBSDEF_NF_SET 0x4 /* opt->nf was given explicitly (mrtk post -f): keep it */
+
+/**
+ * @brief Set up the observation slot tables (obsdef) for a run.
+ *
+ * The tables are global and every decoder and RINEX reader maps observation
+ * codes to slots through them. Starts from the defaults, then applies the
+ * signals list (prcopt.sigcfg) or, with MRTK_OBSDEF_PPPSIG and a correction
+ * other than igs, the legacy pppsig selection. With MRTK_OBSDEF_CLAS and
+ * correction = qzs-clas it applies the claslib PPP-RTK slot layout and the
+ * claslib QZSS L1 code priority, which the CLAS engines address by slot.
+ * With a signals list it then sets opt->nf to the highest slot (0-2) the
+ * listed GPS / Galileo / QZSS bands occupy in that layout, unless nf was given
+ * apart from the list (MRTK_OBSDEF_NF_SET, or an nf that differs from the
+ * signal count), and resolves gps_frequency / qzs_frequency left unset
+ * (auto): l1+l5 when the list has L5 but no L2, l1 when it has L1 only, the
+ * claslib default (slot 1 = L2) otherwise.
+ * Call it after resolve_correction() and before any observation is decoded;
+ * loading options (getsysopts()) does not touch the tables.
+ *
+ * @param[in,out] opt  Processing options (correction resolved)
+ * @param[in] flags  MRTK_OBSDEF_PPPSIG | MRTK_OBSDEF_CLAS | MRTK_OBSDEF_NF_SET
+ */
+void mrtk_apply_obsdef(prcopt_t* opt, int flags);
+
 #ifdef __cplusplus
 }
 #endif

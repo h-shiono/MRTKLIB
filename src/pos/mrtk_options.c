@@ -21,15 +21,12 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "mrtklib/mrtk_const.h"
 #include "mrtklib/mrtk_coords.h"
 #include "mrtklib/mrtk_nav.h"
 #include "mrtklib/mrtk_obs.h"
 #include "mrtklib/mrtk_toml.h"
 #include "mrtklib/mrtk_trace.h"
-
-/* local constants (duplicated from rtklib.h to avoid rtklib.h dependency) ----*/
-#define D2R (3.1415926535897932384626433832795 / 180.0)
-#define R2D (180.0 / 3.1415926535897932384626433832795)
 
 /* forward declarations for functions still in legacy rtkcmn.c ----------------*/
 
@@ -53,7 +50,7 @@ static int bds2prn_given_; /* pos2-bds2prn was read from a configuration */
     "0:single,1:dgps,2:kinematic,3:static,4:movingbase,5:fixed,6:ppp-kine,7:ppp-static,8:ppp-fixed,9:ppp-rtk,10:" \
     "ssr2osr,11:ssr2osr-fixed,12:vrs-rtk"
 #define FRQOPT "1:l1,2:l1+2,2:l1+l2,3:l1+2+3,3:l1+l2+l5,4:l1+2+3+4,4:l1+l2+l5+l6,5:l1+2+3+4+5,5:l1+l2+l5+l6+l7"
-#define FRQOPT2 "1:l1,2:l1+l2,3:l1+l5,4:l1+l2+l5,5:l1+l5(l2)"
+#define FRQOPT2 "0:auto,1:l1,2:l1+l2,3:l1+l5,4:l1+l2+l5,5:l1+l5(l2)"
 #define TYPOPT "0:forward,1:backward,2:combined"
 #define IONOPT "0:off,1:brdc,2:sbas,3:dual-freq,4:est-stec,5:ionex-tec,6:qzs-brdc,9:est-adaptive"
 #define TRPOPT "0:off,1:saas,2:sbas,3:est-ztd,4:est-ztdgrad"
@@ -648,7 +645,6 @@ static void buff2sysopts(void) {
             if (nf > 0 && nf <= NFREQ) {
                 prcopt_.sigcfg_set = 1;
                 prcopt_.nf = nf;
-                mrtk_sigcfg_to_obsdef(prcopt_.sigcfg);
                 trace(NULL, 3, "buff2sysopts: signals configured (%d signals, nf=%d)\n", nsig, nf);
             } else {
                 trace(NULL, 1, "buff2sysopts: nf=%d exceeds NFREQ=%d for signals '%s'\n", nf, NFREQ, signals_);
@@ -780,4 +776,90 @@ extern void setsysopts(const prcopt_t* prcopt, const solopt_t* solopt, const fil
         filopt_ = *filopt;
     }
     sysopts2buff();
+}
+/* frequency pair options of clas_osr_selfreqpair() (posopt[10] / [12]) -----*/
+#define FRQ_AUTO 0 /* not set: slot 1 (claslib default) */
+#define FRQ_L1 1
+#define FRQ_L1L5 3
+
+/* bands of one constellation in the signals list (bit: frequency number) ---*/
+static int sigcfg_bands(const prcopt_t* opt, int idx, int sys) {
+    int i, fn, mask = 0;
+
+    for (i = 0; i < opt->sigcfg[idx].nsig; i++) {
+        if ((fn = mrtk_band_to_freq_num(sys, opt->sigcfg[idx].sig[i].band)) > 0) {
+            mask |= 1 << fn;
+        }
+    }
+    return mask;
+}
+/* GPS / QZSS frequency pair from the signals list when the key is not set --*/
+static void clas_freq_pair(prcopt_t* opt, int idx, int sys, int k, const char* key) {
+    int bands = sigcfg_bands(opt, idx, sys);
+
+    if (!bands) {
+        return; /* constellation not in the signals list */
+    }
+    if (opt->posopt[k] == FRQ_AUTO) {
+        if (bands & (1 << 2)) {
+            return; /* L2 listed: claslib default (slot 1 = L2) */
+        }
+        opt->posopt[k] = (bands & (1 << 5)) ? FRQ_L1L5 : FRQ_L1;
+        fprintf(stderr, "info : [positioning.corrections] %s not set, %s used for the signals list\n", key,
+                opt->posopt[k] == FRQ_L1L5 ? "l1+l5" : "l1");
+    } else {
+        /* FRQOPT2: 2 l1+l2, 3 l1+l5, 4 l1+l2+l5, 5 l1+l5(l2) */
+        int k2 = opt->posopt[k] == 2 || opt->posopt[k] == 4, k5 = opt->posopt[k] >= 3 && opt->posopt[k] <= 5;
+        if ((k2 && !(bands & (1 << 2))) || (k5 && !(bands & (1 << 5)))) {
+            fprintf(stderr, "warning : %s names a %s band that is not in the signals list\n", key,
+                    sys == SYS_GPS ? "GPS" : "QZSS");
+        }
+    }
+}
+/* set up the observation slot tables for a run ------------------------------*/
+extern void mrtk_apply_obsdef(prcopt_t* opt, int flags) {
+    static const int clas_sys[3] = {SYS_GPS, SYS_GAL, SYS_QZS};
+    static const int clas_idx[3] = {0, 2, 3}; /* sigcfg index (mrtk_sigcfg_t order) */
+    int clas = (flags & MRTK_OBSDEF_CLAS) && opt->correction == CORR_QZS_CLAS;
+    int i, j, fn, slot, nsig = 0, nf = 0;
+
+    reset_obsdef();
+    if (opt->sigcfg_set) {
+        mrtk_sigcfg_to_obsdef(opt->sigcfg);
+    } else if ((flags & MRTK_OBSDEF_PPPSIG) && opt->correction != CORR_IGS) {
+        apply_pppsig(opt->pppsig);
+    }
+    if (clas) {
+        apply_claslib_ppprtk_obsdef();
+    }
+    mrtk_use_claslib_qzs_l1_priority(clas);
+
+    if (clas && opt->sigcfg_set) {
+        /* the signals list sets nf by its signal count; under the claslib layout
+         * the slot of a band is fixed (L5 / E5a in slot 2), so nf follows the
+         * highest slot the CLAS engines use (0-2). An nf given apart from the
+         * list (mrtk post -f, MRTK_OBSDEF_NF_SET; or one that differs from the
+         * signal count) is kept. */
+        for (i = 0; i < MRTK_NSYS; i++) {
+            if (opt->sigcfg[i].nsig > nsig) {
+                nsig = opt->sigcfg[i].nsig;
+            }
+        }
+        for (i = 0; i < 3; i++) {
+            for (j = 0; j < opt->sigcfg[clas_idx[i]].nsig; j++) {
+                fn = mrtk_band_to_freq_num(clas_sys[i], opt->sigcfg[clas_idx[i]].sig[j].band);
+                slot = freq_num2freq_idx(clas_sys[i], fn);
+                if (slot >= 0 && slot <= 2 && slot + 1 > nf) {
+                    nf = slot + 1;
+                }
+            }
+        }
+        if (nf > 0 && !(flags & MRTK_OBSDEF_NF_SET) && opt->nf == nsig) {
+            opt->nf = nf < NFREQ ? nf : NFREQ;
+        }
+        clas_freq_pair(opt, 0, SYS_GPS, 10, "gps_frequency");
+        clas_freq_pair(opt, 3, SYS_QZS, 12, "qzs_frequency");
+    }
+    trace(NULL, 3, "mrtk_apply_obsdef: sigcfg=%d flags=%d clas=%d nf=%d posopt10=%d posopt12=%d\n", opt->sigcfg_set,
+          flags, clas, opt->nf, opt->posopt[10], opt->posopt[12]);
 }

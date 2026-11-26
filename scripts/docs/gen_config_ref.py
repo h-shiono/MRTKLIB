@@ -193,12 +193,18 @@ _OPTION_META: dict[str, tuple[str, str]] = {
         "PPP-RTK, VRS",
         "Disable phase bias adjustment. Used when phase bias is already applied by SSR corrections.",
     ),
-    "pos1-posopt11": ("PPP-RTK, VRS", "GPS frequency pair selection for CLAS processing."),
+    "pos1-posopt11": (
+        "PPP-RTK, VRS",
+        "GPS frequency pair selection for CLAS processing. `auto` (default): `l1+l5` when `signals` lists GPS L5 but not L2, `l1` when it lists L1 only, else the claslib default (L2).",
+    ),
     "pos1-posopt12": (
         "SSR2OSR",
         "Fixed output SNR (integer dB-Hz). 0 uses the elevation-dependent SNR model.",
     ),
-    "pos1-posopt13": ("PPP-RTK, VRS", "QZS frequency pair selection for CLAS processing."),
+    "pos1-posopt13": (
+        "PPP-RTK, VRS",
+        "QZS frequency pair selection for CLAS processing. `auto` (default): `l1+l5` when `signals` lists QZS L5 but not L2, `l1` when it lists L1 only, else the claslib default (L2).",
+    ),
     "pos1-tidecorr": (
         "PPP, PPP-RTK, VRS",
         "Tidal displacement correction. Option `solid+otl-clasgrid+pole` uses CLAS grid-based ocean tide loading.",
