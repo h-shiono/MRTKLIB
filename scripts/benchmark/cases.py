@@ -132,11 +132,11 @@ URBANNAV_CASES: list[dict] = [
 ]
 
 # ---------------------------------------------------------------------------
-# GICI open dataset, Shanghai (RTK only; held out, not used for tuning)
+# GICI open dataset, Shanghai (RTK only; validation and held out, not used for tuning)
 # ---------------------------------------------------------------------------
 # Built by prepare_gici.py from the hand-downloaded sequence zips.  The rover
 # is 10 Hz; the base is a 1 Hz Qianxun network VRS, so the baseline is short.
-# reference.csv already holds the antenna position (prepare_gici.LEVER_RFU).
+# reference.csv already holds the antenna position (header lever arm, #583).
 # (GPS week, first and last reference TOW; the reference is clipped to the
 # rover observations)
 _GICI_SEQUENCES = {
@@ -149,6 +149,14 @@ _GICI_SEQUENCES = {
     "5.2": (2263, 25485.1, 27172.0),
 }
 
+# Held-out sequences: run only for the release decision on a change of a
+# benchmark default (run_benchmark.py --held-out), never for choosing one.
+# The sequences above are the validation set: they were looked at while
+# evaluating #565.
+_GICI_HELD_OUT: dict[str, tuple[int, float, float]] = {
+    "5.1": (2263, 18853.1, 21223.0),
+}
+
 GICI_CASES: list[dict] = [
     {
         "id": f"gici_{seq}",
@@ -158,8 +166,10 @@ GICI_CASES: list[dict] = [
         "gps_week": week,
         "tow_start": t0,
         "tow_end": t1,
+        "held_out": held_out,
     }
-    for seq, (week, t0, t1) in _GICI_SEQUENCES.items()
+    for held_out, seqs in ((False, _GICI_SEQUENCES), (True, _GICI_HELD_OUT))
+    for seq, (week, t0, t1) in seqs.items()
 ]
 
 DATASETS = {"ppc": CASES, "urbannav": URBANNAV_CASES, "gici": GICI_CASES}

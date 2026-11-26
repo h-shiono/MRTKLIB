@@ -29,6 +29,7 @@ Usage
                                 default: all for ppc, rtk for urbannav / gici)
                                 single = SPP baseline (rover.obs + base.nav only)
     --case ID[,ID...]           Run subset (default: every case of the data set)
+    --held-out                  Run the held-out cases only (GICI); left out otherwise
     --rnx2rtkp PATH             rnx2rtkp binary path (default: auto-detect)
     --skip-download             Skip L6 download step
     --skip-epochs N             Epochs to skip for metrics (default: 60)
@@ -803,12 +804,15 @@ def _jsonable(v):
 
 
 def records_stem(args: argparse.Namespace) -> str:
-    """File-name stem of the run records: data set, mode, and ``subset`` for a ``--case`` run.
+    """File-name stem of the run records: data set, mode, ``heldout``, ``subset`` for ``--case``.
 
     A run of a different mode, or of a few cases, does not overwrite the
     records of a full run.
     """
-    return f"{args.dataset}_{args.mode}" + ("_subset" if args.case else "")
+    stem = f"{args.dataset}_{args.mode}"
+    if getattr(args, "held_out", False):
+        stem += "_heldout"
+    return stem + ("_subset" if args.case else "")
 
 
 def write_run_records(
@@ -901,6 +905,7 @@ def write_run_records(
         "options": {
             "mode": args.mode,
             "case": args.case,
+            "held_out": args.held_out,
             "force": args.force,
             "skip_epochs": args.skip_epochs,
             "dataset_dir": str(args.dataset_dir),
@@ -958,14 +963,22 @@ def run_benchmark(args: argparse.Namespace) -> int:
     print(f"Mode      : {args.mode}")
     print()
 
-    # Filter cases
-    cases = DATASETS[args.dataset]
+    # Filter cases.  Held-out cases run only with --held-out, and then alone.
+    cases = [c for c in DATASETS[args.dataset] if c.get("held_out", False) == args.held_out]
+    if args.held_out and not cases:
+        sys.exit(f"FAIL: --dataset {args.dataset} has no held-out case")
     if args.case:
         ids = list(dict.fromkeys(c.strip() for c in args.case.split(",") if c.strip()))
         try:
             cases = [case_by_id(cid, DATASETS[args.dataset]) for cid in ids]
         except KeyError as exc:
             sys.exit(f"FAIL: {exc}")
+        wrong = [c["id"] for c in cases if c.get("held_out", False) != args.held_out]
+        if wrong:
+            sys.exit(
+                f"FAIL: {', '.join(wrong)}: "
+                + ("not a held-out case" if args.held_out else "held-out case; pass --held-out")
+            )
 
     # Validate dataset presence (rover, nav and reference files)
     hint = {
@@ -1308,6 +1321,12 @@ def main() -> int:
         "single = SPP baseline, rover.obs + base.nav only)",
     )
     p.add_argument("--case", default="", help="Comma-separated case IDs (default: all)")
+    p.add_argument(
+        "--held-out",
+        action="store_true",
+        help="Run the held-out cases only (GICI); they are left out otherwise."
+        " For the release decision on a benchmark default, not for choosing one.",
+    )
     p.add_argument(
         "--rnx2rtkp", default="", help="Path to rnx2rtkp binary (default: auto-detect under build/)"
     )
