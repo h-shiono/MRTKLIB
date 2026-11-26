@@ -186,6 +186,9 @@ def case_helpers():
         conf.write_text('[files]\nreceiver_atx = "ant.atx"\nmissing = "none.atx"\nname = "rtk"\n')
         refs = _referenced_files(str(conf), root, {})
     stem = records_stem(type("A", (), {"dataset": "ppc", "mode": "rtk", "case": "x"})())
+    stem_ho = records_stem(
+        type("A", (), {"dataset": "gici", "mode": "rtk", "case": "", "held_out": True})()
+    )
     return [
         check("jsonable", js, {"a": None, "n": 3, "p": "x/y", "l": [1.0, None]}),
         check("jsonable rejects unknown types", raised, True),
@@ -196,6 +199,7 @@ def case_helpers():
         ),
         check("referenced sha256", len(refs[0]["sha256"]) if refs else 0, 64),
         check("records stem", stem, "ppc_rtk_subset"),
+        check("records stem, held out", stem_ho, "gici_rtk_heldout"),
     ]
 
 

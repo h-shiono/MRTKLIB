@@ -464,12 +464,19 @@ every solver scores near 0 % (`no-offset`).
 
 ---
 
-## GICI Shanghai (RTK, held out)
+## GICI Shanghai (RTK, validation and held out)
 
 A third RTK data set: the
 [GICI open dataset](https://github.com/chichengcn/gici-open-dataset)
-(Shanghai, 2023). It is held out: it checks RTK changes and configuration
-defaults that were developed on PPC and UrbanNav, and is not used to tune them.
+(Shanghai, 2023). It checks RTK changes and configuration defaults that were
+developed on PPC and UrbanNav, and is not used to tune them.
+
+- **Validation cases** (the table below): run with every `--dataset gici`. They
+  were looked at while evaluating #565, so they are no longer unseen data.
+- **Held-out cases**: frozen and left out of every normal run.
+  `run_benchmark.py --dataset gici --held-out` runs them alone, for the release
+  decision on a change of a benchmark default, and not while choosing one. A
+  held-out run can veto such a change; it cannot confirm one.
 
 | Item | Content |
 |------|---------|
@@ -488,23 +495,34 @@ defaults that were developed on PPC and UrbanNav, and is not used to tune them.
 | `gici_4.3` | dense urban | 2023-03-27 | 8 min |
 | `gici_5.2` | long-term, city centre | 2023-05-21 | 28 min |
 
+Held-out case:
+
+| Case | Scene | Date | Duration |
+|------|-------|------|---------:|
+| `gici_5.1` | long-term, city centre | 2023-05-21 | 40 min |
+
+5.1 drives 16.2 km, about as far as the seven validation cases together
+(17.4 km). It was frozen in #583 without being scored, and its results are not
+published here.
+
 The open-sky (1.x) and tree-lined (2.x) sequences are not included: they do
-not separate the configurations. Nor is the second long-term sequence 5.1
-(8.2 GB): 5.2, recorded the same day, already covers 5.5 of the 17.4 km
-driven in the seven cases.
+not separate the configurations.
 
 ### Getting the data
 
 The sequences are shared as one zip each on OneDrive / BaiduCloud (links in
-the GICI README) and must be downloaded by hand. A zip is 0.8–5.8 GB, almost
+the GICI README) and must be downloaded by hand. A zip is 0.8–8.8 GB, almost
 all camera images; the benchmark reads four files of 10–90 MB in total
 (`gnss_rover.bin`, `gnss_reference.bin`, `gnss_ephemeris.bin`,
 `ground_truth.txt`). `prepare_gici.py` reads them straight from the zip and
-writes `data/benchmark/gici/<sequence>/`:
+writes `data/benchmark/gici/<sequence>/`. With `--reference-only` it rewrites
+only `reference.csv`, from the zip's `ground_truth.txt` and the existing
+`rover.obs`:
 
 ```bash
-python scripts/benchmark/prepare_gici.py ~/Downloads/{3.1,3.2,3.3,4.1,4.2,4.3,5.2}.zip
+python scripts/benchmark/prepare_gici.py ~/Downloads/{3.1,3.2,3.3,4.1,4.2,4.3,5.1,5.2}.zip
 python scripts/benchmark/run_benchmark.py --dataset gici
+python scripts/benchmark/run_benchmark.py --dataset gici --held-out  # release decision only
 ```
 
 The GICI repository is GPL-3.0 and states no separate terms for the data.
@@ -513,19 +531,28 @@ MRTKLIB does not redistribute them.
 `prepare_gici.py` does four things besides the `mrtk convert` runs:
 
 - **Reference at the antenna.** `ground_truth.txt` is the IMU position. The
-  script adds the antenna offset `LEVER_RFU` = (right 0.362, forward 0.269,
-  up −0.060) m, turned by the reference heading, and writes the result as
-  `reference.csv` on the rover's 0.1 s grid. The offset was measured as the
-  mean of fixed RTK solutions minus ground truth in the vehicle frame:
-  (0.361, 0.274, −0.060) on 1.1 and (0.364, 0.259, −0.061) on 3.1 from
-  `rtk.toml` fixes, (0.361, 0.273, −0.060) on 5.2 from fixes of demo5's
-  `trimble_urban` settings. It agrees within about 1 cm with the lever arm in
-  the `ground_truth.txt` header (x = −0.356, y = 0.278, z = 0.049 m), which
-  is given in the IMU frame of the solution, rolled by 180° (left-forward-down);
-  only the heading is applied, which differs from the full attitude by 1.2 cm
-  on average. On 3.3, 4.1, 4.2 and 4.3, which were not used to measure it, the
-  median residual of `rtk.toml` fixes is at most 1.8 cm per axis. Without the
-  correction a correct fix is about 0.45 m off.
+  script reads the lever arm from the file's header, "IMU to GNSS Antenna
+  Lever Arms: x=−0.356, y=0.278, z=0.049 m (x-right, y-fwd, z-up)". It turns
+  that vector by the attitude of each epoch, using the Inertial Explorer
+  convention C = Rz(−heading) · Rx(pitch) · Ry(roll), adds it, and writes the
+  result as `reference.csv` on the rover's 0.1 s grid.
+  - The reported roll is about 181° in every sequence, so the turned offset is
+    (right 0.355, forward 0.277, up −0.061) m in the vehicle frame (3.1).
+  - The header's "Body to IMU Rotations: yRot=90" is not applied to the lever
+    arm. With it, the offset would be (−0.057, 0.273, −0.358) m, 0.3 m from
+    every fixed solution.
+  - Cross-check: the mean of fixed RTK solutions minus ground truth in the
+    vehicle frame is (0.361, 0.274, −0.060) on 1.1, (0.364, 0.259, −0.061) on
+    3.1 and (0.361, 0.273, −0.060) on 5.2. Until #583 the reference used their
+    mean, `LEVER_RFU` = (0.362, 0.269, −0.060), turned by the heading only.
+    That value was measured from the solutions the benchmark scores, so it is
+    no longer the default (`--lever-rfu` reproduces it).
+  - Sensitivity (develop e524ca2d, `rtk.toml`): moving from the measured
+    offset to the header lever arm changes no case score by more than 0.1 pt
+    (overall sum 25.7 → 25.6 %, mean 34.3 % unchanged). Correct-fix rates and
+    `misfix3d` are unchanged. The median residual of correct fixes stays
+    within 1.7 cm per axis on 3.1, 3.3 and 4.1–4.3 with either reference.
+  - Without any correction, a correct fix is about 0.45 m off.
 - **Reference span.** The ground truth runs on after the GNSS recordings of
   3.2 and 4.2 end (by 12 s and 35 s). The reference is clipped to the first
   and last rover epoch, so that no case scores data that do not exist.
@@ -554,23 +581,23 @@ The VRS base differs from PPC's real stations: the baseline is short and the
 base observations are generated by the network. A configuration that scores
 well here is not shown to work on a long baseline.
 
-### Results (develop b8f841ec)
+### Results (develop e524ca2d)
 
-`python scripts/benchmark/run_benchmark.py --dataset gici`, default preset
+`python scripts/benchmark/run_benchmark.py --dataset gici`, header lever arm, default preset
 build on macOS arm64 with Accelerate as BLAS / LAPACK (not a
 `MRTK_DETERMINISTIC_BLAS` build). A different BLAS / LAPACK backend can move
 marginal fix decisions (see the PPC results below).
 
 | Case | score | missing | misfix3d | longest |
 |------|------:|--------:|---------:|--------:|
-| gici_3.1 | 98.5 % | 0.2 % | 0.0 % | 0.0 s |
+| gici_3.1 | 98.4 % | 0.2 % | 0.0 % | 0.0 s |
 | gici_3.2 | 0.0 % | 2.7 % | 100.0 % | 5.4 s |
-| gici_3.3 | 61.6 % | 1.4 % | 17.3 % | 9.3 s |
+| gici_3.3 | 61.5 % | 1.4 % | 17.3 % | 9.3 s |
 | gici_4.1 | 32.6 % | 0.0 % | 9.4 % | 2.3 s |
 | gici_4.2 | 29.0 % | 2.4 % | 6.4 % | 0.8 s |
 | gici_4.3 | 18.3 % | 6.9 % | 27.5 % | 5.5 s |
 | gici_5.2 | 0.0 % | 0.0 % | 100.0 % | 0.6 s |
-| overall, sum | 25.7 % | | | |
+| overall, sum | 25.6 % | | | |
 | overall, mean | 34.3 % | | | |
 
 On 3.2 and 5.2 every `rtk.toml` fix is wrong. On 5.2 the whole solution is
@@ -578,8 +605,8 @@ off (median 3D error 64 m, against 9.5 m for SPP of the same rover); on 3.2
 fixed and float solutions share an offset of about (E −0.3, N +0.6, U +2.0) m.
 The inputs are not the cause on 5.2: `mrtk post` in DGPS mode on the same
 files (GPS L1 C/A and BeiDou B1I, 1 Hz) has a median horizontal error of
-0.49 m. Why `rtk.toml` fails is a question for
-#565; the benchmark only reports it.
+0.49 m. Why `rtk.toml` fails on 3.2 is followed in #586; the benchmark only
+reports it.
 
 ---
 
