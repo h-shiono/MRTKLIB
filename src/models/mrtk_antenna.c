@@ -64,6 +64,32 @@ static int decodef(char* p, int n, double* v) {
     }
     return i;
 }
+
+/* Sample NOAZI on the target grid through the last calibrated angle. */
+static int decodefn(char* p, int n, double* v, double start, double stride, double end) {
+    double samples[256], last;
+    int count;
+
+    p[strcspn(p, "\r\n")] = '\0';
+    count = decodef(p, sizeof(samples) / sizeof(samples[0]), samples);
+    if (count <= 0) {
+        memset(v, 0, n * sizeof(*v));
+        return 0;
+    }
+    last = fmin(end, count - 1);
+    for (int i = 0; i < n; i++) {
+        double index = start + i * stride;
+        double u = fmax(0.0, fmin(index, last));
+        int j = (int)u;
+        int next = (j + 1 < count) ? j + 1 : j;
+
+        v[i] = samples[j] + (u - j) * (samples[next] - samples[j]);
+        if (index >= last) {
+            return i + 1;
+        }
+    }
+    return n;
+}
 /* add antenna parameter -----------------------------------------------------*/
 static void addpcv(const pcv_t* pcv, pcvs_t* pcvs) {
     pcv_t* pcvs_pcv;
@@ -139,9 +165,9 @@ static int readantex(const char* file, pcvs_t* pcvs) {
     FILE* fp;
     static const pcv_t pcv0 = {0};
     pcv_t pcv;
-    double neu[3];
+    double neu[3], zen1 = 0.0, zen2 = 90.0, dzen = 5.0;
     int i, f, idx = -1, state = 0, sys;
-    char buff[256], s = 0;
+    char buff[512], s = 0;
 
     trace(NULL, 3, "readantex: file=%s\n", file);
 
@@ -156,6 +182,9 @@ static int readantex(const char* file, pcvs_t* pcvs) {
 
         if (strstr(buff + 60, "START OF ANTENNA")) {
             pcv = pcv0;
+            zen1 = 0.0;
+            zen2 = 90.0;
+            dzen = 5.0;
             state = 1;
         }
         if (strstr(buff + 60, "END OF ANTENNA")) {
@@ -173,7 +202,13 @@ static int readantex(const char* file, pcvs_t* pcvs) {
             pcv.code[20] = '\0';
             if (!strncmp(pcv.code + 3, "        ", 8)) {
                 pcv.sat = satid2no(pcv.code);
+                if (pcv.sat) {
+                    zen2 = 18.0;
+                    dzen = 1.0;
+                }
             }
+        } else if (strstr(buff + 60, "ZEN1 / ZEN2 / DZEN")) {
+            sscanf(buff, "%lf %lf %lf", &zen1, &zen2, &dzen);
         } else if (strstr(buff + 60, "VALID FROM")) {
             if (!str2time(buff, 0, 43, &pcv.ts)) {
                 continue;
@@ -214,7 +249,9 @@ static int readantex(const char* file, pcvs_t* pcvs) {
             if (idx < 0 || NFREQPCV <= idx) {
                 continue;
             }
-            if ((i = decodef(buff + 8, 19, pcv.var[idx])) <= 0) {
+            double step = pcv.sat ? 1.0 : 5.0;
+
+            if ((i = decodefn(buff + 8, 19, pcv.var[idx], -zen1 / dzen, step / dzen, (zen2 - zen1) / dzen)) <= 0) {
                 continue;
             }
             for (; i < 19; i++) {
