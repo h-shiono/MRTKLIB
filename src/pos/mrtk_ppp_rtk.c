@@ -1405,25 +1405,25 @@ static int filter2(rtk_t* rtk, double* x, double* P, const double* H, const doub
 
     info = filter2_(rtk, x_, P_, H_, v, R, k, m, xp_, Pp_, Qp_, vflg, flg);
 
-    /* scatter the compacted innovation covariance back into the full-nx Qp
-       store, so the adaptive process-noise update can index it by II_RTK(). */
-    if (adapt && prtk_ctx.Qp_nx != n) {
-        free(prtk_ctx.Qp);
-        prtk_ctx.Qp = zeros(n, n);
-        prtk_ctx.Qp_nx = n;
-    }
-
-    /* Only scatter on a successful update: filter2_() leaves Qp_ untouched
-       (and mat() does not zero it) when matinv() fails, so scattering it then
-       would seed the persistent Qp store with garbage. */
-    for (i = 0; i < k; i++) {
-        x[ix[i]] = xp_[i];
-        for (j = 0; j < k; j++) {
-            P[ix[i] + ix[j] * n] = Pp_[i + j * k];
+    /* Do not write back an incomplete update. */
+    if (!info) {
+        /* scatter the compacted innovation covariance back into the full-nx Qp
+           store, so the adaptive process-noise update can index it by II_RTK(). */
+        if (adapt && prtk_ctx.Qp_nx != n) {
+            free(prtk_ctx.Qp);
+            prtk_ctx.Qp = zeros(n, n);
+            prtk_ctx.Qp_nx = n;
         }
-        if (adapt && info == 0) {
+
+        for (i = 0; i < k; i++) {
+            x[ix[i]] = xp_[i];
             for (j = 0; j < k; j++) {
-                prtk_ctx.Qp[ix[i] + ix[j] * n] = Qp_[i + j * k];
+                P[ix[i] + ix[j] * n] = Pp_[i + j * k];
+            }
+            if (adapt) {
+                for (j = 0; j < k; j++) {
+                    prtk_ctx.Qp[ix[i] + ix[j] * n] = Qp_[i + j * k];
+                }
             }
         }
     }

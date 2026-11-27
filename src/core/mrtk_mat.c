@@ -496,8 +496,9 @@ extern int lsq(const double* A, const double* y, int n, int m, double* x, double
  *          int    n,m       I   number of states and measurements
  *          double *xp       O   states vector after update (n x 1)
  *          double *Pp       O   covariance matrix of states after update (n x n)
- * return : status (0:ok,<0:error)
- * notes  : matirix stored by column-major order (fortran convention)
+ * return : status (0:ok, nonzero:error)
+ * notes  : xp and Pp are valid posterior outputs only on success.
+ *          matirix stored by column-major order (fortran convention)
  *          if state x[i]==0.0, not updates state x[i]/P[i+i*n]
  *-----------------------------------------------------------------------------*/
 static int filter_(const double* x, const double* P, const double* H, const double* v, const double* R, int n, int m,
@@ -546,10 +547,13 @@ extern int filter(double* x, double* P, const double* H, const double* v, const 
         }
     }
     info = filter_(x_, P_, H_, v, R, k, m, xp_, Pp_);
-    for (i = 0; i < k; i++) {
-        x[ix[i]] = xp_[i];
-        for (j = 0; j < k; j++) {
-            P[ix[i] + ix[j] * n] = Pp_[i + j * k];
+    /* Commit both outputs only after filter_ succeeds. */
+    if (!info) {
+        for (i = 0; i < k; i++) {
+            x[ix[i]] = xp_[i];
+            for (j = 0; j < k; j++) {
+                P[ix[i] + ix[j] * n] = Pp_[i + j * k];
+            }
         }
     }
     free(ix);

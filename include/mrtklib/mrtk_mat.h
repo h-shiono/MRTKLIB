@@ -199,8 +199,9 @@ int lsq(const double* A, const double* y, int n, int m, double* x, double* Q);
  * @param[in]     R  Covariance matrix of measurement error (m x m)
  * @param[in]     n  Number of states
  * @param[in]     m  Number of measurements
- * @return Status (0:ok, <0:error)
- * @note Matrix stored by column-major order (Fortran convention).
+ * @return Status (0:ok, nonzero:error)
+ * @note On error, x and P are unchanged.
+ *       Matrix stored by column-major order (Fortran convention).
  *       If state x[i]==0.0, does not update state x[i]/P[i+i*n].
  */
 int filter(double* x, double* P, const double* H, const double* v, const double* R, int n, int m);

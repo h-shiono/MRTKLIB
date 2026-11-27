@@ -2118,17 +2118,22 @@ static int filter2(rtk_t* rtk, double* x, double* P, double* Q, const double* H,
         }
     }
     info = filter2_(rtk, x_, P_, H_, v, R, k, m, xp_, Pp_, Qp_, vflg, flg);
-    for (i = 0; i < k; i++) {
-        x[ix[i]] = xp_[i];
-        for (j = 0; j < k; j++) {
-            P[ix[i] + ix[j] * n] = Pp_[i + j * k];
-        }
-        if (flg == 0 && (rtk->opt.ionoopt == IONOOPT_EST_ADPT || rtk->opt.prnadpt)) {
+
+    /* Do not write back an incomplete update. */
+    if (!info) {
+        for (i = 0; i < k; i++) {
+            x[ix[i]] = xp_[i];
             for (j = 0; j < k; j++) {
-                Q[ix[i] + ix[j] * n] = Qp_[i + j * k];
+                P[ix[i] + ix[j] * n] = Pp_[i + j * k];
+            }
+            if (flg == 0 && (rtk->opt.ionoopt == IONOOPT_EST_ADPT || rtk->opt.prnadpt)) {
+                for (j = 0; j < k; j++) {
+                    Q[ix[i] + ix[j] * n] = Qp_[i + j * k];
+                }
             }
         }
     }
+
     free(ix);
     free(x_);
     free(xp_);

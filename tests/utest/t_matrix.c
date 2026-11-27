@@ -179,6 +179,30 @@ void utest6(void) {
     free(a);
     free(b);
 }
+/* Failed update must not scatter an uninitialized posterior covariance. */
+void utest7(void) {
+    const double x0[] = {2.0, 0.0}, P0[] = {4.0, 0.5, 0.5, 9.0};
+    const double H0[] = {0.0, 0.0}, H1[] = {1.0, 0.0}, v = 2.0, R0 = 0.0, R1 = 1.0;
+    double x[2], P[4];
+    int info;
+
+    memcpy(x, x0, sizeof x);
+    memcpy(P, P0, sizeof P);
+    info = filter(x, P, H0, &v, &R0, 2, 1);
+    assert(info != 0);
+    assert(memcmp(x, x0, sizeof x) == 0);
+    assert(memcmp(P, P0, sizeof P) == 0);
+
+    info = filter(x, P, H1, &v, &R1, 2, 1);
+    assert(info == 0);
+    assert(fabs(x[0] - 3.6) <= 1E-14);
+    assert(fabs(P[0] - 0.8) <= 1E-14);
+    assert(x[1] == x0[1]);
+    assert(P[1] == P0[1]);
+    assert(P[2] == P0[2]);
+    assert(P[3] == P0[3]);
+    printf("%s utest7 : OK\n", __FILE__);
+}
 int main(void) {
     utest1();
     utest2();
@@ -186,5 +210,6 @@ int main(void) {
     utest4();
     utest5();
     utest6();
+    utest7();
     return 0;
 }
