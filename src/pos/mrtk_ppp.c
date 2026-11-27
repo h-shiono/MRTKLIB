@@ -172,6 +172,8 @@ extern void tidedisp(gtime_t tutc, const double* rr, int opt, const erp_t* erp, 
 extern unsigned int tickget(void);
 extern char* code2obs(uint8_t code);
 extern int mcssr_sel_biascode(const int sys, const int code);
+extern void satantpco(gtime_t teph, const obsd_t* obs, const double* rs, const double* e, const nav_t* nav,
+                      double* dant);
 /* freq_idx2freq_num, freq_num2freq, freq_idx2ant_idx declared in mrtk_nav.h */
 extern int const_iono_corr(rtk_t* rtk, const obsd_t* obs, const nav_t* nav, const int n, const double* azel,
                            const int* exc, const double* rr, const double* x, double* v, double* H, double* var);
@@ -1508,9 +1510,16 @@ static int ppp_res(int post, const obsd_t* obs, int n, const double* rs, const d
             !model_iono(obs[i].time, pos, azel + i * 2, opt, sat, x, nav, &dion, &vari)) {
             continue;
         }
-        /* Satellite antenna phase center variation. */
+        /* Satellite antenna correction, in ANTEX frequency order. */
         if (opt->posopt[0]) {
-            satantpcv(rs + i * 6, rr, nav->pcvs + sat - 1, dants);
+            double dants_off[NFREQPCV] = {0}, dants_var[NFREQPCV] = {0};
+            if (opt->correction == CORR_IGS && opt->sateph == EPHOPT_PREC && opt->ionoopt == IONOOPT_EST) {
+                satantpco(obs[0].time, obs + i, rs + i * 6, e, nav, dants_off);
+            }
+            satantpcv(rs + i * 6, rr, nav->pcvs + sat - 1, dants_var);
+            for (k = 0; k < NFREQPCV; k++) {
+                dants[k] = dants_off[k] + dants_var[k];
+            }
         }
         /* receiver antenna model */
         antmodel(opt->pcvr, opt->antdel[0], azel + i * 2, opt->posopt[1], dantr);

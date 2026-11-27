@@ -25,9 +25,12 @@
 
 #include <math.h>
 
+#include "mrtklib/mrtk_astro.h"
 #include "mrtklib/mrtk_const.h"
 #include "mrtklib/mrtk_mat.h"
 #include "mrtklib/mrtk_nav.h"
+#include "mrtklib/mrtk_obs.h"
+#include "mrtklib/mrtk_time.h"
 #include "mrtklib/mrtk_trace.h"
 
 /*============================================================================
@@ -978,6 +981,82 @@ extern int satpos(gtime_t time, gtime_t teph, int sat, int ephopt, const nav_t* 
     }
     *svh = -1;
     return 0;
+}
+/* Project the signal PCO relative to the IF phase center already in rs.
+ * Reconstruct exactly the transmit epoch used by satposs(), and use the
+ * center-of-mass position and the same nominal axes as satantoff(). */
+extern void satantpco(gtime_t teph, const obsd_t* obs, const double* rs, const double* e, const nav_t* nav,
+                      double* dant) {
+    int sat = obs->sat, j, sys, a1, a2;
+    double pr = 0.0, dt, xyz[6], clk[2], sun[3], erpv[5] = {0}, r[3], ez[3], ey[3], ex[3], es[3];
+    double los[3], ref[3];
+    gtime_t tx;
+    const pcv_t* pcv;
+    if (sat <= 0 || sat > MAXSAT) {
+        return;
+    }
+    pcv = nav->pcvs + sat - 1;
+    sys = satsys_bd2(sat, NULL);
+    a1 = freq_idx2ant_idx(sys, 0);
+    a2 = freq_idx2ant_idx(sys, 1);
+    /* ANTEX currently has no per-slot presence flag. Do not guess a missing
+     * reference or frequency from a zero placeholder or a neighboring slot. */
+    if (pcv->sat != sat || a1 < 0 || a1 >= NFREQPCV - 1 || a2 < 0 || a2 >= NFREQPCV - 1 || a1 == a2 ||
+        !norm(pcv->off[a1], 3) || !norm(pcv->off[a2], 3)) {
+        trace(NULL, 3, "satantpco: missing reference ANTEX PCO sat=%d\n", sat);
+        return;
+    }
+    for (j = 0; j < NFREQ; j++) {
+        if ((pr = obs->P[j]) != 0.0) {
+            break;
+        }
+    }
+    if (j >= NFREQ || !isfinite(pr)) {
+        return;
+    }
+    tx = timeadd(obs->time, -pr / CLIGHT);
+    if (!ephclk(tx, teph, sat, nav, &dt) || !peph2pos(timeadd(tx, -dt), sat, nav, 0, xyz, clk, NULL)) {
+        trace(NULL, 3, "satantpco: cannot recover precise CoM sat=%d\n", sat);
+        return;
+    }
+    tx = timeadd(tx, -dt);
+    sunmoonpos(gpst2utc(tx), erpv, sun, NULL, NULL);
+    for (j = 0; j < 3; j++) {
+        r[j] = -xyz[j];
+        ref[j] = rs[j] - xyz[j];
+    }
+    if (!normv3(r, ez)) {
+        return;
+    }
+    for (j = 0; j < 3; j++) {
+        r[j] = sun[j] - xyz[j];
+    }
+    if (!normv3(r, es)) {
+        return;
+    }
+    cross3(ez, es, r);
+    if (!normv3(r, ey)) {
+        return;
+    }
+    cross3(ey, ez, ex);
+    los[0] = dot(e, ex, 3);
+    los[1] = dot(e, ey, 3);
+    los[2] = dot(e, ez, 3);
+    dt = dot(e, ref, 3);
+    for (j = 0; j < NFREQ; j++) {
+        const char* signal;
+        int slot;
+        if (!obs->code[j] || obs->P[j] == 0.0 || obs->L[j] == 0.0) {
+            continue;
+        }
+        signal = code2obs(obs->code[j]);
+        slot = freq_num2ant_idx(sys, signal[0] >= '1' && signal[0] <= '9' ? signal[0] - '0' : 0);
+        if (slot < 0 || slot >= NFREQPCV - 1 || slot != freq_idx2ant_idx(sys, j) || !norm(pcv->off[slot], 3)) {
+            trace(NULL, 3, "satantpco: missing or mismatched ANTEX PCO sat=%d signal=%s slot=%d\n", sat, signal, j);
+            continue;
+        }
+        dant[slot] = dot(los, pcv->off[slot], 3) - dt;
+    }
 }
 /* satellite positions and clocks ----------------------------------------------
  * compute satellite positions, velocities and clocks
