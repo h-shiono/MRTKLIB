@@ -309,7 +309,7 @@ set(_UTEST_DIR ${CMAKE_SOURCE_DIR}/tests/utest)
 set(_UTEST_SOURCES
     t_antenna t_atmos t_clas_route t_coord t_freqidx t_geoid t_gloeph t_ionex
     t_lambda t_matrix t_misc t_obsdef t_obsdef_clas t_ppp t_preceph
-    t_rinex t_rinex2_qzs t_rinex4 t_rinex_glo305 t_rinex_lli t_sigcfg_decode t_snrmask t_time t_toml
+    t_rinex t_rinex2_qzs t_rinex4 t_rinex_glo305 t_rinex_lli t_satantpco t_sigcfg_decode t_snrmask t_time t_toml
     # t_tle excluded: tle_pos() implementation not yet in library
 )
 foreach(test IN LISTS _UTEST_SOURCES)
@@ -2952,9 +2952,13 @@ set_tests_properties(igs_ppp_check PROPERTIES
 #                   dual-frequency AR cascade (no EWL ambiguity); accuracy only,
 #                   since 6 satellites are too few for reliable narrow-lane fix.
 #   igs_pppar_ge  : GPS+Galileo -- asserts a real integer-fix rate (Q=1).
+# The three GPS-only accuracy tests disable WL-only output for the sparse
+# Fujisawa geometry (#616). Keep igs_pppar_ge and the shipped configs unchanged.
+set(_IGS_GPS_NOFIX_WL ${CMAKE_SOURCE_DIR}/tests/cmake/igs_pppar_no_wl.toml)
 add_test(NAME igs_pppar_gps
     COMMAND $<TARGET_FILE:mrtk> post
         -k ${CMAKE_SOURCE_DIR}/conf/igs/rnx2rtkp_igspppar_gps.toml
+        -k ${_IGS_GPS_NOFIX_WL}
         -ts 2026/01/21 0:00:00 -te 2026/01/21 2:00:00
         -o ${CMAKE_BINARY_DIR}/out_igs_pppar_gps.pos
         ${_IGSDATA}/30340210.26o
@@ -3068,6 +3072,7 @@ set_tests_properties(igs_pppar_ge_tsonly_check PROPERTIES
 add_test(NAME igs_pppar_gps_recvbias
     COMMAND $<TARGET_FILE:mrtk> post
         -k ${CMAKE_SOURCE_DIR}/conf/igs/rnx2rtkp_igspppar_gps_recvbias.toml
+        -k ${_IGS_GPS_NOFIX_WL}
         -ts 2026/01/21 0:00:00 -te 2026/01/21 2:00:00
         -o ${CMAKE_BINARY_DIR}/out_igs_pppar_gps_recvbias.pos
         ${_IGSDATA}/30340210.26o
@@ -3105,6 +3110,7 @@ set_tests_properties(igs_pppar_gps_recvbias_check PROPERTIES
 add_test(NAME igs_pppar_gps_recvbias_unbias
     COMMAND $<TARGET_FILE:mrtk> post
         -k ${CMAKE_SOURCE_DIR}/conf/igs/rnx2rtkp_igspppar_gps_unbias.toml
+        -k ${_IGS_GPS_NOFIX_WL}
         -ts 2026/01/21 0:00:00 -te 2026/01/21 2:00:00
         -o ${CMAKE_BINARY_DIR}/out_igs_pppar_gps_unbias.pos
         ${_IGSDATA}/30340210.26o

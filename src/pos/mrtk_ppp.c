@@ -172,8 +172,7 @@ extern void tidedisp(gtime_t tutc, const double* rr, int opt, const erp_t* erp, 
 extern unsigned int tickget(void);
 extern char* code2obs(uint8_t code);
 extern int mcssr_sel_biascode(const int sys, const int code);
-extern void satantpco(gtime_t teph, const obsd_t* obs, const double* rs, const double* e, const nav_t* nav,
-                      double* dant);
+extern void satantpco(gtime_t teph, const obsd_t* obs, const double* rs, const nav_t* nav, double* dant);
 /* freq_idx2freq_num, freq_num2freq, freq_idx2ant_idx declared in mrtk_nav.h */
 extern int const_iono_corr(rtk_t* rtk, const obsd_t* obs, const nav_t* nav, const int n, const double* azel,
                            const int* exc, const double* rr, const double* x, double* v, double* H, double* var);
@@ -1465,8 +1464,8 @@ static int model_iono(gtime_t time, const double* pos, const double* azel, const
 }
 /* phase and code residuals --------------------------------------------------*/
 static int ppp_res(int post, const obsd_t* obs, int n, const double* rs, const double* dts, const double* var_rs,
-                   const int* svh, const double* dr, int* exc, const nav_t* nav, const double* x, const double* cov,
-                   rtk_t* rtk, double* v, double* H, double* R, double* azel, double* resrms) {
+                   const int* svh, const double* sat_pco, const double* dr, int* exc, const nav_t* nav, const double* x,
+                   const double* cov, rtk_t* rtk, double* v, double* H, double* R, double* azel, double* resrms) {
     prcopt_t* opt = &rtk->opt;
     double y, r, cdtr, bias, C = 0.0, rr[3], pos[3], e[3], dtdx[3] = {0.0}, L[NFREQ], P[NFREQ], Lc, Pc;
     double var[MAXOBS * 2 * NFREQ], dtrp = 0.0, dion = 0.0, vart = 0.0, vari = 0.0, freq, ifb, ifb_std, bias_std,
@@ -1513,8 +1512,10 @@ static int ppp_res(int post, const obsd_t* obs, int n, const double* rs, const d
         /* Satellite antenna correction, in ANTEX frequency order. */
         if (opt->posopt[0]) {
             double dants_off[NFREQPCV] = {0}, dants_var[NFREQPCV] = {0};
-            if (opt->correction == CORR_IGS && opt->sateph == EPHOPT_PREC && opt->ionoopt == IONOOPT_EST) {
-                satantpco(obs[0].time, obs + i, rs + i * 6, e, nav, dants_off);
+            if (sat_pco) {
+                for (k = 0; k < NFREQPCV; k++) {
+                    dants_off[k] = dot(e, sat_pco + 3 * (i * NFREQPCV + k), 3);
+                }
             }
             satantpcv(rs + i * 6, rr, nav->pcvs + sat - 1, dants_var);
             for (k = 0; k < NFREQPCV; k++) {
@@ -1825,6 +1826,7 @@ static int test_hold_amb(rtk_t* rtk) {
 extern void pppos(mrtk_ctx_t* ctx, rtk_t* rtk, const obsd_t* obs, int n, const nav_t* nav) {
     const prcopt_t* opt = &rtk->opt;
     double *rs, *dts, *var, *v, *H, *R, *azel, *xp, *Pp, dr[3] = {0}, std[3] = {0.0};
+    double* sat_pco = NULL;
     double resrms[2] = {0}, resrms_ar[2] = {0};
     char str[32];
     int i, j, nv, info, svh[MAXOBS], exc[MAXOBS] = {0}, stat = SOLQ_SINGLE, ret;
@@ -1853,6 +1855,16 @@ extern void pppos(mrtk_ctx_t* ctx, rtk_t* rtk, const obsd_t* obs, int n, const n
     if (rtk->opt.posopt[3]) {
         testeclipse(obs, n, nav, rs);
     }
+    /* Cache the ECEF offsets once; the receiver and LOS change in ppp_res(). */
+    if (opt->posopt[0] && opt->correction == CORR_IGS && opt->sateph == EPHOPT_PREC && opt->ionoopt == IONOOPT_EST) {
+        sat_pco = zeros(3 * NFREQPCV, n);
+        for (i = 0; i < n && i < MAXOBS; i++) {
+            int sat = obs[i].sat;
+            if (sat > 0 && sat <= MAXSAT && norm(rs + i * 6, 3) > 0.0 && !satexclude(sat, var[i], svh[i], opt)) {
+                satantpco(obs[0].time, obs + i, rs + i * 6, nav, sat_pco + 3 * i * NFREQPCV);
+            }
+        }
+    }
     /* earth tides correction */
     if (opt->tidecorr) {
         tidedisp(gpst2utc(obs[0].time), rtk->x, opt->tidecorr == 1 ? 1 : 7, &nav->erp, opt->odisp[0], dr);
@@ -1869,7 +1881,7 @@ extern void pppos(mrtk_ctx_t* ctx, rtk_t* rtk, const obsd_t* obs, int n, const n
         matcpy(Pp, rtk->P, rtk->nx, rtk->nx);
 
         /* prefit residuals */
-        if (!(nv = ppp_res(0, obs, n, rs, dts, var, svh, dr, exc, nav, xp, Pp, rtk, v, H, R, azel, resrms))) {
+        if (!(nv = ppp_res(0, obs, n, rs, dts, var, svh, sat_pco, dr, exc, nav, xp, Pp, rtk, v, H, R, azel, resrms))) {
             trace(NULL, 2, "%s ppp (%d) no valid obs data\n", str, i + 1);
             break;
         }
@@ -1879,7 +1891,7 @@ extern void pppos(mrtk_ctx_t* ctx, rtk_t* rtk, const obsd_t* obs, int n, const n
             break;
         }
         /* postfit residuals */
-        if (ppp_res(i + 1, obs, n, rs, dts, var, svh, dr, exc, nav, xp, Pp, rtk, v, H, R, azel, resrms)) {
+        if (ppp_res(i + 1, obs, n, rs, dts, var, svh, sat_pco, dr, exc, nav, xp, Pp, rtk, v, H, R, azel, resrms)) {
             matcpy(rtk->x, xp, rtk->nx, 1);
             matcpy(rtk->P, Pp, rtk->nx, rtk->nx);
             stat = SOLQ_PPP;
@@ -1892,7 +1904,7 @@ extern void pppos(mrtk_ctx_t* ctx, rtk_t* rtk, const obsd_t* obs, int n, const n
     if (stat == SOLQ_PPP) {
         /* ambiguity resolution in ppp */
         if ((ret = ppp_ar(ctx, rtk, obs, n, exc, nav, azel, xp, Pp)) &&
-            ppp_res(9, obs, n, rs, dts, var, svh, dr, exc, nav, xp, Pp, rtk, v, H, R, azel, resrms_ar)) {
+            ppp_res(9, obs, n, rs, dts, var, svh, sat_pco, dr, exc, nav, xp, Pp, rtk, v, H, R, azel, resrms_ar)) {
             matcpy(rtk->xa, xp, rtk->nx, 1);
             matcpy(rtk->Pa, Pp, rtk->nx, rtk->nx);
 
@@ -1923,6 +1935,7 @@ extern void pppos(mrtk_ctx_t* ctx, rtk_t* rtk, const obsd_t* obs, int n, const n
             trace(NULL, 3, "pppos(%4d): %s hold ambiguity nfix=%4d / %4d\n", __LINE__, str, rtk->nfix, rtk->opt.minfix);
         }
     }
+    free(sat_pco);
     free(rs);
     free(dts);
     free(var);

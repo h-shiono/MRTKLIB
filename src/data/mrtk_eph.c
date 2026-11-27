@@ -982,14 +982,13 @@ extern int satpos(gtime_t time, gtime_t teph, int sat, int ephopt, const nav_t* 
     *svh = -1;
     return 0;
 }
-/* Project the signal PCO relative to the IF phase center already in rs.
- * Reconstruct exactly the transmit epoch used by satposs(), and use the
- * center-of-mass position and the same nominal axes as satantoff(). */
-extern void satantpco(gtime_t teph, const obsd_t* obs, const double* rs, const double* e, const nav_t* nav,
-                      double* dant) {
-    int sat = obs->sat, j, sys, a1, a2;
+/* Cache ECEF signal PCOs relative to the IF phase center already in rs
+ * (three components per ANTEX slot; unused slots stay zero). Use the same
+ * transmit epoch as satposs() and the same nominal axes as satantoff(). */
+extern void satantpco(gtime_t teph, const obsd_t* obs, const double* rs, const nav_t* nav, double* dant) {
+    int sat = obs->sat, j, k, sys, a1, a2;
     double pr = 0.0, dt, xyz[6], clk[2], sun[3], erpv[5] = {0}, r[3], ez[3], ey[3], ex[3], es[3];
-    double los[3], ref[3];
+    double ref[3];
     gtime_t tx;
     const pcv_t* pcv;
     if (sat <= 0 || sat > MAXSAT) {
@@ -1039,10 +1038,6 @@ extern void satantpco(gtime_t teph, const obsd_t* obs, const double* rs, const d
         return;
     }
     cross3(ey, ez, ex);
-    los[0] = dot(e, ex, 3);
-    los[1] = dot(e, ey, 3);
-    los[2] = dot(e, ez, 3);
-    dt = dot(e, ref, 3);
     for (j = 0; j < NFREQ; j++) {
         const char* signal;
         int slot;
@@ -1052,10 +1047,13 @@ extern void satantpco(gtime_t teph, const obsd_t* obs, const double* rs, const d
         signal = code2obs(obs->code[j]);
         slot = freq_num2ant_idx(sys, signal[0] >= '1' && signal[0] <= '9' ? signal[0] - '0' : 0);
         if (slot < 0 || slot >= NFREQPCV - 1 || slot != freq_idx2ant_idx(sys, j) || !norm(pcv->off[slot], 3)) {
-            trace(NULL, 3, "satantpco: missing or mismatched ANTEX PCO sat=%d signal=%s slot=%d\n", sat, signal, j);
+            trace(NULL, 3, "satantpco: missing or mismatched ANTEX PCO sat=%d signal=%s slot=%d\n", sat, signal, slot);
             continue;
         }
-        dant[slot] = dot(los, pcv->off[slot], 3) - dt;
+        for (k = 0; k < 3; k++) {
+            dant[3 * slot + k] =
+                ex[k] * pcv->off[slot][0] + ey[k] * pcv->off[slot][1] + ez[k] * pcv->off[slot][2] - ref[k];
+        }
     }
 }
 /* satellite positions and clocks ----------------------------------------------
