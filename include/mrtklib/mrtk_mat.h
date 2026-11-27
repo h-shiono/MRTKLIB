@@ -190,7 +190,7 @@ int lsq(const double* A, const double* y, int n, int m, double* x, double* Q);
 /**
  * @brief Kalman filter state update.
  *
- * K=P*H*(H'*P*H+R)^-1, xp=x+K*v, Pp=(I-K*H')*P
+ * K=P*H*(H'*P*H+R)^-1, xp=x+K*v, Pp=A*P*A'+K*R*K' with A=I-K*H' (Joseph form)
  *
  * @param[in,out] x  States vector (n x 1)
  * @param[in,out] P  Covariance matrix of states (n x n)

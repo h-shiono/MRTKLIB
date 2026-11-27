@@ -203,6 +203,18 @@ void utest7(void) {
     assert(P[3] == P0[3]);
     printf("%s utest7 : OK\n", __FILE__);
 }
+/* Near-noiseless measurement: (I-K*H')*P rounds the variance to 0, Joseph keeps R. */
+void utest8(void) {
+    double x = 1.0, P = 1.0;
+    const double H = 1.0, v = 0.0, R = 1E-20;
+    int info;
+
+    info = filter(&x, &P, &H, &v, &R, 1, 1);
+    assert(info == 0);
+    assert(x == 1.0);
+    assert(fabs(P - R) <= 1E-6 * R);
+    printf("%s utest8 : OK\n", __FILE__);
+}
 int main(void) {
     utest1();
     utest2();
@@ -211,5 +223,6 @@ int main(void) {
     utest5();
     utest6();
     utest7();
+    utest8();
     return 0;
 }
