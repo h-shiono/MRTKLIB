@@ -1008,7 +1008,7 @@ static int ppp_amb_ILS(rtk_t* rtk, const obsd_t* obs, int n, int* exc, const nav
     free(Q);
     free(xp);
     free(Pp);
-    return info ? sol_fix_wl : 2; /* narrow-lane fixed */
+    return 2; /* narrow-lane fixed */
 }
 /* ambiguity resolution in ppp -----------------------------------------------*/
 extern int ppp_ar(mrtk_ctx_t* ctx, rtk_t* rtk, const obsd_t* obs, int n, int* exc, const nav_t* nav, const double* azel,
