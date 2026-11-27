@@ -546,10 +546,13 @@ extern int filter(double* x, double* P, const double* H, const double* v, const 
         }
     }
     info = filter_(x_, P_, H_, v, R, k, m, xp_, Pp_);
-    for (i = 0; i < k; i++) {
-        x[ix[i]] = xp_[i];
-        for (j = 0; j < k; j++) {
-            P[ix[i] + ix[j] * n] = Pp_[i + j * k];
+    /* Commit both outputs only after filter_ succeeds. */
+    if (!info) {
+        for (i = 0; i < k; i++) {
+            x[ix[i]] = xp_[i];
+            for (j = 0; j < k; j++) {
+                P[ix[i] + ix[j] * n] = Pp_[i + j * k];
+            }
         }
     }
     free(ix);

@@ -968,6 +968,17 @@ static int ppp_amb_ILS(rtk_t* rtk, const obsd_t* obs, int n, int* exc, const nav
     }
     info = update_states(x, P, D, rtk->nx, N, a, na, sat1s, frqs, STEP_NL);
     rtk->sol.age = (float)i;
+    if (info) {
+        for (i = 0; i < na; i++) {
+            rtk->ssat[sat1s[i] - 1].fix[0] = rtk->ssat[sat2s[i] - 1].fix[0] = 0;
+        }
+        trace(NULL, 1, "ppp_amb_ILS(%4d): %s narrow-lane update failed (info=%d)\n", __LINE__, tstr, info);
+        free(D);
+        free(Q);
+        free(xp);
+        free(Pp);
+        return sol_fix_wl; /* x/P still contain the accepted wide-lane solution */
+    }
 
     /* test by standard deviation of position */
     for (i = 0; i < 3; i++) {
