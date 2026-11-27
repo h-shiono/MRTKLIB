@@ -1053,7 +1053,7 @@ extern void satposs(gtime_t teph, const obsd_t* obs, int n, const nav_t* nav, in
                 continue;
             }
             dts[1 + i * 2] = 0.0;
-            *var = SQR(STD_BRDCCLK);
+            var[i] = SQR(STD_BRDCCLK);
         }
     }
     for (i = 0; i < n && i < 2 * MAXOBS; i++) {
