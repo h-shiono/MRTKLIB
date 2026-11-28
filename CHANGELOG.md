@@ -105,6 +105,54 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   PPP-B2b; a restart back into HAS starts clean. Replay of has-v1, `gal-has`
   → `load` MADOCA → `restart`: HAS MT1 decodes after the restart 274 → 0.
 
+- **PPP: satellite antenna phase-center variation applied again**
+  ([#601](https://github.com/h-shiono/MRTKLIB/pull/601), contributed by
+  @thetengda). `satantpcv()` returned before computing anything, a
+  `disable for madoca-ppp` stub inherited from MADOCALIB, so
+  `satellite_antenna = true` applied no satellite PCV in any PPP mode. It is
+  applied now, on the SSR / APC paths as well: outputs change for
+  configurations with the option on (the bundled IGS, MALIB and PPC MADOCA
+  benchmark configurations). ANTEX `NOAZI` rows are now resampled with the
+  file's `ZEN1 / ZEN2 / DZEN` instead of an assumed 0–90° (receiver) /
+  0–18° (satellite) grid, lines up to 2048 bytes are read and longer ones
+  skipped, and an invalid `DZEN` drops the row. New ANTEX grid case in
+  `utest_t_antenna`.
+
+- **PPP: per-frequency satellite PCO in uncombined IGS PPP**
+  ([#613](https://github.com/h-shiono/MRTKLIB/pull/613), contributed by
+  @thetengda). The precise satellite position refers to the
+  ionosphere-free antenna phase center, and the uncombined model used it for
+  every signal. With `correction = "igs"`, precise ephemerides and estimated
+  ionosphere, each signal now gets the line-of-sight projection of its own
+  ANTEX PCO relative to that center (new `satantpco()`; computed once per
+  epoch). The difference is large for GPS Block IIIA (L1 / L2 z-offsets about
+  0.5 m apart in IGS20), Galileo and BeiDou. 24 h GEC replay of 200
+  station-days (20 IGS stations, 2026 DOY 123–132, WUM rapid products), PPP-AR
+  medians: 3D RMS after 2 h 3.49 → 2.32 cm, convergence 11.5 → 5.75 min,
+  fixed epochs 77.74 → 99.44 %; fixed epochs more than 10 cm off the
+  reference 5033 → 1954. Float PPP 4.05 → 3.94 cm. Other correction sources
+  are unchanged.
+
+- **PPP-AR: a failed Kalman update no longer writes back an undefined state**
+  ([#612](https://github.com/h-shiono/MRTKLIB/pull/612), contributed by
+  @thetengda; [#602](https://github.com/h-shiono/MRTKLIB/issues/602)). When
+  the innovation covariance could not be inverted, `filter()` copied an
+  uninitialized posterior covariance back to the caller, and the PPP-AR
+  narrow-lane step did not check the result: a NaN covariance passed the
+  position-std test and the fix was accepted. `filter()` and the CLAS / VRS
+  `filter2()` copies now leave `x` and `P` unchanged on failure, and the
+  narrow-lane step falls back to the wide-lane or float solution. Successful
+  updates are bit-identical. New `utest7` in `utest_t_matrix`.
+
+- **`satposs()`: broadcast-clock fallback variance on the right satellite**
+  ([#614](https://github.com/h-shiono/MRTKLIB/pull/614), contributed by
+  @thetengda). When a precise clock was missing and the broadcast clock was
+  used instead, the fallback variance was written to the first observation
+  (`var[0]`) instead of the satellite's own entry, so one satellite was
+  down-weighted by mistake and the fallback one kept its precise-clock
+  weight. Fujisawa 3034 float PPP with one satellite's SP3 clock removed:
+  3D RMS 7.43 → 5.69 cm; unchanged when no clock is missing.
+
 ### Documentation
 
 - Hardware guide `docs/hardware/clas-ma10p.md`: bundled configurations
@@ -159,6 +207,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   inspection. Directories left by earlier runs in an existing build tree are
   not removed: `rm -rf build/claslib_l6_null_drop/l6null_*` once (those under
   `build/l6extract_names/` go with the next run).
+
+- **The three GPS-only IGS PPP-AR accuracy tests run with `-AR_NOFIX_WL`**
+  ([#613](https://github.com/h-shiono/MRTKLIB/pull/613),
+  [#616](https://github.com/h-shiono/MRTKLIB/issues/616)). With the
+  per-frequency PCO, `igs_pppar_gps`, `_recvbias` and `_recvbias_unbias`
+  accept wide-lane integers earlier on the sparse Fujisawa geometry, and a
+  wide-lane-only epoch outputs the wide-lane-constrained position under the
+  float label: the 3D P95 rose from 13.50 to 21.19 cm against the 15 cm gate,
+  while narrow-lane fixes went from 0 to 43.6 % of epochs. The three tests now
+  layer `tests/cmake/igs_pppar_no_wl.toml` (P95 13.44 / 13.52 / 13.52 cm). The
+  tolerance is unchanged; `igs_pppar_ge` and the shipped configurations keep
+  the wide-lane-only output, which #616 investigates. New
+  `utest_t_satantpco`.
 
 ## [v0.7.18] - 2026-11-20
 
