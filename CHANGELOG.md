@@ -48,6 +48,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - In the PPC (CLAS / MADOCA float PPP / RTK), UrbanNav and GICI benchmarks,
     the only change is one PPC CLAS case at −0.05 pt fix rate. These
     benchmarks do not exercise PPP-AR.
+  - In a 24-hour GEC IGS float PPP / PPP-AR replay of 200 station-days
+    (20 IGS stations, 2026 DOY 123–132; data and configurations from the
+    contributor), the medians are unchanged: 3D RMS after 2 h 3.49 cm, fixed
+    epochs 77.74 %, convergence 11.5 min (PPP-AR). The fixed / float status
+    changes on 7 station-days, the largest by +4.3 pt fix rate and −0.44 cm
+    RMS on one of them.
   - CLAS PPP-RTK and VRS-RTK go through `filter()` only in their hold step, so
     their post-processed output moves by at most 1 mm; their float update
     (`filter2_()`) is unchanged.
