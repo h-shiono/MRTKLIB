@@ -486,7 +486,10 @@ extern int lsq(const double* A, const double* y, int n, int m, double* x, double
 /* kalman filter ---------------------------------------------------------------
  * kalman filter state update as follows:
  *
- *   K=P*H*(H'*P*H+R)^-1, xp=x+K*v, Pp=(I-K*H')*P
+ *   K=P*H*(H'*P*H+R)^-1, xp=x+K*v, Pp=A*P*A'+K*R*K' with A=I-K*H'
+ *
+ *   Joseph form: (I-K*H')*P loses positive definiteness in the many-state
+ *   uncombined PPP-AR filter (#602).
  *
  * args   : double *x        I   states vector (n x 1)
  *          double *P        I   covariance matrix of states (n x n)
@@ -503,7 +506,7 @@ extern int lsq(const double* A, const double* y, int n, int m, double* x, double
  *-----------------------------------------------------------------------------*/
 static int filter_(const double* x, const double* P, const double* H, const double* v, const double* R, int n, int m,
                    double* xp, double* Pp) {
-    double *F = mat(n, m), *Q = mat(m, m), *K = mat(n, m), *I = eye(n);
+    double *F = mat(n, m), *Q = mat(m, m), *K = mat(n, m), *A = eye(n), *AP = mat(n, n);
     int info;
 
     matcpy(Q, R, m, m);
@@ -513,13 +516,17 @@ static int filter_(const double* x, const double* P, const double* H, const doub
     if (!(info = matinv(Q, m))) {
         matmul("NN", n, m, m, 1.0, F, Q, 0.0, K);  /* K=P*H*Q^-1 */
         matmul("NN", n, 1, m, 1.0, K, v, 1.0, xp); /* xp=x+K*v */
-        matmul("NT", n, n, m, -1.0, K, H, 1.0, I); /* Pp=(I-K*H')*P */
-        matmul("NN", n, n, n, 1.0, I, P, 0.0, Pp);
+        matmul("NT", n, n, m, -1.0, K, H, 1.0, A); /* A=I-K*H' */
+        matmul("NN", n, n, n, 1.0, A, P, 0.0, AP);
+        matmul("NT", n, n, n, 1.0, AP, A, 0.0, Pp);
+        matmul("NN", n, m, m, 1.0, K, R, 0.0, F);
+        matmul("NT", n, n, m, 1.0, F, K, 1.0, Pp); /* Pp=A*P*A'+K*R*K' */
     }
     free(F);
     free(Q);
     free(K);
-    free(I);
+    free(A);
+    free(AP);
     return info;
 }
 extern int filter(double* x, double* P, const double* H, const double* v, const double* R, int n, int m) {

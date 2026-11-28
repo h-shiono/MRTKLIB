@@ -23,6 +23,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   MA-10P: observations and ephemerides from its RTCM3 port, CLAS from its L6
   port. New `STRFMT_DGS`, `dgs_decode_l6()` and `input_dgs()`.
 
+### Changed
+
+- **Kalman covariance update in Joseph form**
+  ([#602](https://github.com/h-shiono/MRTKLIB/issues/602)). The shared
+  `filter()` now computes `Pp = A*P*A' + K*R*K'` with `A = I - K*H'`, in
+  place of `(I - K*H')*P`.
+
+  The simple form lost positive definiteness in the many-state uncombined
+  PPP-AR filter. In the MADOCA PPP-AR / PPP-AR-iono / MDC-005 PPP-AR and IGS
+  PPP-AR regressions (OpenBLAS), the minimum eigenvalue of the
+  correlation-scaled covariance was negative (−4e-3 to −2.5e-2) after 57–98 %
+  of the updates, from the first five epochs on. With the Joseph form it stays
+  positive (≥ 2e-8) there. Float PPP, RTK and the hold steps stayed positive
+  definite with the simple form as well, in every regression test and
+  benchmark.
+
+  Positioning is essentially unchanged:
+  - In the regression suite, the fix counts are identical. Post-processed
+    positions move by ≤ 0.1 cm with the internal LU and by < 1 cm with
+    OpenBLAS. Every regression gate stays within its tolerance; none was
+    changed. The real-time replays vary between runs of the same binary, so
+    they were not used for this comparison.
+  - In the PPC (CLAS / MADOCA float PPP / RTK), UrbanNav and GICI benchmarks,
+    the only change is one PPC CLAS case at −0.05 pt fix rate. These
+    benchmarks do not exercise PPP-AR.
+  - In a 24-hour GEC IGS float PPP / PPP-AR replay of 200 station-days
+    (20 IGS stations, 2026 DOY 123–132; data and configurations from the
+    contributor), the medians are unchanged: 3D RMS after 2 h 3.49 cm, fixed
+    epochs 77.74 %, convergence 11.5 min (PPP-AR). The fixed / float status
+    changes on 7 station-days, the largest by +4.3 pt fix rate and −0.44 cm
+    RMS on one of them.
+  - CLAS PPP-RTK and VRS-RTK go through `filter()` only in their hold step, so
+    their post-processed output moves by at most 1 mm; their float update
+    (`filter2_()`) is unchanged.
+
+  The update costs one more n×n×n product. `mrtk post` wall time was +0–19 %
+  with single-threaded OpenBLAS (the default Accelerate backend was not
+  timed), and +18–56 % with the internal LU fallback (no LAPACK).
+  Contributed by TengdaHuang.
+
 ### Fixed
 
 - **CLAS: one observation-slot layout for `mrtk run` and `mrtk post`**
