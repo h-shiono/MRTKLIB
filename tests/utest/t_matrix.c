@@ -215,6 +215,30 @@ void utest8(void) {
     assert(fabs(P - R) <= 1E-6 * R);
     printf("%s utest8 : OK\n", __FILE__);
 }
+/* Correlated P, non-diagonal R, 3 active states + 1 inactive (x=0), m=2.
+ * Expected values from exact rational arithmetic of P-P*H*(H'*P*H+R)^-1*H'*P. */
+void utest9(void) {
+    double x[] = {1.0, -2.0, 3.0, 0.0};
+    double P[] = {4.0, 1.0, 0.5, 0.3, 1.0, 9.0, -2.0, 0.2, 0.5, -2.0, 16.0, -0.1, 0.3, 0.2, -0.1, 2.0};
+    const double H[] = {1.0, 2.0, -1.0, 0.5, 0.0, -1.0, 3.0, -1.0};
+    const double v[] = {0.5, -0.75}, R[] = {0.25, 0.1, 0.1, 0.5};
+    const double xs[] = {1.0253301979166991, -1.8656594166632992, 2.7949907937287524};
+    const double Ps[] = {2.8685378659065406,   -1.6720619457197832, -0.53454760787190592,
+                         -1.6720619457197832,  1.1055576451425393,  0.4070487813217864,
+                         -0.53454760787190592, 0.4070487813217864,  0.20347361887798504};
+    double P0[16];
+    int i, j;
+
+    memcpy(P0, P, sizeof P);
+    assert(filter(x, P, H, v, R, 4, 2) == 0);
+    for (i = 0; i < 3; i++) {
+        assert(fabs(x[i] - xs[i]) < 1E-12);
+        for (j = 0; j < 3; j++) assert(fabs(P[i + j * 4] - Ps[i + j * 3]) < 1E-12);
+    }
+    assert(x[3] == 0.0);
+    for (i = 0; i < 4; i++) assert(P[i + 3 * 4] == P0[i + 3 * 4] && P[3 + i * 4] == P0[3 + i * 4]);
+    printf("%s utest9 : OK\n", __FILE__);
+}
 int main(void) {
     utest1();
     utest2();
@@ -224,5 +248,6 @@ int main(void) {
     utest6();
     utest7();
     utest8();
+    utest9();
     return 0;
 }
